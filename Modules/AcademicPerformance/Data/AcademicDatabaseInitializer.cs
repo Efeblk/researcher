@@ -32,6 +32,10 @@ public sealed class AcademicDatabaseInitializer
             StringComparison.OrdinalIgnoreCase))
         {
             await AddSqliteColumnIfMissingAsync("OpenAlexProfiles", "LastUpdatedAt");
+            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "SourceId");
+            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "SourceName");
+            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "SourceType");
+            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "SourceUrl");
             await AddSqliteColumnIfMissingAsync("GoogleScholarProfiles", "LastUpdatedAt");
             await AddSqliteColumnIfMissingAsync(
                 "GoogleScholarProfiles",
@@ -55,6 +59,10 @@ public sealed class AcademicDatabaseInitializer
             StringComparison.OrdinalIgnoreCase))
         {
             await AddSqlServerColumnIfMissingAsync("OpenAlexProfiles", "LastUpdatedAt");
+            await AddSqlServerTextColumnIfMissingAsync("OpenAlexWorks", "SourceId", 100);
+            await AddSqlServerTextColumnIfMissingAsync("OpenAlexWorks", "SourceName", 2000);
+            await AddSqlServerTextColumnIfMissingAsync("OpenAlexWorks", "SourceType", 100);
+            await AddSqlServerTextColumnIfMissingAsync("OpenAlexWorks", "SourceUrl", 2000);
             await AddSqlServerColumnIfMissingAsync("GoogleScholarProfiles", "LastUpdatedAt");
             await AddSqlServerIntegerColumnIfMissingAsync(
                 "GoogleScholarProfiles",
@@ -137,6 +145,21 @@ public sealed class AcademicDatabaseInitializer
         sql =
             $"IF COL_LENGTH('{tableName}', '{columnName}') IS NULL " +
             $"ALTER TABLE [{tableName}] ADD [{columnName}] int NULL;";
+
+        await _dbContext.Database.ExecuteSqlRawAsync(sql);
+    }
+
+    private async Task AddSqlServerTextColumnIfMissingAsync(
+        string tableName,
+        string columnName,
+        int maximumLength)
+    {
+        string? sql = null;
+
+        sql =
+            $"IF COL_LENGTH('{tableName}', '{columnName}') IS NULL " +
+            $"ALTER TABLE [{tableName}] " +
+            $"ADD [{columnName}] nvarchar({maximumLength}) NULL;";
 
         await _dbContext.Database.ExecuteSqlRawAsync(sql);
     }

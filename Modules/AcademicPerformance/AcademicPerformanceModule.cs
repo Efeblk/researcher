@@ -1,4 +1,3 @@
-using AcademicCollectorDemo.Modules.AcademicPerformance.Console;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
@@ -22,8 +21,6 @@ public static class AcademicPerformanceModule
         services.AddSingleton(CreateHttpClient());
 
         services.AddSingleton<ResearcherIdentifierParser>();
-        services.AddSingleton<ResearcherConsolePresenter>();
-
         services.AddTransient<OpenAlexClient>();
         services.AddTransient<GoogleScholarClient>();
         services.AddTransient<ScopusClient>();
@@ -33,9 +30,9 @@ public static class AcademicPerformanceModule
         services.AddScoped<AcademicDatabaseInitializer>();
         services.AddScoped<ResearcherRepository>();
         services.AddScoped<ResearcherCollectionService>();
-        services.AddScoped<ResearcherEndpoint>();
+        services.AddScoped<ResearcherCollectionHandler>();
         services.AddScoped<DatabaseMaintenance>();
-        services.AddScoped<AcademicPerformanceConsoleHost>();
+        services.AddSingleton<ResearcherSummaryFactory>();
 
         return services;
     }

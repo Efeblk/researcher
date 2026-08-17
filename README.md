@@ -3,29 +3,28 @@
 Bu proje, bir akademisyene ait kimlikleri kullanarak akademik verileri farklı
 kaynaklardan toplar ve veritabanına kaydeder.
 
-Proje, okulun Serenity uygulamasına daha sonra modül olarak eklenebilmesi için
-Serenity'nin modül, endpoint, service, repository ve dependency injection
-yaklaşımına göre düzenlenmiştir. Şimdilik konsol uygulaması olarak çalışır ve
-yerel geliştirmede SQLite kullanır; henüz Serenity web paketleri ve arayüzü
-eklenmemiştir.
+Proje, .NET 10 üzerinde Serenity LTS `10.3.5` kullanan bir HTTP servisidir.
+Yerel geliştirmede SQLite kullanır; üniversitenin sistemine geçildiğinde SQL
+Server kullanılabilir. Şimdilik bir web arayüzü yoktur. İstekler Serenity
+`ServiceEndpoint` adreslerine JSON olarak gönderilir.
 
 ## Uygulama akışı
 
 ```text
 Program
-  -> AcademicPerformanceConsoleHost
-  -> ResearcherEndpoint
+  -> Serenity ResearcherEndpoint
+  -> ResearcherCollectionHandler
   -> ResearcherCollectionService
   -> OpenAlex / Google Scholar / Scopus / Web of Science istemcileri
   -> ResearcherRepository
   -> SQLite veya SQL Server
 ```
 
-- `Program`, dependency injection sistemini kurar ve geçici konsol hostunu
-  çalıştırır.
-- `ResearcherEndpoint`, isteği alır ve bütün işlemi koordine eder. Okulun
-  Serenity projesine geçildiğinde gerçek bir Serenity `ServiceEndpoint` sınıfına
-  dönüştürülecektir.
+- `Program`, ASP.NET Core web sunucusunu ve Serenity endpoint kurallarını başlatır.
+- `ResearcherEndpoint`, `ServiceEndpoint` sınıfından türeyen gerçek HTTP giriş
+  noktasıdır.
+- `ResearcherCollectionHandler`, endpoint'ten gelen isteğin veri toplama ve
+  kaydetme akışını koordine eder.
 - `ResearcherCollectionService`, dış veri kaynaklarını birbirinden bağımsız
   sorgulayan iş katmanıdır.
 - `ResearcherRepository`, akademisyen verilerinin kaydedilmesinden sorumludur.
@@ -72,12 +71,15 @@ Researcher API için ücretli Clarivate lisansı, YÖKSİS için ise YÖK taraf�
 
 - ORCID, OpenAlex'te akademisyeni bulmak için kullanılır; akademisyen ve yayın
   bilgileri OpenAlex API üzerinden alınır. OpenAlex'in `next_cursor` değeri
-  izlenerek akademisyenin bütün yayın sayfaları çekilir.
+  izlenerek akademisyenin bütün yayın sayfaları çekilir. Her çalışma için
+  yayımlandığı kaynağın adı, kaynak türü, OpenAlex kaynak kimliği ve bağlantısı
+  da veritabanında saklanır.
 - Google Scholar ID ile profil ve yayın bilgileri SerpAPI üzerinden alınır.
   SerpAPI, Google'ın resmî API'si değildir; Google Scholar sayfalarını scrape
   ederek yapılandırılmış JSON üretir. Bütün yayınlar sayfalama ile çekilir;
   her 100 yayın için ayrı bir SerpAPI sorgusu kullanılır ve bu sorgular bireysel
-  hesabın kotasından düşebilir.
+  hesabın kotasından düşebilir. Google Scholar'ın çalışma başına verdiği dergi,
+  konferans veya kitap bilgisi `Publication` alanında saklanır.
 - Scopus Author ID ile profil ve metrik bilgileri resmî Elsevier Scopus Author
   Retrieval API üzerinden alınır.
 - ResearcherID için Clarivate Web of Science Researcher API istemcisi hazırdır.
@@ -166,9 +168,10 @@ Varsayılan sağlayıcı SQLite'tır. Ayarlar `appsettings.json` dosyasındadır
 Program ilk çalıştığında proje klasöründe `academic.db` dosyasını ve gerekli
 tabloları otomatik olarak oluşturur. Bu dosya Git deposuna eklenmez.
 
-Migration kullanmadığımız bu geliştirme aşamasında modele yeni bir tablo veya
-alan eklendiğinde eski SQLite şeması otomatik güncellenmez. Böyle bir değişiklikten
-sonra `dotnet run -- --clear-db` komutu bir kez çalıştırılmalıdır.
+Migration kullanmadığımız bu geliştirme aşamasında bilinen yeni sütunlar
+`AcademicDatabaseInitializer` tarafından veri silinmeden eklenir. Daha kapsamlı
+şema değişikliklerinde veritabanı yeniden oluşturulmalı veya migration
+hazırlanmalıdır.
 
 OpenAlex, Google Scholar, Scopus ve Web of Science verilerinin her birinin kendi
 `LastUpdatedAt` değeri vardır. Aynı kimlik tekrar verildiğinde ilgili sağlayıcının
@@ -178,8 +181,7 @@ sağlayıcı yeniden sorgulanır. Süre `ProviderCache:MaxAgeHours` ayarından
 değiştirilebilir.
 
 Bu dört `LastUpdatedAt` sütunu eski SQLite ve SQL Server veritabanlarına veri
-silinmeden otomatik olarak eklenir. Daha kapsamlı model değişikliklerinde, migration
-kullanılana kadar yukarıdaki `--clear-db` açıklaması geçerlidir.
+silinmeden otomatik olarak eklenir.
 
 ### SQL Server'a geçmek
 
@@ -204,86 +206,172 @@ dotnet user-secrets remove "ConnectionStrings:AcademicDatabase"
 
 ## Çalıştırma
 
-Argüman verilmeden çalıştırıldığında test ORCID ve Google Scholar ID değerleri
-kullanılır:
+Birinci terminalde proje klasörüne girip sunucuyu başlatın:
 
 ```shell
-dotnet run
+make run
 ```
 
-Kimlikler türleri biçimlerinden otomatik olarak anlaşıldığı için başlarına
-`--orcid`, `--scholar`, `--scopus` veya `--wos` yazılması gerekmez. Tek bir
-kimlik verilebilir:
+Sunucu varsayılan olarak aşağıdaki adreste çalışır:
+
+```text
+http://localhost:5000
+```
+
+`dotnet run` komutu da `make run` ile aynı işi yapar. Sunucu çalışırken birinci
+terminal açık bırakılmalıdır.
+
+## Sunucuya istek gönderme
+
+İstekler ikinci bir terminalden gönderilir. Önce sunucunun çalıştığını kontrol
+edin:
 
 ```shell
-dotnet run -- 0000-0003-2812-9917
-dotnet run -- dYpPMQEAAAAJ
-dotnet run -- 56962745700
-dotnet run -- A-1009-2008
+make health
 ```
 
-Birden fazla kimlik herhangi bir sırayla birlikte verilebilir:
+Aynı kontrol doğrudan `curl` ile de yapılabilir:
 
 ```shell
-dotnet run -- 56962745700 dYpPMQEAAAAJ 0000-0003-2812-9917
+curl --silent --show-error http://localhost:5000/
 ```
 
-Program aşağıdaki biçimleri kullanarak kimlik türünü belirler:
+Başarılı cevap:
+
+```json
+{
+  "application": "AcademicCollectorDemo",
+  "status": "Running"
+}
+```
+
+### Akademisyen verisi toplama
+
+Serenity endpoint adresi:
+
+```text
+POST /Services/AcademicPerformance/Researcher/Collect
+```
+
+Örnek istek:
+
+```http
+POST http://localhost:5000/Services/AcademicPerformance/Researcher/Collect
+Content-Type: application/json
+
+{
+  "Identifiers": [
+    "0000-0003-2812-9917",
+    "tQgMPzcAAAAJ"
+  ],
+  "UseTestIdentifiers": false
+}
+```
+
+Tek bir kimliği Makefile ile göndermek için:
+
+```shell
+make collect ID=tQgMPzcAAAAJ
+```
+
+Aynı isteğin `curl` karşılığı:
+
+```shell
+curl --silent --show-error \
+  --request POST \
+  --header "Content-Type: application/json" \
+  --data '{"Identifiers":["tQgMPzcAAAAJ"],"UseTestIdentifiers":false}' \
+  http://localhost:5000/Services/AcademicPerformance/Researcher/Collect
+```
+
+Birden fazla kimlik gönderilecekse JSON içindeki `Identifiers` listesine
+eklenir:
+
+```shell
+curl --silent --show-error \
+  --request POST \
+  --header "Content-Type: application/json" \
+  --data '{"Identifiers":["0000-0003-2812-9917","tQgMPzcAAAAJ"],"UseTestIdentifiers":false}' \
+  http://localhost:5000/Services/AcademicPerformance/Researcher/Collect
+```
+
+Kimliklerin türleri biçimlerinden otomatik olarak belirlenir:
 
 - `0000-0000-0000-000X` biçimi: ORCID
 - Yalnızca rakamlardan oluşan değer: Scopus Author ID
 - 12 karakterlik harf, rakam, `_` veya `-` içeren değer: Google Scholar ID
 - `A-1009-2008` benzeri değer: Web of Science ResearcherID
 
-Eski, isimlendirilmiş argüman biçimleri de geriye dönük uyumluluk için çalışmaya
-devam eder. Aynı türden iki kimlik verilirse program hangisini kullanacağını
-tahmin etmek yerine hata gösterir.
-
-Program API verilerini topladıktan sonra seçilen veritabanına kaydeder. Aynı
+Endpoint API verilerini topladıktan sonra seçilen veritabanına kaydeder. Aynı
 akademisyen tekrar sorgulanırsa yeni bir akademisyen kaydı açmak yerine mevcut
 kayıt kullanılır. İlgili sağlayıcının kayıtlı verisi 24 saatten eskiyse API'den
 yenilenir; güncelse API kotası harcanmaz.
 
-## Veritabanı komutları
+### Rastgele akademisyen özeti
 
-Tablolardaki kayıt sayılarını görmek için:
+```http
+POST http://localhost:5000/Services/AcademicPerformance/Researcher/Random
+Content-Type: application/json
 
-```shell
-dotnet run -- --db-info
+{}
 ```
 
-Veritabanındaki akademisyenlerden birini rastgele seçip kayıtlı bilgilerini
-görmek için:
+Makefile ile:
 
 ```shell
-dotnet run -- -db--random
+make random
 ```
 
-Daha standart yazımdaki `dotnet run -- --db-random` komutu da aynı işlemi
-yapar. Bu özet görünüm yayınları tek tek yazmaz. OpenAlex ve Google Scholar yayın
-sayılarını; Google Scholar için toplam atıf, h-index ve i10-index değerlerini;
-varsa Scopus ve Web of Science metriklerini gösterir. Veritabanında hiç
-akademisyen yoksa bilgilendirme mesajı gösterilir.
-
-Yerel SQLite veritabanındaki bütün verileri temizlemek için:
+Doğrudan `curl` ile:
 
 ```shell
-dotnet run -- --clear-db
+curl --silent --show-error \
+  --request POST \
+  --header "Content-Type: application/json" \
+  --data '{}' \
+  http://localhost:5000/Services/AcademicPerformance/Researcher/Random
 ```
 
-`--clear-db`, mevcut SQLite dosyasını sıfırlar ve boş tabloları yeniden
-oluşturur. Güvenlik nedeniyle SQL Server seçiliyken çalışmaz.
+Bu cevap yayınları tek tek döndürmez. OpenAlex ve Google Scholar yayın sayılarını,
+Google Scholar için toplam atıf, h-index ve i10-index değerlerini, varsa Scopus
+ve Web of Science metriklerini içeren kısa bir JSON özeti döndürür.
+
+Hazır HTTP istekleri `Requests/AcademicPerformance.http` dosyasındadır. VS Code,
+Visual Studio veya JetBrains HTTP Client ile çalıştırılabilir.
+
+Sık kullanılan işlemler için proje kökünde bir `Makefile` da vardır:
+
+```shell
+make help
+make run
+make clean
+make health
+make collect ID=tQgMPzcAAAAJ
+make random
+```
+
+`make health`, `make collect` ve `make random` çalıştırılmadan önce sunucu ayrı
+bir terminalde `make run` ile başlatılmalıdır. Varsayılan adres
+`http://localhost:5000` değeridir. Başka bir adres için örneğin
+`make health HOST=http://localhost:5078` kullanılabilir.
+
+`make clean`, proje kökündeki `academic.db` SQLite veritabanını ve ona ait WAL
+dosyalarını siler. Sunucu çalışıyorsa güvenlik amacıyla silme işlemi durdurulur.
+Program sonraki açılışında boş veritabanını yeniden oluşturur.
+
+Endpoint'ler şu anda yalnızca yerel geliştirme için yetkilendirmesizdir ve
+`launchSettings.json` localhost adresini kullanır. Üniversitenin Serenity
+uygulamasına alınırken endpoint'e kurumun `ServiceAuthorize` izin anahtarı
+eklenmelidir.
 
 ## Klasör yapısı
 
 ```text
-Initialization/
-  ApplicationConfiguration.cs          Uygulama ayarlarını yükler
-
 Modules/AcademicPerformance/
   AcademicPerformanceModule.cs         Dependency injection kayıtları
-  Console/                              Geçici konsol hostu ve çıktı sınıfları
   Data/                                 EF Core, SQLite ve SQL Server altyapısı
+  Endpoints/
+    ResearcherEndpoint.cs               Serenity HTTP ServiceEndpoint sınıfı
   Integrations/
     OpenAlex/                           OpenAlex istemcisi ve veri modelleri
     GoogleScholar/                      SerpAPI istemcisi ve veri modelleri
@@ -293,10 +381,14 @@ Modules/AcademicPerformance/
     Researcher.cs                       Ana akademisyen modeli
     ResearcherCollectRequest.cs         Endpoint istek modeli
     ResearcherCollectResponse.cs        Endpoint cevap modeli
-    ResearcherEndpoint.cs               İşlemi koordine eden giriş noktası
+    ResearcherCollectionHandler.cs      İsteğin iş akışını koordine eder
     ResearcherCollectionService.cs      Veri toplama iş mantığı
     ResearcherIdentifierParser.cs       Kimlik türlerini belirler
     ResearcherRepository.cs             Veritabanı işlemleri
+    ResearcherSummaryFactory.cs         Rastgele kayıt özetini hazırlar
 
-Program.cs                              Uygulamanın başlangıç noktası
+Properties/launchSettings.json          Yerel HTTP adresi
+Requests/AcademicPerformance.http       Hazır HTTP istekleri
+Makefile                                Kısa geliştirme ve HTTP komutları
+Program.cs                              Web uygulamasının başlangıç noktası
 ```

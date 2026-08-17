@@ -91,6 +91,10 @@ public sealed class AcademicDbContext : DbContext
             entity.Property(work => work.Title).HasMaxLength(2000);
             entity.Property(work => work.Doi).HasMaxLength(500);
             entity.Property(work => work.Type).HasMaxLength(100);
+            entity.Property(work => work.SourceId).HasMaxLength(100);
+            entity.Property(work => work.SourceName).HasMaxLength(2000);
+            entity.Property(work => work.SourceType).HasMaxLength(100);
+            entity.Property(work => work.SourceUrl).HasMaxLength(2000);
         });
 
         modelBuilder.Entity<GoogleScholarData>(entity =>

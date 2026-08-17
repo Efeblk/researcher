@@ -3,7 +3,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
 
-public sealed class ResearcherEndpoint
+public sealed class ResearcherCollectionHandler
 {
     private readonly ResearcherIdentifierParser _identifierParser;
     private readonly ResearcherCollectionService _collectionService;
@@ -11,7 +11,7 @@ public sealed class ResearcherEndpoint
     private readonly AcademicDatabaseInitializer _databaseInitializer;
     private readonly IConfiguration _configuration;
 
-    public ResearcherEndpoint(
+    public ResearcherCollectionHandler(
         ResearcherIdentifierParser identifierParser,
         ResearcherCollectionService collectionService,
         ResearcherRepository researcherRepository,

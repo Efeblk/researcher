@@ -1,6 +1,8 @@
+using Serenity.Services;
+
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
 
-public sealed class ResearcherCollectResponse
+public sealed class ResearcherCollectResponse : ServiceResponse
 {
     public Researcher? Researcher { get; set; } = null;
     public string? DatabaseProvider { get; set; } = null;

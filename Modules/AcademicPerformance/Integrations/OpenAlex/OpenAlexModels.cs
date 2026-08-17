@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
 
@@ -55,6 +56,43 @@ public sealed class OpenAlexWork
 
     [JsonPropertyName("cited_by_count")]
     public int? CitedByCount { get; set; } = null;
+
+    [JsonIgnore]
+    public string? SourceId { get; set; } = null;
+
+    [JsonIgnore]
+    public string? SourceName { get; set; } = null;
+
+    [JsonIgnore]
+    public string? SourceType { get; set; } = null;
+
+    [JsonIgnore]
+    public string? SourceUrl { get; set; } = null;
+
+    [NotMapped]
+    [JsonPropertyName("primary_location")]
+    public OpenAlexLocation? PrimaryLocation { get; set; } = null;
+}
+
+public sealed class OpenAlexLocation
+{
+    [JsonPropertyName("landing_page_url")]
+    public string? LandingPageUrl { get; set; } = null;
+
+    [JsonPropertyName("source")]
+    public OpenAlexSource? Source { get; set; } = null;
+}
+
+public sealed class OpenAlexSource
+{
+    [JsonPropertyName("id")]
+    public string? Id { get; set; } = null;
+
+    [JsonPropertyName("display_name")]
+    public string? DisplayName { get; set; } = null;
+
+    [JsonPropertyName("type")]
+    public string? Type { get; set; } = null;
 }
 
 internal sealed class OpenAlexWorksResponse

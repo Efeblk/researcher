@@ -62,6 +62,8 @@ public sealed class OpenAlexClient
         OpenAlexWorksResponse? response = null;
         List<OpenAlexWork>? works = null;
         List<OpenAlexWork>? pageWorks = null;
+        OpenAlexWork? work = null;
+        int index = 0;
 
         if (string.IsNullOrWhiteSpace(authorUrl))
         {
@@ -70,7 +72,8 @@ public sealed class OpenAlexClient
 
         authorId = authorUrl.Split('/').Last();
         filter = Uri.EscapeDataString($"author.id:{authorId}");
-        select = Uri.EscapeDataString("title,publication_year,doi,type,cited_by_count");
+        select = Uri.EscapeDataString(
+            "title,publication_year,doi,type,cited_by_count,primary_location");
         cursor = "*";
         works = [];
 
@@ -90,6 +93,15 @@ public sealed class OpenAlexClient
             if (pageWorks.Count == 0)
             {
                 break;
+            }
+
+            for (index = 0; index < pageWorks.Count; index++)
+            {
+                work = pageWorks[index];
+                work.SourceId = work.PrimaryLocation?.Source?.Id;
+                work.SourceName = work.PrimaryLocation?.Source?.DisplayName;
+                work.SourceType = work.PrimaryLocation?.Source?.Type;
+                work.SourceUrl = work.PrimaryLocation?.LandingPageUrl;
             }
 
             works.AddRange(pageWorks);
