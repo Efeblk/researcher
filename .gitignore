@@ -1,0 +1,5 @@
+bin/
+obj/
+academic.db
+academic.db-shm
+academic.db-wal

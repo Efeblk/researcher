@@ -22,26 +22,32 @@ public sealed class OpenAlexClient
         _httpClient = httpClient;
     }
 
-    public async Task<OpenAlexAuthor> GetAuthorAsync(string? orcid)
+    public async Task FillResearcherAsync(Researcher researcher, int workCount)
     {
         string? orcidUrl = null;
         string? url = null;
-        OpenAlexAuthor? author = null;
+        OpenAlexData? openAlexData = null;
 
-        if (string.IsNullOrWhiteSpace(orcid) || !OrcidPattern.IsMatch(orcid))
+        if (string.IsNullOrWhiteSpace(researcher.Orcid) || !OrcidPattern.IsMatch(researcher.Orcid))
         {
             throw new ArgumentException("Numara 0000-0000-0000-000X biçiminde olmalı.");
         }
  
-        orcidUrl = Uri.EscapeDataString($"https://orcid.org/{orcid}");
+        orcidUrl = Uri.EscapeDataString($"https://orcid.org/{researcher.Orcid}");
         url = $"{BaseUrl}/authors/{orcidUrl}";
 
-        author = await _httpClient.GetFromJsonAsync<OpenAlexAuthor>(url, JsonOptions);
+        openAlexData = await _httpClient.GetFromJsonAsync<OpenAlexData>(url, JsonOptions);
 
-        return author ?? throw new InvalidOperationException("Akademisyen kaydı boş döndü.");
+        if (openAlexData is null)
+        {
+            throw new InvalidOperationException("Akademisyen kaydı boş döndü.");
+        }
+
+        openAlexData.Works = await GetLatestWorksAsync(openAlexData.AuthorId, workCount);
+        researcher.OpenAlex = openAlexData;
     }
 
-    public async Task<List<OpenAlexWork>> GetLatestWorksAsync(string? authorUrl, int count)
+    private async Task<List<OpenAlexWork>> GetLatestWorksAsync(string? authorUrl, int count)
     {
         string? authorId = null;
         string? filter = null;

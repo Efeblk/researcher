@@ -12,6 +12,8 @@ public sealed class Researcher
     public string? ScopusAuthorId { get; set; } = null;
     public string? Orcid { get; set; } = null;
     public string? GoogleScholarId { get; set; } = null;
+    public DateTime? LastUpdatedAt { get; set; } = null;
 
-    public string? OpenAlexAuthorId { get; set; } = null;
+    public OpenAlexData? OpenAlex { get; set; } = null;
+    public GoogleScholarData? GoogleScholar { get; set; } = null;
 }
