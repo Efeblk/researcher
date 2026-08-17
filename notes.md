@@ -69,3 +69,119 @@ yazılır.
 Şema geliştirme aşamasında olduğu için şimdilik migration kullanılmamaktadır.
 Tablolar Entity Framework Core `EnsureCreated` yöntemiyle oluşturulur. Veritabanı
 şeması kesinleştiğinde SQL Server migration'ları yeniden üretilecektir.
+
+## Scopus veri erişimi
+
+Scopus verileri için Elsevier'ın resmî Scopus Author Retrieval API'si
+kullanılacaktır.
+
+Scopus Author ID ile profil sorgulanan endpoint:
+
+```text
+https://api.elsevier.com/content/author/author_id/SCOPUS_AUTHOR_ID
+```
+
+API anahtarı isteğin `X-ELS-APIKey` başlığında gönderilir ve kaynak kodda
+tutulmaz. Yerel geliştirmede User Secrets kullanılır:
+
+```shell
+dotnet user-secrets set "Elsevier:ApiKey" "GERCEK_ELSEVIER_API_ANAHTARI"
+```
+
+İlk aşamada ad, kurum, yayın sayısı, atıf sayıları ve varsa H-index alınır.
+Scopus yayın listesi ayrı bir resmî Scopus Search API çağrısıyla daha sonra
+eklenecektir. Tam veri erişimi üniversitenin Scopus aboneliğine bağlı olabilir.
+
+Resmî dokümantasyon:
+https://dev.elsevier.com/documentation/AuthorRetrievalAPI.wadl
+
+## Web of Science veri erişimi
+
+Web of Science ResearcherID verileri için Clarivate'ın resmî Web of Science
+Researcher API'si kullanılacaktır.
+
+ResearcherID ile profil sorgulanan endpoint:
+
+```text
+https://api.clarivate.com/apis/wos-researcher/researchers/RESEARCHER_ID
+```
+
+API anahtarı isteğin `X-ApiKey` başlığında gönderilir. Yerel geliştirmede User
+Secrets kullanılır:
+
+```shell
+dotnet user-secrets set "Clarivate:ApiKey" "GERCEK_CLARIVATE_API_ANAHTARI"
+```
+
+İlk aşamada ad, kurum, profil sahipliği, yayın sayısı, atıf metrikleri ve H-index
+alınır. Yayın listesi `/researchers/{rid}/documents` endpoint'iyle daha sonra
+eklenebilir.
+
+Bu API, normal Web of Science aboneliğine ek olarak ücretli API lisansı
+gerektirir. Üniversiteden API erişimi ve anahtar istenmelidir.
+
+Bu nedenle Web of Science entegrasyonu şimdilik atlanmıştır. Üniversite resmî
+API lisansı sağlarsa mevcut kod yeniden etkinleştirilebilir.
+
+Resmî dokümantasyon:
+https://developer.clarivate.com/apis/wos-researcher
+
+## YÖKSİS veri erişimi
+
+YÖK'ün resmî kaynakları, Akademik Özgeçmiş sisteminin YÖKSİS ile entegre
+olduğunu ve üniversite bilgi sistemlerinin kullanabildiği web servislerinin
+bulunduğunu belirtiyor. Buna karşılık akademisyen verilerini dışarıdan
+sorgulamak için herkese açık bir endpoint, geliştirici dokümanı veya API anahtarı
+başvuru yöntemi yayımlanmamıştır.
+
+YÖK Akademik'in herkese açık arama sayfası bir web arayüzüdür. Projede yalnızca
+resmî API'lerle ilerleme kararı alındığı için bu sayfa scrape edilmeyecektir.
+
+YÖKSİS istemcisini doğru biçimde yazabilmek için üniversiteden şunlar
+istenmelidir:
+
+- Servis adresi ile WSDL veya OpenAPI dokümanı
+- Yetkilendirme yöntemi ve test ortamı bilgileri
+- Test kullanıcı bilgisi, sertifika veya API anahtarı
+- Akademisyeni sorgularken kullanılacak kimlik türü
+- Dönen alanların veri sözleşmesi ve kullanım izinleri
+
+Bu bilgiler gelene kadar YÖKSİS entegrasyonu beklemeye alınmıştır; tahminî bir
+endpoint veya veri modeli oluşturulmayacaktır.
+
+Resmî kaynaklar:
+
+- https://akademik.yok.gov.tr/AkademikArama/index.jsp
+- https://eski.yok.gov.tr/Documents/Kurumsal/strateji_dairesi/faaliyet_raporlari/2024-idare-faaliyet-raporu.pdf
+
+## ResearchGate veri erişimi
+
+ResearchGate'in akademisyen profillerini veya yayınlarını sorgulamak için
+herkese açık, belgelenmiş resmî bir API'si bulunmamaktadır.
+
+Ayrıca ResearchGate kullanım şartlarının 4.2 bölümünde yazılım, script, robot,
+crawler veya benzeri otomatik yöntemlerle içerik, veri ve profil erişimi,
+scraping ya da kopyalama yasaklanmıştır. Bu nedenle resmî API kullanma
+kararımızın yanında kullanım şartları açısından da scraper yazılmayacaktır.
+
+ResearchGate entegrasyonu şimdilik atlanmıştır. İleride ResearchGate resmî bir
+API yayımlarsa yeniden değerlendirilebilir.
+
+Resmî kaynak:
+https://www.researchgate.net/terms-of-service
+
+## Academia.edu veri erişimi
+
+Academia.edu'nun akademisyen profillerini veya yayınlarını sorgulamak için
+herkese açık, belgelenmiş resmî bir geliştirici API'si bulunmamaktadır.
+
+Academia.edu kullanım şartlarının "General Prohibitions" bölümünde profillerin
+ve diğer kişilere ait bilgilerin scraping yoluyla kopyalanması yasaklanmıştır.
+Aynı bölüm bot, crawler ve benzeri otomatik yöntemlerle erişimi ve Academia.edu
+tarafından açıkça sunulan arayüzler dışından servise erişmeyi de yasaklıyor.
+
+Bu nedenle Academia.edu için istemci veya scraper yazılmayacaktır. Platform
+ileride resmî ve izinli bir API yayımlarsa entegrasyon yeniden değerlendirilebilir.
+
+Resmî kaynak:
+https://www.academia.edu/terms

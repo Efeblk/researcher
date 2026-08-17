@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Configuration;
 
+namespace AcademicCollectorDemo.Initialization;
+
 public static class ApplicationConfiguration
 {
     public static IConfigurationRoot Create()

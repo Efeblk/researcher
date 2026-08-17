@@ -1,3 +1,10 @@
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
+
+namespace AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
+
 public sealed class Researcher
 {
     public int Id { get; set; }
@@ -16,4 +23,6 @@ public sealed class Researcher
 
     public OpenAlexData? OpenAlex { get; set; } = null;
     public GoogleScholarData? GoogleScholar { get; set; } = null;
+    public ScopusData? Scopus { get; set; } = null;
+    public WebOfScienceData? WebOfScience { get; set; } = null;
 }

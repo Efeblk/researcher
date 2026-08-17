@@ -1,4 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
+
+namespace AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 
 public sealed class AcademicDbContext : DbContext
 {
@@ -8,6 +15,8 @@ public sealed class AcademicDbContext : DbContext
     public DbSet<GoogleScholarData> GoogleScholarProfiles { get; set; } = null!;
     public DbSet<GoogleScholarWork> GoogleScholarWorks { get; set; } = null!;
     public DbSet<GoogleScholarInterest> GoogleScholarInterests { get; set; } = null!;
+    public DbSet<ScopusData> ScopusProfiles { get; set; } = null!;
+    public DbSet<WebOfScienceData> WebOfScienceProfiles { get; set; } = null!;
 
     public AcademicDbContext(DbContextOptions<AcademicDbContext> options)
         : base(options)
@@ -33,6 +42,14 @@ public sealed class AcademicDbContext : DbContext
                 .IsUnique()
                 .HasFilter("[GoogleScholarId] IS NOT NULL");
 
+            entity.HasIndex(researcher => researcher.ScopusAuthorId)
+                .IsUnique()
+                .HasFilter("[ScopusAuthorId] IS NOT NULL");
+
+            entity.HasIndex(researcher => researcher.WebOfScienceResearcherId)
+                .IsUnique()
+                .HasFilter("[WebOfScienceResearcherId] IS NOT NULL");
+
             entity.HasOne(researcher => researcher.OpenAlex)
                 .WithOne(openAlex => openAlex.Researcher)
                 .HasForeignKey<OpenAlexData>(openAlex => openAlex.ResearcherId)
@@ -41,6 +58,16 @@ public sealed class AcademicDbContext : DbContext
             entity.HasOne(researcher => researcher.GoogleScholar)
                 .WithOne(googleScholar => googleScholar.Researcher)
                 .HasForeignKey<GoogleScholarData>(googleScholar => googleScholar.ResearcherId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(researcher => researcher.Scopus)
+                .WithOne(scopus => scopus.Researcher)
+                .HasForeignKey<ScopusData>(scopus => scopus.ResearcherId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(researcher => researcher.WebOfScience)
+                .WithOne(webOfScience => webOfScience.Researcher)
+                .HasForeignKey<WebOfScienceData>(webOfScience => webOfScience.ResearcherId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -103,6 +130,31 @@ public sealed class AcademicDbContext : DbContext
             entity.ToTable("GoogleScholarInterests");
             entity.HasKey(interest => interest.Id);
             entity.Property(interest => interest.Title).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<ScopusData>(entity =>
+        {
+            entity.ToTable("ScopusProfiles");
+            entity.HasKey(scopus => scopus.Id);
+            entity.Property(scopus => scopus.AuthorId).HasMaxLength(100);
+            entity.Property(scopus => scopus.GivenName).HasMaxLength(500);
+            entity.Property(scopus => scopus.Surname).HasMaxLength(500);
+            entity.Property(scopus => scopus.AffiliationName).HasMaxLength(2000);
+            entity.Property(scopus => scopus.AffiliationCity).HasMaxLength(500);
+            entity.Property(scopus => scopus.AffiliationCountry).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<WebOfScienceData>(entity =>
+        {
+            entity.ToTable("WebOfScienceProfiles");
+            entity.HasKey(webOfScience => webOfScience.Id);
+            entity.Property(webOfScience => webOfScience.Rid).HasMaxLength(100);
+            entity.Property(webOfScience => webOfScience.FullName).HasMaxLength(500);
+            entity.Property(webOfScience => webOfScience.FirstName).HasMaxLength(500);
+            entity.Property(webOfScience => webOfScience.LastName).HasMaxLength(500);
+            entity.Property(webOfScience => webOfScience.PrimaryAffiliation).HasMaxLength(2000);
+            entity.Property(webOfScience => webOfScience.Address).HasMaxLength(2000);
+            entity.Property(webOfScience => webOfScience.Country).HasMaxLength(500);
         });
     }
 }

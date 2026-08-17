@@ -1,10 +1,14 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
+
+namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 
 public sealed class OpenAlexClient
 {
     private const string BaseUrl = "https://api.openalex.org";
+    private const int PageSize = 100;
 
     private static readonly Regex OrcidPattern = new(
         @"^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$",
@@ -22,7 +26,7 @@ public sealed class OpenAlexClient
         _httpClient = httpClient;
     }
 
-    public async Task FillResearcherAsync(Researcher researcher, int workCount)
+    public async Task FillResearcherAsync(Researcher researcher)
     {
         string? orcidUrl = null;
         string? url = null;
@@ -43,17 +47,21 @@ public sealed class OpenAlexClient
             throw new InvalidOperationException("Akademisyen kaydı boş döndü.");
         }
 
-        openAlexData.Works = await GetLatestWorksAsync(openAlexData.AuthorId, workCount);
+        openAlexData.Works = await GetAllWorksAsync(openAlexData.AuthorId);
         researcher.OpenAlex = openAlexData;
     }
 
-    private async Task<List<OpenAlexWork>> GetLatestWorksAsync(string? authorUrl, int count)
+    private async Task<List<OpenAlexWork>> GetAllWorksAsync(string? authorUrl)
     {
         string? authorId = null;
         string? filter = null;
         string? select = null;
+        string? cursor = null;
+        string? encodedCursor = null;
         string? url = null;
         OpenAlexWorksResponse? response = null;
+        List<OpenAlexWork>? works = null;
+        List<OpenAlexWork>? pageWorks = null;
 
         if (string.IsNullOrWhiteSpace(authorUrl))
         {
@@ -63,15 +71,31 @@ public sealed class OpenAlexClient
         authorId = authorUrl.Split('/').Last();
         filter = Uri.EscapeDataString($"author.id:{authorId}");
         select = Uri.EscapeDataString("title,publication_year,doi,type,cited_by_count");
+        cursor = "*";
+        works = [];
 
-        url = $"{BaseUrl}/works" +
-              $"?filter={filter}" +
-              $"&select={select}" +
-              "&sort=publication_date:desc" +
-              $"&per-page={count}";
+        while (!string.IsNullOrWhiteSpace(cursor))
+        {
+            encodedCursor = Uri.EscapeDataString(cursor);
+            url = $"{BaseUrl}/works" +
+                  $"?filter={filter}" +
+                  $"&select={select}" +
+                  "&sort=publication_date:desc" +
+                  $"&per_page={PageSize}" +
+                  $"&cursor={encodedCursor}";
 
-        response = await _httpClient.GetFromJsonAsync<OpenAlexWorksResponse>(url, JsonOptions);
+            response = await _httpClient.GetFromJsonAsync<OpenAlexWorksResponse>(url, JsonOptions);
+            pageWorks = response?.Results ?? [];
 
-        return response?.Results ?? [];
+            if (pageWorks.Count == 0)
+            {
+                break;
+            }
+
+            works.AddRange(pageWorks);
+            cursor = response?.Meta?.NextCursor;
+        }
+
+        return works;
     }
 }

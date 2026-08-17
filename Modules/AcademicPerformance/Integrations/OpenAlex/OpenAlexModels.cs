@@ -1,4 +1,7 @@
 using System.Text.Json.Serialization;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
+
+namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 
 public sealed class OpenAlexData
 {
@@ -10,6 +13,9 @@ public sealed class OpenAlexData
 
     [JsonIgnore]
     public Researcher? Researcher { get; set; } = null;
+
+    [JsonIgnore]
+    public DateTime? LastUpdatedAt { get; set; } = null;
 
     [JsonPropertyName("id")]
     public string? AuthorId { get; set; } = null;
@@ -53,6 +59,15 @@ public sealed class OpenAlexWork
 
 internal sealed class OpenAlexWorksResponse
 {
+    [JsonPropertyName("meta")]
+    public OpenAlexWorksMeta? Meta { get; set; } = null;
+
     [JsonPropertyName("results")]
     public List<OpenAlexWork>? Results { get; set; } = null;
+}
+
+internal sealed class OpenAlexWorksMeta
+{
+    [JsonPropertyName("next_cursor")]
+    public string? NextCursor { get; set; } = null;
 }

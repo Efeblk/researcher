@@ -1,5 +1,8 @@
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
+
+namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
 
 public sealed class GoogleScholarData
 {
@@ -12,10 +15,16 @@ public sealed class GoogleScholarData
     [JsonIgnore]
     public Researcher? Researcher { get; set; } = null;
 
+    [JsonIgnore]
+    public DateTime? LastUpdatedAt { get; set; } = null;
+
     public string? ScholarId { get; set; } = null;
     public string? Name { get; set; } = null;
     public string? Affiliations { get; set; } = null;
     public string? Email { get; set; } = null;
+    public int? CitationCount { get; set; } = null;
+    public int? HIndex { get; set; } = null;
+    public int? I10Index { get; set; } = null;
     public List<GoogleScholarInterest>? Interests { get; set; } = null;
     public List<GoogleScholarWork>? Works { get; set; } = null;
 }
@@ -76,6 +85,27 @@ public sealed class GoogleScholarCitedBy
 {
     [JsonPropertyName("value")]
     public int? Value { get; set; } = null;
+
+    [JsonPropertyName("table")]
+    public List<GoogleScholarMetricRow>? Table { get; set; } = null;
+}
+
+public sealed class GoogleScholarMetricRow
+{
+    [JsonPropertyName("citations")]
+    public GoogleScholarMetricValue? Citations { get; set; } = null;
+
+    [JsonPropertyName("h_index")]
+    public GoogleScholarMetricValue? HIndex { get; set; } = null;
+
+    [JsonPropertyName("i10_index")]
+    public GoogleScholarMetricValue? I10Index { get; set; } = null;
+}
+
+public sealed class GoogleScholarMetricValue
+{
+    [JsonPropertyName("all")]
+    public int? All { get; set; } = null;
 }
 
 internal sealed class GoogleScholarAuthorResponse
@@ -85,6 +115,9 @@ internal sealed class GoogleScholarAuthorResponse
 
     [JsonPropertyName("articles")]
     public List<GoogleScholarWork>? Articles { get; set; } = null;
+
+    [JsonPropertyName("cited_by")]
+    public GoogleScholarCitedBy? CitedBy { get; set; } = null;
 }
 
 internal sealed class GoogleScholarAuthor

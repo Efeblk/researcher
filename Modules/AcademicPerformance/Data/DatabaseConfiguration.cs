@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 
+namespace AcademicCollectorDemo.Modules.AcademicPerformance.Data;
+
 public static class DatabaseConfiguration
 {
     public const string SqliteProvider = "Sqlite";
