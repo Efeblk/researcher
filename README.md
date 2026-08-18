@@ -87,6 +87,10 @@ API'den gelen okunabilir alanların yanında orijinal JSON da saklanır:
 
 PDF indirme varsayılan olarak kapalıdır. Açıldığında:
 
+- Yalnızca hocanın OpenAlex yazar kaydında veya Google Scholar profilinde
+  listelenen kendi/ortak yazarlı çalışmaları için PDF aranır.
+- Hocaya atıf yapan başka akademisyenlerin çalışmalarının PDF'leri indirilmez;
+  şu anda yalnızca mevcut atıf sayısı ve bağlantısı saklanır.
 - OpenAlex için yalnızca açık erişimli çalışmalardaki PDF adayları kullanılır.
 - Google Scholar için SerpAPI yayın ayrıntısında `file_format: PDF` olarak gelen
   kaynaklar kullanılır. Bunun için `GoogleScholar:CollectArticleDetails` ayarının
@@ -97,6 +101,12 @@ PDF indirme varsayılan olarak kapalıdır. Açıldığında:
 - Kaynak adresi, göreli dosya yolu, boyut, MIME türü, SHA-256 özeti, indirme
   zamanı, durum ve hata bilgisi `AcademicWorkFiles` tablosunda tutulur.
 - Aynı dosya diskte varsa tekrar indirilmez.
+
+`AcademicWorks` satırları sağlayıcı kayıtlarıdır. Aynı yayın OpenAlex ve Google
+Scholar'da bulunuyorsa iki sağlayıcı satırı olabilir; bu nedenle feedback'teki
+“incelenen kayıt” sayısı her zaman benzersiz yayın sayısı anlamına gelmez. PDF
+feedback'i toplam incelenen kayıt, PDF kaynağı bulunan kayıt, indirilen,
+önceden bulunan ve indirilemeyen sayılarını ayrı gösterir.
 
 PDF dosyaları SQLite içine yazılmaz ve `Storage/` klasörü Git'e gönderilmez.
 Yayınların telif ve yeniden kullanım koşulları kaynak lisansına tabidir.
@@ -125,23 +135,44 @@ SerpAPI anahtarını User Secrets'a kaydet:
 dotnet user-secrets set "SerpApi:ApiKey" "GERCEK_API_ANAHTARI"
 ```
 
-Google Scholar yayınlarının ayrı ayrıntı yanıtlarını da toplamak istersen:
+### Uygulama ayarları
 
-```shell
-dotnet user-secrets set "GoogleScholar:CollectArticleDetails" "true"
+Hassas olmayan bütün toplama ayarları proje kökündeki
+`academicsettings.json` dosyasında birlikte tutulur. Google Scholar yayınlarının
+ayrı ayrıntı yanıtlarını da toplamak istersen dosyadaki ilgili değeri değiştir:
+
+```json
+"GoogleScholar": {
+  "CollectArticleDetails": true
+}
 ```
 
 PDF indirmeyi açmak istersen:
 
-```shell
-dotnet user-secrets set "PdfDownload:Enabled" "true"
+```json
+"PdfDownload": {
+  "Enabled": true
+}
 ```
 
 Varsayılan tek dosya boyutu sınırı 50 MB'dir. Değiştirmek için:
 
-```shell
-dotnet user-secrets set "PdfDownload:MaxFileSizeMb" "100"
+```json
+"PdfDownload": {
+  "MaxFileSizeMb": 100
+}
 ```
+
+| Ayar | Varsayılan | Anlamı |
+| --- | --- | --- |
+| `ProviderCache:MaxAgeHours` | `24` | Sağlayıcı verisinin yeniden sorgulanma süresi |
+| `GoogleScholar:CollectArticleDetails` | `false` | Her Google Scholar yayını için ek ayrıntı isteği |
+| `PdfDownload:Enabled` | `false` | Uygun PDF dosyalarını indirme |
+| `PdfDownload:StorageRoot` | `Storage` | PDF ana klasörü |
+| `PdfDownload:MaxFileSizeMb` | `50` | Tek PDF için boyut sınırı |
+| `PdfDownload:RequestTimeoutSeconds` | `60` | PDF isteği zaman aşımı |
+| `PdfDownload:MaxRedirects` | `5` | PDF isteği yönlendirme sınırı |
+
 
 Sunucuyu başlat:
 
@@ -224,6 +255,8 @@ make clean
 
 Bu komut `academic.db`, `academic.db-shm`, `academic.db-wal` dosyalarını ve
 `Storage/` klasörünün tamamını siler. Bu işlem geri alınamaz.
+Veritabanı DBeaver'da açıksa önce bağlantıya sağ tıklayıp **Disconnect** seç;
+`make clean`, dosyayı kullanan uygulamayı göstererek işlemi güvenli biçimde durdurur.
 
 ## Klasör yapısı
 
@@ -243,7 +276,8 @@ akademi_projesi/
 ├── Requests/                   Hazır HTTP istekleri
 ├── Properties/                 Yerel çalıştırma ayarları
 ├── Program.cs                  Uygulamanın başlangıç noktası
-├── appsettings.json            Veritabanı ve önbellek ayarları
+├── appsettings.json            Veritabanı ayarları
+├── academicsettings.json       Veri toplama, önbellek ve PDF ayarları
 ├── Makefile                    Sık kullanılan terminal komutları
 └── AcademicCollectorDemo.csproj
 ```

@@ -1,0 +1,15 @@
+{
+  "ProviderCache": {
+    "MaxAgeHours": 24
+  },
+  "GoogleScholar": {
+    "CollectArticleDetails": true
+  },
+  "PdfDownload": {
+    "Enabled": true,
+    "StorageRoot": "Storage",
+    "MaxFileSizeMb": 50,
+    "RequestTimeoutSeconds": 60,
+    "MaxRedirects": 5
+  }
+}

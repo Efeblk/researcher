@@ -11,6 +11,17 @@ public static class Program
         WebApplication? application = null;
 
         builder = WebApplication.CreateBuilder(args);
+        builder.Configuration
+            .AddJsonFile(
+                "academicsettings.json",
+                optional: false,
+                reloadOnChange: true)
+            .AddUserSecrets(
+                typeof(Program).Assembly,
+                optional: true,
+                reloadOnChange: true)
+            .AddEnvironmentVariables()
+            .AddCommandLine(args);
 
         builder.Services.AddAcademicPerformanceModule(builder.Configuration);
         builder.Services.AddControllers();
