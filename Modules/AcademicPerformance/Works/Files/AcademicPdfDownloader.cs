@@ -56,6 +56,8 @@ public sealed class AcademicPdfDownloader
         int candidateIndex = 0;
         int candidateWorkCount = 0;
         int candidateWorkIndex = 0;
+        int openAlexCandidateCount = 0;
+        int googleScholarCandidateCount = 0;
         int downloadedCount = 0;
         int existingCount = 0;
         int failedCount = 0;
@@ -84,6 +86,16 @@ public sealed class AcademicPdfDownloader
             if (candidates.Count > 0)
             {
                 candidateWorkCount++;
+
+                if (works[workIndex].Provider == AcademicWorkProvider.OpenAlex)
+                {
+                    openAlexCandidateCount++;
+                }
+
+                if (works[workIndex].Provider == AcademicWorkProvider.GoogleScholar)
+                {
+                    googleScholarCandidateCount++;
+                }
             }
         }
 
@@ -202,10 +214,14 @@ public sealed class AcademicPdfDownloader
             failedCount);
 
         messages.Add(
+            $"[BİLGİ] PDF taraması: {works.Count} sağlayıcı çalışma kaydı incelendi.");
+        messages.Add(
             candidateWorkCount > 0
-                ? $"[BİLGİ] PDF bağlantısı: {candidateWorkCount}/{works.Count} " +
-                  "çalışmada bulundu."
-                : $"[EKSİK] PDF bağlantısı: {works.Count} çalışmanın hiçbirinde bulunamadı.");
+                ? $"[BİLGİ] PDF kaynağı: {candidateWorkCount} kayıtta bulundu " +
+                  $"(OpenAlex {openAlexCandidateCount}, Google Scholar " +
+                  $"{googleScholarCandidateCount}); " +
+                  $"{works.Count - candidateWorkCount} kayıtta bulunamadı."
+                : $"[EKSİK] PDF kaynağı: {works.Count} kaydın hiçbirinde bulunamadı.");
 
         if (downloadedCount > 0 || existingCount > 0)
         {
