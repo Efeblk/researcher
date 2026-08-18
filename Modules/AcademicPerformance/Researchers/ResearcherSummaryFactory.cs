@@ -1,4 +1,5 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
 
@@ -22,12 +23,10 @@ public sealed class ResearcherSummaryFactory
         summary.Department = researcher.Department;
         summary.Orcid = researcher.Orcid;
         summary.GoogleScholarId = researcher.GoogleScholarId;
-        summary.ScopusAuthorId = researcher.ScopusAuthorId;
         summary.WebOfScienceResearcherId = researcher.WebOfScienceResearcherId;
         summary.LastUpdatedAt = researcher.LastUpdatedAt;
         summary.OpenAlex = CreateOpenAlexSummary(researcher);
         summary.GoogleScholar = CreateGoogleScholarSummary(researcher);
-        summary.Scopus = CreateScopusSummary(researcher);
         summary.WebOfScience = CreateWebOfScienceSummary(researcher);
 
         return summary;
@@ -48,6 +47,8 @@ public sealed class ResearcherSummaryFactory
         summary.WorkCount = researcher.OpenAlex.Works?.Count
             ?? researcher.OpenAlex.WorksCount
             ?? 0;
+        summary.WorkCategories = CreateOpenAlexCategoryCounts(
+            researcher.OpenAlex.Works);
         summary.LastUpdatedAt = researcher.OpenAlex.LastUpdatedAt;
 
         return summary;
@@ -74,32 +75,61 @@ public sealed class ResearcherSummaryFactory
             ?? CalculateHIndex(researcher.GoogleScholar.Works);
         summary.I10Index = researcher.GoogleScholar.I10Index
             ?? CalculateI10Index(researcher.GoogleScholar.Works);
+        summary.WorkCategories = CreateGoogleScholarCategoryCounts(
+            researcher.GoogleScholar.Works);
         summary.LastUpdatedAt = researcher.GoogleScholar.LastUpdatedAt;
 
         return summary;
     }
 
-    private static ScopusSummary? CreateScopusSummary(Researcher researcher)
+    private static Dictionary<string, int> CreateOpenAlexCategoryCounts(
+        List<OpenAlexWork>? works)
     {
-        ScopusSummary? summary = null;
+        Dictionary<string, int>? categoryCounts = null;
+        int index = 0;
+        string? categoryName = null;
+        int currentCount = 0;
 
-        if (researcher.Scopus is null)
+        categoryCounts = [];
+
+        if (works is null)
         {
-            return null;
+            return categoryCounts;
         }
 
-        summary = new ScopusSummary();
-        summary.AuthorId = researcher.Scopus.AuthorId;
-        summary.GivenName = researcher.Scopus.GivenName;
-        summary.Surname = researcher.Scopus.Surname;
-        summary.AffiliationName = researcher.Scopus.AffiliationName;
-        summary.DocumentCount = researcher.Scopus.DocumentCount;
-        summary.CitationCount = researcher.Scopus.CitationCount;
-        summary.CitedByCount = researcher.Scopus.CitedByCount;
-        summary.HIndex = researcher.Scopus.HIndex;
-        summary.LastUpdatedAt = researcher.Scopus.LastUpdatedAt;
+        for (index = 0; index < works.Count; index++)
+        {
+            categoryName = works[index].Category.ToString();
+            categoryCounts.TryGetValue(categoryName, out currentCount);
+            categoryCounts[categoryName] = currentCount + 1;
+        }
 
-        return summary;
+        return categoryCounts;
+    }
+
+    private static Dictionary<string, int> CreateGoogleScholarCategoryCounts(
+        List<GoogleScholarWork>? works)
+    {
+        Dictionary<string, int>? categoryCounts = null;
+        int index = 0;
+        string? categoryName = null;
+        int currentCount = 0;
+
+        categoryCounts = [];
+
+        if (works is null)
+        {
+            return categoryCounts;
+        }
+
+        for (index = 0; index < works.Count; index++)
+        {
+            categoryName = works[index].Category.ToString();
+            categoryCounts.TryGetValue(categoryName, out currentCount);
+            categoryCounts[categoryName] = currentCount + 1;
+        }
+
+        return categoryCounts;
     }
 
     private static WebOfScienceSummary? CreateWebOfScienceSummary(

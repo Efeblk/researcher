@@ -1,5 +1,9 @@
 HOST ?= http://localhost:5000
 DATABASE_FILE := $(CURDIR)/academic.db
+STORAGE_DIR := $(CURDIR)/Storage
+empty :=
+space := $(empty) $(empty)
+comma := ,
 
 .PHONY: help run build clean health collect random
 
@@ -7,9 +11,9 @@ help:
 	@echo "Kullanılabilir komutlar:"
 	@echo "  make run                  HTTP sunucusunu başlatır"
 	@echo "  make build                Projeyi derler"
-	@echo "  make clean                Yerel SQLite veritabanını siler"
+	@echo "  make clean                SQLite veritabanını ve Storage klasörünü siler"
 	@echo "  make health               Sunucunun çalıştığını kontrol eder"
-	@echo "  make collect ID=...       Bir akademisyen kimliğini sorgular"
+	@echo "  make collect ID=...       Bir veya daha fazla akademisyen kimliğini sorgular"
 	@echo "  make random               Rastgele akademisyen özeti getirir"
 	@echo "  make health HOST=...      Farklı bir sunucu adresi kullanır"
 
@@ -21,30 +25,70 @@ build:
 
 clean:
 	@if [ -f "$(DATABASE_FILE)" ] && lsof "$(DATABASE_FILE)" >/dev/null 2>&1; then \
-		echo "Veritabanı kullanımda. Önce çalışan sunucuyu durdur."; \
+		echo "Veritabanı şu anda bir uygulama tarafından kullanılıyor:"; \
+		lsof -nP "$(DATABASE_FILE)"; \
+		echo; \
+		echo "Yukarıdaki uygulamada veritabanı bağlantısını kapatıp tekrar dene."; \
 		exit 1; \
 	fi
 	rm -f -- \
 		"$(DATABASE_FILE)" \
 		"$(DATABASE_FILE)-shm" \
 		"$(DATABASE_FILE)-wal"
-	@echo "Yerel SQLite veritabanı silindi."
+	@if [ -d "$(STORAGE_DIR)" ]; then \
+		find "$(STORAGE_DIR)" -depth -mindepth 1 -delete; \
+		rmdir "$(STORAGE_DIR)"; \
+	fi
+	@echo "Yerel SQLite veritabanı ve Storage klasörü silindi."
 
 health:
 	curl --silent --show-error "$(HOST)/"
 	@echo
 
 collect:
-	@if [ -z "$(ID)" ]; then \
-		echo "Kullanım: make collect ID=tQgMPzcAAAAJ"; \
+	@if [ -z "$(strip $(ID))" ]; then \
+		echo 'Kullanım: make collect ID="tQgMPzcAAAAJ 0000-0001-8560-7482"'; \
 		exit 1; \
 	fi
+	@response_file="$$(mktemp -t academic-collect.XXXXXX)"; \
+	start_time="$$(date +%s)"; \
+	initial_pdf_count=0; \
+	if [ -d "$(CURDIR)/Storage/Pdfs" ]; then \
+		initial_pdf_count="$$(find "$(CURDIR)/Storage/Pdfs" -type f -name '*.pdf' | wc -l | tr -d ' ')"; \
+	fi; \
+	echo "Toplama isteği gönderildi. API ve PDF işlemleri bekleniyor..."; \
 	curl --silent --show-error \
 		--request POST \
 		--header "Content-Type: application/json" \
-		--data '{"Identifiers":["$(ID)"],"UseTestIdentifiers":false}' \
-		"$(HOST)/Services/AcademicPerformance/Researcher/Collect"
-	@echo
+		--data '{"Identifiers":["$(subst $(space),"$(comma)",$(strip $(ID)))"],"UseTestIdentifiers":false}' \
+		"$(HOST)/Services/AcademicPerformance/Researcher/CollectText" \
+		> "$$response_file" & \
+	request_pid="$$!"; \
+	while kill -0 "$$request_pid" 2>/dev/null; do \
+		current_time="$$(date +%s)"; \
+		elapsed_seconds="$$((current_time - start_time))"; \
+		pdf_count=0; \
+		if [ -d "$(CURDIR)/Storage/Pdfs" ]; then \
+			pdf_count="$$(find "$(CURDIR)/Storage/Pdfs" -type f -name '*.pdf' | wc -l | tr -d ' ')"; \
+		fi; \
+		new_pdf_count="$$((pdf_count - initial_pdf_count))"; \
+		printf '\rİşlem: %s saniye | Yeni PDF: %s | Toplam PDF: %s' \
+			"$$elapsed_seconds" "$$new_pdf_count" "$$pdf_count"; \
+		sleep 1; \
+	done; \
+	if wait "$$request_pid"; then \
+		printf '\rİşlem tamamlandı.                                  \n'; \
+		cat "$$response_file"; \
+		echo; \
+		status=0; \
+	else \
+		status="$$?"; \
+		printf '\rİstek hata ile tamamlandı.                          \n'; \
+		cat "$$response_file"; \
+		echo; \
+	fi; \
+	rm -f -- "$$response_file"; \
+	exit "$$status"
 
 random:
 	curl --silent --show-error \

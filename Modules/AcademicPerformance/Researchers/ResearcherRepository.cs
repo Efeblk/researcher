@@ -29,13 +29,6 @@ public sealed class ResearcherRepository
                     item => item.GoogleScholarId == identifiers.GoogleScholarId);
         }
 
-        if (researcher is null && !string.IsNullOrWhiteSpace(identifiers.ScopusAuthorId))
-        {
-            researcher = await CreateResearcherQuery()
-                .FirstOrDefaultAsync(
-                    item => item.ScopusAuthorId == identifiers.ScopusAuthorId);
-        }
-
         if (researcher is null &&
             !string.IsNullOrWhiteSpace(identifiers.WebOfScienceResearcherId))
         {
@@ -61,10 +54,6 @@ public sealed class ResearcherRepository
             target.GoogleScholarId,
             source.GoogleScholarId,
             "Google Scholar ID");
-        target.ScopusAuthorId = GetIdentifierValue(
-            target.ScopusAuthorId,
-            source.ScopusAuthorId,
-            "Scopus Author ID");
         target.WebOfScienceResearcherId = GetIdentifierValue(
             target.WebOfScienceResearcherId,
             source.WebOfScienceResearcherId,
@@ -92,12 +81,6 @@ public sealed class ResearcherRepository
         {
             existingResearcher = await CreateResearcherQuery()
                 .FirstOrDefaultAsync(item => item.GoogleScholarId == researcher.GoogleScholarId);
-        }
-
-        if (existingResearcher is null && !string.IsNullOrWhiteSpace(researcher.ScopusAuthorId))
-        {
-            existingResearcher = await CreateResearcherQuery()
-                .FirstOrDefaultAsync(item => item.ScopusAuthorId == researcher.ScopusAuthorId);
         }
 
         if (existingResearcher is null &&
@@ -133,7 +116,6 @@ public sealed class ResearcherRepository
                 .ThenInclude(googleScholar => googleScholar!.Works)
             .Include(researcher => researcher.GoogleScholar)
                 .ThenInclude(googleScholar => googleScholar!.Interests)
-            .Include(researcher => researcher.Scopus)
             .Include(researcher => researcher.WebOfScience);
 
         return query;
@@ -146,7 +128,6 @@ public sealed class ResearcherRepository
 
         UpdateOpenAlex(target, source);
         UpdateGoogleScholar(target, source);
-        UpdateScopus(target, source);
         UpdateWebOfScience(target, source);
     }
 
@@ -166,6 +147,8 @@ public sealed class ResearcherRepository
         target.OpenAlex.AuthorId = source.OpenAlex.AuthorId;
         target.OpenAlex.DisplayName = source.OpenAlex.DisplayName;
         target.OpenAlex.WorksCount = source.OpenAlex.WorksCount;
+        target.OpenAlex.RawDataJson = source.OpenAlex.RawDataJson;
+        target.OpenAlex.WorksResponsePagesJson = source.OpenAlex.WorksResponsePagesJson;
         target.OpenAlex.LastUpdatedAt = source.OpenAlex.LastUpdatedAt;
 
         if (source.OpenAlex.Works is not null)
@@ -195,6 +178,8 @@ public sealed class ResearcherRepository
         target.GoogleScholar.CitationCount = source.GoogleScholar.CitationCount;
         target.GoogleScholar.HIndex = source.GoogleScholar.HIndex;
         target.GoogleScholar.I10Index = source.GoogleScholar.I10Index;
+        target.GoogleScholar.RawDataJson = source.GoogleScholar.RawDataJson;
+        target.GoogleScholar.ResponsePagesJson = source.GoogleScholar.ResponsePagesJson;
         target.GoogleScholar.LastUpdatedAt = source.GoogleScholar.LastUpdatedAt;
 
         if (source.GoogleScholar.Works is not null)
@@ -208,32 +193,6 @@ public sealed class ResearcherRepository
             _dbContext.GoogleScholarInterests.RemoveRange(target.GoogleScholar.Interests ?? []);
             target.GoogleScholar.Interests = source.GoogleScholar.Interests;
         }
-    }
-
-    private void UpdateScopus(Researcher target, Researcher source)
-    {
-        if (source.Scopus is null)
-        {
-            return;
-        }
-
-        if (target.Scopus is null)
-        {
-            target.Scopus = source.Scopus;
-            return;
-        }
-
-        target.Scopus.AuthorId = source.Scopus.AuthorId;
-        target.Scopus.GivenName = source.Scopus.GivenName;
-        target.Scopus.Surname = source.Scopus.Surname;
-        target.Scopus.AffiliationName = source.Scopus.AffiliationName;
-        target.Scopus.AffiliationCity = source.Scopus.AffiliationCity;
-        target.Scopus.AffiliationCountry = source.Scopus.AffiliationCountry;
-        target.Scopus.DocumentCount = source.Scopus.DocumentCount;
-        target.Scopus.CitedByCount = source.Scopus.CitedByCount;
-        target.Scopus.CitationCount = source.Scopus.CitationCount;
-        target.Scopus.HIndex = source.Scopus.HIndex;
-        target.Scopus.LastUpdatedAt = source.Scopus.LastUpdatedAt;
     }
 
     private void UpdateWebOfScience(Researcher target, Researcher source)

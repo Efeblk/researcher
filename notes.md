@@ -70,31 +70,6 @@ yazılır.
 Tablolar Entity Framework Core `EnsureCreated` yöntemiyle oluşturulur. Veritabanı
 şeması kesinleştiğinde SQL Server migration'ları yeniden üretilecektir.
 
-## Scopus veri erişimi
-
-Scopus verileri için Elsevier'ın resmî Scopus Author Retrieval API'si
-kullanılacaktır.
-
-Scopus Author ID ile profil sorgulanan endpoint:
-
-```text
-https://api.elsevier.com/content/author/author_id/SCOPUS_AUTHOR_ID
-```
-
-API anahtarı isteğin `X-ELS-APIKey` başlığında gönderilir ve kaynak kodda
-tutulmaz. Yerel geliştirmede User Secrets kullanılır:
-
-```shell
-dotnet user-secrets set "Elsevier:ApiKey" "GERCEK_ELSEVIER_API_ANAHTARI"
-```
-
-İlk aşamada ad, kurum, yayın sayısı, atıf sayıları ve varsa H-index alınır.
-Scopus yayın listesi ayrı bir resmî Scopus Search API çağrısıyla daha sonra
-eklenecektir. Tam veri erişimi üniversitenin Scopus aboneliğine bağlı olabilir.
-
-Resmî dokümantasyon:
-https://dev.elsevier.com/documentation/AuthorRetrievalAPI.wadl
-
 ## Web of Science veri erişimi
 
 Web of Science ResearcherID verileri için Clarivate'ın resmî Web of Science

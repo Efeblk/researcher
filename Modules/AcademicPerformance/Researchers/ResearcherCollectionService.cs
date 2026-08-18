@@ -1,7 +1,7 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
 using Microsoft.Extensions.Configuration;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
@@ -12,24 +12,27 @@ public sealed class ResearcherCollectionService
 
     private readonly OpenAlexClient _openAlexClient;
     private readonly GoogleScholarClient _googleScholarClient;
-    private readonly ScopusClient _scopusClient;
     private readonly WebOfScienceClient _webOfScienceClient;
+    private readonly AcademicWorkCategorizer _academicWorkCategorizer;
+    private readonly ResearcherCollectionFeedback _collectionFeedback;
     private readonly IConfiguration _configuration;
     private readonly TimeSpan _providerCacheMaxAge;
 
     public ResearcherCollectionService(
         OpenAlexClient openAlexClient,
         GoogleScholarClient googleScholarClient,
-        ScopusClient scopusClient,
         WebOfScienceClient webOfScienceClient,
+        AcademicWorkCategorizer academicWorkCategorizer,
+        ResearcherCollectionFeedback collectionFeedback,
         IConfiguration configuration)
     {
         int maxAgeHours = 0;
 
         _openAlexClient = openAlexClient;
         _googleScholarClient = googleScholarClient;
-        _scopusClient = scopusClient;
         _webOfScienceClient = webOfScienceClient;
+        _academicWorkCategorizer = academicWorkCategorizer;
+        _collectionFeedback = collectionFeedback;
         _configuration = configuration;
 
         if (!int.TryParse(
@@ -53,14 +56,12 @@ public sealed class ResearcherCollectionService
             researcher,
             requestedIdentifiers.GoogleScholarId,
             messages);
-        await CollectScopusAsync(
-            researcher,
-            requestedIdentifiers.ScopusAuthorId,
-            messages);
         await CollectWebOfScienceAsync(
             researcher,
             requestedIdentifiers.WebOfScienceResearcherId,
             messages);
+        _academicWorkCategorizer.Categorize(researcher);
+        _collectionFeedback.Add(researcher, requestedIdentifiers, messages);
     }
 
     private async Task CollectOpenAlexAsync(
@@ -70,12 +71,13 @@ public sealed class ResearcherCollectionService
     {
         if (string.IsNullOrWhiteSpace(requestedOrcid))
         {
-            AddMessage(messages, "Bu istekte ORCID verilmediği için OpenAlex sorgusu yapılmadı.");
+            AddMessage(messages, "[ATLANDI] OpenAlex: ORCID verilmedi.");
             return;
         }
 
         if (IdentifiersMatch(researcher.Orcid, requestedOrcid) &&
-            IsProviderDataCurrent(researcher.OpenAlex?.LastUpdatedAt))
+            IsProviderDataCurrent(researcher.OpenAlex?.LastUpdatedAt) &&
+            HasCompleteOpenAlexRawData(researcher.OpenAlex))
         {
             AddCachedDataMessage(
                 messages,
@@ -84,7 +86,7 @@ public sealed class ResearcherCollectionService
             return;
         }
 
-        AddMessage(messages, $"ORCID sorgulanıyor: {researcher.Orcid}");
+        AddMessage(messages, $"[İŞLEM] OpenAlex sorgulanıyor: {researcher.Orcid}");
 
         try
         {
@@ -97,15 +99,15 @@ public sealed class ResearcherCollectionService
         }
         catch (ArgumentException exception)
         {
-            AddMessage(messages, $"Geçersiz ORCID: {exception.Message}");
+            AddMessage(messages, $"[HATA] Geçersiz ORCID: {exception.Message}");
         }
         catch (HttpRequestException exception)
         {
-            AddMessage(messages, $"OpenAlex'e bağlanılamadı: {exception.Message}");
+            AddMessage(messages, $"[HATA] OpenAlex'e bağlanılamadı: {exception.Message}");
         }
         catch (Exception exception)
         {
-            AddMessage(messages, $"OpenAlex hatası: {exception.Message}");
+            AddMessage(messages, $"[HATA] OpenAlex: {exception.Message}");
         }
     }
 
@@ -120,12 +122,13 @@ public sealed class ResearcherCollectionService
         {
             AddMessage(
                 messages,
-                "Bu istekte Google Scholar ID verilmediği için sorgu yapılmadı.");
+                "[ATLANDI] Google Scholar: ID verilmedi.");
             return;
         }
 
         if (IdentifiersMatch(researcher.GoogleScholar?.ScholarId, requestedScholarId) &&
-            IsProviderDataCurrent(researcher.GoogleScholar?.LastUpdatedAt))
+            IsProviderDataCurrent(researcher.GoogleScholar?.LastUpdatedAt) &&
+            HasCompleteGoogleScholarRawData(researcher.GoogleScholar))
         {
             AddCachedDataMessage(
                 messages,
@@ -140,11 +143,13 @@ public sealed class ResearcherCollectionService
         {
             AddMessage(
                 messages,
-                "SerpAPI anahtarı bulunmadığı için Google Scholar sorgusu yapılmadı.");
+                "[HATA] Google Scholar: SerpAPI anahtarı bulunamadı.");
             return;
         }
 
-        AddMessage(messages, $"Google Scholar ID sorgulanıyor: {researcher.GoogleScholarId}");
+        AddMessage(
+            messages,
+            $"[İŞLEM] Google Scholar sorgulanıyor: {researcher.GoogleScholarId}");
 
         try
         {
@@ -154,71 +159,19 @@ public sealed class ResearcherCollectionService
         }
         catch (ArgumentException exception)
         {
-            AddMessage(messages, $"Geçersiz Google Scholar ID: {exception.Message}");
+            AddMessage(
+                messages,
+                $"[HATA] Geçersiz Google Scholar ID: {exception.Message}");
         }
         catch (HttpRequestException exception)
         {
-            AddMessage(messages, $"Google Scholar'a bağlanılamadı: {exception.Message}");
+            AddMessage(
+                messages,
+                $"[HATA] Google Scholar'a bağlanılamadı: {exception.Message}");
         }
         catch (Exception exception)
         {
-            AddMessage(messages, $"Google Scholar hatası: {exception.Message}");
-        }
-    }
-
-    private async Task CollectScopusAsync(
-        Researcher researcher,
-        string? requestedScopusAuthorId,
-        List<string> messages)
-    {
-        string? elsevierApiKey = null;
-
-        if (string.IsNullOrWhiteSpace(requestedScopusAuthorId))
-        {
-            AddMessage(
-                messages,
-                "Bu istekte Scopus Author ID verilmediği için sorgu yapılmadı.");
-            return;
-        }
-
-        if (IdentifiersMatch(researcher.Scopus?.AuthorId, requestedScopusAuthorId) &&
-            IsProviderDataCurrent(researcher.Scopus?.LastUpdatedAt))
-        {
-            AddCachedDataMessage(
-                messages,
-                "Scopus",
-                researcher.Scopus?.LastUpdatedAt);
-            return;
-        }
-
-        elsevierApiKey = _configuration["Elsevier:ApiKey"];
-
-        if (string.IsNullOrWhiteSpace(elsevierApiKey))
-        {
-            AddMessage(
-                messages,
-                "Elsevier API anahtarı bulunmadığı için Scopus sorgusu yapılmadı.");
-            return;
-        }
-
-        AddMessage(messages, $"Scopus Author ID sorgulanıyor: {researcher.ScopusAuthorId}");
-
-        try
-        {
-            researcher.Scopus = await _scopusClient.GetAuthorAsync(researcher.ScopusAuthorId);
-            researcher.Scopus.LastUpdatedAt = DateTime.UtcNow;
-        }
-        catch (ArgumentException exception)
-        {
-            AddMessage(messages, $"Geçersiz Scopus Author ID: {exception.Message}");
-        }
-        catch (HttpRequestException exception)
-        {
-            AddMessage(messages, $"Scopus'a bağlanılamadı: {exception.Message}");
-        }
-        catch (Exception exception)
-        {
-            AddMessage(messages, $"Scopus hatası: {exception.Message}");
+            AddMessage(messages, $"[HATA] Google Scholar: {exception.Message}");
         }
     }
 
@@ -233,7 +186,7 @@ public sealed class ResearcherCollectionService
         {
             AddMessage(
                 messages,
-                "Bu istekte Web of Science ResearcherID verilmediği için sorgu yapılmadı.");
+                "[ATLANDI] Web of Science: ResearcherID verilmedi.");
             return;
         }
 
@@ -253,13 +206,14 @@ public sealed class ResearcherCollectionService
         {
             AddMessage(
                 messages,
-                "Clarivate API anahtarı bulunmadığı için Web of Science sorgusu yapılmadı.");
+                "[HATA] Web of Science: Clarivate API anahtarı bulunamadı.");
             return;
         }
 
         AddMessage(
             messages,
-            $"Web of Science ResearcherID sorgulanıyor: {researcher.WebOfScienceResearcherId}");
+            $"[İŞLEM] Web of Science sorgulanıyor: " +
+            $"{researcher.WebOfScienceResearcherId}");
 
         try
         {
@@ -271,15 +225,17 @@ public sealed class ResearcherCollectionService
         {
             AddMessage(
                 messages,
-                $"Geçersiz Web of Science ResearcherID: {exception.Message}");
+                $"[HATA] Geçersiz Web of Science ResearcherID: {exception.Message}");
         }
         catch (HttpRequestException exception)
         {
-            AddMessage(messages, $"Web of Science'a bağlanılamadı: {exception.Message}");
+            AddMessage(
+                messages,
+                $"[HATA] Web of Science'a bağlanılamadı: {exception.Message}");
         }
         catch (Exception exception)
         {
-            AddMessage(messages, $"Web of Science hatası: {exception.Message}");
+            AddMessage(messages, $"[HATA] Web of Science: {exception.Message}");
         }
     }
 
@@ -315,6 +271,71 @@ public sealed class ResearcherCollectionService
                    StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool HasCompleteOpenAlexRawData(OpenAlexData? openAlexData)
+    {
+        int index = 0;
+        OpenAlexWork? work = null;
+
+        if (openAlexData is null ||
+            string.IsNullOrWhiteSpace(openAlexData.RawDataJson) ||
+            string.IsNullOrWhiteSpace(openAlexData.WorksResponsePagesJson) ||
+            openAlexData.Works is null)
+        {
+            return false;
+        }
+
+        for (index = 0; index < openAlexData.Works.Count; index++)
+        {
+            work = openAlexData.Works[index];
+
+            if (string.IsNullOrWhiteSpace(work.RawDataJson))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private bool HasCompleteGoogleScholarRawData(
+        GoogleScholarData? googleScholarData)
+    {
+        bool collectArticleDetails = false;
+        int index = 0;
+        GoogleScholarWork? work = null;
+
+        if (googleScholarData is null ||
+            string.IsNullOrWhiteSpace(googleScholarData.RawDataJson) ||
+            string.IsNullOrWhiteSpace(googleScholarData.ResponsePagesJson) ||
+            googleScholarData.Works is null)
+        {
+            return false;
+        }
+
+        bool.TryParse(
+            _configuration["GoogleScholar:CollectArticleDetails"],
+            out collectArticleDetails);
+
+        for (index = 0; index < googleScholarData.Works.Count; index++)
+        {
+            work = googleScholarData.Works[index];
+
+            if (string.IsNullOrWhiteSpace(work.RawDataJson))
+            {
+                return false;
+            }
+
+            if (collectArticleDetails &&
+                !string.IsNullOrWhiteSpace(work.CitationId) &&
+                string.IsNullOrWhiteSpace(work.DetailRawDataJson))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static void AddCachedDataMessage(
         List<string> messages,
         string providerName,
@@ -333,7 +354,7 @@ public sealed class ResearcherCollectionService
 
         AddMessage(
             messages,
-            $"{providerName} verisi güncel. API sorgusu yapılmadı. " +
+            $"[ÖNBELLEK] {providerName} verisi güncel; API sorgusu yapılmadı. " +
             $"Son güncelleme: {localUpdateTime}");
     }
 }

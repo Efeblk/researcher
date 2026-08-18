@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
 
@@ -17,6 +18,12 @@ public sealed class GoogleScholarData
 
     [JsonIgnore]
     public DateTime? LastUpdatedAt { get; set; } = null;
+
+    [JsonIgnore]
+    public string? RawDataJson { get; set; } = null;
+
+    [JsonIgnore]
+    public string? ResponsePagesJson { get; set; } = null;
 
     public string? ScholarId { get; set; } = null;
     public string? Name { get; set; } = null;
@@ -73,8 +80,30 @@ public sealed class GoogleScholarWork
     [JsonPropertyName("year")]
     public string? Year { get; set; } = null;
 
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public AcademicWorkCategory Category { get; set; } = AcademicWorkCategory.Unknown;
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public AcademicWorkCategorySource CategorySource { get; set; } =
+        AcademicWorkCategorySource.Unknown;
+
     [JsonIgnore]
     public int? CitedByCount { get; set; } = null;
+
+    [JsonIgnore]
+    public string? CitedByUrl { get; set; } = null;
+
+    [JsonIgnore]
+    public string? CitedBySerpApiUrl { get; set; } = null;
+
+    [JsonIgnore]
+    public string? CitesId { get; set; } = null;
+
+    [JsonIgnore]
+    public string? RawDataJson { get; set; } = null;
+
+    [JsonIgnore]
+    public string? DetailRawDataJson { get; set; } = null;
 
     [NotMapped]
     [JsonPropertyName("cited_by")]
@@ -85,6 +114,15 @@ public sealed class GoogleScholarCitedBy
 {
     [JsonPropertyName("value")]
     public int? Value { get; set; } = null;
+
+    [JsonPropertyName("link")]
+    public string? Link { get; set; } = null;
+
+    [JsonPropertyName("serpapi_link")]
+    public string? SerpApiLink { get; set; } = null;
+
+    [JsonPropertyName("cites_id")]
+    public string? CitesId { get; set; } = null;
 
     [JsonPropertyName("table")]
     public List<GoogleScholarMetricRow>? Table { get; set; } = null;

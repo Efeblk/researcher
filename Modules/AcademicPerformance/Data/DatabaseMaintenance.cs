@@ -41,7 +41,6 @@ public sealed class DatabaseMaintenance
                 .ThenInclude(googleScholar => googleScholar!.Works)
             .Include(item => item.GoogleScholar)
                 .ThenInclude(googleScholar => googleScholar!.Interests)
-            .Include(item => item.Scopus)
             .Include(item => item.WebOfScience)
             .OrderBy(item => item.Id)
             .Skip(randomIndex)

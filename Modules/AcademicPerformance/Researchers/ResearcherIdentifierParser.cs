@@ -6,7 +6,6 @@ public sealed class ResearcherIdentifierParser
 {
     private const string TestOrcid = "0000-0003-2812-9917";
     private const string TestGoogleScholarId = "dYpPMQEAAAAJ";
-    private const string TestScopusAuthorId = "56962745700";
 
     private static readonly Regex OrcidPattern = new(
         @"^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$",
@@ -15,10 +14,6 @@ public sealed class ResearcherIdentifierParser
     private static readonly Regex WebOfScienceResearcherIdPattern = new(
         @"^[A-Z]+-\d{4}-\d{4}$",
         RegexOptions.IgnoreCase);
-
-    private static readonly Regex ScopusAuthorIdPattern = new(
-        @"^\d+$",
-        RegexOptions.None);
 
     private static readonly Regex GoogleScholarIdPattern = new(
         @"^[A-Z0-9_-]{12}$",
@@ -38,7 +33,6 @@ public sealed class ResearcherIdentifierParser
         {
             researcher.Orcid = TestOrcid;
             researcher.GoogleScholarId = TestGoogleScholarId;
-            researcher.ScopusAuthorId = TestScopusAuthorId;
             return researcher;
         }
 
@@ -74,7 +68,6 @@ public sealed class ResearcherIdentifierParser
 
         if (argumentName != "--orcid" &&
             argumentName != "--scholar" &&
-            argumentName != "--scopus" &&
             argumentName != "--wos")
         {
             return false;
@@ -102,13 +95,6 @@ public sealed class ResearcherIdentifierParser
             return true;
         }
 
-        if (argumentName == "--scopus")
-        {
-            EnsureIdentifierIsEmpty(researcher.ScopusAuthorId, "Scopus Author ID");
-            researcher.ScopusAuthorId = identifier;
-            return true;
-        }
-
         EnsureIdentifierIsEmpty(
             researcher.WebOfScienceResearcherId,
             "Web of Science ResearcherID");
@@ -132,13 +118,6 @@ public sealed class ResearcherIdentifierParser
                 researcher.WebOfScienceResearcherId,
                 "Web of Science ResearcherID");
             researcher.WebOfScienceResearcherId = identifier;
-            return true;
-        }
-
-        if (ScopusAuthorIdPattern.IsMatch(identifier))
-        {
-            EnsureIdentifierIsEmpty(researcher.ScopusAuthorId, "Scopus Author ID");
-            researcher.ScopusAuthorId = identifier;
             return true;
         }
 
