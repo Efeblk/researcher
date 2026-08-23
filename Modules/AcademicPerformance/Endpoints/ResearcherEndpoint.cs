@@ -1,4 +1,3 @@
-using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
 using Microsoft.Data.Sqlite;
 using Microsoft.AspNetCore.Mvc;
@@ -66,23 +65,5 @@ public sealed class ResearcherEndpoint : ServiceEndpoint
                 StatusCode = StatusCodes.Status500InternalServerError
             };
         }
-    }
-
-    [HttpPost]
-    public async Task<ResearcherRandomResponse> Random(
-        ServiceRequest request,
-        [FromServices] AcademicDatabaseInitializer databaseInitializer,
-        [FromServices] DatabaseMaintenance databaseMaintenance,
-        [FromServices] ResearcherSummaryFactory summaryFactory)
-    {
-        ResearcherRandomResponse? response = null;
-        Researcher? researcher = null;
-
-        await databaseInitializer.EnsureReadyAsync();
-        researcher = await databaseMaintenance.GetRandomResearcherAsync();
-        response = new ResearcherRandomResponse();
-        response.Researcher = summaryFactory.Create(researcher);
-
-        return response;
     }
 }

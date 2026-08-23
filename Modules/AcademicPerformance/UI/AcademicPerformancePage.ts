@@ -340,7 +340,7 @@ form?.addEventListener("submit", async event => {
     try {
         const response = await serviceRequest<ResearcherCollectResponse>(
             "AcademicPerformance/Researcher/Collect",
-            { Identifiers: identifiers, UseTestIdentifiers: false });
+            { Identifiers: identifiers });
 
         const researcherId = response.Researcher?.Id ?? 0;
         const messages = (response.Messages ?? []).filter(Boolean).join("\n");

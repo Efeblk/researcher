@@ -12,12 +12,5 @@ Content-Type: application/json
 {
   "Identifiers": [
     "{{orcid}}"
-  ],
-  "UseTestIdentifiers": false
+  ]
 }
-
-### Veritabanından rastgele bir akademisyen özeti getir
-POST {{host}}/Services/AcademicPerformance/Researcher/Random
-Content-Type: application/json
-
-{}

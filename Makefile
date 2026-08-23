@@ -5,7 +5,7 @@ empty :=
 space := $(empty) $(empty)
 comma := ,
 
-.PHONY: help run build clean health collect random
+.PHONY: help run build clean health collect
 
 help:
 	@echo "Kullanılabilir komutlar:"
@@ -14,7 +14,6 @@ help:
 	@echo "  make clean                SQLite veritabanını ve Storage klasörünü siler"
 	@echo "  make health               Sunucunun çalıştığını kontrol eder"
 	@echo "  make collect ID=...       ORCID ile akademisyen yayınlarını sorgular"
-	@echo "  make random               Rastgele akademisyen özeti getirir"
 	@echo "  make health HOST=...      Farklı bir sunucu adresi kullanır"
 
 run:
@@ -57,7 +56,7 @@ collect:
 		--fail-with-body \
 		--request POST \
 		--header "Content-Type: application/json" \
-		--data '{"Identifiers":["$(subst $(space),"$(comma)",$(strip $(ID)))"],"UseTestIdentifiers":false}' \
+		--data '{"Identifiers":["$(subst $(space),"$(comma)",$(strip $(ID)))"]}' \
 		"$(HOST)/Services/AcademicPerformance/Researcher/CollectText" \
 		> "$$response_file" & \
 	request_pid="$$!"; \
@@ -80,11 +79,3 @@ collect:
 	fi; \
 	rm -f -- "$$response_file"; \
 	exit "$$status"
-
-random:
-	curl --silent --show-error \
-		--request POST \
-		--header "Content-Type: application/json" \
-		--data '{}' \
-		"$(HOST)/Services/AcademicPerformance/Researcher/Random"
-	@echo

@@ -107,7 +107,6 @@ if ($null -eq $Id -or $Id.Count -eq 0) {
 
 $body = @{
     Identifiers = $Id
-    UseTestIdentifiers = $false
 } | ConvertTo-Json -Compress
 
 $uri = "$($BaseUrl.TrimEnd('/'))/Services/AcademicPerformance/Researcher/CollectText"

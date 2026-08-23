@@ -4,8 +4,6 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
 
 public sealed class ResearcherIdentifierParser
 {
-    private const string TestOrcid = "0000-0003-2812-9917";
-
     private static readonly Regex OrcidPattern = new(
         @"^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$",
         RegexOptions.IgnoreCase);
@@ -19,12 +17,6 @@ public sealed class ResearcherIdentifierParser
 
         researcher = new Researcher();
         identifiers = request.Identifiers ?? [];
-
-        if (identifiers.Count == 0 && request.UseTestIdentifiers)
-        {
-            researcher.Orcid = TestOrcid;
-            return researcher;
-        }
 
         for (index = 0; index < identifiers.Count; index++)
         {

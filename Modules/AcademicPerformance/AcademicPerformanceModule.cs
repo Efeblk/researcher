@@ -14,7 +14,6 @@ public static class AcademicPerformanceModule
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.AddSingleton(configuration);
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton(CreateHttpClient());
 
@@ -31,9 +30,6 @@ public static class AcademicPerformanceModule
         services.AddScoped<PublicationSummarySynchronizer>();
         services.AddScoped<ResearcherCollectionService>();
         services.AddScoped<ResearcherCollectionHandler>();
-        services.AddScoped<DatabaseMaintenance>();
-        services.AddSingleton<ResearcherSummaryFactory>();
-
         return services;
     }
 

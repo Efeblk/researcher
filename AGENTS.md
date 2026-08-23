@@ -21,7 +21,6 @@ Store manual HTTP requests in `Requests/`. Runtime output belongs in the ignored
 - `make run` starts the API, normally at `http://localhost:5000`.
 - `make health` checks the root health endpoint; use `HOST=http://...` to target another instance.
 - `make collect ID="<ORCID>"` runs a collection request against a running server.
-- `make random` fetches a random stored researcher summary.
 - `make clean` or `.\collect.ps1 clean` removes the local SQLite database and `Storage/`. Treat this as destructive.
 
 ## Coding Style & Naming Conventions
