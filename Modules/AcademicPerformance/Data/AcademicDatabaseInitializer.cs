@@ -32,7 +32,10 @@ public sealed class AcademicDatabaseInitializer
             StringComparison.OrdinalIgnoreCase))
         {
             await CreateSqliteAcademicWorksTableAsync();
-            await CreateSqliteAcademicWorkFilesTableAsync();
+            await CreateSqlitePublicationSummariesTableAsync();
+            await CreateSqlitePublicationDisplayApprovalsTableAsync();
+            await CreateSqliteResearcherMetricsTableAsync();
+            await CreateSqliteOrcidTablesAsync();
             await AddSqliteColumnIfMissingAsync("OpenAlexProfiles", "LastUpdatedAt");
             await AddSqliteColumnIfMissingAsync("OpenAlexProfiles", "RawDataJson");
             await AddSqliteColumnIfMissingAsync(
@@ -75,42 +78,7 @@ public sealed class AcademicDatabaseInitializer
                 "OpenAlexWorks",
                 "CategorySource",
                 "TEXT NOT NULL DEFAULT 'Unknown'");
-            await AddSqliteColumnIfMissingAsync("GoogleScholarProfiles", "LastUpdatedAt");
-            await AddSqliteColumnIfMissingAsync("GoogleScholarProfiles", "RawDataJson");
-            await AddSqliteColumnIfMissingAsync(
-                "GoogleScholarProfiles",
-                "ResponsePagesJson");
-            await AddSqliteColumnIfMissingAsync(
-                "GoogleScholarProfiles",
-                "CitationCount",
-                "INTEGER");
-            await AddSqliteColumnIfMissingAsync(
-                "GoogleScholarProfiles",
-                "HIndex",
-                "INTEGER");
-            await AddSqliteColumnIfMissingAsync(
-                "GoogleScholarProfiles",
-                "I10Index",
-                "INTEGER");
-            await AddSqliteColumnIfMissingAsync(
-                "GoogleScholarWorks",
-                "Category",
-                "TEXT NOT NULL DEFAULT 'Unknown'");
-            await AddSqliteColumnIfMissingAsync(
-                "GoogleScholarWorks",
-                "CategorySource",
-                "TEXT NOT NULL DEFAULT 'Unknown'");
-            await AddSqliteColumnIfMissingAsync("GoogleScholarWorks", "CitedByUrl");
-            await AddSqliteColumnIfMissingAsync(
-                "GoogleScholarWorks",
-                "CitedBySerpApiUrl");
-            await AddSqliteColumnIfMissingAsync("GoogleScholarWorks", "CitesId");
-            await AddSqliteColumnIfMissingAsync("GoogleScholarWorks", "RawDataJson");
-            await AddSqliteColumnIfMissingAsync(
-                "GoogleScholarWorks",
-                "DetailRawDataJson");
             await AddSqliteAcademicWorkColumnsAsync();
-            await AddSqliteColumnIfMissingAsync("WebOfScienceProfiles", "LastUpdatedAt");
             return;
         }
 
@@ -119,7 +87,10 @@ public sealed class AcademicDatabaseInitializer
             StringComparison.OrdinalIgnoreCase))
         {
             await CreateSqlServerAcademicWorksTableAsync();
-            await CreateSqlServerAcademicWorkFilesTableAsync();
+            await CreateSqlServerPublicationSummariesTableAsync();
+            await CreateSqlServerPublicationDisplayApprovalsTableAsync();
+            await CreateSqlServerResearcherMetricsTableAsync();
+            await CreateSqlServerOrcidTablesAsync();
             await AddSqlServerColumnIfMissingAsync("OpenAlexProfiles", "LastUpdatedAt");
             await AddSqlServerLongTextColumnIfMissingAsync(
                 "OpenAlexProfiles",
@@ -168,49 +139,160 @@ public sealed class AcademicDatabaseInitializer
                 "CategorySource",
                 50,
                 "Unknown");
-            await AddSqlServerColumnIfMissingAsync("GoogleScholarProfiles", "LastUpdatedAt");
-            await AddSqlServerLongTextColumnIfMissingAsync(
-                "GoogleScholarProfiles",
-                "RawDataJson");
-            await AddSqlServerLongTextColumnIfMissingAsync(
-                "GoogleScholarProfiles",
-                "ResponsePagesJson");
-            await AddSqlServerIntegerColumnIfMissingAsync(
-                "GoogleScholarProfiles",
-                "CitationCount");
-            await AddSqlServerIntegerColumnIfMissingAsync("GoogleScholarProfiles", "HIndex");
-            await AddSqlServerIntegerColumnIfMissingAsync("GoogleScholarProfiles", "I10Index");
-            await AddSqlServerRequiredTextColumnIfMissingAsync(
-                "GoogleScholarWorks",
-                "Category",
-                50,
-                "Unknown");
-            await AddSqlServerRequiredTextColumnIfMissingAsync(
-                "GoogleScholarWorks",
-                "CategorySource",
-                50,
-                "Unknown");
-            await AddSqlServerTextColumnIfMissingAsync(
-                "GoogleScholarWorks",
-                "CitedByUrl",
-                2000);
-            await AddSqlServerTextColumnIfMissingAsync(
-                "GoogleScholarWorks",
-                "CitedBySerpApiUrl",
-                2000);
-            await AddSqlServerTextColumnIfMissingAsync(
-                "GoogleScholarWorks",
-                "CitesId",
-                2000);
-            await AddSqlServerLongTextColumnIfMissingAsync(
-                "GoogleScholarWorks",
-                "RawDataJson");
-            await AddSqlServerLongTextColumnIfMissingAsync(
-                "GoogleScholarWorks",
-                "DetailRawDataJson");
             await AddSqlServerAcademicWorkColumnsAsync();
-            await AddSqlServerColumnIfMissingAsync("WebOfScienceProfiles", "LastUpdatedAt");
         }
+    }
+
+    private async Task CreateSqliteOrcidTablesAsync()
+    {
+        string createTablesSql =
+            """
+            CREATE TABLE IF NOT EXISTS "OrcidProfiles" (
+                "Id" INTEGER NOT NULL CONSTRAINT "PK_OrcidProfiles" PRIMARY KEY AUTOINCREMENT,
+                "ResearcherId" INTEGER NOT NULL,
+                "DisplayName" TEXT NULL,
+                "GivenNames" TEXT NULL,
+                "FamilyName" TEXT NULL,
+                "CreditName" TEXT NULL,
+                "Biography" TEXT NULL,
+                "CountryCodes" TEXT NULL,
+                "Keywords" TEXT NULL,
+                "CurrentOrganization" TEXT NULL,
+                "CurrentDepartment" TEXT NULL,
+                "CurrentRoleTitle" TEXT NULL,
+                "WorksCount" INTEGER NOT NULL,
+                "EmploymentsCount" INTEGER NOT NULL,
+                "EducationsCount" INTEGER NOT NULL,
+                "FundingsCount" INTEGER NOT NULL,
+                "PeerReviewsCount" INTEGER NOT NULL,
+                "RecordLastModifiedAt" TEXT NULL,
+                "LastUpdatedAt" TEXT NOT NULL,
+                "ResearcherUrlsJson" TEXT NULL,
+                "ExternalIdentifiersJson" TEXT NULL,
+                "EmploymentsJson" TEXT NULL,
+                "EducationsJson" TEXT NULL,
+                "ActivitiesJson" TEXT NULL,
+                "RawDataJson" TEXT NULL,
+                CONSTRAINT "FK_OrcidProfiles_Researchers_ResearcherId"
+                    FOREIGN KEY ("ResearcherId") REFERENCES "Researchers" ("Id") ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_OrcidProfiles_ResearcherId"
+                ON "OrcidProfiles" ("ResearcherId");
+
+            CREATE TABLE IF NOT EXISTS "OrcidWorks" (
+                "Id" INTEGER NOT NULL CONSTRAINT "PK_OrcidWorks" PRIMARY KEY AUTOINCREMENT,
+                "OrcidProfileId" INTEGER NOT NULL,
+                "PutCode" INTEGER NOT NULL,
+                "Title" TEXT NULL,
+                "Subtitle" TEXT NULL,
+                "TranslatedTitle" TEXT NULL,
+                "WorkType" TEXT NULL,
+                "PublicationYear" INTEGER NULL,
+                "PublicationDate" TEXT NULL,
+                "JournalTitle" TEXT NULL,
+                "Doi" TEXT NULL,
+                "Url" TEXT NULL,
+                "Authors" TEXT NULL,
+                "LanguageCode" TEXT NULL,
+                "CountryCode" TEXT NULL,
+                "ShortDescription" TEXT NULL,
+                "Citation" TEXT NULL,
+                "SourceName" TEXT NULL,
+                "Visibility" TEXT NULL,
+                "RecordLastModifiedAt" TEXT NULL,
+                "Category" TEXT NOT NULL,
+                "CategorySource" TEXT NOT NULL,
+                "ExternalIdentifiersJson" TEXT NULL,
+                "ContributorsJson" TEXT NULL,
+                "RawDataJson" TEXT NULL,
+                CONSTRAINT "FK_OrcidWorks_OrcidProfiles_OrcidProfileId"
+                    FOREIGN KEY ("OrcidProfileId") REFERENCES "OrcidProfiles" ("Id") ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_OrcidWorks_OrcidProfileId_PutCode"
+                ON "OrcidWorks" ("OrcidProfileId", "PutCode");
+            """;
+
+        await _dbContext.Database.ExecuteSqlRawAsync(createTablesSql);
+    }
+
+    private async Task CreateSqlServerOrcidTablesAsync()
+    {
+        string createTablesSql =
+            """
+            IF OBJECT_ID(N'[OrcidProfiles]', N'U') IS NULL
+            BEGIN
+                CREATE TABLE [OrcidProfiles] (
+                    [Id] int NOT NULL IDENTITY,
+                    [ResearcherId] int NOT NULL,
+                    [DisplayName] nvarchar(500) NULL,
+                    [GivenNames] nvarchar(250) NULL,
+                    [FamilyName] nvarchar(250) NULL,
+                    [CreditName] nvarchar(500) NULL,
+                    [Biography] nvarchar(max) NULL,
+                    [CountryCodes] nvarchar(250) NULL,
+                    [Keywords] nvarchar(4000) NULL,
+                    [CurrentOrganization] nvarchar(1000) NULL,
+                    [CurrentDepartment] nvarchar(1000) NULL,
+                    [CurrentRoleTitle] nvarchar(500) NULL,
+                    [WorksCount] int NOT NULL,
+                    [EmploymentsCount] int NOT NULL,
+                    [EducationsCount] int NOT NULL,
+                    [FundingsCount] int NOT NULL,
+                    [PeerReviewsCount] int NOT NULL,
+                    [RecordLastModifiedAt] datetime2 NULL,
+                    [LastUpdatedAt] datetime2 NOT NULL,
+                    [ResearcherUrlsJson] nvarchar(max) NULL,
+                    [ExternalIdentifiersJson] nvarchar(max) NULL,
+                    [EmploymentsJson] nvarchar(max) NULL,
+                    [EducationsJson] nvarchar(max) NULL,
+                    [ActivitiesJson] nvarchar(max) NULL,
+                    [RawDataJson] nvarchar(max) NULL,
+                    CONSTRAINT [PK_OrcidProfiles] PRIMARY KEY ([Id]),
+                    CONSTRAINT [FK_OrcidProfiles_Researchers_ResearcherId]
+                        FOREIGN KEY ([ResearcherId]) REFERENCES [Researchers] ([Id]) ON DELETE CASCADE
+                );
+                CREATE UNIQUE INDEX [IX_OrcidProfiles_ResearcherId]
+                    ON [OrcidProfiles] ([ResearcherId]);
+            END;
+
+            IF OBJECT_ID(N'[OrcidWorks]', N'U') IS NULL
+            BEGIN
+                CREATE TABLE [OrcidWorks] (
+                    [Id] int NOT NULL IDENTITY,
+                    [OrcidProfileId] int NOT NULL,
+                    [PutCode] bigint NOT NULL,
+                    [Title] nvarchar(2000) NULL,
+                    [Subtitle] nvarchar(2000) NULL,
+                    [TranslatedTitle] nvarchar(2000) NULL,
+                    [WorkType] nvarchar(100) NULL,
+                    [PublicationYear] int NULL,
+                    [PublicationDate] datetime2 NULL,
+                    [JournalTitle] nvarchar(2000) NULL,
+                    [Doi] nvarchar(500) NULL,
+                    [Url] nvarchar(2000) NULL,
+                    [Authors] nvarchar(4000) NULL,
+                    [LanguageCode] nvarchar(20) NULL,
+                    [CountryCode] nvarchar(20) NULL,
+                    [ShortDescription] nvarchar(max) NULL,
+                    [Citation] nvarchar(max) NULL,
+                    [SourceName] nvarchar(500) NULL,
+                    [Visibility] nvarchar(50) NULL,
+                    [RecordLastModifiedAt] datetime2 NULL,
+                    [Category] nvarchar(50) NOT NULL,
+                    [CategorySource] nvarchar(50) NOT NULL,
+                    [ExternalIdentifiersJson] nvarchar(max) NULL,
+                    [ContributorsJson] nvarchar(max) NULL,
+                    [RawDataJson] nvarchar(max) NULL,
+                    CONSTRAINT [PK_OrcidWorks] PRIMARY KEY ([Id]),
+                    CONSTRAINT [FK_OrcidWorks_OrcidProfiles_OrcidProfileId]
+                        FOREIGN KEY ([OrcidProfileId]) REFERENCES [OrcidProfiles] ([Id]) ON DELETE CASCADE
+                );
+                CREATE UNIQUE INDEX [IX_OrcidWorks_OrcidProfileId_PutCode]
+                    ON [OrcidWorks] ([OrcidProfileId], [PutCode]);
+            END;
+            """;
+
+        await _dbContext.Database.ExecuteSqlRawAsync(createTablesSql);
     }
 
     private async Task CreateSqliteAcademicWorksTableAsync()
@@ -247,9 +329,6 @@ public sealed class AcademicDatabaseInitializer
                 "FirstPage" TEXT NULL,
                 "LastPage" TEXT NULL,
                 "Link" TEXT NULL,
-                "CitedByUrl" TEXT NULL,
-                "CitedBySerpApiUrl" TEXT NULL,
-                "CitesId" TEXT NULL,
                 "SourceId" TEXT NULL,
                 "SourceName" TEXT NULL,
                 "SourceType" TEXT NULL,
@@ -263,7 +342,6 @@ public sealed class AcademicDatabaseInitializer
                 "Version" TEXT NULL,
                 "IsRetracted" INTEGER NULL,
                 "ProviderPayload" TEXT NULL,
-                "ProviderDetailPayload" TEXT NULL,
                 "SyncedAt" TEXT NOT NULL,
                 CONSTRAINT "FK_AcademicWorks_Researchers_ResearcherId"
                     FOREIGN KEY ("ResearcherId") REFERENCES "Researchers" ("Id")
@@ -298,9 +376,6 @@ public sealed class AcademicDatabaseInitializer
         await AddSqliteColumnIfMissingAsync("AcademicWorks", "Issue");
         await AddSqliteColumnIfMissingAsync("AcademicWorks", "FirstPage");
         await AddSqliteColumnIfMissingAsync("AcademicWorks", "LastPage");
-        await AddSqliteColumnIfMissingAsync("AcademicWorks", "CitedByUrl");
-        await AddSqliteColumnIfMissingAsync("AcademicWorks", "CitedBySerpApiUrl");
-        await AddSqliteColumnIfMissingAsync("AcademicWorks", "CitesId");
         await AddSqliteColumnIfMissingAsync("AcademicWorks", "IsOpenAccess", "INTEGER");
         await AddSqliteColumnIfMissingAsync("AcademicWorks", "OpenAccessStatus");
         await AddSqliteColumnIfMissingAsync("AcademicWorks", "OpenAccessUrl");
@@ -310,42 +385,6 @@ public sealed class AcademicDatabaseInitializer
         await AddSqliteColumnIfMissingAsync("AcademicWorks", "Version");
         await AddSqliteColumnIfMissingAsync("AcademicWorks", "IsRetracted", "INTEGER");
         await AddSqliteColumnIfMissingAsync("AcademicWorks", "ProviderPayload");
-        await AddSqliteColumnIfMissingAsync("AcademicWorks", "ProviderDetailPayload");
-    }
-
-    private async Task CreateSqliteAcademicWorkFilesTableAsync()
-    {
-        string? createTableSql = null;
-        string? createIndexSql = null;
-
-        createTableSql =
-            """
-            CREATE TABLE IF NOT EXISTS "AcademicWorkFiles" (
-                "Id" INTEGER NOT NULL CONSTRAINT "PK_AcademicWorkFiles"
-                    PRIMARY KEY AUTOINCREMENT,
-                "AcademicWorkId" INTEGER NOT NULL,
-                "SourceUrl" TEXT NULL,
-                "RelativePath" TEXT NULL,
-                "FileName" TEXT NULL,
-                "MimeType" TEXT NULL,
-                "FileSizeBytes" INTEGER NULL,
-                "Sha256" TEXT NULL,
-                "DownloadedAt" TEXT NULL,
-                "LastAttemptedAt" TEXT NULL,
-                "Status" TEXT NOT NULL DEFAULT 'Pending',
-                "ErrorMessage" TEXT NULL,
-                CONSTRAINT "FK_AcademicWorkFiles_AcademicWorks_AcademicWorkId"
-                    FOREIGN KEY ("AcademicWorkId") REFERENCES "AcademicWorks" ("Id")
-                    ON DELETE CASCADE
-            );
-            """;
-        createIndexSql =
-            "CREATE UNIQUE INDEX IF NOT EXISTS " +
-            "\"IX_AcademicWorkFiles_AcademicWorkId\" " +
-            "ON \"AcademicWorkFiles\" (\"AcademicWorkId\");";
-
-        await _dbContext.Database.ExecuteSqlRawAsync(createTableSql);
-        await _dbContext.Database.ExecuteSqlRawAsync(createIndexSql);
     }
 
     private async Task CreateSqlServerAcademicWorksTableAsync()
@@ -384,9 +423,6 @@ public sealed class AcademicDatabaseInitializer
                     [FirstPage] nvarchar(100) NULL,
                     [LastPage] nvarchar(100) NULL,
                     [Link] nvarchar(2000) NULL,
-                    [CitedByUrl] nvarchar(2000) NULL,
-                    [CitedBySerpApiUrl] nvarchar(2000) NULL,
-                    [CitesId] nvarchar(2000) NULL,
                     [SourceId] nvarchar(500) NULL,
                     [SourceName] nvarchar(2000) NULL,
                     [SourceType] nvarchar(100) NULL,
@@ -400,7 +436,6 @@ public sealed class AcademicDatabaseInitializer
                     [Version] nvarchar(100) NULL,
                     [IsRetracted] bit NULL,
                     [ProviderPayload] nvarchar(max) NULL,
-                    [ProviderDetailPayload] nvarchar(max) NULL,
                     [SyncedAt] datetime2 NOT NULL,
                     CONSTRAINT [PK_AcademicWorks] PRIMARY KEY ([Id]),
                     CONSTRAINT [FK_AcademicWorks_Researchers_ResearcherId]
@@ -442,12 +477,6 @@ public sealed class AcademicDatabaseInitializer
         await AddSqlServerTextColumnIfMissingAsync("AcademicWorks", "Issue", 100);
         await AddSqlServerTextColumnIfMissingAsync("AcademicWorks", "FirstPage", 100);
         await AddSqlServerTextColumnIfMissingAsync("AcademicWorks", "LastPage", 100);
-        await AddSqlServerTextColumnIfMissingAsync("AcademicWorks", "CitedByUrl", 2000);
-        await AddSqlServerTextColumnIfMissingAsync(
-            "AcademicWorks",
-            "CitedBySerpApiUrl",
-            2000);
-        await AddSqlServerTextColumnIfMissingAsync("AcademicWorks", "CitesId", 2000);
         await AddSqlServerBooleanColumnIfMissingAsync("AcademicWorks", "IsOpenAccess");
         await AddSqlServerTextColumnIfMissingAsync("AcademicWorks", "OpenAccessStatus", 50);
         await AddSqlServerTextColumnIfMissingAsync("AcademicWorks", "OpenAccessUrl", 2000);
@@ -457,50 +486,247 @@ public sealed class AcademicDatabaseInitializer
         await AddSqlServerTextColumnIfMissingAsync("AcademicWorks", "Version", 100);
         await AddSqlServerBooleanColumnIfMissingAsync("AcademicWorks", "IsRetracted");
         await AddSqlServerLongTextColumnIfMissingAsync("AcademicWorks", "ProviderPayload");
-        await AddSqlServerLongTextColumnIfMissingAsync(
-            "AcademicWorks",
-            "ProviderDetailPayload");
     }
 
-    private async Task CreateSqlServerAcademicWorkFilesTableAsync()
+    private async Task CreateSqlitePublicationSummariesTableAsync()
     {
         string? createTableSql = null;
-        string? createIndexSql = null;
+        string? createResearcherIndexSql = null;
+        string? createFingerprintIndexSql = null;
 
         createTableSql =
             """
-            IF OBJECT_ID(N'[AcademicWorkFiles]', N'U') IS NULL
+            CREATE TABLE IF NOT EXISTS "PublicationSummaries" (
+                "Id" INTEGER NOT NULL CONSTRAINT "PK_PublicationSummaries"
+                    PRIMARY KEY AUTOINCREMENT,
+                "ResearcherId" INTEGER NOT NULL,
+                "Fingerprint" TEXT NOT NULL,
+                "Title" TEXT NOT NULL,
+                "PublicationYear" INTEGER NULL,
+                "PublicationDate" TEXT NULL,
+                "Doi" TEXT NULL,
+                "Category" TEXT NOT NULL,
+                "Authors" TEXT NULL,
+                "Abstract" TEXT NULL,
+                "Keywords" TEXT NULL,
+                "Topics" TEXT NULL,
+                "Language" TEXT NULL,
+                "Publication" TEXT NULL,
+                "Volume" TEXT NULL,
+                "Issue" TEXT NULL,
+                "FirstPage" TEXT NULL,
+                "LastPage" TEXT NULL,
+                "CitedByCount" INTEGER NULL,
+                "IsOpenAccess" INTEGER NULL,
+                "IsRetracted" INTEGER NULL,
+                "PublicationUrl" TEXT NULL,
+                "PdfUrl" TEXT NULL,
+                "Sources" TEXT NOT NULL,
+                "UpdatedAt" TEXT NOT NULL,
+                CONSTRAINT "FK_PublicationSummaries_Researchers_ResearcherId"
+                    FOREIGN KEY ("ResearcherId") REFERENCES "Researchers" ("Id")
+                    ON DELETE CASCADE
+            );
+            """;
+        createResearcherIndexSql =
+            "CREATE INDEX IF NOT EXISTS " +
+            "\"IX_PublicationSummaries_ResearcherId\" " +
+            "ON \"PublicationSummaries\" (\"ResearcherId\");";
+        createFingerprintIndexSql =
+            "CREATE UNIQUE INDEX IF NOT EXISTS " +
+            "\"IX_PublicationSummaries_ResearcherId_Fingerprint\" " +
+            "ON \"PublicationSummaries\" (\"ResearcherId\", \"Fingerprint\");";
+
+        await _dbContext.Database.ExecuteSqlRawAsync(createTableSql);
+        await _dbContext.Database.ExecuteSqlRawAsync(createResearcherIndexSql);
+        await _dbContext.Database.ExecuteSqlRawAsync(createFingerprintIndexSql);
+    }
+
+    private async Task CreateSqlServerPublicationSummariesTableAsync()
+    {
+        string? createTableSql = null;
+        string? createResearcherIndexSql = null;
+        string? createFingerprintIndexSql = null;
+
+        createTableSql =
+            """
+            IF OBJECT_ID(N'[PublicationSummaries]', N'U') IS NULL
             BEGIN
-                CREATE TABLE [AcademicWorkFiles] (
+                CREATE TABLE [PublicationSummaries] (
                     [Id] int NOT NULL IDENTITY,
-                    [AcademicWorkId] int NOT NULL,
-                    [SourceUrl] nvarchar(2000) NULL,
-                    [RelativePath] nvarchar(1000) NULL,
-                    [FileName] nvarchar(500) NULL,
-                    [MimeType] nvarchar(200) NULL,
-                    [FileSizeBytes] bigint NULL,
-                    [Sha256] nvarchar(64) NULL,
-                    [DownloadedAt] datetime2 NULL,
-                    [LastAttemptedAt] datetime2 NULL,
-                    [Status] nvarchar(50) NOT NULL
-                        CONSTRAINT [DF_AcademicWorkFiles_Status] DEFAULT N'Pending',
-                    [ErrorMessage] nvarchar(2000) NULL,
-                    CONSTRAINT [PK_AcademicWorkFiles] PRIMARY KEY ([Id]),
-                    CONSTRAINT [FK_AcademicWorkFiles_AcademicWorks_AcademicWorkId]
-                        FOREIGN KEY ([AcademicWorkId]) REFERENCES [AcademicWorks] ([Id])
+                    [ResearcherId] int NOT NULL,
+                    [Fingerprint] nvarchar(64) NOT NULL,
+                    [Title] nvarchar(2000) NOT NULL,
+                    [PublicationYear] int NULL,
+                    [PublicationDate] datetime2 NULL,
+                    [Doi] nvarchar(500) NULL,
+                    [Category] nvarchar(50) NOT NULL,
+                    [Authors] nvarchar(4000) NULL,
+                    [Abstract] nvarchar(max) NULL,
+                    [Keywords] nvarchar(4000) NULL,
+                    [Topics] nvarchar(4000) NULL,
+                    [Language] nvarchar(20) NULL,
+                    [Publication] nvarchar(2000) NULL,
+                    [Volume] nvarchar(100) NULL,
+                    [Issue] nvarchar(100) NULL,
+                    [FirstPage] nvarchar(100) NULL,
+                    [LastPage] nvarchar(100) NULL,
+                    [CitedByCount] int NULL,
+                    [IsOpenAccess] bit NULL,
+                    [IsRetracted] bit NULL,
+                    [PublicationUrl] nvarchar(2000) NULL,
+                    [PdfUrl] nvarchar(2000) NULL,
+                    [Sources] nvarchar(200) NOT NULL,
+                    [UpdatedAt] datetime2 NOT NULL,
+                    CONSTRAINT [PK_PublicationSummaries] PRIMARY KEY ([Id]),
+                    CONSTRAINT [FK_PublicationSummaries_Researchers_ResearcherId]
+                        FOREIGN KEY ([ResearcherId]) REFERENCES [Researchers] ([Id])
                         ON DELETE CASCADE
                 );
             END;
             """;
-        createIndexSql =
+        createResearcherIndexSql =
             "IF NOT EXISTS (SELECT 1 FROM sys.indexes " +
-            "WHERE name = N'IX_AcademicWorkFiles_AcademicWorkId' " +
-            "AND object_id = OBJECT_ID(N'[AcademicWorkFiles]')) " +
-            "CREATE UNIQUE INDEX [IX_AcademicWorkFiles_AcademicWorkId] " +
-            "ON [AcademicWorkFiles] ([AcademicWorkId]);";
+            "WHERE name = N'IX_PublicationSummaries_ResearcherId' " +
+            "AND object_id = OBJECT_ID(N'[PublicationSummaries]')) " +
+            "CREATE INDEX [IX_PublicationSummaries_ResearcherId] " +
+            "ON [PublicationSummaries] ([ResearcherId]);";
+        createFingerprintIndexSql =
+            "IF NOT EXISTS (SELECT 1 FROM sys.indexes " +
+            "WHERE name = N'IX_PublicationSummaries_ResearcherId_Fingerprint' " +
+            "AND object_id = OBJECT_ID(N'[PublicationSummaries]')) " +
+            "CREATE UNIQUE INDEX [IX_PublicationSummaries_ResearcherId_Fingerprint] " +
+            "ON [PublicationSummaries] ([ResearcherId], [Fingerprint]);";
 
         await _dbContext.Database.ExecuteSqlRawAsync(createTableSql);
-        await _dbContext.Database.ExecuteSqlRawAsync(createIndexSql);
+        await _dbContext.Database.ExecuteSqlRawAsync(createResearcherIndexSql);
+        await _dbContext.Database.ExecuteSqlRawAsync(createFingerprintIndexSql);
+    }
+
+    private async Task CreateSqlitePublicationDisplayApprovalsTableAsync()
+    {
+        string createTableSql =
+            """
+            CREATE TABLE IF NOT EXISTS "PublicationDisplayApprovals" (
+                "Id" INTEGER NOT NULL CONSTRAINT "PK_PublicationDisplayApprovals"
+                    PRIMARY KEY AUTOINCREMENT,
+                "ResearcherId" INTEGER NOT NULL,
+                "PublicationSummaryId" INTEGER NOT NULL,
+                "ApprovedAt" TEXT NOT NULL,
+                CONSTRAINT "FK_PublicationDisplayApprovals_Researchers_ResearcherId"
+                    FOREIGN KEY ("ResearcherId") REFERENCES "Researchers" ("Id"),
+                CONSTRAINT "FK_PublicationDisplayApprovals_PublicationSummaries_PublicationSummaryId"
+                    FOREIGN KEY ("PublicationSummaryId") REFERENCES "PublicationSummaries" ("Id")
+                    ON DELETE CASCADE
+            );
+            """;
+        string createResearcherIndexSql =
+            "CREATE INDEX IF NOT EXISTS " +
+            "\"IX_PublicationDisplayApprovals_ResearcherId\" " +
+            "ON \"PublicationDisplayApprovals\" (\"ResearcherId\");";
+        string createPublicationIndexSql =
+            "CREATE UNIQUE INDEX IF NOT EXISTS " +
+            "\"IX_PublicationDisplayApprovals_PublicationSummaryId\" " +
+            "ON \"PublicationDisplayApprovals\" (\"PublicationSummaryId\");";
+
+        await _dbContext.Database.ExecuteSqlRawAsync(createTableSql);
+        await _dbContext.Database.ExecuteSqlRawAsync(createResearcherIndexSql);
+        await _dbContext.Database.ExecuteSqlRawAsync(createPublicationIndexSql);
+    }
+
+    private async Task CreateSqlServerPublicationDisplayApprovalsTableAsync()
+    {
+        string createTableSql =
+            """
+            IF OBJECT_ID(N'[PublicationDisplayApprovals]', N'U') IS NULL
+            BEGIN
+                CREATE TABLE [PublicationDisplayApprovals] (
+                    [Id] int NOT NULL IDENTITY,
+                    [ResearcherId] int NOT NULL,
+                    [PublicationSummaryId] int NOT NULL,
+                    [ApprovedAt] datetime2 NOT NULL,
+                    CONSTRAINT [PK_PublicationDisplayApprovals] PRIMARY KEY ([Id]),
+                    CONSTRAINT [FK_PublicationDisplayApprovals_Researchers_ResearcherId]
+                        FOREIGN KEY ([ResearcherId]) REFERENCES [Researchers] ([Id]),
+                    CONSTRAINT [FK_PublicationDisplayApprovals_PublicationSummaries_PublicationSummaryId]
+                        FOREIGN KEY ([PublicationSummaryId]) REFERENCES [PublicationSummaries] ([Id])
+                        ON DELETE CASCADE
+                );
+                CREATE INDEX [IX_PublicationDisplayApprovals_ResearcherId]
+                    ON [PublicationDisplayApprovals] ([ResearcherId]);
+                CREATE UNIQUE INDEX [IX_PublicationDisplayApprovals_PublicationSummaryId]
+                    ON [PublicationDisplayApprovals] ([PublicationSummaryId]);
+            END;
+            """;
+
+        await _dbContext.Database.ExecuteSqlRawAsync(createTableSql);
+    }
+
+    private async Task CreateSqliteResearcherMetricsTableAsync()
+    {
+        string? createTableSql = null;
+        string? createResearcherIndexSql = null;
+
+        createTableSql =
+            """
+            CREATE TABLE IF NOT EXISTS "ResearcherMetrics" (
+                "Id" INTEGER NOT NULL CONSTRAINT "PK_ResearcherMetrics"
+                    PRIMARY KEY AUTOINCREMENT,
+                "ResearcherId" INTEGER NOT NULL,
+                "WorksCount" INTEGER NULL,
+                "CitedByCount" INTEGER NULL,
+                "HIndex" INTEGER NULL,
+                "I10Index" INTEGER NULL,
+                "Source" TEXT NOT NULL,
+                "UpdatedAt" TEXT NOT NULL,
+                CONSTRAINT "FK_ResearcherMetrics_Researchers_ResearcherId"
+                    FOREIGN KEY ("ResearcherId") REFERENCES "Researchers" ("Id")
+                    ON DELETE CASCADE
+            );
+            """;
+        createResearcherIndexSql =
+            "CREATE UNIQUE INDEX IF NOT EXISTS " +
+            "\"IX_ResearcherMetrics_ResearcherId\" " +
+            "ON \"ResearcherMetrics\" (\"ResearcherId\");";
+
+        await _dbContext.Database.ExecuteSqlRawAsync(createTableSql);
+        await _dbContext.Database.ExecuteSqlRawAsync(createResearcherIndexSql);
+    }
+
+    private async Task CreateSqlServerResearcherMetricsTableAsync()
+    {
+        string? createTableSql = null;
+        string? createResearcherIndexSql = null;
+
+        createTableSql =
+            """
+            IF OBJECT_ID(N'[ResearcherMetrics]', N'U') IS NULL
+            BEGIN
+                CREATE TABLE [ResearcherMetrics] (
+                    [Id] int NOT NULL IDENTITY,
+                    [ResearcherId] int NOT NULL,
+                    [WorksCount] int NULL,
+                    [CitedByCount] int NULL,
+                    [HIndex] int NULL,
+                    [I10Index] int NULL,
+                    [Source] nvarchar(50) NOT NULL,
+                    [UpdatedAt] datetime2 NOT NULL,
+                    CONSTRAINT [PK_ResearcherMetrics] PRIMARY KEY ([Id]),
+                    CONSTRAINT [FK_ResearcherMetrics_Researchers_ResearcherId]
+                        FOREIGN KEY ([ResearcherId]) REFERENCES [Researchers] ([Id])
+                        ON DELETE CASCADE
+                );
+            END;
+            """;
+        createResearcherIndexSql =
+            "IF NOT EXISTS (SELECT 1 FROM sys.indexes " +
+            "WHERE name = N'IX_ResearcherMetrics_ResearcherId' " +
+            "AND object_id = OBJECT_ID(N'[ResearcherMetrics]')) " +
+            "CREATE UNIQUE INDEX [IX_ResearcherMetrics_ResearcherId] " +
+            "ON [ResearcherMetrics] ([ResearcherId]);";
+
+        await _dbContext.Database.ExecuteSqlRawAsync(createTableSql);
+        await _dbContext.Database.ExecuteSqlRawAsync(createResearcherIndexSql);
     }
 
     private async Task AddSqliteColumnIfMissingAsync(

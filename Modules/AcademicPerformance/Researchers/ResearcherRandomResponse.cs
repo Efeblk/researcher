@@ -6,7 +6,6 @@ public sealed class ResearcherRandomResponse : ServiceResponse
 {
     public ResearcherSummary? Researcher { get; set; } = null;
 }
-
 public sealed class ResearcherSummary
 {
     public int Id { get; set; }
@@ -16,43 +15,28 @@ public sealed class ResearcherSummary
     public string? AcademicTitle { get; set; } = null;
     public string? Department { get; set; } = null;
     public string? Orcid { get; set; } = null;
-    public string? GoogleScholarId { get; set; } = null;
-    public string? WebOfScienceResearcherId { get; set; } = null;
     public DateTime? LastUpdatedAt { get; set; } = null;
-    public OpenAlexSummary? OpenAlex { get; set; } = null;
-    public GoogleScholarSummary? GoogleScholar { get; set; } = null;
-    public WebOfScienceSummary? WebOfScience { get; set; } = null;
+    public OrcidSummary? OrcidProfile { get; set; } = null;
+    public ResearcherMetricsSummary? Metrics { get; set; } = null;
 }
 
-public sealed class OpenAlexSummary
+public sealed class OrcidSummary
 {
-    public string? AuthorId { get; set; } = null;
     public string? DisplayName { get; set; } = null;
     public int WorkCount { get; set; }
     public Dictionary<string, int> WorkCategories { get; set; } = [];
+    public string? CurrentOrganization { get; set; } = null;
+    public int EmploymentsCount { get; set; }
+    public int EducationsCount { get; set; }
     public DateTime? LastUpdatedAt { get; set; } = null;
 }
 
-public sealed class GoogleScholarSummary
+public sealed class ResearcherMetricsSummary
 {
-    public string? ScholarId { get; set; } = null;
-    public string? Name { get; set; } = null;
-    public string? Affiliations { get; set; } = null;
-    public int WorkCount { get; set; }
-    public int CitationCount { get; set; }
-    public int HIndex { get; set; }
-    public int I10Index { get; set; }
-    public Dictionary<string, int> WorkCategories { get; set; } = [];
-    public DateTime? LastUpdatedAt { get; set; } = null;
-}
-
-public sealed class WebOfScienceSummary
-{
-    public string? ResearcherId { get; set; } = null;
-    public string? FullName { get; set; } = null;
-    public string? PrimaryAffiliation { get; set; } = null;
-    public int? DocumentCount { get; set; } = null;
-    public int? CitationCount { get; set; } = null;
+    public int? WorksCount { get; set; } = null;
+    public int? CitedByCount { get; set; } = null;
     public int? HIndex { get; set; } = null;
-    public DateTime? LastUpdatedAt { get; set; } = null;
+    public int? I10Index { get; set; } = null;
+    public string? Source { get; set; } = null;
+    public DateTime? UpdatedAt { get; set; } = null;
 }

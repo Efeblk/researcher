@@ -1,6 +1,4 @@
-using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
 using Microsoft.Extensions.Configuration;
 
@@ -10,30 +8,22 @@ public sealed class ResearcherCollectionService
 {
     private const int DefaultMaxAgeHours = 24;
 
-    private readonly OpenAlexClient _openAlexClient;
-    private readonly GoogleScholarClient _googleScholarClient;
-    private readonly WebOfScienceClient _webOfScienceClient;
+    private readonly OrcidClient _orcidClient;
     private readonly AcademicWorkCategorizer _academicWorkCategorizer;
     private readonly ResearcherCollectionFeedback _collectionFeedback;
-    private readonly IConfiguration _configuration;
     private readonly TimeSpan _providerCacheMaxAge;
 
     public ResearcherCollectionService(
-        OpenAlexClient openAlexClient,
-        GoogleScholarClient googleScholarClient,
-        WebOfScienceClient webOfScienceClient,
+        OrcidClient orcidClient,
         AcademicWorkCategorizer academicWorkCategorizer,
         ResearcherCollectionFeedback collectionFeedback,
         IConfiguration configuration)
     {
         int maxAgeHours = 0;
 
-        _openAlexClient = openAlexClient;
-        _googleScholarClient = googleScholarClient;
-        _webOfScienceClient = webOfScienceClient;
+        _orcidClient = orcidClient;
         _academicWorkCategorizer = academicWorkCategorizer;
         _collectionFeedback = collectionFeedback;
-        _configuration = configuration;
 
         if (!int.TryParse(
                 configuration["ProviderCache:MaxAgeHours"],
@@ -51,51 +41,38 @@ public sealed class ResearcherCollectionService
         Researcher requestedIdentifiers,
         List<string> messages)
     {
-        await CollectOpenAlexAsync(researcher, requestedIdentifiers.Orcid, messages);
-        await CollectGoogleScholarAsync(
-            researcher,
-            requestedIdentifiers.GoogleScholarId,
-            messages);
-        await CollectWebOfScienceAsync(
-            researcher,
-            requestedIdentifiers.WebOfScienceResearcherId,
-            messages);
+        await CollectOrcidAsync(researcher, requestedIdentifiers.Orcid, messages);
         _academicWorkCategorizer.Categorize(researcher);
         _collectionFeedback.Add(researcher, requestedIdentifiers, messages);
     }
 
-    private async Task CollectOpenAlexAsync(
+    private async Task CollectOrcidAsync(
         Researcher researcher,
         string? requestedOrcid,
         List<string> messages)
     {
         if (string.IsNullOrWhiteSpace(requestedOrcid))
         {
-            AddMessage(messages, "[ATLANDI] OpenAlex: ORCID verilmedi.");
+            AddMessage(messages, "[ATLANDI] ORCID: kimlik verilmedi.");
             return;
         }
 
         if (IdentifiersMatch(researcher.Orcid, requestedOrcid) &&
-            IsProviderDataCurrent(researcher.OpenAlex?.LastUpdatedAt) &&
-            HasCompleteOpenAlexRawData(researcher.OpenAlex))
+            IsProviderDataCurrent(researcher.OrcidProfile?.LastUpdatedAt) &&
+            HasCompleteOrcidRawData(researcher.OrcidProfile))
         {
             AddCachedDataMessage(
                 messages,
-                "OpenAlex",
-                researcher.OpenAlex?.LastUpdatedAt);
+                "ORCID",
+                researcher.OrcidProfile?.LastUpdatedAt);
             return;
         }
 
-        AddMessage(messages, $"[İŞLEM] OpenAlex sorgulanıyor: {researcher.Orcid}");
+        AddMessage(messages, $"[İŞLEM] Resmî ORCID API sorgulanıyor: {researcher.Orcid}");
 
         try
         {
-            await _openAlexClient.FillResearcherAsync(researcher);
-
-            if (researcher.OpenAlex is not null)
-            {
-                researcher.OpenAlex.LastUpdatedAt = DateTime.UtcNow;
-            }
+            await _orcidClient.FillResearcherAsync(researcher);
         }
         catch (ArgumentException exception)
         {
@@ -103,139 +80,11 @@ public sealed class ResearcherCollectionService
         }
         catch (HttpRequestException exception)
         {
-            AddMessage(messages, $"[HATA] OpenAlex'e bağlanılamadı: {exception.Message}");
+            AddMessage(messages, $"[HATA] ORCID API'ye bağlanılamadı: {exception.Message}");
         }
         catch (Exception exception)
         {
-            AddMessage(messages, $"[HATA] OpenAlex: {exception.Message}");
-        }
-    }
-
-    private async Task CollectGoogleScholarAsync(
-        Researcher researcher,
-        string? requestedScholarId,
-        List<string> messages)
-    {
-        string? serpApiKey = null;
-
-        if (string.IsNullOrWhiteSpace(requestedScholarId))
-        {
-            AddMessage(
-                messages,
-                "[ATLANDI] Google Scholar: ID verilmedi.");
-            return;
-        }
-
-        if (IdentifiersMatch(researcher.GoogleScholar?.ScholarId, requestedScholarId) &&
-            IsProviderDataCurrent(researcher.GoogleScholar?.LastUpdatedAt) &&
-            HasCompleteGoogleScholarRawData(researcher.GoogleScholar))
-        {
-            AddCachedDataMessage(
-                messages,
-                "Google Scholar",
-                researcher.GoogleScholar?.LastUpdatedAt);
-            return;
-        }
-
-        serpApiKey = _configuration["SerpApi:ApiKey"];
-
-        if (string.IsNullOrWhiteSpace(serpApiKey))
-        {
-            AddMessage(
-                messages,
-                "[HATA] Google Scholar: SerpAPI anahtarı bulunamadı.");
-            return;
-        }
-
-        AddMessage(
-            messages,
-            $"[İŞLEM] Google Scholar sorgulanıyor: {researcher.GoogleScholarId}");
-
-        try
-        {
-            researcher.GoogleScholar = await _googleScholarClient.GetAuthorAsync(
-                researcher.GoogleScholarId);
-            researcher.GoogleScholar.LastUpdatedAt = DateTime.UtcNow;
-        }
-        catch (ArgumentException exception)
-        {
-            AddMessage(
-                messages,
-                $"[HATA] Geçersiz Google Scholar ID: {exception.Message}");
-        }
-        catch (HttpRequestException exception)
-        {
-            AddMessage(
-                messages,
-                $"[HATA] Google Scholar'a bağlanılamadı: {exception.Message}");
-        }
-        catch (Exception exception)
-        {
-            AddMessage(messages, $"[HATA] Google Scholar: {exception.Message}");
-        }
-    }
-
-    private async Task CollectWebOfScienceAsync(
-        Researcher researcher,
-        string? requestedResearcherId,
-        List<string> messages)
-    {
-        string? clarivateApiKey = null;
-
-        if (string.IsNullOrWhiteSpace(requestedResearcherId))
-        {
-            AddMessage(
-                messages,
-                "[ATLANDI] Web of Science: ResearcherID verilmedi.");
-            return;
-        }
-
-        if (IdentifiersMatch(researcher.WebOfScience?.Rid, requestedResearcherId) &&
-            IsProviderDataCurrent(researcher.WebOfScience?.LastUpdatedAt))
-        {
-            AddCachedDataMessage(
-                messages,
-                "Web of Science",
-                researcher.WebOfScience?.LastUpdatedAt);
-            return;
-        }
-
-        clarivateApiKey = _configuration["Clarivate:ApiKey"];
-
-        if (string.IsNullOrWhiteSpace(clarivateApiKey))
-        {
-            AddMessage(
-                messages,
-                "[HATA] Web of Science: Clarivate API anahtarı bulunamadı.");
-            return;
-        }
-
-        AddMessage(
-            messages,
-            $"[İŞLEM] Web of Science sorgulanıyor: " +
-            $"{researcher.WebOfScienceResearcherId}");
-
-        try
-        {
-            researcher.WebOfScience = await _webOfScienceClient.GetResearcherAsync(
-                researcher.WebOfScienceResearcherId);
-            researcher.WebOfScience.LastUpdatedAt = DateTime.UtcNow;
-        }
-        catch (ArgumentException exception)
-        {
-            AddMessage(
-                messages,
-                $"[HATA] Geçersiz Web of Science ResearcherID: {exception.Message}");
-        }
-        catch (HttpRequestException exception)
-        {
-            AddMessage(
-                messages,
-                $"[HATA] Web of Science'a bağlanılamadı: {exception.Message}");
-        }
-        catch (Exception exception)
-        {
-            AddMessage(messages, $"[HATA] Web of Science: {exception.Message}");
+            AddMessage(messages, $"[HATA] ORCID: {exception.Message}");
         }
     }
 
@@ -271,63 +120,23 @@ public sealed class ResearcherCollectionService
                    StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool HasCompleteOpenAlexRawData(OpenAlexData? openAlexData)
+    private static bool HasCompleteOrcidRawData(OrcidProfile? profile)
     {
         int index = 0;
-        OpenAlexWork? work = null;
+        OrcidWork? work = null;
 
-        if (openAlexData is null ||
-            string.IsNullOrWhiteSpace(openAlexData.RawDataJson) ||
-            string.IsNullOrWhiteSpace(openAlexData.WorksResponsePagesJson) ||
-            openAlexData.Works is null)
+        if (profile is null ||
+            string.IsNullOrWhiteSpace(profile.RawDataJson) ||
+            profile.Works is null)
         {
             return false;
         }
 
-        for (index = 0; index < openAlexData.Works.Count; index++)
+        for (index = 0; index < profile.Works.Count; index++)
         {
-            work = openAlexData.Works[index];
+            work = profile.Works[index];
 
             if (string.IsNullOrWhiteSpace(work.RawDataJson))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private bool HasCompleteGoogleScholarRawData(
-        GoogleScholarData? googleScholarData)
-    {
-        bool collectArticleDetails = false;
-        int index = 0;
-        GoogleScholarWork? work = null;
-
-        if (googleScholarData is null ||
-            string.IsNullOrWhiteSpace(googleScholarData.RawDataJson) ||
-            string.IsNullOrWhiteSpace(googleScholarData.ResponsePagesJson) ||
-            googleScholarData.Works is null)
-        {
-            return false;
-        }
-
-        bool.TryParse(
-            _configuration["GoogleScholar:CollectArticleDetails"],
-            out collectArticleDetails);
-
-        for (index = 0; index < googleScholarData.Works.Count; index++)
-        {
-            work = googleScholarData.Works[index];
-
-            if (string.IsNullOrWhiteSpace(work.RawDataJson))
-            {
-                return false;
-            }
-
-            if (collectArticleDetails &&
-                !string.IsNullOrWhiteSpace(work.CitationId) &&
-                string.IsNullOrWhiteSpace(work.DetailRawDataJson))
             {
                 return false;
             }

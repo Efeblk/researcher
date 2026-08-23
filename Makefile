@@ -13,7 +13,7 @@ help:
 	@echo "  make build                Projeyi derler"
 	@echo "  make clean                SQLite veritabanını ve Storage klasörünü siler"
 	@echo "  make health               Sunucunun çalıştığını kontrol eder"
-	@echo "  make collect ID=...       Bir veya daha fazla akademisyen kimliğini sorgular"
+	@echo "  make collect ID=...       ORCID ile akademisyen yayınlarını sorgular"
 	@echo "  make random               Rastgele akademisyen özeti getirir"
 	@echo "  make health HOST=...      Farklı bir sunucu adresi kullanır"
 
@@ -47,17 +47,14 @@ health:
 
 collect:
 	@if [ -z "$(strip $(ID))" ]; then \
-		echo 'Kullanım: make collect ID="tQgMPzcAAAAJ 0000-0001-8560-7482"'; \
+		echo 'Kullanım: make collect ID="0000-0001-8560-7482"'; \
 		exit 1; \
 	fi
 	@response_file="$$(mktemp -t academic-collect.XXXXXX)"; \
 	start_time="$$(date +%s)"; \
-	initial_pdf_count=0; \
-	if [ -d "$(CURDIR)/Storage/Pdfs" ]; then \
-		initial_pdf_count="$$(find "$(CURDIR)/Storage/Pdfs" -type f -name '*.pdf' | wc -l | tr -d ' ')"; \
-	fi; \
-	echo "Toplama isteği gönderildi. API ve PDF işlemleri bekleniyor..."; \
+	echo "Toplama isteği gönderildi. Akademik kaynaklar bekleniyor..."; \
 	curl --silent --show-error \
+		--fail-with-body \
 		--request POST \
 		--header "Content-Type: application/json" \
 		--data '{"Identifiers":["$(subst $(space),"$(comma)",$(strip $(ID)))"],"UseTestIdentifiers":false}' \
@@ -67,13 +64,7 @@ collect:
 	while kill -0 "$$request_pid" 2>/dev/null; do \
 		current_time="$$(date +%s)"; \
 		elapsed_seconds="$$((current_time - start_time))"; \
-		pdf_count=0; \
-		if [ -d "$(CURDIR)/Storage/Pdfs" ]; then \
-			pdf_count="$$(find "$(CURDIR)/Storage/Pdfs" -type f -name '*.pdf' | wc -l | tr -d ' ')"; \
-		fi; \
-		new_pdf_count="$$((pdf_count - initial_pdf_count))"; \
-		printf '\rİşlem: %s saniye | Yeni PDF: %s | Toplam PDF: %s' \
-			"$$elapsed_seconds" "$$new_pdf_count" "$$pdf_count"; \
+		printf '\rİşlem: %s saniye' "$$elapsed_seconds"; \
 		sleep 1; \
 	done; \
 	if wait "$$request_pid"; then \

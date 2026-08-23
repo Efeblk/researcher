@@ -1,6 +1,4 @@
-using System.Text;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Works;
@@ -9,20 +7,8 @@ public sealed class AcademicWorkCategorizer
 {
     public void Categorize(Researcher researcher)
     {
-        Dictionary<string, AcademicWorkCategory>? openAlexCategoriesByTitle = null;
-
-        CategorizeOpenAlexWorks(researcher.OpenAlex?.Works);
-        openAlexCategoriesByTitle = CreateOpenAlexCategoryLookup(
-            researcher.OpenAlex?.Works);
-        CategorizeGoogleScholarWorks(
-            researcher.GoogleScholar?.Works,
-            openAlexCategoriesByTitle);
-    }
-
-    private static void CategorizeOpenAlexWorks(List<OpenAlexWork>? works)
-    {
+        List<OrcidWork>? works = researcher.OrcidProfile?.Works;
         int index = 0;
-        OpenAlexWork? work = null;
 
         if (works is null)
         {
@@ -31,161 +17,64 @@ public sealed class AcademicWorkCategorizer
 
         for (index = 0; index < works.Count; index++)
         {
-            work = works[index];
-            work.Category = GetOpenAlexCategory(work.Type);
-            work.CategorySource = AcademicWorkCategorySource.OpenAlex;
+            works[index].Category = GetOrcidCategory(works[index].WorkType);
+            works[index].CategorySource = AcademicWorkCategorySource.Orcid;
         }
     }
 
-    private static Dictionary<string, AcademicWorkCategory> CreateOpenAlexCategoryLookup(
-        List<OpenAlexWork>? works)
+    public AcademicWorkCategory GetOrcidCategory(string? type)
     {
-        Dictionary<string, AcademicWorkCategory>? categoriesByTitle = null;
-        HashSet<string>? conflictingTitles = null;
-        int index = 0;
-        OpenAlexWork? work = null;
-        string? normalizedTitle = null;
-        string[]? conflictingTitleValues = null;
-        string? conflictingTitle = null;
-        int conflictingTitleIndex = 0;
-        AcademicWorkCategory existingCategory = AcademicWorkCategory.Unknown;
-
-        categoriesByTitle = new Dictionary<string, AcademicWorkCategory>();
-        conflictingTitles = new HashSet<string>();
-
-        if (works is null)
-        {
-            return categoriesByTitle;
-        }
-
-        for (index = 0; index < works.Count; index++)
-        {
-            work = works[index];
-            normalizedTitle = NormalizeTitle(work.Title);
-
-            if (string.IsNullOrWhiteSpace(normalizedTitle))
-            {
-                continue;
-            }
-
-            if (categoriesByTitle.TryGetValue(normalizedTitle, out existingCategory) &&
-                existingCategory != work.Category)
-            {
-                conflictingTitles.Add(normalizedTitle);
-                continue;
-            }
-
-            categoriesByTitle[normalizedTitle] = work.Category;
-        }
-
-        conflictingTitleValues = conflictingTitles.ToArray();
-
-        for (
-            conflictingTitleIndex = 0;
-            conflictingTitleIndex < conflictingTitleValues.Length;
-            conflictingTitleIndex++)
-        {
-            conflictingTitle = conflictingTitleValues[conflictingTitleIndex];
-            categoriesByTitle.Remove(conflictingTitle);
-        }
-
-        return categoriesByTitle;
-    }
-
-    private static void CategorizeGoogleScholarWorks(
-        List<GoogleScholarWork>? works,
-        Dictionary<string, AcademicWorkCategory> openAlexCategoriesByTitle)
-    {
-        int index = 0;
-        GoogleScholarWork? work = null;
-        string? normalizedTitle = null;
-        AcademicWorkCategory openAlexCategory = AcademicWorkCategory.Unknown;
-
-        if (works is null)
-        {
-            return;
-        }
-
-        for (index = 0; index < works.Count; index++)
-        {
-            work = works[index];
-            work.Category = AcademicWorkCategory.Unknown;
-            work.CategorySource = AcademicWorkCategorySource.Unknown;
-            normalizedTitle = NormalizeTitle(work.Title);
-
-            if (string.IsNullOrWhiteSpace(normalizedTitle) ||
-                !openAlexCategoriesByTitle.TryGetValue(
-                    normalizedTitle,
-                    out openAlexCategory))
-            {
-                continue;
-            }
-
-            work.Category = openAlexCategory;
-            work.CategorySource = AcademicWorkCategorySource.MatchedFromOpenAlex;
-        }
-    }
-
-    private static AcademicWorkCategory GetOpenAlexCategory(string? type)
-    {
-        string? normalizedType = null;
-
-        normalizedType = type?.Trim().ToLowerInvariant();
+        string? normalizedType = type?.Trim().ToLowerInvariant();
 
         return normalizedType switch
         {
             "article" => AcademicWorkCategory.Article,
+            "journal-article" => AcademicWorkCategory.Article,
+            "magazine-article" => AcademicWorkCategory.Article,
+            "newsletter-article" => AcademicWorkCategory.Article,
+            "newspaper-article" => AcademicWorkCategory.Article,
             "book" => AcademicWorkCategory.Book,
             "book-chapter" => AcademicWorkCategory.BookChapter,
             "book-review" => AcademicWorkCategory.BookReview,
             "conference-abstract" => AcademicWorkCategory.ConferenceAbstract,
             "conference-paper" => AcademicWorkCategory.ConferencePaper,
+            "conference-poster" => AcademicWorkCategory.ConferencePaper,
             "data-paper" => AcademicWorkCategory.DataPaper,
+            "data-set" => AcademicWorkCategory.Dataset,
             "dataset" => AcademicWorkCategory.Dataset,
             "dissertation" => AcademicWorkCategory.Dissertation,
+            "dissertation-thesis" => AcademicWorkCategory.Dissertation,
+            "dictionary-entry" => AcademicWorkCategory.ReferenceEntry,
+            "encyclopedia-entry" => AcademicWorkCategory.ReferenceEntry,
             "editorial" => AcademicWorkCategory.Editorial,
             "erratum" => AcademicWorkCategory.Erratum,
             "letter" => AcademicWorkCategory.Letter,
-            "libguides" => AcademicWorkCategory.LibGuide,
+            "invention" => AcademicWorkCategory.Other,
+            "artistic-performance" => AcademicWorkCategory.Other,
+            "journal-issue" => AcademicWorkCategory.Other,
+            "lecture-speech" => AcademicWorkCategory.Other,
+            "license" => AcademicWorkCategory.Other,
+            "manual" => AcademicWorkCategory.Other,
+            "online-resource" => AcademicWorkCategory.Other,
             "other" => AcademicWorkCategory.Other,
-            "paratext" => AcademicWorkCategory.Paratext,
-            "peer-review" => AcademicWorkCategory.PeerReview,
+            "patent" => AcademicWorkCategory.Other,
+            "physical-object" => AcademicWorkCategory.Other,
             "preprint" => AcademicWorkCategory.Preprint,
-            "reference-entry" => AcademicWorkCategory.ReferenceEntry,
+            "registered-copyright" => AcademicWorkCategory.Other,
             "report" => AcademicWorkCategory.Report,
-            "retraction" => AcademicWorkCategory.Retraction,
             "review" => AcademicWorkCategory.Review,
+            "research-technique" => AcademicWorkCategory.Other,
             "software" => AcademicWorkCategory.Software,
-            "software-paper" => AcademicWorkCategory.SoftwarePaper,
-            "standard" => AcademicWorkCategory.Standard,
-            "supplementary-materials" => AcademicWorkCategory.SupplementaryMaterials,
+            "spin-off-company" => AcademicWorkCategory.Other,
+            "standards-and-policy" => AcademicWorkCategory.Standard,
+            "supervised-student-publication" => AcademicWorkCategory.Other,
+            "technical-standard" => AcademicWorkCategory.Standard,
+            "test" => AcademicWorkCategory.Other,
+            "trademark" => AcademicWorkCategory.Other,
+            "translation" => AcademicWorkCategory.Other,
+            "website" => AcademicWorkCategory.Other,
+            "working-paper" => AcademicWorkCategory.Preprint,
             _ => AcademicWorkCategory.Unknown
         };
-    }
-
-    private static string NormalizeTitle(string? title)
-    {
-        StringBuilder? normalizedTitle = null;
-        int index = 0;
-        char character = '\0';
-
-        normalizedTitle = new StringBuilder();
-
-        if (string.IsNullOrWhiteSpace(title))
-        {
-            return normalizedTitle.ToString();
-        }
-
-        for (index = 0; index < title.Length; index++)
-        {
-            character = title[index];
-
-            if (char.IsLetterOrDigit(character))
-            {
-                normalizedTitle.Append(char.ToLowerInvariant(character));
-            }
-        }
-
-        return normalizedTitle.ToString();
     }
 }

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="home" id="ApplicationPath" href="~/" />
+    @Html.StyleBundle("Base")
+    <title>@ViewData["Title"] - Akademik Performans</title>
+</head>
+<body class="academic-shell">
+    <aside class="academic-sidebar">
+        <div class="academic-brand">BYS Paralel Modül</div>
+        <nav aria-label="Ana menü">
+            <a class="academic-menu-item active" href="~/AcademicPerformance">
+                <i class="fa fa-graduation-cap" aria-hidden="true"></i>
+                <span>Akademik Performans</span>
+            </a>
+        </nav>
+    </aside>
+    <main class="academic-main">
+        <header class="academic-header">
+            <button class="academic-menu-toggle" type="button" aria-label="Menüyü aç/kapat">
+                <i class="fa fa-bars" aria-hidden="true"></i>
+            </button>
+            <span>Akademik Performans Bilgi Sistemi</span>
+        </header>
+        <section class="academic-content">
+            @RenderBody()
+        </section>
+    </main>
+    @Html.ScriptBundle("Base")
+    <script type="module" src="~/esm/Modules/AcademicPerformance/UI/AcademicPerformancePage.js"></script>
+</body>
+</html>

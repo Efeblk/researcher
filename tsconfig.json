@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "allowJs": false,
+    "declaration": false,
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "isolatedModules": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "noImplicitOverride": true,
+    "paths": {
+      "@serenity-is/*": [
+        "./node_modules/@serenity-is/*/dist/index",
+        "./node_modules/.dotnet/serenity.*/dist/index"
+      ]
+    },
+    "skipLibCheck": true,
+    "strict": false,
+    "target": "ES2022",
+    "useDefineForClassFields": false
+  },
+  "include": [
+    "Modules"
+  ]
+}

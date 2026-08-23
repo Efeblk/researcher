@@ -35,13 +35,9 @@ public sealed class DatabaseMaintenance
         researcher = await _dbContext.Researchers
             .AsNoTracking()
             .AsSplitQuery()
-            .Include(item => item.OpenAlex)
-                .ThenInclude(openAlex => openAlex!.Works)
-            .Include(item => item.GoogleScholar)
-                .ThenInclude(googleScholar => googleScholar!.Works)
-            .Include(item => item.GoogleScholar)
-                .ThenInclude(googleScholar => googleScholar!.Interests)
-            .Include(item => item.WebOfScience)
+            .Include(item => item.Metrics)
+            .Include(item => item.OrcidProfile)
+                .ThenInclude(profile => profile!.Works)
             .OrderBy(item => item.Id)
             .Skip(randomIndex)
             .FirstOrDefaultAsync();

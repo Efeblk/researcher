@@ -22,22 +22,6 @@ public sealed class ResearcherRepository
                 .FirstOrDefaultAsync(item => item.Orcid == identifiers.Orcid);
         }
 
-        if (researcher is null && !string.IsNullOrWhiteSpace(identifiers.GoogleScholarId))
-        {
-            researcher = await CreateResearcherQuery()
-                .FirstOrDefaultAsync(
-                    item => item.GoogleScholarId == identifiers.GoogleScholarId);
-        }
-
-        if (researcher is null &&
-            !string.IsNullOrWhiteSpace(identifiers.WebOfScienceResearcherId))
-        {
-            researcher = await CreateResearcherQuery()
-                .FirstOrDefaultAsync(
-                    item => item.WebOfScienceResearcherId ==
-                            identifiers.WebOfScienceResearcherId);
-        }
-
         return researcher;
     }
 
@@ -50,14 +34,6 @@ public sealed class ResearcherRepository
         target.Department = source.Department ?? target.Department;
 
         target.Orcid = GetIdentifierValue(target.Orcid, source.Orcid, "ORCID");
-        target.GoogleScholarId = GetIdentifierValue(
-            target.GoogleScholarId,
-            source.GoogleScholarId,
-            "Google Scholar ID");
-        target.WebOfScienceResearcherId = GetIdentifierValue(
-            target.WebOfScienceResearcherId,
-            source.WebOfScienceResearcherId,
-            "Web of Science ResearcherID");
     }
 
     public async Task SaveAsync(Researcher researcher)
@@ -75,20 +51,6 @@ public sealed class ResearcherRepository
         {
             existingResearcher = await CreateResearcherQuery()
                 .FirstOrDefaultAsync(item => item.Orcid == researcher.Orcid);
-        }
-
-        if (existingResearcher is null && !string.IsNullOrWhiteSpace(researcher.GoogleScholarId))
-        {
-            existingResearcher = await CreateResearcherQuery()
-                .FirstOrDefaultAsync(item => item.GoogleScholarId == researcher.GoogleScholarId);
-        }
-
-        if (existingResearcher is null &&
-            !string.IsNullOrWhiteSpace(researcher.WebOfScienceResearcherId))
-        {
-            existingResearcher = await CreateResearcherQuery()
-                .FirstOrDefaultAsync(
-                    item => item.WebOfScienceResearcherId == researcher.WebOfScienceResearcherId);
         }
 
         if (existingResearcher is null)
@@ -110,13 +72,9 @@ public sealed class ResearcherRepository
         IQueryable<Researcher>? query = null;
 
         query = _dbContext.Researchers
-            .Include(researcher => researcher.OpenAlex)
-                .ThenInclude(openAlex => openAlex!.Works)
-            .Include(researcher => researcher.GoogleScholar)
-                .ThenInclude(googleScholar => googleScholar!.Works)
-            .Include(researcher => researcher.GoogleScholar)
-                .ThenInclude(googleScholar => googleScholar!.Interests)
-            .Include(researcher => researcher.WebOfScience);
+            .Include(researcher => researcher.Metrics)
+            .Include(researcher => researcher.OrcidProfile)
+                .ThenInclude(profile => profile!.Works);
 
         return query;
     }
@@ -126,103 +84,70 @@ public sealed class ResearcherRepository
         ApplyRequestValues(target, source);
         target.LastUpdatedAt = DateTime.UtcNow;
 
-        UpdateOpenAlex(target, source);
-        UpdateGoogleScholar(target, source);
-        UpdateWebOfScience(target, source);
+        UpdateOrcid(target, source);
+        UpdateMetrics(target, source);
     }
 
-    private void UpdateOpenAlex(Researcher target, Researcher source)
+    private void UpdateOrcid(Researcher target, Researcher source)
     {
-        if (source.OpenAlex is null)
+        if (source.OrcidProfile is null)
         {
             return;
         }
 
-        if (target.OpenAlex is null)
+        if (target.OrcidProfile is null)
         {
-            target.OpenAlex = source.OpenAlex;
+            target.OrcidProfile = source.OrcidProfile;
             return;
         }
 
-        target.OpenAlex.AuthorId = source.OpenAlex.AuthorId;
-        target.OpenAlex.DisplayName = source.OpenAlex.DisplayName;
-        target.OpenAlex.WorksCount = source.OpenAlex.WorksCount;
-        target.OpenAlex.RawDataJson = source.OpenAlex.RawDataJson;
-        target.OpenAlex.WorksResponsePagesJson = source.OpenAlex.WorksResponsePagesJson;
-        target.OpenAlex.LastUpdatedAt = source.OpenAlex.LastUpdatedAt;
+        target.OrcidProfile.DisplayName = source.OrcidProfile.DisplayName;
+        target.OrcidProfile.GivenNames = source.OrcidProfile.GivenNames;
+        target.OrcidProfile.FamilyName = source.OrcidProfile.FamilyName;
+        target.OrcidProfile.CreditName = source.OrcidProfile.CreditName;
+        target.OrcidProfile.Biography = source.OrcidProfile.Biography;
+        target.OrcidProfile.CountryCodes = source.OrcidProfile.CountryCodes;
+        target.OrcidProfile.Keywords = source.OrcidProfile.Keywords;
+        target.OrcidProfile.CurrentOrganization = source.OrcidProfile.CurrentOrganization;
+        target.OrcidProfile.CurrentDepartment = source.OrcidProfile.CurrentDepartment;
+        target.OrcidProfile.CurrentRoleTitle = source.OrcidProfile.CurrentRoleTitle;
+        target.OrcidProfile.WorksCount = source.OrcidProfile.WorksCount;
+        target.OrcidProfile.EmploymentsCount = source.OrcidProfile.EmploymentsCount;
+        target.OrcidProfile.EducationsCount = source.OrcidProfile.EducationsCount;
+        target.OrcidProfile.FundingsCount = source.OrcidProfile.FundingsCount;
+        target.OrcidProfile.PeerReviewsCount = source.OrcidProfile.PeerReviewsCount;
+        target.OrcidProfile.RecordLastModifiedAt = source.OrcidProfile.RecordLastModifiedAt;
+        target.OrcidProfile.LastUpdatedAt = source.OrcidProfile.LastUpdatedAt;
+        target.OrcidProfile.ResearcherUrlsJson = source.OrcidProfile.ResearcherUrlsJson;
+        target.OrcidProfile.ExternalIdentifiersJson = source.OrcidProfile.ExternalIdentifiersJson;
+        target.OrcidProfile.EmploymentsJson = source.OrcidProfile.EmploymentsJson;
+        target.OrcidProfile.EducationsJson = source.OrcidProfile.EducationsJson;
+        target.OrcidProfile.ActivitiesJson = source.OrcidProfile.ActivitiesJson;
+        target.OrcidProfile.RawDataJson = source.OrcidProfile.RawDataJson;
 
-        if (source.OpenAlex.Works is not null)
-        {
-            _dbContext.OpenAlexWorks.RemoveRange(target.OpenAlex.Works ?? []);
-            target.OpenAlex.Works = source.OpenAlex.Works;
-        }
+        _dbContext.OrcidWorks.RemoveRange(target.OrcidProfile.Works ?? []);
+        target.OrcidProfile.Works = source.OrcidProfile.Works;
     }
 
-    private void UpdateGoogleScholar(Researcher target, Researcher source)
+    private static void UpdateMetrics(Researcher target, Researcher source)
     {
-        if (source.GoogleScholar is null)
+        if (source.Metrics is null)
         {
             return;
         }
 
-        if (target.GoogleScholar is null)
+        if (target.Metrics is null)
         {
-            target.GoogleScholar = source.GoogleScholar;
+            target.Metrics = source.Metrics;
             return;
         }
 
-        target.GoogleScholar.ScholarId = source.GoogleScholar.ScholarId;
-        target.GoogleScholar.Name = source.GoogleScholar.Name;
-        target.GoogleScholar.Affiliations = source.GoogleScholar.Affiliations;
-        target.GoogleScholar.Email = source.GoogleScholar.Email;
-        target.GoogleScholar.CitationCount = source.GoogleScholar.CitationCount;
-        target.GoogleScholar.HIndex = source.GoogleScholar.HIndex;
-        target.GoogleScholar.I10Index = source.GoogleScholar.I10Index;
-        target.GoogleScholar.RawDataJson = source.GoogleScholar.RawDataJson;
-        target.GoogleScholar.ResponsePagesJson = source.GoogleScholar.ResponsePagesJson;
-        target.GoogleScholar.LastUpdatedAt = source.GoogleScholar.LastUpdatedAt;
-
-        if (source.GoogleScholar.Works is not null)
-        {
-            _dbContext.GoogleScholarWorks.RemoveRange(target.GoogleScholar.Works ?? []);
-            target.GoogleScholar.Works = source.GoogleScholar.Works;
-        }
-
-        if (source.GoogleScholar.Interests is not null)
-        {
-            _dbContext.GoogleScholarInterests.RemoveRange(target.GoogleScholar.Interests ?? []);
-            target.GoogleScholar.Interests = source.GoogleScholar.Interests;
-        }
-    }
-
-    private void UpdateWebOfScience(Researcher target, Researcher source)
-    {
-        if (source.WebOfScience is null)
-        {
-            return;
-        }
-
-        if (target.WebOfScience is null)
-        {
-            target.WebOfScience = source.WebOfScience;
-            return;
-        }
-
-        target.WebOfScience.Rid = source.WebOfScience.Rid;
-        target.WebOfScience.FullName = source.WebOfScience.FullName;
-        target.WebOfScience.FirstName = source.WebOfScience.FirstName;
-        target.WebOfScience.LastName = source.WebOfScience.LastName;
-        target.WebOfScience.PrimaryAffiliation = source.WebOfScience.PrimaryAffiliation;
-        target.WebOfScience.Address = source.WebOfScience.Address;
-        target.WebOfScience.Country = source.WebOfScience.Country;
-        target.WebOfScience.IsClaimed = source.WebOfScience.IsClaimed;
-        target.WebOfScience.DocumentCount = source.WebOfScience.DocumentCount;
-        target.WebOfScience.TotalTimesCited = source.WebOfScience.TotalTimesCited;
-        target.WebOfScience.TotalCitingPublications = source
-            .WebOfScience
-            .TotalCitingPublications;
-        target.WebOfScience.HIndex = source.WebOfScience.HIndex;
-        target.WebOfScience.LastUpdatedAt = source.WebOfScience.LastUpdatedAt;
+        target.Metrics.WorksCount = source.Metrics.WorksCount;
+        target.Metrics.CitedByCount = source.Metrics.CitedByCount;
+        target.Metrics.HIndex = source.Metrics.HIndex;
+        target.Metrics.I10Index = source.Metrics.I10Index;
+        target.Metrics.Source = source.Metrics.Source;
+        target.Metrics.UpdatedAt = source.Metrics.UpdatedAt;
     }
 
     private static string? GetIdentifierValue(

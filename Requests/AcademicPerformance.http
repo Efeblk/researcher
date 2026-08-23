@@ -1,30 +1,17 @@
 @host = http://localhost:5000
-@googleScholarId = tQgMPzcAAAAJ
 @orcid = 0000-0003-2812-9917
 
 ### Uygulamanın çalıştığını kontrol et
 GET {{host}}/
 Accept: application/json
 
-### Tek bir Google Scholar ID ile akademisyen verisini topla
+### ORCID ile akademisyen verisini topla
 POST {{host}}/Services/AcademicPerformance/Researcher/Collect
 Content-Type: application/json
 
 {
   "Identifiers": [
-    "{{googleScholarId}}"
-  ],
-  "UseTestIdentifiers": false
-}
-
-### Birden fazla kimliği aynı istekte gönder
-POST {{host}}/Services/AcademicPerformance/Researcher/Collect
-Content-Type: application/json
-
-{
-  "Identifiers": [
-    "{{orcid}}",
-    "{{googleScholarId}}"
+    "{{orcid}}"
   ],
   "UseTestIdentifiers": false
 }

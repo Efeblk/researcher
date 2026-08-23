@@ -34,8 +34,25 @@ public sealed class OpenAlexData
     [JsonPropertyName("works_count")]
     public int? WorksCount { get; set; } = null;
 
+    [NotMapped]
+    [JsonPropertyName("cited_by_count")]
+    public int? CitedByCount { get; set; } = null;
+
+    [NotMapped]
+    [JsonPropertyName("summary_stats")]
+    public OpenAlexSummaryStats? SummaryStats { get; set; } = null;
+
     [JsonIgnore]
     public List<OpenAlexWork>? Works { get; set; } = null;
+}
+
+public sealed class OpenAlexSummaryStats
+{
+    [JsonPropertyName("h_index")]
+    public int? HIndex { get; set; } = null;
+
+    [JsonPropertyName("i10_index")]
+    public int? I10Index { get; set; } = null;
 }
 
 public sealed class OpenAlexWork

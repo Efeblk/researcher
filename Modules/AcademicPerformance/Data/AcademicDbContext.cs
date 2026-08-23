@@ -1,24 +1,22 @@
 using Microsoft.EntityFrameworkCore;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Files;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 
 public sealed class AcademicDbContext : DbContext
 {
     public DbSet<Researcher> Researchers { get; set; } = null!;
+    public DbSet<ResearcherMetrics> ResearcherMetrics { get; set; } = null!;
+    public DbSet<OrcidProfile> OrcidProfiles { get; set; } = null!;
+    public DbSet<OrcidWork> OrcidWorks { get; set; } = null!;
     public DbSet<OpenAlexData> OpenAlexProfiles { get; set; } = null!;
     public DbSet<OpenAlexWork> OpenAlexWorks { get; set; } = null!;
-    public DbSet<GoogleScholarData> GoogleScholarProfiles { get; set; } = null!;
-    public DbSet<GoogleScholarWork> GoogleScholarWorks { get; set; } = null!;
-    public DbSet<GoogleScholarInterest> GoogleScholarInterests { get; set; } = null!;
-    public DbSet<WebOfScienceData> WebOfScienceProfiles { get; set; } = null!;
     public DbSet<AcademicWork> AcademicWorks { get; set; } = null!;
-    public DbSet<AcademicWorkFile> AcademicWorkFiles { get; set; } = null!;
+    public DbSet<PublicationSummary> PublicationSummaries { get; set; } = null!;
+    public DbSet<PublicationDisplayApproval> PublicationDisplayApprovals { get; set; } = null!;
 
     public AcademicDbContext(DbContextOptions<AcademicDbContext> options)
         : base(options)
@@ -32,40 +30,90 @@ public sealed class AcademicDbContext : DbContext
             entity.ToTable("Researchers");
             entity.HasKey(researcher => researcher.Id);
             entity.Property(researcher => researcher.Orcid).HasMaxLength(19);
-            entity.Property(researcher => researcher.GoogleScholarId).HasMaxLength(100);
-            entity.Property(researcher => researcher.WebOfScienceResearcherId).HasMaxLength(100);
 
             entity.HasIndex(researcher => researcher.Orcid)
                 .IsUnique()
                 .HasFilter("[Orcid] IS NOT NULL");
-
-            entity.HasIndex(researcher => researcher.GoogleScholarId)
-                .IsUnique()
-                .HasFilter("[GoogleScholarId] IS NOT NULL");
-
-            entity.HasIndex(researcher => researcher.WebOfScienceResearcherId)
-                .IsUnique()
-                .HasFilter("[WebOfScienceResearcherId] IS NOT NULL");
 
             entity.HasOne(researcher => researcher.OpenAlex)
                 .WithOne(openAlex => openAlex.Researcher)
                 .HasForeignKey<OpenAlexData>(openAlex => openAlex.ResearcherId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasOne(researcher => researcher.GoogleScholar)
-                .WithOne(googleScholar => googleScholar.Researcher)
-                .HasForeignKey<GoogleScholarData>(googleScholar => googleScholar.ResearcherId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasOne(researcher => researcher.WebOfScience)
-                .WithOne(webOfScience => webOfScience.Researcher)
-                .HasForeignKey<WebOfScienceData>(webOfScience => webOfScience.ResearcherId)
-                .OnDelete(DeleteBehavior.Cascade);
-
             entity.HasMany(researcher => researcher.AcademicWorks)
                 .WithOne(work => work.Researcher)
                 .HasForeignKey(work => work.ResearcherId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(researcher => researcher.OrcidProfile)
+                .WithOne(profile => profile.Researcher)
+                .HasForeignKey<OrcidProfile>(profile => profile.ResearcherId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(researcher => researcher.Metrics)
+                .WithOne(metrics => metrics.Researcher)
+                .HasForeignKey<ResearcherMetrics>(metrics => metrics.ResearcherId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(researcher => researcher.PublicationSummaries)
+                .WithOne(summary => summary.Researcher)
+                .HasForeignKey(summary => summary.ResearcherId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(researcher => researcher.PublicationDisplayApprovals)
+                .WithOne(approval => approval.Researcher)
+                .HasForeignKey(approval => approval.ResearcherId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<OrcidProfile>(entity =>
+        {
+            entity.ToTable("OrcidProfiles");
+            entity.HasKey(profile => profile.Id);
+            entity.Property(profile => profile.DisplayName).HasMaxLength(500);
+            entity.Property(profile => profile.GivenNames).HasMaxLength(250);
+            entity.Property(profile => profile.FamilyName).HasMaxLength(250);
+            entity.Property(profile => profile.CreditName).HasMaxLength(500);
+            entity.Property(profile => profile.CountryCodes).HasMaxLength(250);
+            entity.Property(profile => profile.Keywords).HasMaxLength(4000);
+            entity.Property(profile => profile.CurrentOrganization).HasMaxLength(1000);
+            entity.Property(profile => profile.CurrentDepartment).HasMaxLength(1000);
+            entity.Property(profile => profile.CurrentRoleTitle).HasMaxLength(500);
+            entity.HasIndex(profile => profile.ResearcherId).IsUnique();
+
+            entity.HasMany(profile => profile.Works)
+                .WithOne(work => work.OrcidProfile)
+                .HasForeignKey(work => work.OrcidProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<OrcidWork>(entity =>
+        {
+            entity.ToTable("OrcidWorks");
+            entity.HasKey(work => work.Id);
+            entity.Property(work => work.Title).HasMaxLength(2000);
+            entity.Property(work => work.Subtitle).HasMaxLength(2000);
+            entity.Property(work => work.TranslatedTitle).HasMaxLength(2000);
+            entity.Property(work => work.WorkType).HasMaxLength(100);
+            entity.Property(work => work.JournalTitle).HasMaxLength(2000);
+            entity.Property(work => work.Doi).HasMaxLength(500);
+            entity.Property(work => work.Url).HasMaxLength(2000);
+            entity.Property(work => work.Authors).HasMaxLength(4000);
+            entity.Property(work => work.LanguageCode).HasMaxLength(20);
+            entity.Property(work => work.CountryCode).HasMaxLength(20);
+            entity.Property(work => work.SourceName).HasMaxLength(500);
+            entity.Property(work => work.Visibility).HasMaxLength(50);
+            entity.Property(work => work.Category).HasConversion<string>().HasMaxLength(50);
+            entity.Property(work => work.CategorySource).HasConversion<string>().HasMaxLength(50);
+            entity.HasIndex(work => new { work.OrcidProfileId, work.PutCode }).IsUnique();
+        });
+
+        modelBuilder.Entity<ResearcherMetrics>(entity =>
+        {
+            entity.ToTable("ResearcherMetrics");
+            entity.HasKey(metrics => metrics.Id);
+            entity.Property(metrics => metrics.Source).HasMaxLength(50);
+            entity.HasIndex(metrics => metrics.ResearcherId).IsUnique();
         });
 
         modelBuilder.Entity<OpenAlexData>(entity =>
@@ -115,73 +163,22 @@ public sealed class AcademicDbContext : DbContext
             entity.Property(work => work.SourceUrl).HasMaxLength(2000);
         });
 
-        modelBuilder.Entity<GoogleScholarData>(entity =>
-        {
-            entity.ToTable("GoogleScholarProfiles");
-            entity.HasKey(googleScholar => googleScholar.Id);
-            entity.Property(googleScholar => googleScholar.ScholarId).HasMaxLength(100);
-            entity.Property(googleScholar => googleScholar.Name).HasMaxLength(500);
-            entity.Property(googleScholar => googleScholar.Email).HasMaxLength(500);
-            entity.Property(googleScholar => googleScholar.Affiliations).HasMaxLength(2000);
-
-            entity.HasMany(googleScholar => googleScholar.Works)
-                .WithOne(work => work.GoogleScholarData)
-                .HasForeignKey(work => work.GoogleScholarDataId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasMany(googleScholar => googleScholar.Interests)
-                .WithOne(interest => interest.GoogleScholarData)
-                .HasForeignKey(interest => interest.GoogleScholarDataId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<GoogleScholarWork>(entity =>
-        {
-            entity.ToTable("GoogleScholarWorks");
-            entity.HasKey(work => work.Id);
-            entity.Property(work => work.Title).HasMaxLength(2000);
-            entity.Property(work => work.Link).HasMaxLength(2000);
-            entity.Property(work => work.CitationId).HasMaxLength(500);
-            entity.Property(work => work.Authors).HasMaxLength(4000);
-            entity.Property(work => work.Publication).HasMaxLength(2000);
-            entity.Property(work => work.Year).HasMaxLength(10);
-            entity.Property(work => work.CitedByUrl).HasMaxLength(2000);
-            entity.Property(work => work.CitedBySerpApiUrl).HasMaxLength(2000);
-            entity.Property(work => work.CitesId).HasMaxLength(2000);
-            entity.Property(work => work.Category)
-                .HasConversion<string>()
-                .HasMaxLength(50);
-            entity.Property(work => work.CategorySource)
-                .HasConversion<string>()
-                .HasMaxLength(50);
-        });
-
-        modelBuilder.Entity<GoogleScholarInterest>(entity =>
-        {
-            entity.ToTable("GoogleScholarInterests");
-            entity.HasKey(interest => interest.Id);
-            entity.Property(interest => interest.Title).HasMaxLength(500);
-        });
-
-        modelBuilder.Entity<WebOfScienceData>(entity =>
-        {
-            entity.ToTable("WebOfScienceProfiles");
-            entity.HasKey(webOfScience => webOfScience.Id);
-            entity.Property(webOfScience => webOfScience.Rid).HasMaxLength(100);
-            entity.Property(webOfScience => webOfScience.FullName).HasMaxLength(500);
-            entity.Property(webOfScience => webOfScience.FirstName).HasMaxLength(500);
-            entity.Property(webOfScience => webOfScience.LastName).HasMaxLength(500);
-            entity.Property(webOfScience => webOfScience.PrimaryAffiliation).HasMaxLength(2000);
-            entity.Property(webOfScience => webOfScience.Address).HasMaxLength(2000);
-            entity.Property(webOfScience => webOfScience.Country).HasMaxLength(500);
-        });
-
         modelBuilder.Entity<AcademicWork>(entity =>
         {
             entity.ToTable("AcademicWorks");
             entity.HasKey(work => work.Id);
             entity.Property(work => work.Provider)
-                .HasConversion<string>()
+                .HasConversion(
+                    provider => provider == AcademicWorkProvider.Orcid
+                        ? nameof(AcademicWorkProvider.Orcid)
+                        : provider == AcademicWorkProvider.OpenAlex
+                            ? nameof(AcademicWorkProvider.OpenAlex)
+                            : nameof(AcademicWorkProvider.Legacy),
+                    value => value == nameof(AcademicWorkProvider.Orcid)
+                        ? AcademicWorkProvider.Orcid
+                        : value == nameof(AcademicWorkProvider.OpenAlex)
+                            ? AcademicWorkProvider.OpenAlex
+                            : AcademicWorkProvider.Legacy)
                 .HasMaxLength(50);
             entity.Property(work => work.ProviderWorkId).HasMaxLength(500);
             entity.Property(work => work.Title).HasMaxLength(2000);
@@ -204,9 +201,6 @@ public sealed class AcademicDbContext : DbContext
             entity.Property(work => work.FirstPage).HasMaxLength(100);
             entity.Property(work => work.LastPage).HasMaxLength(100);
             entity.Property(work => work.Link).HasMaxLength(2000);
-            entity.Property(work => work.CitedByUrl).HasMaxLength(2000);
-            entity.Property(work => work.CitedBySerpApiUrl).HasMaxLength(2000);
-            entity.Property(work => work.CitesId).HasMaxLength(2000);
             entity.Property(work => work.SourceId).HasMaxLength(500);
             entity.Property(work => work.SourceName).HasMaxLength(2000);
             entity.Property(work => work.SourceType).HasMaxLength(100);
@@ -220,27 +214,52 @@ public sealed class AcademicDbContext : DbContext
             entity.HasIndex(work => work.ResearcherId);
             entity.HasIndex(work => new { work.ResearcherId, work.Provider });
 
-            entity.HasOne(work => work.PdfFile)
-                .WithOne(file => file.AcademicWork)
-                .HasForeignKey<AcademicWorkFile>(file => file.AcademicWorkId)
+        });
+
+        modelBuilder.Entity<PublicationSummary>(entity =>
+        {
+            entity.ToTable("PublicationSummaries");
+            entity.HasKey(summary => summary.Id);
+            entity.Property(summary => summary.Fingerprint).HasMaxLength(64);
+            entity.Property(summary => summary.Title).HasMaxLength(2000);
+            entity.Property(summary => summary.Doi).HasMaxLength(500);
+            entity.Property(summary => summary.Category)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+            entity.Property(summary => summary.Authors).HasMaxLength(4000);
+            entity.Property(summary => summary.Keywords).HasMaxLength(4000);
+            entity.Property(summary => summary.Topics).HasMaxLength(4000);
+            entity.Property(summary => summary.Language).HasMaxLength(20);
+            entity.Property(summary => summary.Publication).HasMaxLength(2000);
+            entity.Property(summary => summary.Volume).HasMaxLength(100);
+            entity.Property(summary => summary.Issue).HasMaxLength(100);
+            entity.Property(summary => summary.FirstPage).HasMaxLength(100);
+            entity.Property(summary => summary.LastPage).HasMaxLength(100);
+            entity.Property(summary => summary.PublicationUrl).HasMaxLength(2000);
+            entity.Property(summary => summary.PdfUrl).HasMaxLength(2000);
+            entity.Property(summary => summary.Sources).HasMaxLength(200);
+
+            entity.HasIndex(summary => summary.ResearcherId);
+            entity.HasIndex(summary => new
+                {
+                    summary.ResearcherId,
+                    summary.Fingerprint
+                })
+                .IsUnique();
+
+            entity.HasOne(summary => summary.DisplayApproval)
+                .WithOne(approval => approval.PublicationSummary)
+                .HasForeignKey<PublicationDisplayApproval>(
+                    approval => approval.PublicationSummaryId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        modelBuilder.Entity<AcademicWorkFile>(entity =>
+        modelBuilder.Entity<PublicationDisplayApproval>(entity =>
         {
-            entity.ToTable("AcademicWorkFiles");
-            entity.HasKey(file => file.Id);
-            entity.Property(file => file.SourceUrl).HasMaxLength(2000);
-            entity.Property(file => file.RelativePath).HasMaxLength(1000);
-            entity.Property(file => file.FileName).HasMaxLength(500);
-            entity.Property(file => file.MimeType).HasMaxLength(200);
-            entity.Property(file => file.Sha256).HasMaxLength(64);
-            entity.Property(file => file.Status)
-                .HasConversion<string>()
-                .HasMaxLength(50);
-            entity.Property(file => file.ErrorMessage).HasMaxLength(2000);
-
-            entity.HasIndex(file => file.AcademicWorkId).IsUnique();
+            entity.ToTable("PublicationDisplayApprovals");
+            entity.HasKey(approval => approval.Id);
+            entity.HasIndex(approval => approval.ResearcherId);
+            entity.HasIndex(approval => approval.PublicationSummaryId).IsUnique();
         });
     }
 }

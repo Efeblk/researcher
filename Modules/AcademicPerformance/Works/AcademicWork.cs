@@ -1,6 +1,5 @@
 using System.Text.Json.Serialization;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Files;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Works;
 
@@ -12,10 +11,8 @@ public sealed class AcademicWork
     [JsonIgnore]
     public Researcher? Researcher { get; set; } = null;
 
-    public AcademicWorkFile? PdfFile { get; set; } = null;
-
     [JsonConverter(typeof(JsonStringEnumConverter))]
-    public AcademicWorkProvider Provider { get; set; } = AcademicWorkProvider.OpenAlex;
+    public AcademicWorkProvider Provider { get; set; } = AcademicWorkProvider.Orcid;
 
     public string? ProviderWorkId { get; set; } = null;
     public string? Title { get; set; } = null;
@@ -45,9 +42,6 @@ public sealed class AcademicWork
     public string? FirstPage { get; set; } = null;
     public string? LastPage { get; set; } = null;
     public string? Link { get; set; } = null;
-    public string? CitedByUrl { get; set; } = null;
-    public string? CitedBySerpApiUrl { get; set; } = null;
-    public string? CitesId { get; set; } = null;
     public string? SourceId { get; set; } = null;
     public string? SourceName { get; set; } = null;
     public string? SourceType { get; set; } = null;
@@ -61,6 +55,5 @@ public sealed class AcademicWork
     public string? Version { get; set; } = null;
     public bool? IsRetracted { get; set; } = null;
     public string? ProviderPayload { get; set; } = null;
-    public string? ProviderDetailPayload { get; set; } = null;
     public DateTime SyncedAt { get; set; }
 }

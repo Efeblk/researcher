@@ -1,5 +1,7 @@
 bin/
 obj/
+node_modules/
+wwwroot/esm/
 .DS_Store
 academic.db
 academic.db-shm

@@ -1,6 +1,5 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,7 +21,7 @@ public sealed class AcademicWorkSynchronizer
         HashSet<int>? matchedExistingIds = null;
         AcademicWork? synchronizedWork = null;
         AcademicWork? existingWork = null;
-        DateTime synchronizedAt = default;
+        DateTime synchronizedAt = DateTime.UtcNow;
         int index = 0;
 
         existingWorks = await _dbContext.AcademicWorks
@@ -30,17 +29,11 @@ public sealed class AcademicWorkSynchronizer
             .ToListAsync();
         synchronizedWorks = [];
         matchedExistingIds = [];
-        synchronizedAt = DateTime.UtcNow;
 
-        AddOpenAlexWorks(
+        AddOrcidWorks(
             synchronizedWorks,
             researcher.Id,
-            researcher.OpenAlex?.Works,
-            synchronizedAt);
-        AddGoogleScholarWorks(
-            synchronizedWorks,
-            researcher.Id,
-            researcher.GoogleScholar?.Works,
+            researcher.OrcidProfile?.Works,
             synchronizedAt);
 
         for (index = 0; index < synchronizedWorks.Count; index++)
@@ -142,9 +135,6 @@ public sealed class AcademicWorkSynchronizer
         target.FirstPage = source.FirstPage;
         target.LastPage = source.LastPage;
         target.Link = source.Link;
-        target.CitedByUrl = source.CitedByUrl;
-        target.CitedBySerpApiUrl = source.CitedBySerpApiUrl;
-        target.CitesId = source.CitesId;
         target.SourceId = source.SourceId;
         target.SourceName = source.SourceName;
         target.SourceType = source.SourceType;
@@ -158,19 +148,18 @@ public sealed class AcademicWorkSynchronizer
         target.Version = source.Version;
         target.IsRetracted = source.IsRetracted;
         target.ProviderPayload = source.ProviderPayload;
-        target.ProviderDetailPayload = source.ProviderDetailPayload;
         target.SyncedAt = source.SyncedAt;
     }
 
-    private static void AddOpenAlexWorks(
+    private static void AddOrcidWorks(
         List<AcademicWork> target,
         int researcherId,
-        List<OpenAlexWork>? source,
+        List<OrcidWork>? source,
         DateTime synchronizedAt)
     {
-        int index = 0;
-        OpenAlexWork? sourceWork = null;
+        OrcidWork? sourceWork = null;
         AcademicWork? academicWork = null;
+        int index = 0;
 
         if (source is null)
         {
@@ -182,94 +171,29 @@ public sealed class AcademicWorkSynchronizer
             sourceWork = source[index];
             academicWork = new AcademicWork();
             academicWork.ResearcherId = researcherId;
-            academicWork.Provider = AcademicWorkProvider.OpenAlex;
-            academicWork.ProviderWorkId = sourceWork.WorkId;
+            academicWork.Provider = AcademicWorkProvider.Orcid;
+            academicWork.ProviderWorkId = sourceWork.PutCode.ToString();
             academicWork.Title = sourceWork.Title;
             academicWork.PublicationYear = sourceWork.PublicationYear;
             academicWork.PublicationDate = sourceWork.PublicationDate;
             academicWork.Doi = sourceWork.Doi;
-            academicWork.RawType = sourceWork.Type;
+            academicWork.RawType = sourceWork.WorkType;
             academicWork.Category = sourceWork.Category;
             academicWork.CategorySource = sourceWork.CategorySource;
-            academicWork.CitedByCount = sourceWork.CitedByCount;
-            academicWork.ReferencedWorksCount = sourceWork.ReferencedWorksCount;
+            academicWork.CitedByCount = null;
+            academicWork.ReferencedWorksCount = null;
             academicWork.Authors = sourceWork.Authors;
-            academicWork.Institutions = sourceWork.Institutions;
-            academicWork.Abstract = sourceWork.Abstract;
-            academicWork.Keywords = sourceWork.Keywords;
-            academicWork.Topics = sourceWork.Topics;
-            academicWork.Language = sourceWork.Language;
-            academicWork.Publication = sourceWork.SourceName;
-            academicWork.Volume = sourceWork.Volume;
-            academicWork.Issue = sourceWork.Issue;
-            academicWork.FirstPage = sourceWork.FirstPage;
-            academicWork.LastPage = sourceWork.LastPage;
-            academicWork.Link = sourceWork.PrimaryLocation?.LandingPageUrl
-                ?? sourceWork.SourceUrl;
-            academicWork.SourceId = sourceWork.SourceId;
+            academicWork.Abstract = sourceWork.ShortDescription;
+            academicWork.Language = sourceWork.LanguageCode;
+            academicWork.Publication = sourceWork.JournalTitle;
+            academicWork.Link = sourceWork.Url;
+            academicWork.SourceId = sourceWork.PutCode.ToString();
             academicWork.SourceName = sourceWork.SourceName;
-            academicWork.SourceType = sourceWork.SourceType;
-            academicWork.SourceUrl = sourceWork.SourceUrl;
-            academicWork.IsOpenAccess = sourceWork.IsOpenAccess;
-            academicWork.OpenAccessStatus = sourceWork.OpenAccessStatus;
-            academicWork.OpenAccessUrl = sourceWork.OpenAccessUrl;
-            academicWork.HasFullText = sourceWork.HasFullText;
-            academicWork.FullTextUrl = sourceWork.FullTextUrl;
-            academicWork.License = sourceWork.License;
-            academicWork.Version = sourceWork.Version;
-            academicWork.IsRetracted = sourceWork.IsRetracted;
+            academicWork.SourceType = "ORCID";
+            academicWork.SourceUrl = sourceWork.Url;
             academicWork.ProviderPayload = sourceWork.RawDataJson;
             academicWork.SyncedAt = synchronizedAt;
             target.Add(academicWork);
         }
     }
-
-    private static void AddGoogleScholarWorks(
-        List<AcademicWork> target,
-        int researcherId,
-        List<GoogleScholarWork>? source,
-        DateTime synchronizedAt)
-    {
-        int index = 0;
-        int publicationYear = 0;
-        GoogleScholarWork? sourceWork = null;
-        AcademicWork? academicWork = null;
-
-        if (source is null)
-        {
-            return;
-        }
-
-        for (index = 0; index < source.Count; index++)
-        {
-            sourceWork = source[index];
-            publicationYear = 0;
-            int.TryParse(sourceWork.Year, out publicationYear);
-
-            academicWork = new AcademicWork();
-            academicWork.ResearcherId = researcherId;
-            academicWork.Provider = AcademicWorkProvider.GoogleScholar;
-            academicWork.ProviderWorkId = sourceWork.CitationId;
-            academicWork.Title = sourceWork.Title;
-            academicWork.PublicationYear = publicationYear > 0
-                ? publicationYear
-                : null;
-            academicWork.Category = sourceWork.Category;
-            academicWork.CategorySource = sourceWork.CategorySource;
-            academicWork.CitedByCount = sourceWork.CitedByCount;
-            academicWork.Authors = sourceWork.Authors;
-            academicWork.Publication = sourceWork.Publication;
-            academicWork.Link = sourceWork.Link;
-            academicWork.CitedByUrl = sourceWork.CitedByUrl;
-            academicWork.CitedBySerpApiUrl = sourceWork.CitedBySerpApiUrl;
-            academicWork.CitesId = sourceWork.CitesId;
-            academicWork.SourceName = sourceWork.Publication;
-            academicWork.SourceUrl = sourceWork.Link;
-            academicWork.ProviderPayload = sourceWork.RawDataJson;
-            academicWork.ProviderDetailPayload = sourceWork.DetailRawDataJson;
-            academicWork.SyncedAt = synchronizedAt;
-            target.Add(academicWork);
-        }
-    }
-
 }

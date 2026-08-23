@@ -5,13 +5,18 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <UserSecretsId>84125b1e-2b71-4e7f-bebc-914f83674f79</UserSecretsId>
-    <RestoreNodeTypes>false</RestoreNodeTypes>
     <SerenityUsings>false</SerenityUsings>
+    <TypeScriptCompileBlocked>true</TypeScriptCompileBlocked>
+    <TypeScriptNoEmitOnError>false</TypeScriptNoEmitOnError>
+    <GenerateComputedBuildStaticWebAssetsDependsOn>RunTSBuild;$(GenerateComputedBuildStaticWebAssetsDependsOn)</GenerateComputedBuildStaticWebAssetsDependsOn>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.11" />
+    <PackageReference Include="Serenity.Assets" Version="10.3.5" />
+    <PackageReference Include="Serenity.Corelib" Version="10.3.5" />
+    <PackageReference Include="Serenity.Extensions" Version="10.3.5" />
     <PackageReference Include="Serenity.Net.Web" Version="10.3.5" />
   </ItemGroup>
 
@@ -23,5 +28,18 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+
+  <Target Name="NpmInstall" Condition="!Exists('node_modules\@serenity-is\tsbuild\package.json')">
+    <Message Text="Installing NPM packages for $(ProjectName)..." Importance="high" />
+    <Exec Command="npm install" />
+  </Target>
+
+  <Target Name="RunTSBuild" DependsOnTargets="RestoreNodeTypes;NpmInstall" BeforeTargets="ResolveProjectStaticWebAssets" AfterTargets="ResolveProjectReferences" Condition="'$(SkipTSBuild)' != 'true'">
+    <Message Text="Executing TypeScript compiler for $(ProjectName)..." Importance="high" />
+    <Exec Command="node ./tsbuild.js" />
+    <ItemGroup>
+      <Content Include="wwwroot\esm\**\*.js;wwwroot\esm\**\*.css;wwwroot\esm\**\*.map" Exclude="@(Content)" CopyToOutputDirectory="Never" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    </ItemGroup>
+  </Target>
 
 </Project>

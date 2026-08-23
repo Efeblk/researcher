@@ -1,0 +1,199 @@
+:root {
+    --academic-sidebar-width: 250px;
+    --academic-border: #dfe3e8;
+    --academic-primary: #285f8f;
+}
+
+html,
+body {
+    height: 100%;
+    margin: 0;
+}
+
+.academic-shell {
+    background: #f4f6f8;
+    color: #24313d;
+    font-family: "Open Sans", Arial, sans-serif;
+}
+
+.academic-sidebar {
+    background: #243746;
+    bottom: 0;
+    color: #fff;
+    left: 0;
+    position: fixed;
+    top: 0;
+    width: var(--academic-sidebar-width);
+    z-index: 10;
+}
+
+.academic-brand {
+    border-bottom: 1px solid rgba(255, 255, 255, .12);
+    font-size: 16px;
+    font-weight: 600;
+    padding: 21px 18px;
+}
+
+.academic-menu-item {
+    align-items: center;
+    color: #d8e0e7;
+    display: flex;
+    gap: 10px;
+    padding: 14px 18px;
+    text-decoration: none;
+}
+
+.academic-menu-item.active,
+.academic-menu-item:hover {
+    background: #1b2a35;
+    color: #fff;
+}
+
+.academic-main {
+    margin-left: var(--academic-sidebar-width);
+    min-height: 100%;
+}
+
+.academic-header {
+    align-items: center;
+    background: #fff;
+    border-bottom: 1px solid var(--academic-border);
+    display: flex;
+    font-weight: 600;
+    gap: 12px;
+    min-height: 60px;
+    padding: 0 22px;
+}
+
+.academic-menu-toggle {
+    background: transparent;
+    border: 0;
+    color: #435363;
+    display: none;
+}
+
+.academic-content {
+    padding: 22px;
+}
+
+.academic-card {
+    background: #fff;
+    border: 1px solid var(--academic-border);
+    border-radius: 4px;
+    margin-bottom: 20px;
+    padding: 20px;
+}
+
+.academic-card h1 {
+    font-size: 22px;
+    margin: 0 0 8px;
+}
+
+.academic-help {
+    color: #667583;
+    font-size: 13px;
+    margin-bottom: 18px;
+}
+
+.academic-form-grid {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(3, minmax(180px, 1fr));
+}
+
+.academic-field label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.academic-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.academic-status {
+    border-radius: 4px;
+    display: none;
+    font-size: 13px;
+    margin-top: 16px;
+    padding: 12px;
+    white-space: pre-line;
+}
+
+.academic-status.visible { display: block; }
+.academic-status.info { background: #eaf3fb; color: #285f8f; }
+.academic-status.success { background: #e9f6ee; color: #24663d; }
+.academic-status.error { background: #fbecec; color: #9b2c2c; }
+
+.academic-metrics-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(5, minmax(120px, 1fr));
+}
+
+.academic-metric {
+    background: #f7f9fb;
+    border: 1px solid var(--academic-border);
+    border-radius: 4px;
+    padding: 14px;
+}
+
+.academic-metric span {
+    color: #667583;
+    display: block;
+    font-size: 12px;
+    margin-bottom: 5px;
+}
+
+.academic-metric strong {
+    color: var(--academic-primary);
+    font-size: 20px;
+}
+
+#PublicationGrid {
+    height: 560px;
+}
+
+.academic-publication-selection-header {
+    align-items: flex-start;
+    display: flex;
+    gap: 20px;
+    justify-content: space-between;
+}
+
+.academic-publication-selection-header h2 {
+    font-size: 18px;
+    margin: 0 0 6px;
+}
+
+.academic-publication-selection-actions {
+    align-items: center;
+    display: flex;
+    flex-shrink: 0;
+    gap: 12px;
+}
+
+.academic-publication-selection-actions span {
+    color: #667583;
+    font-size: 13px;
+}
+
+.academic-publication-approval {
+    cursor: pointer;
+    height: 17px;
+    width: 17px;
+}
+
+@media (max-width: 850px) {
+    .academic-sidebar { transform: translateX(-100%); }
+    .academic-sidebar-open .academic-sidebar { transform: translateX(0); }
+    .academic-main { margin-left: 0; }
+    .academic-menu-toggle { display: inline-block; }
+    .academic-form-grid { grid-template-columns: 1fr; }
+    .academic-metrics-grid { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+    .academic-publication-selection-header { display: block; }
+    .academic-publication-selection-actions { margin-bottom: 14px; }
+}

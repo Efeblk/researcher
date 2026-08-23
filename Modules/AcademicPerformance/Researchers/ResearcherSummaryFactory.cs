@@ -1,5 +1,4 @@
-using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
 
@@ -22,68 +21,59 @@ public sealed class ResearcherSummaryFactory
         summary.AcademicTitle = researcher.AcademicTitle;
         summary.Department = researcher.Department;
         summary.Orcid = researcher.Orcid;
-        summary.GoogleScholarId = researcher.GoogleScholarId;
-        summary.WebOfScienceResearcherId = researcher.WebOfScienceResearcherId;
         summary.LastUpdatedAt = researcher.LastUpdatedAt;
-        summary.OpenAlex = CreateOpenAlexSummary(researcher);
-        summary.GoogleScholar = CreateGoogleScholarSummary(researcher);
-        summary.WebOfScience = CreateWebOfScienceSummary(researcher);
+        summary.OrcidProfile = CreateOrcidSummary(researcher);
+        summary.Metrics = CreateMetricsSummary(researcher.Metrics);
 
         return summary;
     }
 
-    private static OpenAlexSummary? CreateOpenAlexSummary(Researcher researcher)
+    private static OrcidSummary? CreateOrcidSummary(Researcher researcher)
     {
-        OpenAlexSummary? summary = null;
+        OrcidSummary? summary = null;
 
-        if (researcher.OpenAlex is null)
+        if (researcher.OrcidProfile is null)
         {
             return null;
         }
 
-        summary = new OpenAlexSummary();
-        summary.AuthorId = researcher.OpenAlex.AuthorId;
-        summary.DisplayName = researcher.OpenAlex.DisplayName;
-        summary.WorkCount = researcher.OpenAlex.Works?.Count
-            ?? researcher.OpenAlex.WorksCount
-            ?? 0;
-        summary.WorkCategories = CreateOpenAlexCategoryCounts(
-            researcher.OpenAlex.Works);
-        summary.LastUpdatedAt = researcher.OpenAlex.LastUpdatedAt;
+        summary = new OrcidSummary();
+        summary.DisplayName = researcher.OrcidProfile.DisplayName;
+        summary.WorkCount = researcher.OrcidProfile.Works?.Count
+            ?? researcher.OrcidProfile.WorksCount;
+        summary.WorkCategories = CreateOrcidCategoryCounts(
+            researcher.OrcidProfile.Works);
+        summary.CurrentOrganization = researcher.OrcidProfile.CurrentOrganization;
+        summary.EmploymentsCount = researcher.OrcidProfile.EmploymentsCount;
+        summary.EducationsCount = researcher.OrcidProfile.EducationsCount;
+        summary.LastUpdatedAt = researcher.OrcidProfile.LastUpdatedAt;
 
         return summary;
     }
 
-    private static GoogleScholarSummary? CreateGoogleScholarSummary(
-        Researcher researcher)
+    private static ResearcherMetricsSummary? CreateMetricsSummary(
+        ResearcherMetrics? metrics)
     {
-        GoogleScholarSummary? summary = null;
+        ResearcherMetricsSummary? summary = null;
 
-        if (researcher.GoogleScholar is null)
+        if (metrics is null)
         {
             return null;
         }
 
-        summary = new GoogleScholarSummary();
-        summary.ScholarId = researcher.GoogleScholar.ScholarId;
-        summary.Name = researcher.GoogleScholar.Name;
-        summary.Affiliations = researcher.GoogleScholar.Affiliations;
-        summary.WorkCount = researcher.GoogleScholar.Works?.Count ?? 0;
-        summary.CitationCount = researcher.GoogleScholar.CitationCount
-            ?? CalculateCitationCount(researcher.GoogleScholar.Works);
-        summary.HIndex = researcher.GoogleScholar.HIndex
-            ?? CalculateHIndex(researcher.GoogleScholar.Works);
-        summary.I10Index = researcher.GoogleScholar.I10Index
-            ?? CalculateI10Index(researcher.GoogleScholar.Works);
-        summary.WorkCategories = CreateGoogleScholarCategoryCounts(
-            researcher.GoogleScholar.Works);
-        summary.LastUpdatedAt = researcher.GoogleScholar.LastUpdatedAt;
+        summary = new ResearcherMetricsSummary();
+        summary.WorksCount = metrics.WorksCount;
+        summary.CitedByCount = metrics.CitedByCount;
+        summary.HIndex = metrics.HIndex;
+        summary.I10Index = metrics.I10Index;
+        summary.Source = metrics.Source;
+        summary.UpdatedAt = metrics.UpdatedAt;
 
         return summary;
     }
 
-    private static Dictionary<string, int> CreateOpenAlexCategoryCounts(
-        List<OpenAlexWork>? works)
+    private static Dictionary<string, int> CreateOrcidCategoryCounts(
+        List<OrcidWork>? works)
     {
         Dictionary<string, int>? categoryCounts = null;
         int index = 0;
@@ -107,118 +97,4 @@ public sealed class ResearcherSummaryFactory
         return categoryCounts;
     }
 
-    private static Dictionary<string, int> CreateGoogleScholarCategoryCounts(
-        List<GoogleScholarWork>? works)
-    {
-        Dictionary<string, int>? categoryCounts = null;
-        int index = 0;
-        string? categoryName = null;
-        int currentCount = 0;
-
-        categoryCounts = [];
-
-        if (works is null)
-        {
-            return categoryCounts;
-        }
-
-        for (index = 0; index < works.Count; index++)
-        {
-            categoryName = works[index].Category.ToString();
-            categoryCounts.TryGetValue(categoryName, out currentCount);
-            categoryCounts[categoryName] = currentCount + 1;
-        }
-
-        return categoryCounts;
-    }
-
-    private static WebOfScienceSummary? CreateWebOfScienceSummary(
-        Researcher researcher)
-    {
-        WebOfScienceSummary? summary = null;
-
-        if (researcher.WebOfScience is null)
-        {
-            return null;
-        }
-
-        summary = new WebOfScienceSummary();
-        summary.ResearcherId = researcher.WebOfScience.Rid;
-        summary.FullName = researcher.WebOfScience.FullName;
-        summary.PrimaryAffiliation = researcher.WebOfScience.PrimaryAffiliation;
-        summary.DocumentCount = researcher.WebOfScience.DocumentCount;
-        summary.CitationCount = researcher.WebOfScience.TotalTimesCited;
-        summary.HIndex = researcher.WebOfScience.HIndex;
-        summary.LastUpdatedAt = researcher.WebOfScience.LastUpdatedAt;
-
-        return summary;
-    }
-
-    private static int CalculateCitationCount(List<GoogleScholarWork>? works)
-    {
-        int citationCount = 0;
-        int index = 0;
-
-        if (works is null)
-        {
-            return citationCount;
-        }
-
-        for (index = 0; index < works.Count; index++)
-        {
-            citationCount += works[index].CitedByCount ?? 0;
-        }
-
-        return citationCount;
-    }
-
-    private static int CalculateHIndex(List<GoogleScholarWork>? works)
-    {
-        List<int>? citationCounts = null;
-        int hIndex = 0;
-        int index = 0;
-
-        if (works is null)
-        {
-            return hIndex;
-        }
-
-        citationCounts = works
-            .Select(work => work.CitedByCount ?? 0)
-            .OrderByDescending(citationCount => citationCount)
-            .ToList();
-
-        for (index = 0; index < citationCounts.Count; index++)
-        {
-            if (citationCounts[index] < index + 1)
-            {
-                break;
-            }
-
-            hIndex = index + 1;
-        }
-
-        return hIndex;
-    }
-
-    private static int CalculateI10Index(List<GoogleScholarWork>? works)
-    {
-        int i10Index = 0;
-        int index = 0;
-
-        if (works is null)
-        {
-            return i10Index;
-        }
-
-        for (index = 0; index < works.Count; index++)
-        {
-            if ((works[index].CitedByCount ?? 0) >= 10)
-            {
-                i10Index++;
-            }
-        }
-
-        return i10Index;
-    }
 }
