@@ -32,15 +32,12 @@ interface ResearcherCollectResponse {
         OrcidProfile?: {
             DisplayName?: string;
             CurrentOrganization?: string;
+            WorksCount?: number;
             EmploymentsCount?: number;
             EducationsCount?: number;
-        };
-        Metrics?: {
-            WorksCount?: number;
-            CitedByCount?: number;
-            HIndex?: number;
-            I10Index?: number;
-            Source?: string;
+            FundingsCount?: number;
+            PeerReviewsCount?: number;
+            RecordLastModifiedAt?: string;
         };
     };
     IsSaved?: boolean;
@@ -189,7 +186,7 @@ const button = document.querySelector<HTMLButtonElement>("#ResearchButton");
 const myPublicationsButton = document.querySelector<HTMLButtonElement>(
     "#MyPublicationsButton");
 const status = document.querySelector<HTMLElement>("#ResearchStatus");
-const metricsPanel = document.querySelector<HTMLElement>("#ResearcherMetrics");
+const profileSummaryPanel = document.querySelector<HTMLElement>("#ResearcherSummary");
 const saveSelectionsButton = document.querySelector<HTMLButtonElement>(
     "#SavePublicationSelections");
 const selectionCount = document.querySelector<HTMLElement>("#SelectionCount");
@@ -292,24 +289,26 @@ function setSelectionControlsEnabled(enabled: boolean) {
         saveSelectionsButton.disabled = !enabled;
 }
 
-function showMetrics(researcher?: ResearcherCollectResponse["Researcher"]) {
-    const metrics = researcher?.Metrics;
+function showProfileSummary(researcher?: ResearcherCollectResponse["Researcher"]) {
+    const profile = researcher?.OrcidProfile;
 
-    if (!metricsPanel || !metrics) {
-        if (metricsPanel)
-            metricsPanel.hidden = true;
+    if (!profileSummaryPanel || !profile) {
+        if (profileSummaryPanel)
+            profileSummaryPanel.hidden = true;
         return;
     }
 
     const displayName = [researcher?.FirstName, researcher?.LastName]
         .filter(Boolean)
-        .join(" ") || researcher?.OrcidProfile?.DisplayName || "Akademisyen";
+        .join(" ") || profile.DisplayName || "Akademisyen";
     const values: Record<string, number | string> = {
-        MetricsWorksCount: metrics.WorksCount ?? 0,
-        MetricsEmploymentsCount: researcher?.OrcidProfile?.EmploymentsCount ?? 0,
-        MetricsEducationsCount: researcher?.OrcidProfile?.EducationsCount ?? 0,
-        MetricsOrganization: researcher?.OrcidProfile?.CurrentOrganization ?? "—",
-        MetricsSource: metrics.Source ?? "ORCID"
+        MetricsWorksCount: profile.WorksCount ?? 0,
+        MetricsEmploymentsCount: profile.EmploymentsCount ?? 0,
+        MetricsEducationsCount: profile.EducationsCount ?? 0,
+        MetricsFundingsCount: profile.FundingsCount ?? 0,
+        MetricsPeerReviewsCount: profile.PeerReviewsCount ?? 0,
+        MetricsOrganization: profile.CurrentOrganization ?? "—",
+        MetricsRecordUpdatedAt: formatDateTime(profile.RecordLastModifiedAt)
     };
 
     document.querySelector<HTMLElement>("#MetricsResearcherName")!.textContent = displayName;
@@ -320,7 +319,17 @@ function showMetrics(researcher?: ResearcherCollectResponse["Researcher"]) {
             element.textContent = typeof value === "number" ? value.toLocaleString("tr-TR") : value;
     }
 
-    metricsPanel.hidden = false;
+    profileSummaryPanel.hidden = false;
+}
+
+function formatDateTime(value?: string) {
+    if (!value)
+        return "—";
+
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+        ? "—"
+        : date.toLocaleString("tr-TR");
 }
 
 form?.addEventListener("submit", async event => {
@@ -334,7 +343,7 @@ form?.addEventListener("submit", async event => {
     }
 
     setResearchButtonsEnabled(false);
-    showMetrics(undefined);
+    showProfileSummary(undefined);
     showStatus("info", "Resmî ORCID kaydı araştırılıyor. Bu işlem biraz sürebilir...");
 
     try {
@@ -352,7 +361,7 @@ form?.addEventListener("submit", async event => {
 
         showStatus("success", messages || "Araştırma tamamlandı.");
         rememberProviderIdentifiers();
-        showMetrics(response.Researcher);
+        showProfileSummary(response.Researcher);
         const displayName = [response.Researcher?.FirstName, response.Researcher?.LastName]
             .filter(Boolean)
             .join(" ") || response.Researcher?.OrcidProfile?.DisplayName;

@@ -32,52 +32,10 @@ public sealed class AcademicDatabaseInitializer
             StringComparison.OrdinalIgnoreCase))
         {
             await CreateSqliteAcademicWorksTableAsync();
+            await RemoveObsoleteSqliteDataAsync();
             await CreateSqlitePublicationSummariesTableAsync();
             await CreateSqlitePublicationDisplayApprovalsTableAsync();
-            await CreateSqliteResearcherMetricsTableAsync();
             await CreateSqliteOrcidTablesAsync();
-            await AddSqliteColumnIfMissingAsync("OpenAlexProfiles", "LastUpdatedAt");
-            await AddSqliteColumnIfMissingAsync("OpenAlexProfiles", "RawDataJson");
-            await AddSqliteColumnIfMissingAsync(
-                "OpenAlexProfiles",
-                "WorksResponsePagesJson");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "WorkId");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "PublicationDate");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "Language");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "Abstract");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "Authors");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "Institutions");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "Keywords");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "Topics");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "IsOpenAccess", "INTEGER");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "OpenAccessStatus");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "OpenAccessUrl");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "FullTextUrl");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "License");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "Version");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "Volume");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "Issue");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "FirstPage");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "LastPage");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "IsRetracted", "INTEGER");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "HasFullText", "INTEGER");
-            await AddSqliteColumnIfMissingAsync(
-                "OpenAlexWorks",
-                "ReferencedWorksCount",
-                "INTEGER");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "RawDataJson");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "SourceId");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "SourceName");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "SourceType");
-            await AddSqliteColumnIfMissingAsync("OpenAlexWorks", "SourceUrl");
-            await AddSqliteColumnIfMissingAsync(
-                "OpenAlexWorks",
-                "Category",
-                "TEXT NOT NULL DEFAULT 'Unknown'");
-            await AddSqliteColumnIfMissingAsync(
-                "OpenAlexWorks",
-                "CategorySource",
-                "TEXT NOT NULL DEFAULT 'Unknown'");
             await AddSqliteAcademicWorkColumnsAsync();
             return;
         }
@@ -87,58 +45,10 @@ public sealed class AcademicDatabaseInitializer
             StringComparison.OrdinalIgnoreCase))
         {
             await CreateSqlServerAcademicWorksTableAsync();
+            await RemoveObsoleteSqlServerDataAsync();
             await CreateSqlServerPublicationSummariesTableAsync();
             await CreateSqlServerPublicationDisplayApprovalsTableAsync();
-            await CreateSqlServerResearcherMetricsTableAsync();
             await CreateSqlServerOrcidTablesAsync();
-            await AddSqlServerColumnIfMissingAsync("OpenAlexProfiles", "LastUpdatedAt");
-            await AddSqlServerLongTextColumnIfMissingAsync(
-                "OpenAlexProfiles",
-                "RawDataJson");
-            await AddSqlServerLongTextColumnIfMissingAsync(
-                "OpenAlexProfiles",
-                "WorksResponsePagesJson");
-            await AddSqlServerTextColumnIfMissingAsync("OpenAlexWorks", "WorkId", 100);
-            await AddSqlServerColumnIfMissingAsync("OpenAlexWorks", "PublicationDate");
-            await AddSqlServerTextColumnIfMissingAsync("OpenAlexWorks", "Language", 20);
-            await AddSqlServerLongTextColumnIfMissingAsync("OpenAlexWorks", "Abstract");
-            await AddSqlServerTextColumnIfMissingAsync("OpenAlexWorks", "Authors", 4000);
-            await AddSqlServerTextColumnIfMissingAsync("OpenAlexWorks", "Institutions", 4000);
-            await AddSqlServerTextColumnIfMissingAsync("OpenAlexWorks", "Keywords", 4000);
-            await AddSqlServerTextColumnIfMissingAsync("OpenAlexWorks", "Topics", 4000);
-            await AddSqlServerBooleanColumnIfMissingAsync("OpenAlexWorks", "IsOpenAccess");
-            await AddSqlServerTextColumnIfMissingAsync(
-                "OpenAlexWorks",
-                "OpenAccessStatus",
-                50);
-            await AddSqlServerTextColumnIfMissingAsync("OpenAlexWorks", "OpenAccessUrl", 2000);
-            await AddSqlServerTextColumnIfMissingAsync("OpenAlexWorks", "FullTextUrl", 2000);
-            await AddSqlServerTextColumnIfMissingAsync("OpenAlexWorks", "License", 100);
-            await AddSqlServerTextColumnIfMissingAsync("OpenAlexWorks", "Version", 100);
-            await AddSqlServerTextColumnIfMissingAsync("OpenAlexWorks", "Volume", 100);
-            await AddSqlServerTextColumnIfMissingAsync("OpenAlexWorks", "Issue", 100);
-            await AddSqlServerTextColumnIfMissingAsync("OpenAlexWorks", "FirstPage", 100);
-            await AddSqlServerTextColumnIfMissingAsync("OpenAlexWorks", "LastPage", 100);
-            await AddSqlServerBooleanColumnIfMissingAsync("OpenAlexWorks", "IsRetracted");
-            await AddSqlServerBooleanColumnIfMissingAsync("OpenAlexWorks", "HasFullText");
-            await AddSqlServerIntegerColumnIfMissingAsync(
-                "OpenAlexWorks",
-                "ReferencedWorksCount");
-            await AddSqlServerLongTextColumnIfMissingAsync("OpenAlexWorks", "RawDataJson");
-            await AddSqlServerTextColumnIfMissingAsync("OpenAlexWorks", "SourceId", 100);
-            await AddSqlServerTextColumnIfMissingAsync("OpenAlexWorks", "SourceName", 2000);
-            await AddSqlServerTextColumnIfMissingAsync("OpenAlexWorks", "SourceType", 100);
-            await AddSqlServerTextColumnIfMissingAsync("OpenAlexWorks", "SourceUrl", 2000);
-            await AddSqlServerRequiredTextColumnIfMissingAsync(
-                "OpenAlexWorks",
-                "Category",
-                50,
-                "Unknown");
-            await AddSqlServerRequiredTextColumnIfMissingAsync(
-                "OpenAlexWorks",
-                "CategorySource",
-                50,
-                "Unknown");
             await AddSqlServerAcademicWorkColumnsAsync();
         }
     }
@@ -662,71 +572,31 @@ public sealed class AcademicDatabaseInitializer
         await _dbContext.Database.ExecuteSqlRawAsync(createTableSql);
     }
 
-    private async Task CreateSqliteResearcherMetricsTableAsync()
+    private async Task RemoveObsoleteSqliteDataAsync()
     {
-        string? createTableSql = null;
-        string? createResearcherIndexSql = null;
-
-        createTableSql =
-            """
-            CREATE TABLE IF NOT EXISTS "ResearcherMetrics" (
-                "Id" INTEGER NOT NULL CONSTRAINT "PK_ResearcherMetrics"
-                    PRIMARY KEY AUTOINCREMENT,
-                "ResearcherId" INTEGER NOT NULL,
-                "WorksCount" INTEGER NULL,
-                "CitedByCount" INTEGER NULL,
-                "HIndex" INTEGER NULL,
-                "I10Index" INTEGER NULL,
-                "Source" TEXT NOT NULL,
-                "UpdatedAt" TEXT NOT NULL,
-                CONSTRAINT "FK_ResearcherMetrics_Researchers_ResearcherId"
-                    FOREIGN KEY ("ResearcherId") REFERENCES "Researchers" ("Id")
-                    ON DELETE CASCADE
-            );
-            """;
-        createResearcherIndexSql =
-            "CREATE UNIQUE INDEX IF NOT EXISTS " +
-            "\"IX_ResearcherMetrics_ResearcherId\" " +
-            "ON \"ResearcherMetrics\" (\"ResearcherId\");";
-
-        await _dbContext.Database.ExecuteSqlRawAsync(createTableSql);
-        await _dbContext.Database.ExecuteSqlRawAsync(createResearcherIndexSql);
+        await _dbContext.Database.ExecuteSqlRawAsync(
+            "DELETE FROM \"AcademicWorks\" WHERE \"Provider\" = 'OpenAlex';");
+        await _dbContext.Database.ExecuteSqlRawAsync(
+            "DROP TABLE IF EXISTS \"OpenAlexWorks\";");
+        await _dbContext.Database.ExecuteSqlRawAsync(
+            "DROP TABLE IF EXISTS \"OpenAlexProfiles\";");
+        await _dbContext.Database.ExecuteSqlRawAsync(
+            "DROP TABLE IF EXISTS \"ResearcherMetrics\";");
     }
 
-    private async Task CreateSqlServerResearcherMetricsTableAsync()
+    private async Task RemoveObsoleteSqlServerDataAsync()
     {
-        string? createTableSql = null;
-        string? createResearcherIndexSql = null;
-
-        createTableSql =
-            """
-            IF OBJECT_ID(N'[ResearcherMetrics]', N'U') IS NULL
-            BEGIN
-                CREATE TABLE [ResearcherMetrics] (
-                    [Id] int NOT NULL IDENTITY,
-                    [ResearcherId] int NOT NULL,
-                    [WorksCount] int NULL,
-                    [CitedByCount] int NULL,
-                    [HIndex] int NULL,
-                    [I10Index] int NULL,
-                    [Source] nvarchar(50) NOT NULL,
-                    [UpdatedAt] datetime2 NOT NULL,
-                    CONSTRAINT [PK_ResearcherMetrics] PRIMARY KEY ([Id]),
-                    CONSTRAINT [FK_ResearcherMetrics_Researchers_ResearcherId]
-                        FOREIGN KEY ([ResearcherId]) REFERENCES [Researchers] ([Id])
-                        ON DELETE CASCADE
-                );
-            END;
-            """;
-        createResearcherIndexSql =
-            "IF NOT EXISTS (SELECT 1 FROM sys.indexes " +
-            "WHERE name = N'IX_ResearcherMetrics_ResearcherId' " +
-            "AND object_id = OBJECT_ID(N'[ResearcherMetrics]')) " +
-            "CREATE UNIQUE INDEX [IX_ResearcherMetrics_ResearcherId] " +
-            "ON [ResearcherMetrics] ([ResearcherId]);";
-
-        await _dbContext.Database.ExecuteSqlRawAsync(createTableSql);
-        await _dbContext.Database.ExecuteSqlRawAsync(createResearcherIndexSql);
+        await _dbContext.Database.ExecuteSqlRawAsync(
+            "DELETE FROM [AcademicWorks] WHERE [Provider] = N'OpenAlex';");
+        await _dbContext.Database.ExecuteSqlRawAsync(
+            "IF OBJECT_ID(N'[OpenAlexWorks]', N'U') IS NOT NULL " +
+            "DROP TABLE [OpenAlexWorks];");
+        await _dbContext.Database.ExecuteSqlRawAsync(
+            "IF OBJECT_ID(N'[OpenAlexProfiles]', N'U') IS NOT NULL " +
+            "DROP TABLE [OpenAlexProfiles];");
+        await _dbContext.Database.ExecuteSqlRawAsync(
+            "IF OBJECT_ID(N'[ResearcherMetrics]', N'U') IS NOT NULL " +
+            "DROP TABLE [ResearcherMetrics];");
     }
 
     private async Task AddSqliteColumnIfMissingAsync(
@@ -845,22 +715,4 @@ public sealed class AcademicDatabaseInitializer
         await _dbContext.Database.ExecuteSqlRawAsync(sql);
     }
 
-    private async Task AddSqlServerRequiredTextColumnIfMissingAsync(
-        string tableName,
-        string columnName,
-        int maximumLength,
-        string defaultValue)
-    {
-        string? sql = null;
-        string? defaultConstraintName = null;
-
-        defaultConstraintName = $"DF_{tableName}_{columnName}";
-        sql =
-            $"IF COL_LENGTH('{tableName}', '{columnName}') IS NULL " +
-            $"ALTER TABLE [{tableName}] ADD [{columnName}] nvarchar({maximumLength}) " +
-            $"NOT NULL CONSTRAINT [{defaultConstraintName}] " +
-            $"DEFAULT N'{defaultValue}' WITH VALUES;";
-
-        await _dbContext.Database.ExecuteSqlRawAsync(sql);
-    }
 }

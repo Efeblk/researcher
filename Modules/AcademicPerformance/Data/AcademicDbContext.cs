@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
 
@@ -9,11 +8,8 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 public sealed class AcademicDbContext : DbContext
 {
     public DbSet<Researcher> Researchers { get; set; } = null!;
-    public DbSet<ResearcherMetrics> ResearcherMetrics { get; set; } = null!;
     public DbSet<OrcidProfile> OrcidProfiles { get; set; } = null!;
     public DbSet<OrcidWork> OrcidWorks { get; set; } = null!;
-    public DbSet<OpenAlexData> OpenAlexProfiles { get; set; } = null!;
-    public DbSet<OpenAlexWork> OpenAlexWorks { get; set; } = null!;
     public DbSet<AcademicWork> AcademicWorks { get; set; } = null!;
     public DbSet<PublicationSummary> PublicationSummaries { get; set; } = null!;
     public DbSet<PublicationDisplayApproval> PublicationDisplayApprovals { get; set; } = null!;
@@ -35,11 +31,6 @@ public sealed class AcademicDbContext : DbContext
                 .IsUnique()
                 .HasFilter("[Orcid] IS NOT NULL");
 
-            entity.HasOne(researcher => researcher.OpenAlex)
-                .WithOne(openAlex => openAlex.Researcher)
-                .HasForeignKey<OpenAlexData>(openAlex => openAlex.ResearcherId)
-                .OnDelete(DeleteBehavior.Cascade);
-
             entity.HasMany(researcher => researcher.AcademicWorks)
                 .WithOne(work => work.Researcher)
                 .HasForeignKey(work => work.ResearcherId)
@@ -48,11 +39,6 @@ public sealed class AcademicDbContext : DbContext
             entity.HasOne(researcher => researcher.OrcidProfile)
                 .WithOne(profile => profile.Researcher)
                 .HasForeignKey<OrcidProfile>(profile => profile.ResearcherId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasOne(researcher => researcher.Metrics)
-                .WithOne(metrics => metrics.Researcher)
-                .HasForeignKey<ResearcherMetrics>(metrics => metrics.ResearcherId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasMany(researcher => researcher.PublicationSummaries)
@@ -108,61 +94,6 @@ public sealed class AcademicDbContext : DbContext
             entity.HasIndex(work => new { work.OrcidProfileId, work.PutCode }).IsUnique();
         });
 
-        modelBuilder.Entity<ResearcherMetrics>(entity =>
-        {
-            entity.ToTable("ResearcherMetrics");
-            entity.HasKey(metrics => metrics.Id);
-            entity.Property(metrics => metrics.Source).HasMaxLength(50);
-            entity.HasIndex(metrics => metrics.ResearcherId).IsUnique();
-        });
-
-        modelBuilder.Entity<OpenAlexData>(entity =>
-        {
-            entity.ToTable("OpenAlexProfiles");
-            entity.HasKey(openAlex => openAlex.Id);
-            entity.Property(openAlex => openAlex.AuthorId).HasMaxLength(100);
-            entity.Property(openAlex => openAlex.DisplayName).HasMaxLength(500);
-
-            entity.HasMany(openAlex => openAlex.Works)
-                .WithOne(work => work.OpenAlexData)
-                .HasForeignKey(work => work.OpenAlexDataId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<OpenAlexWork>(entity =>
-        {
-            entity.ToTable("OpenAlexWorks");
-            entity.HasKey(work => work.Id);
-            entity.Property(work => work.WorkId).HasMaxLength(100);
-            entity.Property(work => work.Title).HasMaxLength(2000);
-            entity.Property(work => work.Doi).HasMaxLength(500);
-            entity.Property(work => work.Type).HasMaxLength(100);
-            entity.Property(work => work.Language).HasMaxLength(20);
-            entity.Property(work => work.Authors).HasMaxLength(4000);
-            entity.Property(work => work.Institutions).HasMaxLength(4000);
-            entity.Property(work => work.Keywords).HasMaxLength(4000);
-            entity.Property(work => work.Topics).HasMaxLength(4000);
-            entity.Property(work => work.OpenAccessStatus).HasMaxLength(50);
-            entity.Property(work => work.OpenAccessUrl).HasMaxLength(2000);
-            entity.Property(work => work.FullTextUrl).HasMaxLength(2000);
-            entity.Property(work => work.License).HasMaxLength(100);
-            entity.Property(work => work.Version).HasMaxLength(100);
-            entity.Property(work => work.Volume).HasMaxLength(100);
-            entity.Property(work => work.Issue).HasMaxLength(100);
-            entity.Property(work => work.FirstPage).HasMaxLength(100);
-            entity.Property(work => work.LastPage).HasMaxLength(100);
-            entity.Property(work => work.Category)
-                .HasConversion<string>()
-                .HasMaxLength(50);
-            entity.Property(work => work.CategorySource)
-                .HasConversion<string>()
-                .HasMaxLength(50);
-            entity.Property(work => work.SourceId).HasMaxLength(100);
-            entity.Property(work => work.SourceName).HasMaxLength(2000);
-            entity.Property(work => work.SourceType).HasMaxLength(100);
-            entity.Property(work => work.SourceUrl).HasMaxLength(2000);
-        });
-
         modelBuilder.Entity<AcademicWork>(entity =>
         {
             entity.ToTable("AcademicWorks");
@@ -171,14 +102,10 @@ public sealed class AcademicDbContext : DbContext
                 .HasConversion(
                     provider => provider == AcademicWorkProvider.Orcid
                         ? nameof(AcademicWorkProvider.Orcid)
-                        : provider == AcademicWorkProvider.OpenAlex
-                            ? nameof(AcademicWorkProvider.OpenAlex)
-                            : nameof(AcademicWorkProvider.Legacy),
+                        : nameof(AcademicWorkProvider.Legacy),
                     value => value == nameof(AcademicWorkProvider.Orcid)
                         ? AcademicWorkProvider.Orcid
-                        : value == nameof(AcademicWorkProvider.OpenAlex)
-                            ? AcademicWorkProvider.OpenAlex
-                            : AcademicWorkProvider.Legacy)
+                        : AcademicWorkProvider.Legacy)
                 .HasMaxLength(50);
             entity.Property(work => work.ProviderWorkId).HasMaxLength(500);
             entity.Property(work => work.Title).HasMaxLength(2000);

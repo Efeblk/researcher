@@ -13,16 +13,15 @@ izin verdiği yayınları ayrıca seçer.
 4. Sade yayın kayıtları Serenity grid'inde gösterilir.
 5. **Okulda Göster** seçimleri `PublicationDisplayApprovals` tablosuna kaydedilir.
 
-PDF indirilmez; ORCID'in sağladığı DOI ve yayın bağlantıları saklanır. OpenAlex
-entegrasyonu askıdadır ve yalnızca eski veri modeliyle uyumluluk için tutulur.
-Google Scholar ve Web of Science entegrasyonu yoktur.
+PDF indirilmez; ORCID'in sağladığı DOI ve yayın bağlantıları saklanır. OpenAlex,
+Google Scholar ve Web of Science entegrasyonları çalışma zamanından kaldırılmıştır.
 
 ## Hedef servisler ve entegrasyon durumu
 
 | Kimlik veya sistem | Hedef servis | Erişim beklentisi | Proje durumu |
 | --- | --- | --- | --- |
 | ORCID | Resmî ORCID Public API 3.0 | Herkese açık kayıtlar; isteğe bağlı erişim belirteci | **Aktif**; profil, faaliyet ve eserler alınıyor |
-| OpenAlex | OpenAlex API | Genel API erişimi | **Askıda**; kod ve eski tablolar uyumluluk için korunuyor |
+| OpenAlex | OpenAlex API | Genel API erişimi | **Askıda**; entegrasyon kodu ve sağlayıcı tabloları kaldırıldı |
 | Google Scholar ID | Belirlenecek uygun sağlayıcı | Google'ın resmî API'si olmadığı için sağlayıcı ve kota kararı gerekli | **Planlanan**; SerpAPI kaldırıldı |
 | Scopus Author ID | Resmî Elsevier Scopus API | Kurumsal abonelik ve API yetkisi gerekebilir | **Hedef**; entegrasyon henüz yok |
 | Web of Science ResearcherID | Resmî Clarivate Researcher API | Kurumsal API lisansı gerekli | **Hedef**; entegrasyon şimdilik kaldırıldı |
@@ -86,7 +85,6 @@ Modules/AcademicPerformance/
 ├── Data/                   EF Core bağlamı ve şema hazırlığı
 ├── Endpoints/              Serenity HTTP servisleri
 ├── Integrations/Orcid/     Aktif resmî ORCID istemcisi
-├── Integrations/OpenAlex/  Askıdaki tarihsel uyumluluk kodu
 ├── Researchers/            Kimlik ayrıştırma ve toplama akışı
 ├── UI/                     Razor sayfası, Row/Columns ve TypeScript grid
 └── Works/                  Normalizasyon, özet ve gösterim onayları
@@ -107,11 +105,11 @@ yeniden üretilebilir veya çalışma zamanı çıktılarıdır; Git'e eklenmez.
 | `AcademicWorks` | Sağlayıcıdan bağımsız normalize yayınlar |
 | `PublicationSummaries` | Arayüz ve raporlama için sade yayın listesi |
 | `PublicationDisplayApprovals` | Okulda gösterilmesine izin verilen yayınlar |
-| `ResearcherMetrics` | ORCID eser sayısı ve kaynak bilgisi |
 
-ORCID atıf sayısı, h-index ve i10-index sağlamaz; bu alanlar boş bırakılır.
-Onaylı yayınlar `PublicationDisplayApproval/ListApproved` servisi üzerinden
-alınabilir.
+ORCID atıf sayısı, h-index ve i10-index sağlamaz. Ayrı bir metrik tablosu yerine
+ORCID profilindeki eser, istihdam, eğitim, fonlama ve hakemlik kayıt sayıları
+özet kartlarında doğrudan kullanılır. Onaylı yayınlar
+`PublicationDisplayApproval/ListApproved` servisi üzerinden alınabilir.
 
 ## Yapılandırma ve production notları
 

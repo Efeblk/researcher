@@ -72,7 +72,6 @@ public sealed class ResearcherRepository
         IQueryable<Researcher>? query = null;
 
         query = _dbContext.Researchers
-            .Include(researcher => researcher.Metrics)
             .Include(researcher => researcher.OrcidProfile)
                 .ThenInclude(profile => profile!.Works);
 
@@ -85,7 +84,6 @@ public sealed class ResearcherRepository
         target.LastUpdatedAt = DateTime.UtcNow;
 
         UpdateOrcid(target, source);
-        UpdateMetrics(target, source);
     }
 
     private void UpdateOrcid(Researcher target, Researcher source)
@@ -127,27 +125,6 @@ public sealed class ResearcherRepository
 
         _dbContext.OrcidWorks.RemoveRange(target.OrcidProfile.Works ?? []);
         target.OrcidProfile.Works = source.OrcidProfile.Works;
-    }
-
-    private static void UpdateMetrics(Researcher target, Researcher source)
-    {
-        if (source.Metrics is null)
-        {
-            return;
-        }
-
-        if (target.Metrics is null)
-        {
-            target.Metrics = source.Metrics;
-            return;
-        }
-
-        target.Metrics.WorksCount = source.Metrics.WorksCount;
-        target.Metrics.CitedByCount = source.Metrics.CitedByCount;
-        target.Metrics.HIndex = source.Metrics.HIndex;
-        target.Metrics.I10Index = source.Metrics.I10Index;
-        target.Metrics.Source = source.Metrics.Source;
-        target.Metrics.UpdatedAt = source.Metrics.UpdatedAt;
     }
 
     private static string? GetIdentifierValue(

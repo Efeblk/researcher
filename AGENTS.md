@@ -6,10 +6,8 @@ This is a .NET 10 ASP.NET Core service. `Program.cs` configures the host and aca
 
 - `Endpoints/` exposes HTTP endpoints.
 - `Researchers/` contains collection workflows and researcher models.
-- `Works/` contains publication models, categorization, synchronization, and PDF handling.
+- `Works/` contains publication models, categorization, synchronization, and link handling.
 - `Integrations/Orcid/` contains the active official ORCID API client and models.
-- `Integrations/OpenAlex/` is retained only for historical compatibility; do not
-  register or call it unless OpenAlex is explicitly re-enabled.
 - `Data/` contains Entity Framework Core configuration and database initialization.
 
 Store manual HTTP requests in `Requests/`. Runtime output belongs in the ignored `Storage/` directory; build artifacts belong in `bin/` and `obj/`. Do not commit the local `academic.db` files.

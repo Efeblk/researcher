@@ -1,5 +1,4 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
 using System.Text.Json.Serialization;
 
@@ -19,10 +18,6 @@ public sealed class Researcher
     public DateTime? LastUpdatedAt { get; set; } = null;
 
     public OrcidProfile? OrcidProfile { get; set; } = null;
-
-    [JsonIgnore]
-    public OpenAlexData? OpenAlex { get; set; } = null;
-    public ResearcherMetrics? Metrics { get; set; } = null;
 
     [JsonIgnore]
     public List<AcademicWork>? AcademicWorks { get; set; } = null;

@@ -20,7 +20,6 @@ public static class AcademicPerformanceModule
         services.AddSingleton<ResearcherIdentifierParser>();
         services.AddSingleton<AcademicWorkCategorizer>();
         services.AddSingleton<ResearcherCollectionFeedback>();
-        services.AddSingleton<ResearcherMetricsUpdater>();
         services.AddTransient<OrcidClient>();
 
         services.AddScoped(CreateDbContext);

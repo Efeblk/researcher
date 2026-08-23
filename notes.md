@@ -7,9 +7,10 @@
 
 ## Aktif akademik kaynak
 
-Yayın ve akademisyen verileri yalnızca ORCID üzerinden OpenAlex'ten alınır.
-OpenAlex'in yayın türleri, atıf değerleri, konuları ve açık erişim bağlantıları
-site için hazırlanan sade yayın tablosuna işlenir.
+Yayın ve akademisyen verileri resmî ORCID Public API üzerinden alınır. OpenAlex
+entegrasyonu, sağlayıcıya özel tabloları ve kodu kaldırılmıştır. ORCID'in
+sağladığı eser, istihdam, eğitim, fonlama ve hakemlik sayıları profil özetinde
+kullanılır; atıf, h-index ve i10-index ORCID tarafından sağlanmaz.
 
 ## Veritabanı seçimi
 

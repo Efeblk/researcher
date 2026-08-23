@@ -9,7 +9,6 @@ public sealed class ResearcherCollectionHandler
     private readonly ResearcherIdentifierParser _identifierParser;
     private readonly ResearcherCollectionService _collectionService;
     private readonly ResearcherRepository _researcherRepository;
-    private readonly ResearcherMetricsUpdater _researcherMetricsUpdater;
     private readonly AcademicDatabaseInitializer _databaseInitializer;
     private readonly AcademicWorkSynchronizer _academicWorkSynchronizer;
     private readonly PublicationSummarySynchronizer _publicationSummarySynchronizer;
@@ -19,7 +18,6 @@ public sealed class ResearcherCollectionHandler
         ResearcherIdentifierParser identifierParser,
         ResearcherCollectionService collectionService,
         ResearcherRepository researcherRepository,
-        ResearcherMetricsUpdater researcherMetricsUpdater,
         AcademicDatabaseInitializer databaseInitializer,
         AcademicWorkSynchronizer academicWorkSynchronizer,
         PublicationSummarySynchronizer publicationSummarySynchronizer,
@@ -28,7 +26,6 @@ public sealed class ResearcherCollectionHandler
         _identifierParser = identifierParser;
         _collectionService = collectionService;
         _researcherRepository = researcherRepository;
-        _researcherMetricsUpdater = researcherMetricsUpdater;
         _databaseInitializer = databaseInitializer;
         _academicWorkSynchronizer = academicWorkSynchronizer;
         _publicationSummarySynchronizer = publicationSummarySynchronizer;
@@ -76,8 +73,6 @@ public sealed class ResearcherCollectionHandler
             return response;
         }
 
-        _researcherMetricsUpdater.Update(researcher);
-
         try
         {
             await _researcherRepository.SaveAsync(researcher);
@@ -86,7 +81,6 @@ public sealed class ResearcherCollectionHandler
                 researcher.Id);
             response.Messages.Add(
                 $"[OK] Yayın özeti: {publicationSummaryCount} benzersiz yayın hazırlandı.");
-            AddMetricsMessage(response.Messages, researcher.Metrics);
 
             provider = _configuration["Database:Provider"]
                 ?? DatabaseConfiguration.SqliteProvider;
@@ -104,19 +98,5 @@ public sealed class ResearcherCollectionHandler
         }
 
         return response;
-    }
-
-    private static void AddMetricsMessage(
-        List<string> messages,
-        ResearcherMetrics? metrics)
-    {
-        if (metrics is null)
-        {
-            return;
-        }
-
-        messages.Add(
-            $"[OK] ORCID kayıtlı eser sayısı: {metrics.WorksCount ?? 0}. " +
-            "Atıf, h-index ve i10-index ORCID tarafından sağlanmıyor.");
     }
 }
