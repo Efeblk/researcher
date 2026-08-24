@@ -1,13 +1,15 @@
 # Akademik Performans Modülü
 
-Resmî ORCID Public API ve Clarivate Web of Science Starter API v1 üzerinden
-akademisyen profili ve yayınlarını toplayan, Serenity bileşenleriyle hazırlanmış
-.NET 10 prototipidir. Uygulama yayınları yerel veritabanında saklar; akademisyen
-okul sitesinde gösterilmesine izin verdiği yayınları ayrıca seçer.
+Resmî ORCID Public API, Clarivate Web of Science Starter API v1 ve YÖKSİS
+OzgecmisV2 SOAP servisi üzerinden akademik veri toplayan, Serenity
+bileşenleriyle hazırlanmış .NET 10 prototipidir. Uygulama ORCID ve Web of Science
+yayınlarını yerel veritabanında saklar; akademisyen okul sitesinde gösterilmesine
+izin verdiği yayınları ayrıca seçer.
 
 ## Mevcut iş akışı
 
-1. Akademisyen ORCID ve/veya Web of Science ResearcherID değerini girer.
+1. Akademisyen ORCID, Web of Science ResearcherID ve/veya YÖKSİS sorgusu için
+   T.C. kimlik numarasını girer.
 2. ORCID profil/faaliyet verileri ile Web of Science yayın ve kullanılabiliyorsa
    atıf verileri bağımsız olarak alınır.
 3. Eserler DOI'ye; DOI yoksa normalize başlık ve yıla göre tekilleştirilir.
@@ -26,13 +28,15 @@ ve Google Scholar entegrasyonları çalışma zamanından kaldırılmıştır.
 | Google Scholar ID | Belirlenecek uygun sağlayıcı | Google'ın resmî API'si olmadığı için sağlayıcı ve kota kararı gerekli | **Planlanan**; SerpAPI kaldırıldı |
 | Scopus Author ID | Resmî Elsevier Scopus API | Kurumsal abonelik ve API yetkisi gerekebilir | **Hedef**; entegrasyon henüz yok |
 | Web of Science ResearcherID | Resmî Clarivate Starter API v1 | API anahtarı gerekli; ücretsiz ve kurumsal planlar var | **Aktif**; `AI` sorgusuyla erişilebilen tüm WoS veri tabanlarındaki yayınlar ve plan izin verirse atıf sayıları alınıyor |
-| YÖKSİS | YÖK kurumsal web servisi | Üniversitenin servis sözleşmesi, test ortamı ve kimlik bilgileri gerekli | **Beklemede**; belgeler gelmeden istemci yazılmayacak |
+| YÖKSİS | OzgecmisV2 SOAP servisi | Kurumsal kullanıcı/şifre, T.C. kimlik no ve gerekirse izinli çıkış IP'si | **Altyapı aktif**; 21 ana kategori ve eser ayrıntıları alınabiliyor, henüz veritabanına yazılmıyor |
 | BYS kullanıcı kaydı | Üniversitenin kimlik ve yetki servisleri | Oturum açmış akademisyen ve kurum içi personel ID'si | **Production için gerekli** |
 | ResearchGate / Academia.edu | Resmî ve izinli API bulunursa değerlendirilecek | Scraping kullanılmayacak | **Kapsam dışı** |
 
-Bu tablo ürün hedeflerini gösterir; yalnızca **Aktif** durumundaki ORCID ve Web
-of Science çalışma zamanında çağrılır. Yeni bir servis,
-erişim sözleşmesi ve veri sahipliği netleşmeden mevcut toplama akışına eklenmez.
+ORCID ve Web of Science ortak yayın toplama akışında çağrılır. YÖKSİS kişisel
+veri içerdiği için UI içinden ayrı bir endpoint üzerinden çalışır. T.C. kimlik
+numarası tarayıcıda hatırlanmaz ve istek tamamlanınca formdan temizlenir. Yeni
+bir servis, erişim sözleşmesi ve veri sahipliği netleşmeden mevcut toplama
+akışına eklenmez.
 
 ## Gereksinimler ve çalıştırma
 
@@ -45,8 +49,8 @@ dotnet run
 ```
 
 Build sırasında `npm install` ve TypeScript derlemesi gerektiğinde otomatik
-çalışır. Arayüz `http://localhost:5000/AcademicPerformance`, sağlık yanıtı ise
-`http://localhost:5000/` adresindedir.
+çalışır. Arayüz `http://localhost:5001/AcademicPerformance`, sağlık yanıtı ise
+`http://localhost:5001/` adresindedir.
 
 Yalnızca derlemek için:
 
@@ -80,6 +84,22 @@ kapatın:
 .\collect.ps1 clean
 ```
 
+YÖKSİS için `Requests/AcademicPerformance.http` içindeki örnek isteği kullanın:
+
+```http
+POST http://localhost:5001/Services/AcademicPerformance/Yoksis/Collect
+Content-Type: application/json
+
+{
+  "TcKimlikNo": "11_HANELI_TC_KIMLIK_NO"
+}
+```
+
+Yanıt; her kategori için kayıt sayısını, düz alanları ve YÖKSİS'in döndürdüğü
+ham SOAP XML'ini içerir. `UpdatedAfter` alanı verilirse WSDL'deki isteğe bağlı
+`P_TARIH` alanına gönderilir. T.C. kimlik numarasını `.http` dosyasına kaydedip
+Git'e göndermeyin.
+
 ## Proje yapısı
 
 ```text
@@ -88,6 +108,7 @@ Modules/AcademicPerformance/
 ├── Endpoints/              Serenity HTTP servisleri
 ├── Integrations/Orcid/     Resmî ORCID istemcisi
 ├── Integrations/WebOfScience/ Clarivate Starter API v1 istemcisi
+├── Integrations/Yoksis/    OzgecmisV2 SOAP istemcisi ve toplama akışı
 ├── Researchers/            Kimlik ayrıştırma ve toplama akışı
 ├── UI/                     Razor sayfası, Row/Columns ve TypeScript grid
 └── Works/                  Normalizasyon, özet ve gösterim onayları
@@ -111,6 +132,10 @@ yeniden üretilebilir veya çalışma zamanı çıktılarıdır; Git'e eklenmez.
 | `PublicationSummaries` | Arayüz ve raporlama için sade yayın listesi |
 | `PublicationDisplayApprovals` | Okulda gösterilmesine izin verilen yayınlar |
 
+YÖKSİS yanıtları bu aşamada veritabanına yazılmaz. Veri sahipliği, saklama
+süresi ve T.C. kimlik numarası işleme kuralları kesinleşince ayrı YÖKSİS tabloları
+eklenmelidir.
+
 ORCID atıf sayısı, h-index ve i10-index sağlamaz. Starter API v1 hazır profil
 metrikleri sunmaz. Bütün yayınlarda atıf sayısı gelirse h-index ve toplam atıf
 uygulama içinde yayınlardan hesaplanır. Profil, kurum ve hakemlik bilgileri Starter
@@ -132,7 +157,13 @@ of Science API anahtarını User Secrets'a ekleyin:
 ```powershell
 dotnet user-secrets set "Orcid:AccessToken" "<TOKEN>"
 dotnet user-secrets set "WebOfScience:ApiKey" "<CLARIVATE_API_KEY>"
+dotnet user-secrets set "Yoksis:Username" "<KURUMSAL_KULLANICI>"
+dotnet user-secrets set "Yoksis:Password" "<KURUMSAL_SIFRE>"
 ```
+
+YÖKSİS kimlik bilgileri SOAP gövdesinde gönderilir; uygulama bunları yanıta,
+ham XML alanına veya loglara yazmaz. Endpoint production'da BYS kimlik/yetki
+kontrolü arkasına alınmadan dış ağa açılmamalıdır.
 
 Mevcut UI bir entegrasyon prototipidir. **Yayınlarımı Getir** için sağlayıcı
 kimliği tarayıcı `localStorage` alanında hatırlanır. BYS entegrasyonunda ORCID,
@@ -150,6 +181,10 @@ atıf sayılarını döndürmez. Uygun Web of Science aboneliğine bağlı kurum
 atıf sayıları ve daha yüksek kota kullanılabilir. Resmî kaynaklar:
 [Starter API](https://developer.clarivate.com/apis/wos-starter) ve
 [Swagger şeması](https://developer.clarivate.com/apis/wos-starter/swagger).
+
+YÖKSİS sözleşmesi:
+[OzgecmisV2 WSDL](https://servisler.yok.gov.tr/ws/OzgecmisV2?WSDL). WSDL'de
+servis adresi HTTP görünse de yapılandırmada şifreli HTTPS adresi kullanılır.
 
 ## Doğrulama
 

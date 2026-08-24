@@ -53,6 +53,21 @@ interface ResearcherCollectResponse {
     Messages?: string[];
 }
 
+interface YoksisOperationResult {
+    CategoryName?: string;
+    IsSuccess?: boolean;
+    RecordCount?: number;
+    Errors?: string[];
+}
+
+interface YoksisCollectResponse {
+    SuccessfulCategoryCount?: number;
+    FailedCategoryCount?: number;
+    TotalRecordCount?: number;
+    Messages?: string[];
+    Categories?: YoksisOperationResult[];
+}
+
 class PublicationSummaryGrid extends EntityGrid<PublicationSummaryRow> {
     private researcherId = 0;
     private approvedPublicationIds = new Set<number>();
@@ -198,6 +213,7 @@ const status = document.querySelector<HTMLElement>("#ResearchStatus");
 const profileSummaryPanel = document.querySelector<HTMLElement>("#ResearcherSummary");
 const webOfScienceSummaryPanel = document.querySelector<HTMLElement>(
     "#WebOfScienceSummary");
+const yoksisSummaryPanel = document.querySelector<HTMLElement>("#YoksisSummary");
 const saveSelectionsButton = document.querySelector<HTMLButtonElement>(
     "#SavePublicationSelections");
 const selectionCount = document.querySelector<HTMLElement>("#SelectionCount");
@@ -366,6 +382,51 @@ function showWebOfScienceSummary(
     webOfScienceSummaryPanel.hidden = false;
 }
 
+function showYoksisSummary(response?: YoksisCollectResponse) {
+    const categoryList = document.querySelector<HTMLElement>("#YoksisCategoryList");
+
+    if (!yoksisSummaryPanel || !response) {
+        if (yoksisSummaryPanel)
+            yoksisSummaryPanel.hidden = true;
+        return;
+    }
+
+    const values: Record<string, number> = {
+        YoksisTotalRecordCount: response.TotalRecordCount ?? 0,
+        YoksisSuccessfulCategoryCount: response.SuccessfulCategoryCount ?? 0,
+        YoksisFailedCategoryCount: response.FailedCategoryCount ?? 0
+    };
+
+    for (const [id, value] of Object.entries(values)) {
+        const element = document.querySelector<HTMLElement>(`#${id}`);
+        if (element)
+            element.textContent = value.toLocaleString("tr-TR");
+    }
+
+    if (categoryList) {
+        categoryList.replaceChildren();
+
+        for (const category of response.Categories ?? []) {
+            const item = document.createElement("div");
+            const name = document.createElement("span");
+            const count = document.createElement("strong");
+
+            item.className = category.IsSuccess
+                ? "academic-category-result"
+                : "academic-category-result error";
+            name.textContent = category.CategoryName ?? "YÖKSİS kategorisi";
+            count.textContent = category.IsSuccess
+                ? `${(category.RecordCount ?? 0).toLocaleString("tr-TR")} kayıt`
+                : "Alınamadı";
+            item.title = category.Errors?.[0] ?? "";
+            item.append(name, count);
+            categoryList.append(item);
+        }
+    }
+
+    yoksisSummaryPanel.hidden = false;
+}
+
 function formatDateTime(value?: string) {
     if (!value)
         return "—";
@@ -376,6 +437,10 @@ function formatDateTime(value?: string) {
         : date.toLocaleString("tr-TR");
 }
 
+function getErrorMessage(error: unknown) {
+    return error instanceof Error ? error.message : String(error);
+}
+
 form?.addEventListener("submit", async event => {
     event.preventDefault();
 
@@ -383,45 +448,122 @@ form?.addEventListener("submit", async event => {
         valueOf("Orcid"),
         valueOf("WebOfScienceResearcherId")
     ].filter(Boolean);
+    const tcKimlikNo = valueOf("TcKimlikNo");
 
-    if (!identifiers.length) {
-        showStatus("error", "ORCID veya Web of Science ResearcherID girin.");
+    if (!identifiers.length && !tcKimlikNo) {
+        showStatus(
+            "error",
+            "ORCID, Web of Science ResearcherID veya T.C. kimlik no girin.");
+        return;
+    }
+
+    if (tcKimlikNo && !/^[1-9][0-9]{10}$/.test(tcKimlikNo)) {
+        showStatus("error", "T.C. kimlik numarası 11 haneli olmalıdır.");
         return;
     }
 
     setResearchButtonsEnabled(false);
     showProfileSummary(undefined);
     showWebOfScienceSummary(undefined);
+    showYoksisSummary(undefined);
     showStatus("info", "Akademik sağlayıcılar araştırılıyor. Bu işlem biraz sürebilir...");
 
     try {
-        const response = await serviceRequest<ResearcherCollectResponse>(
-            "AcademicPerformance/Researcher/Collect",
-            { Identifiers: identifiers });
+        const researcherRequest = identifiers.length
+            ? serviceRequest<ResearcherCollectResponse>(
+                "AcademicPerformance/Researcher/Collect",
+                { Identifiers: identifiers })
+            : Promise.resolve<ResearcherCollectResponse | undefined>(undefined);
+        const yoksisRequest = tcKimlikNo
+            ? serviceRequest<YoksisCollectResponse>(
+                "AcademicPerformance/Yoksis/Collect",
+                {
+                    TcKimlikNo: tcKimlikNo,
+                    IncludeRecords: false,
+                    IncludeRawResponses: false
+                })
+            : Promise.resolve<YoksisCollectResponse | undefined>(undefined);
+        const [researcherResult, yoksisResult] = await Promise.allSettled([
+            researcherRequest,
+            yoksisRequest
+        ]);
+        const statusMessages: string[] = [];
+        const errors: string[] = [];
+        let hasSuccessfulResult = false;
 
-        const researcherId = response.Researcher?.Id ?? 0;
-        const messages = (response.Messages ?? []).filter(Boolean).join("\n");
+        if (researcherResult.status === "fulfilled" && researcherResult.value) {
+            const response = researcherResult.value;
+            const researcherId = response.Researcher?.Id ?? 0;
+            const messages = (response.Messages ?? []).filter(Boolean).join("\n");
 
-        if (!response.IsSaved || !researcherId) {
-            showStatus("error", messages || "Araştırma tamamlandı ancak kayıt oluşturulamadı.");
-            return;
+            if (response.IsSaved && researcherId) {
+                hasSuccessfulResult = true;
+                statusMessages.push(messages || "Yayın araştırması tamamlandı.");
+                rememberProviderIdentifiers();
+                showProfileSummary(response.Researcher);
+                showWebOfScienceSummary(response.Researcher);
+
+                const displayName = [
+                    response.Researcher?.FirstName,
+                    response.Researcher?.LastName
+                ].filter(Boolean).join(" ") ||
+                    response.Researcher?.OrcidProfile?.DisplayName ||
+                    response.Researcher?.WebOfScienceProfile?.DisplayName;
+                grid.setResearcher(researcherId, displayName);
+            }
+            else {
+                errors.push(
+                    messages ||
+                    "Yayın araştırması tamamlandı ancak kayıt oluşturulamadı.");
+            }
+        }
+        else if (researcherResult.status === "rejected") {
+            errors.push(
+                `Yayın araştırması tamamlanamadı: ${getErrorMessage(researcherResult.reason)}`);
         }
 
-        showStatus("success", messages || "Araştırma tamamlandı.");
-        rememberProviderIdentifiers();
-        showProfileSummary(response.Researcher);
-        showWebOfScienceSummary(response.Researcher);
-        const displayName = [response.Researcher?.FirstName, response.Researcher?.LastName]
+        if (yoksisResult.status === "fulfilled" && yoksisResult.value) {
+            const response = yoksisResult.value;
+            const successfulCount = response.SuccessfulCategoryCount ?? 0;
+            const failedCount = response.FailedCategoryCount ?? 0;
+
+            showYoksisSummary(response);
+
+            if (successfulCount > 0) {
+                hasSuccessfulResult = true;
+                statusMessages.push(
+                    `YÖKSİS: ${successfulCount.toLocaleString("tr-TR")} kategori başarılı, ` +
+                    `${(response.TotalRecordCount ?? 0).toLocaleString("tr-TR")} kayıt alındı.`);
+            }
+
+            if (failedCount > 0) {
+                errors.push(
+                    `YÖKSİS: ${failedCount.toLocaleString("tr-TR")} kategori alınamadı.`);
+            }
+        }
+        else if (yoksisResult.status === "rejected") {
+            errors.push(
+                `YÖKSİS sorgusu tamamlanamadı: ${getErrorMessage(yoksisResult.reason)}`);
+        }
+
+        const combinedMessage = [...statusMessages, ...errors]
             .filter(Boolean)
-            .join(" ") || response.Researcher?.OrcidProfile?.DisplayName ||
-            response.Researcher?.WebOfScienceProfile?.DisplayName;
-        grid.setResearcher(researcherId, displayName);
+            .join("\n");
+
+        if (hasSuccessfulResult && errors.length > 0)
+            showStatus("info", combinedMessage);
+        else if (hasSuccessfulResult)
+            showStatus("success", combinedMessage || "Araştırma tamamlandı.");
+        else
+            showStatus("error", combinedMessage || "Araştırma tamamlanamadı.");
     }
     catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        showStatus("error", `Araştırma tamamlanamadı: ${message}`);
+        showStatus("error", `Araştırma tamamlanamadı: ${getErrorMessage(error)}`);
     }
     finally {
+        const tcKimlikInput = document.querySelector<HTMLInputElement>("#TcKimlikNo");
+        if (tcKimlikInput)
+            tcKimlikInput.value = "";
         setResearchButtonsEnabled(true);
     }
 });

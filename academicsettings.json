@@ -9,6 +9,9 @@
       "WOK"
     ]
   },
+  "Yoksis": {
+    "ServiceUrl": "https://servisler.yok.gov.tr/ws/OzgecmisV2"
+  },
   "ProviderCache": {
     "MaxAgeHours": 24
   }

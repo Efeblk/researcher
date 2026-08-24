@@ -1,6 +1,7 @@
-@host = http://localhost:5000
+@host = http://localhost:5001
 @orcid = 0000-0003-2812-9917
 @researcherId = A-1009-2008
+@tcKimlikNo = TC_KIMLIK_NUMARASINI_BURAYA_YAZ
 
 ### Uygulamanın çalıştığını kontrol et
 GET {{host}}/
@@ -35,4 +36,13 @@ Content-Type: application/json
     "{{orcid}}",
     "{{researcherId}}"
   ]
+}
+
+### YÖKSİS verilerini topla
+# T.C. kimlik numarasını bu dosyaya kaydedip Git'e gönderme.
+POST {{host}}/Services/AcademicPerformance/Yoksis/Collect
+Content-Type: application/json
+
+{
+  "TcKimlikNo": "{{tcKimlikNo}}"
 }

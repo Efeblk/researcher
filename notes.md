@@ -27,10 +27,11 @@ dotnet user-secrets set "ConnectionStrings:AcademicDatabase" "SQL_SERVER_CONNECT
 
 ## YÖKSİS veri erişimi
 
-Herkese açık, belgelenmiş bir akademisyen API'si bulunmadığından tahminî bir
-istemci yazılmayacaktır. Üniversiteden servis adresi, WSDL/OpenAPI dokümanı,
-yetkilendirme yöntemi, test ortamı ve veri sözleşmesi gelirse yeniden
-değerlendirilmelidir.
+Kurumsal `OzgecmisV2` SOAP istemcisi WSDL sözleşmesine göre eklendi. Kullanıcı
+adı ve şifre `Yoksis:Username` ile `Yoksis:Password` User Secrets değerlerinden
+okunur. Ana kategoriler ve yayın ayrıntıları ham XML korunarak alınır; YÖKSİS
+yanıtları veri sahipliği ve saklama kuralları kesinleşene kadar veritabanına
+yazılmaz. Production endpoint'i BYS yetkilendirmesi arkasında olmalıdır.
 
 ## Diğer platformlar
 

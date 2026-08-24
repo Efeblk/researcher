@@ -1,4 +1,4 @@
-HOST ?= http://localhost:5000
+HOST ?= http://localhost:5001
 DATABASE_FILE := $(CURDIR)/academic.db
 STORAGE_DIR := $(CURDIR)/Storage
 empty :=

@@ -108,6 +108,13 @@ body {
     margin-bottom: 6px;
 }
 
+.academic-field-help {
+    color: #667583;
+    display: block;
+    font-size: 11px;
+    margin-top: 5px;
+}
+
 .academic-actions {
     display: flex;
     gap: 8px;
@@ -151,6 +158,35 @@ body {
 .academic-metric strong {
     color: var(--academic-primary);
     font-size: 20px;
+}
+
+.academic-category-list {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    margin-top: 14px;
+}
+
+.academic-category-result {
+    align-items: center;
+    background: #f7f9fb;
+    border: 1px solid var(--academic-border);
+    border-left: 4px solid #2f855a;
+    border-radius: 4px;
+    display: flex;
+    font-size: 12px;
+    gap: 10px;
+    justify-content: space-between;
+    padding: 9px 11px;
+}
+
+.academic-category-result.error {
+    border-left-color: #c53030;
+}
+
+.academic-category-result strong {
+    color: var(--academic-primary);
+    white-space: nowrap;
 }
 
 #PublicationGrid {

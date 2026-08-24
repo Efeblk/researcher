@@ -6,8 +6,9 @@
 <div class="academic-card">
     <h1>Akademisyen Yayınlarını Araştır</h1>
     <p class="academic-help">
-        Akademisyenin ORCID veya Web of Science ResearcherID değerini girin.
-        Sağlayıcı sorguları birbirinden bağımsız çalışır.
+        Akademisyenin ORCID, Web of Science ResearcherID veya YÖKSİS sorgusu
+        için T.C. kimlik numarasını girin. Sağlayıcı sorguları birbirinden
+        bağımsız çalışır.
     </p>
 
     <form id="ResearcherSearchForm">
@@ -23,6 +24,16 @@
                        placeholder="A-1009-2008" autocomplete="off"
                        data-provider-identifier="WebOfScienceResearcherId" />
             </div>
+            <div class="academic-field">
+                <label for="TcKimlikNo">T.C. Kimlik No (YÖKSİS)</label>
+                <input id="TcKimlikNo" class="form-control" type="password"
+                       inputmode="numeric" maxlength="11" pattern="[0-9]{11}"
+                       placeholder="11 haneli T.C. kimlik no" autocomplete="off"
+                       aria-describedby="TcKimlikNoHelp" />
+                <small id="TcKimlikNoHelp" class="academic-field-help">
+                    Bu değer tarayıcıda hatırlanmaz.
+                </small>
+            </div>
         </div>
         <div class="academic-actions">
             <button id="ResearchButton" class="btn btn-primary" type="submit">
@@ -36,6 +47,25 @@
         </div>
         <div id="ResearchStatus" class="academic-status" role="status" aria-live="polite"></div>
     </form>
+</div>
+
+<div id="YoksisSummary" class="academic-card" hidden>
+    <h2>YÖKSİS Toplama Özeti</h2>
+    <div class="academic-metrics-grid">
+        <div class="academic-metric">
+            <span>Toplam kayıt</span>
+            <strong id="YoksisTotalRecordCount">0</strong>
+        </div>
+        <div class="academic-metric">
+            <span>Başarılı kategori</span>
+            <strong id="YoksisSuccessfulCategoryCount">0</strong>
+        </div>
+        <div class="academic-metric">
+            <span>Başarısız kategori</span>
+            <strong id="YoksisFailedCategoryCount">0</strong>
+        </div>
+    </div>
+    <div id="YoksisCategoryList" class="academic-category-list"></div>
 </div>
 
 <div id="WebOfScienceSummary" class="academic-card" hidden>
