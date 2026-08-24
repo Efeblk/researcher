@@ -1,5 +1,6 @@
 @host = http://localhost:5000
 @orcid = 0000-0003-2812-9917
+@researcherId = A-1009-2008
 
 ### Uygulamanın çalıştığını kontrol et
 GET {{host}}/
@@ -12,5 +13,26 @@ Content-Type: application/json
 {
   "Identifiers": [
     "{{orcid}}"
+  ]
+}
+
+### Web of Science ResearcherID ile veri topla
+POST {{host}}/Services/AcademicPerformance/Researcher/Collect
+Content-Type: application/json
+
+{
+  "Identifiers": [
+    "{{researcherId}}"
+  ]
+}
+
+### ORCID ve ResearcherID değerlerini aynı akademisyene bağla
+POST {{host}}/Services/AcademicPerformance/Researcher/Collect
+Content-Type: application/json
+
+{
+  "Identifiers": [
+    "{{orcid}}",
+    "{{researcherId}}"
   ]
 }

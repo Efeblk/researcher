@@ -6,8 +6,8 @@
 <div class="academic-card">
     <h1>Akademisyen Yayınlarını Araştır</h1>
     <p class="academic-help">
-        Akademisyenin ORCID numarasını girin. Herkese açık profil ve eser bilgileri
-        resmî ORCID API üzerinden alınır.
+        Akademisyenin ORCID veya Web of Science ResearcherID değerini girin.
+        Sağlayıcı sorguları birbirinden bağımsız çalışır.
     </p>
 
     <form id="ResearcherSearchForm">
@@ -16,6 +16,12 @@
                 <label for="Orcid">ORCID</label>
                 <input id="Orcid" class="form-control" placeholder="0000-0001-8560-7482"
                        autocomplete="off" data-provider-identifier="Orcid" />
+            </div>
+            <div class="academic-field">
+                <label for="WebOfScienceResearcherId">Web of Science ResearcherID</label>
+                <input id="WebOfScienceResearcherId" class="form-control"
+                       placeholder="A-1009-2008" autocomplete="off"
+                       data-provider-identifier="WebOfScienceResearcherId" />
             </div>
         </div>
         <div class="academic-actions">
@@ -30,6 +36,28 @@
         </div>
         <div id="ResearchStatus" class="academic-status" role="status" aria-live="polite"></div>
     </form>
+</div>
+
+<div id="WebOfScienceSummary" class="academic-card" hidden>
+    <h2><span id="WebOfScienceResearcherName">Akademisyen</span> - Web of Science Özeti</h2>
+    <div class="academic-metrics-grid">
+        <div class="academic-metric">
+            <span>Yayınlardan hesaplanan h-index</span>
+            <strong id="WebOfScienceHIndex">—</strong>
+        </div>
+        <div class="academic-metric">
+            <span>Yayın</span>
+            <strong id="WebOfScienceDocumentsCount">0</strong>
+        </div>
+        <div class="academic-metric">
+            <span>Yayın atıfları toplamı</span>
+            <strong id="WebOfScienceTotalTimesCited">—</strong>
+        </div>
+    </div>
+    <p class="academic-help">
+        Starter API v1 profil, kurum ve hakemlik verisi sağlamaz. Atıf sayıları
+        Clarivate abonelik planına bağlıdır.
+    </p>
 </div>
 
 <div id="ResearcherSummary" class="academic-card" hidden>

@@ -1,4 +1,5 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
@@ -17,7 +18,57 @@ public sealed class ResearcherCollectionFeedback
             AddOrcidFeedback(researcher.OrcidProfile, messages);
         }
 
+        if (!string.IsNullOrWhiteSpace(
+                requestedIdentifiers.WebOfScienceResearcherId))
+        {
+            AddWebOfScienceFeedback(researcher.WebOfScienceProfile, messages);
+        }
+
         messages.Add(string.Empty);
+    }
+
+    private static void AddWebOfScienceFeedback(
+        WebOfScienceProfile? profile,
+        List<string> messages)
+    {
+        List<WebOfScienceWork>? works = null;
+        int doiCount = 0;
+        int citationCount = 0;
+
+        if (profile is null)
+        {
+            messages.Add("[EKSİK] Web of Science yayınları alınamadı.");
+            return;
+        }
+
+        works = profile.Works ?? [];
+        doiCount = works.Count(work => !string.IsNullOrWhiteSpace(work.Doi));
+        citationCount = works.Count(work => work.TimesCited.HasValue);
+
+        messages.Add(
+            !string.IsNullOrWhiteSpace(profile.DisplayName)
+                ? $"[OK] Yayınlardaki araştırmacı adı: {profile.DisplayName}."
+                : "[KISMİ] Yayınlar alındı; araştırmacı adı eşleştirilemedi.");
+        messages.Add(
+            works.Count > 0
+                ? $"[OK] Web of Science WOS + WOK yayınları: " +
+                  $"{works.Count} tekilleştirilmiş kayıt toplandı."
+                : "[BİLGİ] Bu ResearcherID için yayın bulunamadı.");
+        messages.Add(
+            $"[BİLGİ] Web of Science yayın alanları: DOI {doiCount}/{works.Count}, " +
+            $"atıf sayısı {citationCount}/{works.Count}.");
+        messages.Add(
+            citationCount == works.Count && works.Count > 0
+                ? $"[OK] Yayın atıflarından hesaplanan metrikler: h-index " +
+                  $"{profile.HIndex}, toplam atıf {profile.TotalTimesCited}."
+                : "[BİLGİ] Abonelik bu sorguda atıf sayılarını vermediği için " +
+                  "h-index ve toplam atıf hesaplanamadı.");
+        messages.Add(
+            "[BİLGİ] Starter API v1 profil, kurum ve hakemlik verisi sağlamaz.");
+        messages.Add(
+            !string.IsNullOrWhiteSpace(profile.DocumentPagesJson)
+                ? "[OK] WOS ve WOK ham yayın sayfaları ayrı ayrı saklandı."
+                : "[KISMİ] Starter API ham yayın yanıtları saklanamadı.");
     }
 
     private static void AddOrcidFeedback(

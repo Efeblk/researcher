@@ -1,5 +1,6 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
 using Microsoft.EntityFrameworkCore;
 
@@ -34,6 +35,11 @@ public sealed class AcademicWorkSynchronizer
             synchronizedWorks,
             researcher.Id,
             researcher.OrcidProfile?.Works,
+            synchronizedAt);
+        AddWebOfScienceWorks(
+            synchronizedWorks,
+            researcher.Id,
+            researcher.WebOfScienceProfile?.Works,
             synchronizedAt);
 
         for (index = 0; index < synchronizedWorks.Count; index++)
@@ -191,6 +197,48 @@ public sealed class AcademicWorkSynchronizer
             academicWork.SourceName = sourceWork.SourceName;
             academicWork.SourceType = "ORCID";
             academicWork.SourceUrl = sourceWork.Url;
+            academicWork.ProviderPayload = sourceWork.RawDataJson;
+            academicWork.SyncedAt = synchronizedAt;
+            target.Add(academicWork);
+        }
+    }
+
+    private static void AddWebOfScienceWorks(
+        List<AcademicWork> target,
+        int researcherId,
+        List<WebOfScienceWork>? source,
+        DateTime synchronizedAt)
+    {
+        WebOfScienceWork? sourceWork = null;
+        AcademicWork? academicWork = null;
+        int index = 0;
+
+        if (source is null)
+        {
+            return;
+        }
+
+        for (index = 0; index < source.Count; index++)
+        {
+            sourceWork = source[index];
+            academicWork = new AcademicWork();
+            academicWork.ResearcherId = researcherId;
+            academicWork.Provider = AcademicWorkProvider.WebOfScience;
+            academicWork.ProviderWorkId = sourceWork.Uid;
+            academicWork.Title = sourceWork.Title;
+            academicWork.PublicationYear = sourceWork.PublicationYear;
+            academicWork.PublicationDate = sourceWork.PublicationDate;
+            academicWork.Doi = sourceWork.Doi;
+            academicWork.RawType = sourceWork.WorkTypes;
+            academicWork.Category = sourceWork.Category;
+            academicWork.CategorySource = sourceWork.CategorySource;
+            academicWork.CitedByCount = sourceWork.TimesCited;
+            academicWork.Publication = sourceWork.SourceTitle;
+            academicWork.Volume = sourceWork.Volume;
+            academicWork.Issue = sourceWork.Issue;
+            academicWork.SourceId = sourceWork.Uid;
+            academicWork.SourceName = sourceWork.SourceTitle;
+            academicWork.SourceType = "Web of Science";
             academicWork.ProviderPayload = sourceWork.RawDataJson;
             academicWork.SyncedAt = synchronizedAt;
             target.Add(academicWork);

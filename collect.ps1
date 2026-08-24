@@ -101,7 +101,7 @@ if ($Clean -or $isCleanCommand) {
 }
 
 if ($null -eq $Id -or $Id.Count -eq 0) {
-    Write-Host "Kullanım: .\collect.ps1 -Id <ORCID> veya .\collect.ps1 clean" -ForegroundColor Yellow
+    Write-Host "Kullanım: .\collect.ps1 -Id <ORCID veya ResearcherID> veya .\collect.ps1 clean" -ForegroundColor Yellow
     exit 1
 }
 

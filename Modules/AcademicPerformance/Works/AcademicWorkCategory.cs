@@ -33,5 +33,6 @@ public enum AcademicWorkCategory
 public enum AcademicWorkCategorySource
 {
     Unknown,
-    Orcid
+    Orcid,
+    WebOfScience
 }

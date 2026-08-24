@@ -39,6 +39,15 @@ interface ResearcherCollectResponse {
             PeerReviewsCount?: number;
             RecordLastModifiedAt?: string;
         };
+        WebOfScienceProfile?: {
+            DisplayName?: string;
+            PrimaryOrganization?: string;
+            HIndex?: number;
+            DocumentsCount?: number;
+            TotalTimesCited?: number;
+            TotalCitingPublications?: number;
+            PeerReviewsCount?: number;
+        };
     };
     IsSaved?: boolean;
     Messages?: string[];
@@ -187,6 +196,8 @@ const myPublicationsButton = document.querySelector<HTMLButtonElement>(
     "#MyPublicationsButton");
 const status = document.querySelector<HTMLElement>("#ResearchStatus");
 const profileSummaryPanel = document.querySelector<HTMLElement>("#ResearcherSummary");
+const webOfScienceSummaryPanel = document.querySelector<HTMLElement>(
+    "#WebOfScienceSummary");
 const saveSelectionsButton = document.querySelector<HTMLButtonElement>(
     "#SavePublicationSelections");
 const selectionCount = document.querySelector<HTMLElement>("#SelectionCount");
@@ -322,6 +333,39 @@ function showProfileSummary(researcher?: ResearcherCollectResponse["Researcher"]
     profileSummaryPanel.hidden = false;
 }
 
+function showWebOfScienceSummary(
+    researcher?: ResearcherCollectResponse["Researcher"]) {
+    const profile = researcher?.WebOfScienceProfile;
+
+    if (!webOfScienceSummaryPanel || !profile) {
+        if (webOfScienceSummaryPanel)
+            webOfScienceSummaryPanel.hidden = true;
+        return;
+    }
+
+    const displayName = [researcher?.FirstName, researcher?.LastName]
+        .filter(Boolean)
+        .join(" ") || profile.DisplayName || "Akademisyen";
+    const values: Record<string, number | string> = {
+        WebOfScienceHIndex: profile.HIndex ?? "—",
+        WebOfScienceDocumentsCount: profile.DocumentsCount ?? 0,
+        WebOfScienceTotalTimesCited: profile.TotalTimesCited ?? "—"
+    };
+
+    document.querySelector<HTMLElement>("#WebOfScienceResearcherName")!.textContent =
+        displayName;
+
+    for (const [id, value] of Object.entries(values)) {
+        const element = document.querySelector<HTMLElement>(`#${id}`);
+        if (element)
+            element.textContent = typeof value === "number"
+                ? value.toLocaleString("tr-TR")
+                : value;
+    }
+
+    webOfScienceSummaryPanel.hidden = false;
+}
+
 function formatDateTime(value?: string) {
     if (!value)
         return "—";
@@ -335,16 +379,20 @@ function formatDateTime(value?: string) {
 form?.addEventListener("submit", async event => {
     event.preventDefault();
 
-    const identifiers = [valueOf("Orcid")].filter(Boolean);
+    const identifiers = [
+        valueOf("Orcid"),
+        valueOf("WebOfScienceResearcherId")
+    ].filter(Boolean);
 
     if (!identifiers.length) {
-        showStatus("error", "ORCID numarasını girin.");
+        showStatus("error", "ORCID veya Web of Science ResearcherID girin.");
         return;
     }
 
     setResearchButtonsEnabled(false);
     showProfileSummary(undefined);
-    showStatus("info", "Resmî ORCID kaydı araştırılıyor. Bu işlem biraz sürebilir...");
+    showWebOfScienceSummary(undefined);
+    showStatus("info", "Akademik sağlayıcılar araştırılıyor. Bu işlem biraz sürebilir...");
 
     try {
         const response = await serviceRequest<ResearcherCollectResponse>(
@@ -362,9 +410,11 @@ form?.addEventListener("submit", async event => {
         showStatus("success", messages || "Araştırma tamamlandı.");
         rememberProviderIdentifiers();
         showProfileSummary(response.Researcher);
+        showWebOfScienceSummary(response.Researcher);
         const displayName = [response.Researcher?.FirstName, response.Researcher?.LastName]
             .filter(Boolean)
-            .join(" ") || response.Researcher?.OrcidProfile?.DisplayName;
+            .join(" ") || response.Researcher?.OrcidProfile?.DisplayName ||
+            response.Researcher?.WebOfScienceProfile?.DisplayName;
         grid.setResearcher(researcherId, displayName);
     }
     catch (error) {
@@ -383,7 +433,7 @@ myPublicationsButton?.addEventListener("click", () => {
         showStatus(
             "error",
             "Daha önce başarıyla kullanılan bir sağlayıcı kimliği bulunamadı. " +
-            "Önce ORCID numaranızla bir kez araştırma yapın.");
+            "Önce bir sağlayıcı kimliğiyle başarılı araştırma yapın.");
         return;
     }
 

@@ -31,11 +31,13 @@ public sealed class AcademicDatabaseInitializer
             DatabaseConfiguration.SqliteProvider,
             StringComparison.OrdinalIgnoreCase))
         {
+            await AddSqliteResearcherProviderColumnsAsync();
             await CreateSqliteAcademicWorksTableAsync();
             await RemoveObsoleteSqliteDataAsync();
             await CreateSqlitePublicationSummariesTableAsync();
             await CreateSqlitePublicationDisplayApprovalsTableAsync();
             await CreateSqliteOrcidTablesAsync();
+            await CreateSqliteWebOfScienceTablesAsync();
             await AddSqliteAcademicWorkColumnsAsync();
             return;
         }
@@ -44,13 +46,228 @@ public sealed class AcademicDatabaseInitializer
             DatabaseConfiguration.SqlServerProvider,
             StringComparison.OrdinalIgnoreCase))
         {
+            await AddSqlServerResearcherProviderColumnsAsync();
             await CreateSqlServerAcademicWorksTableAsync();
             await RemoveObsoleteSqlServerDataAsync();
             await CreateSqlServerPublicationSummariesTableAsync();
             await CreateSqlServerPublicationDisplayApprovalsTableAsync();
             await CreateSqlServerOrcidTablesAsync();
+            await CreateSqlServerWebOfScienceTablesAsync();
             await AddSqlServerAcademicWorkColumnsAsync();
         }
+    }
+
+    private async Task AddSqliteResearcherProviderColumnsAsync()
+    {
+        string? createIndexSql = null;
+
+        await AddSqliteColumnIfMissingAsync(
+            "Researchers",
+            "WebOfScienceResearcherId");
+        createIndexSql =
+            "CREATE UNIQUE INDEX IF NOT EXISTS " +
+            "\"IX_Researchers_WebOfScienceResearcherId\" " +
+            "ON \"Researchers\" (\"WebOfScienceResearcherId\") " +
+            "WHERE \"WebOfScienceResearcherId\" IS NOT NULL;";
+        await _dbContext.Database.ExecuteSqlRawAsync(createIndexSql);
+    }
+
+    private async Task AddSqlServerResearcherProviderColumnsAsync()
+    {
+        string? createIndexSql = null;
+
+        await AddSqlServerTextColumnIfMissingAsync(
+            "Researchers",
+            "WebOfScienceResearcherId",
+            20);
+        createIndexSql =
+            "IF NOT EXISTS (SELECT 1 FROM sys.indexes " +
+            "WHERE name = N'IX_Researchers_WebOfScienceResearcherId' " +
+            "AND object_id = OBJECT_ID(N'[Researchers]')) " +
+            "CREATE UNIQUE INDEX [IX_Researchers_WebOfScienceResearcherId] " +
+            "ON [Researchers] ([WebOfScienceResearcherId]) " +
+            "WHERE [WebOfScienceResearcherId] IS NOT NULL;";
+        await _dbContext.Database.ExecuteSqlRawAsync(createIndexSql);
+    }
+
+    private async Task CreateSqliteWebOfScienceTablesAsync()
+    {
+        string? createTablesSql = null;
+
+        createTablesSql =
+            """
+            CREATE TABLE IF NOT EXISTS "WebOfScienceProfiles" (
+                "Id" INTEGER NOT NULL CONSTRAINT "PK_WebOfScienceProfiles" PRIMARY KEY AUTOINCREMENT,
+                "ResearcherId" INTEGER NOT NULL,
+                "DisplayName" TEXT NULL,
+                "FirstName" TEXT NULL,
+                "LastName" TEXT NULL,
+                "Orcid" TEXT NULL,
+                "IsClaimed" INTEGER NOT NULL,
+                "PrimaryOrganization" TEXT NULL,
+                "PrimaryAddress" TEXT NULL,
+                "PrimaryCountry" TEXT NULL,
+                "Departments" TEXT NULL,
+                "HIndex" INTEGER NULL,
+                "DocumentsCount" INTEGER NOT NULL,
+                "TotalCitingPublications" INTEGER NULL,
+                "TotalCitingWithoutSelf" INTEGER NULL,
+                "TotalTimesCited" INTEGER NULL,
+                "TotalTimesCitedWithoutSelf" INTEGER NULL,
+                "PeerReviewsCount" INTEGER NOT NULL,
+                "LastUpdatedAt" TEXT NOT NULL,
+                "AlternativeNamesJson" TEXT NULL,
+                "AffiliationsJson" TEXT NULL,
+                "AuthorPositionsJson" TEXT NULL,
+                "SubjectCategoriesJson" TEXT NULL,
+                "AwardsJson" TEXT NULL,
+                "RawDataJson" TEXT NULL,
+                "DocumentPagesJson" TEXT NULL,
+                "PeerReviewPagesJson" TEXT NULL,
+                CONSTRAINT "FK_WebOfScienceProfiles_Researchers_ResearcherId"
+                    FOREIGN KEY ("ResearcherId") REFERENCES "Researchers" ("Id") ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_WebOfScienceProfiles_ResearcherId"
+                ON "WebOfScienceProfiles" ("ResearcherId");
+
+            CREATE TABLE IF NOT EXISTS "WebOfScienceWorks" (
+                "Id" INTEGER NOT NULL CONSTRAINT "PK_WebOfScienceWorks" PRIMARY KEY AUTOINCREMENT,
+                "WebOfScienceProfileId" INTEGER NOT NULL,
+                "Uid" TEXT NULL,
+                "Title" TEXT NULL,
+                "WorkTypes" TEXT NULL,
+                "PublicationYear" INTEGER NULL,
+                "PublicationDate" TEXT NULL,
+                "SourceTitle" TEXT NULL,
+                "Volume" TEXT NULL,
+                "Issue" TEXT NULL,
+                "Collection" TEXT NULL,
+                "Doi" TEXT NULL,
+                "TimesCited" INTEGER NULL,
+                "Category" TEXT NOT NULL,
+                "CategorySource" TEXT NOT NULL,
+                "CitationsJson" TEXT NULL,
+                "RawDataJson" TEXT NULL,
+                CONSTRAINT "FK_WebOfScienceWorks_WebOfScienceProfiles_WebOfScienceProfileId"
+                    FOREIGN KEY ("WebOfScienceProfileId") REFERENCES "WebOfScienceProfiles" ("Id") ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_WebOfScienceWorks_ProfileId_Uid"
+                ON "WebOfScienceWorks" ("WebOfScienceProfileId", "Uid");
+
+            CREATE TABLE IF NOT EXISTS "WebOfSciencePeerReviews" (
+                "Id" INTEGER NOT NULL CONSTRAINT "PK_WebOfSciencePeerReviews" PRIMARY KEY AUTOINCREMENT,
+                "WebOfScienceProfileId" INTEGER NOT NULL,
+                "Journal" TEXT NULL,
+                "Publisher" TEXT NULL,
+                "DateOfReview" TEXT NULL,
+                "Verified" TEXT NULL,
+                "ArticleTitle" TEXT NULL,
+                "ArticleDoi" TEXT NULL,
+                "RawDataJson" TEXT NULL,
+                CONSTRAINT "FK_WebOfSciencePeerReviews_WebOfScienceProfiles_WebOfScienceProfileId"
+                    FOREIGN KEY ("WebOfScienceProfileId") REFERENCES "WebOfScienceProfiles" ("Id") ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS "IX_WebOfSciencePeerReviews_ProfileId"
+                ON "WebOfSciencePeerReviews" ("WebOfScienceProfileId");
+            """;
+
+        await _dbContext.Database.ExecuteSqlRawAsync(createTablesSql);
+    }
+
+    private async Task CreateSqlServerWebOfScienceTablesAsync()
+    {
+        string? createTablesSql = null;
+
+        createTablesSql =
+            """
+            IF OBJECT_ID(N'[WebOfScienceProfiles]', N'U') IS NULL
+            BEGIN
+                CREATE TABLE [WebOfScienceProfiles] (
+                    [Id] int NOT NULL IDENTITY,
+                    [ResearcherId] int NOT NULL,
+                    [DisplayName] nvarchar(500) NULL,
+                    [FirstName] nvarchar(250) NULL,
+                    [LastName] nvarchar(250) NULL,
+                    [Orcid] nvarchar(19) NULL,
+                    [IsClaimed] bit NOT NULL,
+                    [PrimaryOrganization] nvarchar(1000) NULL,
+                    [PrimaryAddress] nvarchar(2000) NULL,
+                    [PrimaryCountry] nvarchar(250) NULL,
+                    [Departments] nvarchar(2000) NULL,
+                    [HIndex] int NULL,
+                    [DocumentsCount] int NOT NULL,
+                    [TotalCitingPublications] int NULL,
+                    [TotalCitingWithoutSelf] int NULL,
+                    [TotalTimesCited] int NULL,
+                    [TotalTimesCitedWithoutSelf] int NULL,
+                    [PeerReviewsCount] int NOT NULL,
+                    [LastUpdatedAt] datetime2 NOT NULL,
+                    [AlternativeNamesJson] nvarchar(max) NULL,
+                    [AffiliationsJson] nvarchar(max) NULL,
+                    [AuthorPositionsJson] nvarchar(max) NULL,
+                    [SubjectCategoriesJson] nvarchar(max) NULL,
+                    [AwardsJson] nvarchar(max) NULL,
+                    [RawDataJson] nvarchar(max) NULL,
+                    [DocumentPagesJson] nvarchar(max) NULL,
+                    [PeerReviewPagesJson] nvarchar(max) NULL,
+                    CONSTRAINT [PK_WebOfScienceProfiles] PRIMARY KEY ([Id]),
+                    CONSTRAINT [FK_WebOfScienceProfiles_Researchers_ResearcherId]
+                        FOREIGN KEY ([ResearcherId]) REFERENCES [Researchers] ([Id]) ON DELETE CASCADE
+                );
+                CREATE UNIQUE INDEX [IX_WebOfScienceProfiles_ResearcherId]
+                    ON [WebOfScienceProfiles] ([ResearcherId]);
+            END;
+
+            IF OBJECT_ID(N'[WebOfScienceWorks]', N'U') IS NULL
+            BEGIN
+                CREATE TABLE [WebOfScienceWorks] (
+                    [Id] int NOT NULL IDENTITY,
+                    [WebOfScienceProfileId] int NOT NULL,
+                    [Uid] nvarchar(100) NULL,
+                    [Title] nvarchar(2000) NULL,
+                    [WorkTypes] nvarchar(500) NULL,
+                    [PublicationYear] int NULL,
+                    [PublicationDate] datetime2 NULL,
+                    [SourceTitle] nvarchar(2000) NULL,
+                    [Volume] nvarchar(100) NULL,
+                    [Issue] nvarchar(100) NULL,
+                    [Collection] nvarchar(100) NULL,
+                    [Doi] nvarchar(500) NULL,
+                    [TimesCited] int NULL,
+                    [Category] nvarchar(50) NOT NULL,
+                    [CategorySource] nvarchar(50) NOT NULL,
+                    [CitationsJson] nvarchar(max) NULL,
+                    [RawDataJson] nvarchar(max) NULL,
+                    CONSTRAINT [PK_WebOfScienceWorks] PRIMARY KEY ([Id]),
+                    CONSTRAINT [FK_WebOfScienceWorks_WebOfScienceProfiles_WebOfScienceProfileId]
+                        FOREIGN KEY ([WebOfScienceProfileId]) REFERENCES [WebOfScienceProfiles] ([Id]) ON DELETE CASCADE
+                );
+                CREATE UNIQUE INDEX [IX_WebOfScienceWorks_ProfileId_Uid]
+                    ON [WebOfScienceWorks] ([WebOfScienceProfileId], [Uid]);
+            END;
+
+            IF OBJECT_ID(N'[WebOfSciencePeerReviews]', N'U') IS NULL
+            BEGIN
+                CREATE TABLE [WebOfSciencePeerReviews] (
+                    [Id] int NOT NULL IDENTITY,
+                    [WebOfScienceProfileId] int NOT NULL,
+                    [Journal] nvarchar(2000) NULL,
+                    [Publisher] nvarchar(2000) NULL,
+                    [DateOfReview] nvarchar(100) NULL,
+                    [Verified] nvarchar(20) NULL,
+                    [ArticleTitle] nvarchar(2000) NULL,
+                    [ArticleDoi] nvarchar(500) NULL,
+                    [RawDataJson] nvarchar(max) NULL,
+                    CONSTRAINT [PK_WebOfSciencePeerReviews] PRIMARY KEY ([Id]),
+                    CONSTRAINT [FK_WebOfSciencePeerReviews_WebOfScienceProfiles_WebOfScienceProfileId]
+                        FOREIGN KEY ([WebOfScienceProfileId]) REFERENCES [WebOfScienceProfiles] ([Id]) ON DELETE CASCADE
+                );
+                CREATE INDEX [IX_WebOfSciencePeerReviews_ProfileId]
+                    ON [WebOfSciencePeerReviews] ([WebOfScienceProfileId]);
+            END;
+            """;
+
+        await _dbContext.Database.ExecuteSqlRawAsync(createTablesSql);
     }
 
     private async Task CreateSqliteOrcidTablesAsync()

@@ -65,10 +65,12 @@ public sealed class ResearcherCollectionHandler
             requestedResearcher,
             response.Messages);
 
-        if (researcher.OrcidProfile is null)
+        if (researcher.OrcidProfile is null &&
+            researcher.WebOfScienceProfile is null)
         {
             response.Messages.Add(
-                "[HATA] Herkese açık ORCID kaydı alınamadığı için veritabanına yazılmadı.");
+                "[HATA] Hiçbir akademik sağlayıcıdan veri alınamadığı için " +
+                "veritabanına yazılmadı.");
             response.IsSaved = false;
             return response;
         }

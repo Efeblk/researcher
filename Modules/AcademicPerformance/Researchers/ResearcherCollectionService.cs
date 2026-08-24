@@ -1,6 +1,8 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
 using Microsoft.Extensions.Configuration;
+using System.Text.Json;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
 
@@ -9,12 +11,14 @@ public sealed class ResearcherCollectionService
     private const int DefaultMaxAgeHours = 24;
 
     private readonly OrcidClient _orcidClient;
+    private readonly WebOfScienceClient _webOfScienceClient;
     private readonly AcademicWorkCategorizer _academicWorkCategorizer;
     private readonly ResearcherCollectionFeedback _collectionFeedback;
     private readonly TimeSpan _providerCacheMaxAge;
 
     public ResearcherCollectionService(
         OrcidClient orcidClient,
+        WebOfScienceClient webOfScienceClient,
         AcademicWorkCategorizer academicWorkCategorizer,
         ResearcherCollectionFeedback collectionFeedback,
         IConfiguration configuration)
@@ -22,6 +26,7 @@ public sealed class ResearcherCollectionService
         int maxAgeHours = 0;
 
         _orcidClient = orcidClient;
+        _webOfScienceClient = webOfScienceClient;
         _academicWorkCategorizer = academicWorkCategorizer;
         _collectionFeedback = collectionFeedback;
 
@@ -42,8 +47,70 @@ public sealed class ResearcherCollectionService
         List<string> messages)
     {
         await CollectOrcidAsync(researcher, requestedIdentifiers.Orcid, messages);
+        await CollectWebOfScienceAsync(
+            researcher,
+            requestedIdentifiers.WebOfScienceResearcherId,
+            messages);
         _academicWorkCategorizer.Categorize(researcher);
         _collectionFeedback.Add(researcher, requestedIdentifiers, messages);
+    }
+
+    private async Task CollectWebOfScienceAsync(
+        Researcher researcher,
+        string? requestedResearcherId,
+        List<string> messages)
+    {
+        if (string.IsNullOrWhiteSpace(requestedResearcherId))
+        {
+            AddMessage(
+                messages,
+                "[ATLANDI] Web of Science: ResearcherID verilmedi.");
+            return;
+        }
+
+        if (IdentifiersMatch(
+                researcher.WebOfScienceResearcherId,
+                requestedResearcherId) &&
+            IsProviderDataCurrent(
+                researcher.WebOfScienceProfile?.LastUpdatedAt) &&
+            HasCompleteWebOfScienceRawData(researcher.WebOfScienceProfile))
+        {
+            AddCachedDataMessage(
+                messages,
+                "Web of Science",
+                researcher.WebOfScienceProfile?.LastUpdatedAt);
+            return;
+        }
+
+        AddMessage(
+            messages,
+            $"[İŞLEM] Web of Science Starter API v1 sorgulanıyor: " +
+            $"{requestedResearcherId}");
+
+        try
+        {
+            await _webOfScienceClient.FillResearcherAsync(
+                researcher,
+                requestedResearcherId);
+        }
+        catch (ArgumentException exception)
+        {
+            AddMessage(
+                messages,
+                $"[HATA] Geçersiz Web of Science ResearcherID: " +
+                $"{exception.Message}");
+        }
+        catch (HttpRequestException exception)
+        {
+            AddMessage(
+                messages,
+                $"[HATA] Web of Science API'ye bağlanılamadı: " +
+                $"{exception.Message}");
+        }
+        catch (Exception exception)
+        {
+            AddMessage(messages, $"[HATA] Web of Science: {exception.Message}");
+        }
     }
 
     private async Task CollectOrcidAsync(
@@ -143,6 +210,69 @@ public sealed class ResearcherCollectionService
         }
 
         return true;
+    }
+
+    private static bool HasCompleteWebOfScienceRawData(
+        WebOfScienceProfile? profile)
+    {
+        int index = 0;
+        WebOfScienceWork? work = null;
+
+        if (profile is null ||
+            !HasBothWebOfScienceDatabaseResponses(
+                profile.DocumentPagesJson) ||
+            !string.IsNullOrWhiteSpace(profile.RawDataJson) ||
+            !string.IsNullOrWhiteSpace(profile.PeerReviewPagesJson) ||
+            profile.Works is null)
+        {
+            return false;
+        }
+
+        for (index = 0; index < profile.Works.Count; index++)
+        {
+            work = profile.Works[index];
+
+            if (string.IsNullOrWhiteSpace(work.RawDataJson))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool HasBothWebOfScienceDatabaseResponses(
+        string? documentPagesJson)
+    {
+        JsonDocument? document = null;
+        JsonElement root = default;
+        JsonElement coreCollectionPages = default;
+        JsonElement allDatabasePages = default;
+
+        if (string.IsNullOrWhiteSpace(documentPagesJson))
+        {
+            return false;
+        }
+
+        try
+        {
+            document = JsonDocument.Parse(documentPagesJson);
+            root = document.RootElement;
+
+            return root.ValueKind == JsonValueKind.Object &&
+                root.TryGetProperty("WOS", out coreCollectionPages) &&
+                coreCollectionPages.ValueKind == JsonValueKind.Array &&
+                root.TryGetProperty("WOK", out allDatabasePages) &&
+                allDatabasePages.ValueKind == JsonValueKind.Array;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+        finally
+        {
+            document?.Dispose();
+        }
     }
 
     private static void AddCachedDataMessage(

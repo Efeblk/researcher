@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
 
@@ -22,6 +23,15 @@ public sealed class ResearcherRepository
                 .FirstOrDefaultAsync(item => item.Orcid == identifiers.Orcid);
         }
 
+        if (researcher is null &&
+            !string.IsNullOrWhiteSpace(identifiers.WebOfScienceResearcherId))
+        {
+            researcher = await CreateResearcherQuery()
+                .FirstOrDefaultAsync(item =>
+                    item.WebOfScienceResearcherId ==
+                    identifiers.WebOfScienceResearcherId);
+        }
+
         return researcher;
     }
 
@@ -34,6 +44,10 @@ public sealed class ResearcherRepository
         target.Department = source.Department ?? target.Department;
 
         target.Orcid = GetIdentifierValue(target.Orcid, source.Orcid, "ORCID");
+        target.WebOfScienceResearcherId = GetIdentifierValue(
+            target.WebOfScienceResearcherId,
+            source.WebOfScienceResearcherId,
+            "Web of Science ResearcherID");
     }
 
     public async Task SaveAsync(Researcher researcher)
@@ -51,6 +65,15 @@ public sealed class ResearcherRepository
         {
             existingResearcher = await CreateResearcherQuery()
                 .FirstOrDefaultAsync(item => item.Orcid == researcher.Orcid);
+        }
+
+        if (existingResearcher is null &&
+            !string.IsNullOrWhiteSpace(researcher.WebOfScienceResearcherId))
+        {
+            existingResearcher = await CreateResearcherQuery()
+                .FirstOrDefaultAsync(item =>
+                    item.WebOfScienceResearcherId ==
+                    researcher.WebOfScienceResearcherId);
         }
 
         if (existingResearcher is null)
@@ -73,7 +96,11 @@ public sealed class ResearcherRepository
 
         query = _dbContext.Researchers
             .Include(researcher => researcher.OrcidProfile)
-                .ThenInclude(profile => profile!.Works);
+                .ThenInclude(profile => profile!.Works)
+            .Include(researcher => researcher.WebOfScienceProfile)
+                .ThenInclude(profile => profile!.Works)
+            .Include(researcher => researcher.WebOfScienceProfile)
+                .ThenInclude(profile => profile!.PeerReviews);
 
         return query;
     }
@@ -84,6 +111,59 @@ public sealed class ResearcherRepository
         target.LastUpdatedAt = DateTime.UtcNow;
 
         UpdateOrcid(target, source);
+        UpdateWebOfScience(target, source);
+    }
+
+    private void UpdateWebOfScience(Researcher target, Researcher source)
+    {
+        WebOfScienceProfile? targetProfile = null;
+        WebOfScienceProfile? sourceProfile = null;
+
+        sourceProfile = source.WebOfScienceProfile;
+
+        if (sourceProfile is null)
+        {
+            return;
+        }
+
+        if (target.WebOfScienceProfile is null)
+        {
+            target.WebOfScienceProfile = sourceProfile;
+            return;
+        }
+
+        targetProfile = target.WebOfScienceProfile;
+        targetProfile.DisplayName = sourceProfile.DisplayName;
+        targetProfile.FirstName = sourceProfile.FirstName;
+        targetProfile.LastName = sourceProfile.LastName;
+        targetProfile.Orcid = sourceProfile.Orcid;
+        targetProfile.IsClaimed = sourceProfile.IsClaimed;
+        targetProfile.PrimaryOrganization = sourceProfile.PrimaryOrganization;
+        targetProfile.PrimaryAddress = sourceProfile.PrimaryAddress;
+        targetProfile.PrimaryCountry = sourceProfile.PrimaryCountry;
+        targetProfile.Departments = sourceProfile.Departments;
+        targetProfile.HIndex = sourceProfile.HIndex;
+        targetProfile.DocumentsCount = sourceProfile.DocumentsCount;
+        targetProfile.TotalCitingPublications = sourceProfile.TotalCitingPublications;
+        targetProfile.TotalCitingWithoutSelf = sourceProfile.TotalCitingWithoutSelf;
+        targetProfile.TotalTimesCited = sourceProfile.TotalTimesCited;
+        targetProfile.TotalTimesCitedWithoutSelf = sourceProfile.TotalTimesCitedWithoutSelf;
+        targetProfile.PeerReviewsCount = sourceProfile.PeerReviewsCount;
+        targetProfile.LastUpdatedAt = sourceProfile.LastUpdatedAt;
+        targetProfile.AlternativeNamesJson = sourceProfile.AlternativeNamesJson;
+        targetProfile.AffiliationsJson = sourceProfile.AffiliationsJson;
+        targetProfile.AuthorPositionsJson = sourceProfile.AuthorPositionsJson;
+        targetProfile.SubjectCategoriesJson = sourceProfile.SubjectCategoriesJson;
+        targetProfile.AwardsJson = sourceProfile.AwardsJson;
+        targetProfile.RawDataJson = sourceProfile.RawDataJson;
+        targetProfile.DocumentPagesJson = sourceProfile.DocumentPagesJson;
+        targetProfile.PeerReviewPagesJson = sourceProfile.PeerReviewPagesJson;
+
+        _dbContext.WebOfScienceWorks.RemoveRange(targetProfile.Works ?? []);
+        _dbContext.WebOfSciencePeerReviews.RemoveRange(
+            targetProfile.PeerReviews ?? []);
+        targetProfile.Works = sourceProfile.Works;
+        targetProfile.PeerReviews = sourceProfile.PeerReviews;
     }
 
     private void UpdateOrcid(Researcher target, Researcher source)

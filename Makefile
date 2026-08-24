@@ -13,7 +13,7 @@ help:
 	@echo "  make build                Projeyi derler"
 	@echo "  make clean                SQLite veritabanını ve Storage klasörünü siler"
 	@echo "  make health               Sunucunun çalıştığını kontrol eder"
-	@echo "  make collect ID=...       ORCID ile akademisyen yayınlarını sorgular"
+	@echo "  make collect ID=...       ORCID ve/veya ResearcherID ile veri toplar"
 	@echo "  make health HOST=...      Farklı bir sunucu adresi kullanır"
 
 run:
@@ -46,7 +46,7 @@ health:
 
 collect:
 	@if [ -z "$(strip $(ID))" ]; then \
-		echo 'Kullanım: make collect ID="0000-0001-8560-7482"'; \
+		echo 'Kullanım: make collect ID="0000-0001-8560-7482 A-1009-2008"'; \
 		exit 1; \
 	fi
 	@response_file="$$(mktemp -t academic-collect.XXXXXX)"; \

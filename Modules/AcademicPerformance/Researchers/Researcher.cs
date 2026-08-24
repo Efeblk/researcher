@@ -1,4 +1,5 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
 using System.Text.Json.Serialization;
 
@@ -15,9 +16,11 @@ public sealed class Researcher
     public string? Department { get; set; } = null;
 
     public string? Orcid { get; set; } = null;
+    public string? WebOfScienceResearcherId { get; set; } = null;
     public DateTime? LastUpdatedAt { get; set; } = null;
 
     public OrcidProfile? OrcidProfile { get; set; } = null;
+    public WebOfScienceProfile? WebOfScienceProfile { get; set; } = null;
 
     [JsonIgnore]
     public List<AcademicWork>? AcademicWorks { get; set; } = null;

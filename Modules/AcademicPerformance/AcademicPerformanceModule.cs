@@ -1,5 +1,6 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,7 @@ public static class AcademicPerformanceModule
         services.AddSingleton<AcademicWorkCategorizer>();
         services.AddSingleton<ResearcherCollectionFeedback>();
         services.AddTransient<OrcidClient>();
+        services.AddTransient<WebOfScienceClient>();
 
         services.AddScoped(CreateDbContext);
         services.AddScoped<AcademicDatabaseInitializer>();

@@ -1,20 +1,21 @@
 # Akademik Performans Modülü
 
-Resmî ORCID Public API üzerinden akademisyen profili ve yayınlarını toplayan,
-Serenity bileşenleriyle hazırlanmış .NET 10 prototipidir. Uygulama bütün
-yayınları yerel veritabanında saklar; akademisyen okul sitesinde gösterilmesine
-izin verdiği yayınları ayrıca seçer.
+Resmî ORCID Public API ve Clarivate Web of Science Starter API v1 üzerinden
+akademisyen profili ve yayınlarını toplayan, Serenity bileşenleriyle hazırlanmış
+.NET 10 prototipidir. Uygulama yayınları yerel veritabanında saklar; akademisyen
+okul sitesinde gösterilmesine izin verdiği yayınları ayrıca seçer.
 
 ## Mevcut iş akışı
 
-1. Akademisyen ORCID numarasını girer veya **Yayınlarımı Getir** düğmesini kullanır.
-2. Herkese açık profil, faaliyet ve eser kayıtları ORCID'den alınır.
+1. Akademisyen ORCID ve/veya Web of Science ResearcherID değerini girer.
+2. ORCID profil/faaliyet verileri ile Web of Science yayın ve kullanılabiliyorsa
+   atıf verileri bağımsız olarak alınır.
 3. Eserler DOI'ye; DOI yoksa normalize başlık ve yıla göre tekilleştirilir.
 4. Sade yayın kayıtları Serenity grid'inde gösterilir.
 5. **Okulda Göster** seçimleri `PublicationDisplayApprovals` tablosuna kaydedilir.
 
-PDF indirilmez; ORCID'in sağladığı DOI ve yayın bağlantıları saklanır. OpenAlex,
-Google Scholar ve Web of Science entegrasyonları çalışma zamanından kaldırılmıştır.
+PDF indirilmez; sağlayıcıların sunduğu DOI ve yayın bilgileri saklanır. OpenAlex
+ve Google Scholar entegrasyonları çalışma zamanından kaldırılmıştır.
 
 ## Hedef servisler ve entegrasyon durumu
 
@@ -24,13 +25,13 @@ Google Scholar ve Web of Science entegrasyonları çalışma zamanından kaldır
 | OpenAlex | OpenAlex API | Genel API erişimi | **Askıda**; entegrasyon kodu ve sağlayıcı tabloları kaldırıldı |
 | Google Scholar ID | Belirlenecek uygun sağlayıcı | Google'ın resmî API'si olmadığı için sağlayıcı ve kota kararı gerekli | **Planlanan**; SerpAPI kaldırıldı |
 | Scopus Author ID | Resmî Elsevier Scopus API | Kurumsal abonelik ve API yetkisi gerekebilir | **Hedef**; entegrasyon henüz yok |
-| Web of Science ResearcherID | Resmî Clarivate Researcher API | Kurumsal API lisansı gerekli | **Hedef**; entegrasyon şimdilik kaldırıldı |
+| Web of Science ResearcherID | Resmî Clarivate Starter API v1 | API anahtarı gerekli; ücretsiz ve kurumsal planlar var | **Aktif**; `AI` sorgusuyla erişilebilen tüm WoS veri tabanlarındaki yayınlar ve plan izin verirse atıf sayıları alınıyor |
 | YÖKSİS | YÖK kurumsal web servisi | Üniversitenin servis sözleşmesi, test ortamı ve kimlik bilgileri gerekli | **Beklemede**; belgeler gelmeden istemci yazılmayacak |
 | BYS kullanıcı kaydı | Üniversitenin kimlik ve yetki servisleri | Oturum açmış akademisyen ve kurum içi personel ID'si | **Production için gerekli** |
 | ResearchGate / Academia.edu | Resmî ve izinli API bulunursa değerlendirilecek | Scraping kullanılmayacak | **Kapsam dışı** |
 
-Bu tablo ürün hedeflerini gösterir; yalnızca **Aktif** durumundaki ORCID çalışma
-zamanında kayıtlı ve çağrılan akademik veri sağlayıcısıdır. Yeni bir servis,
+Bu tablo ürün hedeflerini gösterir; yalnızca **Aktif** durumundaki ORCID ve Web
+of Science çalışma zamanında çağrılır. Yeni bir servis,
 erişim sözleşmesi ve veri sahipliği netleşmeden mevcut toplama akışına eklenmez.
 
 ## Gereksinimler ve çalıştırma
@@ -68,6 +69,7 @@ make build
 make run
 make health
 make collect ID="0000-0001-8560-7482"
+make collect ID="0000-0001-8560-7482 A-1009-2008"
 ```
 
 Hazır IDE istekleri `Requests/AcademicPerformance.http` dosyasındadır. Temizleme
@@ -84,7 +86,8 @@ kapatın:
 Modules/AcademicPerformance/
 ├── Data/                   EF Core bağlamı ve şema hazırlığı
 ├── Endpoints/              Serenity HTTP servisleri
-├── Integrations/Orcid/     Aktif resmî ORCID istemcisi
+├── Integrations/Orcid/     Resmî ORCID istemcisi
+├── Integrations/WebOfScience/ Clarivate Starter API v1 istemcisi
 ├── Researchers/            Kimlik ayrıştırma ve toplama akışı
 ├── UI/                     Razor sayfası, Row/Columns ve TypeScript grid
 └── Works/                  Normalizasyon, özet ve gösterim onayları
@@ -100,25 +103,35 @@ yeniden üretilebilir veya çalışma zamanı çıktılarıdır; Git'e eklenmez.
 
 | Tablo | İçerik |
 | --- | --- |
-| `Researchers` | Akademisyen ve ORCID eşleşmesi |
+| `Researchers` | Akademisyen, ORCID ve Web of Science ResearcherID eşleşmesi |
 | `OrcidProfiles` / `OrcidWorks` | ORCID profil, faaliyet, eser ve ham JSON verisi |
+| `WebOfScienceProfiles` | Starter API sorgu özeti ve ham yayın sayfası yanıtları |
+| `WebOfScienceWorks` | Web of Science yayınları ve varsa atıf sayıları |
 | `AcademicWorks` | Sağlayıcıdan bağımsız normalize yayınlar |
 | `PublicationSummaries` | Arayüz ve raporlama için sade yayın listesi |
 | `PublicationDisplayApprovals` | Okulda gösterilmesine izin verilen yayınlar |
 
-ORCID atıf sayısı, h-index ve i10-index sağlamaz. Ayrı bir metrik tablosu yerine
-ORCID profilindeki eser, istihdam, eğitim, fonlama ve hakemlik kayıt sayıları
-özet kartlarında doğrudan kullanılır. Onaylı yayınlar
-`PublicationDisplayApproval/ListApproved` servisi üzerinden alınabilir.
+ORCID atıf sayısı, h-index ve i10-index sağlamaz. Starter API v1 hazır profil
+metrikleri sunmaz. Bütün yayınlarda atıf sayısı gelirse h-index ve toplam atıf
+uygulama içinde yayınlardan hesaplanır. Profil, kurum ve hakemlik bilgileri Starter
+API'den alınamaz. Onaylı yayınlar `PublicationDisplayApproval/ListApproved`
+servisi üzerinden alınabilir.
+
+Web of Science sorguları hem `db=WOS` hem `db=WOK` ile ayrı ayrı yapılır. Böylece
+Core Collection sonuçları korunurken API anahtarının erişebildiği diğer Web of
+Science veri tabanları da taranır. Aynı eserin farklı veri tabanlarındaki kayıtları
+UID, DOI veya başlık-yıl bilgisine göre tekilleştirilir. İki sorgunun ham sayfaları
+sağlayıcı kapsamı belirtilerek ayrı ayrı saklanır.
 
 ## Yapılandırma ve production notları
 
-Varsayılan SQLite bağlantısı `appsettings.json`, ORCID adresi ve önbellek süresi
-`academicsettings.json` içindedir. Gizli değerleri repoya yazmayın; gerekiyorsa
-.NET user secrets veya ortam değişkeni kullanın:
+Varsayılan SQLite bağlantısı `appsettings.json`; sağlayıcı adresleri ve önbellek
+süresi `academicsettings.json` içindedir. Gizli değerleri repoya yazmayın. Web
+of Science API anahtarını User Secrets'a ekleyin:
 
 ```powershell
 dotnet user-secrets set "Orcid:AccessToken" "<TOKEN>"
+dotnet user-secrets set "WebOfScience:ApiKey" "<CLARIVATE_API_KEY>"
 ```
 
 Mevcut UI bir entegrasyon prototipidir. **Yayınlarımı Getir** için sağlayıcı
@@ -131,6 +144,12 @@ SQL Server'a geçişte `Database:Provider=SqlServer` ve
 `ConnectionStrings:AcademicDatabase` değerlerini güvenli yapılandırmadan verin.
 Kalıcı şema yönetimi için `EnsureCreated` yaklaşımı yerine migration kullanılması
 önerilir.
+
+Web of Science Starter API'nin ücretsiz deneme planı günde 50 istek sunar fakat
+atıf sayılarını döndürmez. Uygun Web of Science aboneliğine bağlı kurumsal planda
+atıf sayıları ve daha yüksek kota kullanılabilir. Resmî kaynaklar:
+[Starter API](https://developer.clarivate.com/apis/wos-starter) ve
+[Swagger şeması](https://developer.clarivate.com/apis/wos-starter/swagger).
 
 ## Doğrulama
 

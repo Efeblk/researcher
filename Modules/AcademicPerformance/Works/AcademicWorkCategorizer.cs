@@ -1,4 +1,5 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Works;
@@ -7,18 +8,32 @@ public sealed class AcademicWorkCategorizer
 {
     public void Categorize(Researcher researcher)
     {
-        List<OrcidWork>? works = researcher.OrcidProfile?.Works;
+        List<OrcidWork>? orcidWorks = researcher.OrcidProfile?.Works;
+        List<WebOfScienceWork>? webOfScienceWorks =
+            researcher.WebOfScienceProfile?.Works;
         int index = 0;
 
-        if (works is null)
+        if (orcidWorks is not null)
+        {
+            for (index = 0; index < orcidWorks.Count; index++)
+            {
+                orcidWorks[index].Category = GetOrcidCategory(
+                    orcidWorks[index].WorkType);
+                orcidWorks[index].CategorySource = AcademicWorkCategorySource.Orcid;
+            }
+        }
+
+        if (webOfScienceWorks is null)
         {
             return;
         }
 
-        for (index = 0; index < works.Count; index++)
+        for (index = 0; index < webOfScienceWorks.Count; index++)
         {
-            works[index].Category = GetOrcidCategory(works[index].WorkType);
-            works[index].CategorySource = AcademicWorkCategorySource.Orcid;
+            webOfScienceWorks[index].Category = GetWebOfScienceCategory(
+                webOfScienceWorks[index].WorkTypes);
+            webOfScienceWorks[index].CategorySource =
+                AcademicWorkCategorySource.WebOfScience;
         }
     }
 
@@ -76,5 +91,77 @@ public sealed class AcademicWorkCategorizer
             "working-paper" => AcademicWorkCategory.Preprint,
             _ => AcademicWorkCategory.Unknown
         };
+    }
+
+    public AcademicWorkCategory GetWebOfScienceCategory(string? types)
+    {
+        List<string>? normalizedTypes = null;
+
+        normalizedTypes = (types ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(type => type.Trim().ToLowerInvariant())
+            .ToList();
+
+        if (normalizedTypes.Contains("article"))
+        {
+            return AcademicWorkCategory.Article;
+        }
+
+        if (normalizedTypes.Contains("review"))
+        {
+            return AcademicWorkCategory.Review;
+        }
+
+        if (normalizedTypes.Contains("proceedings paper"))
+        {
+            return AcademicWorkCategory.ConferencePaper;
+        }
+
+        if (normalizedTypes.Contains("meeting abstract"))
+        {
+            return AcademicWorkCategory.ConferenceAbstract;
+        }
+
+        if (normalizedTypes.Contains("book chapter"))
+        {
+            return AcademicWorkCategory.BookChapter;
+        }
+
+        if (normalizedTypes.Contains("book"))
+        {
+            return AcademicWorkCategory.Book;
+        }
+
+        if (normalizedTypes.Contains("book review"))
+        {
+            return AcademicWorkCategory.BookReview;
+        }
+
+        if (normalizedTypes.Contains("editorial material"))
+        {
+            return AcademicWorkCategory.Editorial;
+        }
+
+        if (normalizedTypes.Contains("letter"))
+        {
+            return AcademicWorkCategory.Letter;
+        }
+
+        if (normalizedTypes.Contains("correction"))
+        {
+            return AcademicWorkCategory.Erratum;
+        }
+
+        if (normalizedTypes.Contains("retraction"))
+        {
+            return AcademicWorkCategory.Retraction;
+        }
+
+        if (normalizedTypes.Contains("data paper"))
+        {
+            return AcademicWorkCategory.DataPaper;
+        }
+
+        return AcademicWorkCategory.Unknown;
     }
 }

@@ -1,3 +1,6 @@
+# API Notes
+https://info.orcid.org/ufaqs/what-are-the-api-limits/
+https://github.com/ORCID/orcid-model/blob/master/src/main/resources/record_3.0/README.md
 # Proje Notları
 
 - Şema kesinleştiğinde `EnsureCreated` yerine Fluent Migrations kullanılmalı.

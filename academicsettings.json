@@ -2,6 +2,13 @@
   "Orcid": {
     "ApiBaseUrl": "https://pub.orcid.org/v3.0"
   },
+  "WebOfScience": {
+    "ApiBaseUrl": "https://api.clarivate.com/apis/wos-starter/v1",
+    "DatabaseIds": [
+      "WOS",
+      "WOK"
+    ]
+  },
   "ProviderCache": {
     "MaxAgeHours": 24
   }

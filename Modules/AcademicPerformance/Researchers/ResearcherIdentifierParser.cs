@@ -7,6 +7,9 @@ public sealed class ResearcherIdentifierParser
     private static readonly Regex OrcidPattern = new(
         @"^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$",
         RegexOptions.IgnoreCase);
+    private static readonly Regex WebOfScienceResearcherIdPattern = new(
+        @"^[A-Z]{1,3}-\d{4}-\d{4}$",
+        RegexOptions.IgnoreCase);
 
     public Researcher Create(ResearcherCollectRequest request)
     {
@@ -35,9 +38,11 @@ public sealed class ResearcherIdentifierParser
             throw new ArgumentException($"Bilinmeyen veya eksik kimlik: {identifier}");
         }
 
-        if (string.IsNullOrWhiteSpace(researcher.Orcid))
+        if (string.IsNullOrWhiteSpace(researcher.Orcid) &&
+            string.IsNullOrWhiteSpace(researcher.WebOfScienceResearcherId))
         {
-            throw new ArgumentException("ORCID verilmelidir.");
+            throw new ArgumentException(
+                "ORCID veya Web of Science ResearcherID verilmelidir.");
         }
 
         return researcher;
@@ -53,7 +58,9 @@ public sealed class ResearcherIdentifierParser
 
         argumentName = identifiers[index];
 
-        if (argumentName != "--orcid")
+        if (argumentName != "--orcid" &&
+            argumentName != "--researcherid" &&
+            argumentName != "--wos")
         {
             return false;
         }
@@ -66,8 +73,19 @@ public sealed class ResearcherIdentifierParser
         identifier = identifiers[index + 1];
         index++;
 
-        EnsureIdentifierIsEmpty(researcher.Orcid, "ORCID");
-        researcher.Orcid = identifier;
+        if (argumentName == "--orcid")
+        {
+            EnsureIdentifierIsEmpty(researcher.Orcid, "ORCID");
+            researcher.Orcid = identifier;
+        }
+        else
+        {
+            EnsureIdentifierIsEmpty(
+                researcher.WebOfScienceResearcherId,
+                "Web of Science ResearcherID");
+            researcher.WebOfScienceResearcherId = identifier;
+        }
+
         return true;
     }
 
@@ -77,6 +95,15 @@ public sealed class ResearcherIdentifierParser
         {
             EnsureIdentifierIsEmpty(researcher.Orcid, "ORCID");
             researcher.Orcid = identifier;
+            return true;
+        }
+
+        if (WebOfScienceResearcherIdPattern.IsMatch(identifier))
+        {
+            EnsureIdentifierIsEmpty(
+                researcher.WebOfScienceResearcherId,
+                "Web of Science ResearcherID");
+            researcher.WebOfScienceResearcherId = identifier.ToUpperInvariant();
             return true;
         }
 
