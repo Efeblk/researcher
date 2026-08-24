@@ -17,6 +17,7 @@ public sealed class Researcher
 
     public string? Orcid { get; set; } = null;
     public string? WebOfScienceResearcherId { get; set; } = null;
+    public string? YoksisResearcherId { get; set; } = null;
     public DateTime? LastUpdatedAt { get; set; } = null;
 
     public OrcidProfile? OrcidProfile { get; set; } = null;

@@ -4,6 +4,7 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis;
 
 public sealed class YoksisCollectRequest : ServiceRequest
 {
+    public int? ResearcherId { get; set; } = null;
     public string? TcKimlikNo { get; set; } = null;
     public DateTime? UpdatedAfter { get; set; } = null;
     public bool IncludeRecords { get; set; } = true;
@@ -12,6 +13,11 @@ public sealed class YoksisCollectRequest : ServiceRequest
 
 public sealed class YoksisCollectResponse : ServiceResponse
 {
+    public int? ResearcherId { get; set; } = null;
+    public string? ResearcherDisplayName { get; set; } = null;
+    public bool IsSaved { get; set; }
+    public int YoksisPublicationCount { get; set; }
+    public int PublicationSummaryCount { get; set; }
     public DateTime CollectedAt { get; set; }
     public int SuccessfulCategoryCount { get; set; }
     public int FailedCategoryCount { get; set; }

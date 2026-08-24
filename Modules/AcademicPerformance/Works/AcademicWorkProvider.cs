@@ -4,5 +4,6 @@ public enum AcademicWorkProvider
 {
     Orcid,
     WebOfScience,
+    Yoksis,
     Legacy
 }

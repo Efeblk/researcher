@@ -32,7 +32,21 @@ public sealed class ResearcherRepository
                     identifiers.WebOfScienceResearcherId);
         }
 
+        if (researcher is null &&
+            !string.IsNullOrWhiteSpace(identifiers.YoksisResearcherId))
+        {
+            researcher = await CreateResearcherQuery()
+                .FirstOrDefaultAsync(item =>
+                    item.YoksisResearcherId == identifiers.YoksisResearcherId);
+        }
+
         return researcher;
+    }
+
+    public Task<Researcher?> FindByIdAsync(int researcherId)
+    {
+        return CreateResearcherQuery()
+            .FirstOrDefaultAsync(researcher => researcher.Id == researcherId);
     }
 
     public void ApplyRequestValues(Researcher target, Researcher source)
@@ -48,6 +62,10 @@ public sealed class ResearcherRepository
             target.WebOfScienceResearcherId,
             source.WebOfScienceResearcherId,
             "Web of Science ResearcherID");
+        target.YoksisResearcherId = GetIdentifierValue(
+            target.YoksisResearcherId,
+            source.YoksisResearcherId,
+            "YÖKSİS Araştırmacı ID");
     }
 
     public async Task SaveAsync(Researcher researcher)
@@ -74,6 +92,14 @@ public sealed class ResearcherRepository
                 .FirstOrDefaultAsync(item =>
                     item.WebOfScienceResearcherId ==
                     researcher.WebOfScienceResearcherId);
+        }
+
+        if (existingResearcher is null &&
+            !string.IsNullOrWhiteSpace(researcher.YoksisResearcherId))
+        {
+            existingResearcher = await CreateResearcherQuery()
+                .FirstOrDefaultAsync(item =>
+                    item.YoksisResearcherId == researcher.YoksisResearcherId);
         }
 
         if (existingResearcher is null)

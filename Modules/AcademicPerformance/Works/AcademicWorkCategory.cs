@@ -17,6 +17,7 @@ public enum AcademicWorkCategory
     Letter,
     LibGuide,
     Other,
+    Patent,
     Paratext,
     PeerReview,
     Preprint,
@@ -34,5 +35,6 @@ public enum AcademicWorkCategorySource
 {
     Unknown,
     Orcid,
-    WebOfScience
+    WebOfScience,
+    Yoksis
 }

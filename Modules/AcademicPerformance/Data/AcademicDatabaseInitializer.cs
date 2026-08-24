@@ -60,6 +60,7 @@ public sealed class AcademicDatabaseInitializer
     private async Task AddSqliteResearcherProviderColumnsAsync()
     {
         string? createIndexSql = null;
+        string? createYoksisIndexSql = null;
 
         await AddSqliteColumnIfMissingAsync(
             "Researchers",
@@ -70,11 +71,22 @@ public sealed class AcademicDatabaseInitializer
             "ON \"Researchers\" (\"WebOfScienceResearcherId\") " +
             "WHERE \"WebOfScienceResearcherId\" IS NOT NULL;";
         await _dbContext.Database.ExecuteSqlRawAsync(createIndexSql);
+
+        await AddSqliteColumnIfMissingAsync(
+            "Researchers",
+            "YoksisResearcherId");
+        createYoksisIndexSql =
+            "CREATE UNIQUE INDEX IF NOT EXISTS " +
+            "\"IX_Researchers_YoksisResearcherId\" " +
+            "ON \"Researchers\" (\"YoksisResearcherId\") " +
+            "WHERE \"YoksisResearcherId\" IS NOT NULL;";
+        await _dbContext.Database.ExecuteSqlRawAsync(createYoksisIndexSql);
     }
 
     private async Task AddSqlServerResearcherProviderColumnsAsync()
     {
         string? createIndexSql = null;
+        string? createYoksisIndexSql = null;
 
         await AddSqlServerTextColumnIfMissingAsync(
             "Researchers",
@@ -88,6 +100,19 @@ public sealed class AcademicDatabaseInitializer
             "ON [Researchers] ([WebOfScienceResearcherId]) " +
             "WHERE [WebOfScienceResearcherId] IS NOT NULL;";
         await _dbContext.Database.ExecuteSqlRawAsync(createIndexSql);
+
+        await AddSqlServerTextColumnIfMissingAsync(
+            "Researchers",
+            "YoksisResearcherId",
+            50);
+        createYoksisIndexSql =
+            "IF NOT EXISTS (SELECT 1 FROM sys.indexes " +
+            "WHERE name = N'IX_Researchers_YoksisResearcherId' " +
+            "AND object_id = OBJECT_ID(N'[Researchers]')) " +
+            "CREATE UNIQUE INDEX [IX_Researchers_YoksisResearcherId] " +
+            "ON [Researchers] ([YoksisResearcherId]) " +
+            "WHERE [YoksisResearcherId] IS NOT NULL;";
+        await _dbContext.Database.ExecuteSqlRawAsync(createYoksisIndexSql);
     }
 
     private async Task CreateSqliteWebOfScienceTablesAsync()

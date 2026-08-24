@@ -167,11 +167,10 @@ public sealed class YoksisCollectionService
             !item.IsSuccess);
         response.TotalRecordCount = response.Categories.Sum(item =>
             item.RecordCount);
-        RemoveUnrequestedResponseData(response, request);
         return response;
     }
 
-    private static void RemoveUnrequestedResponseData(
+    internal static void RemoveUnrequestedResponseData(
         YoksisCollectResponse response,
         YoksisCollectRequest request)
     {

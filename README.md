@@ -3,8 +3,8 @@
 Resmî ORCID Public API, Clarivate Web of Science Starter API v1 ve YÖKSİS
 OzgecmisV2 SOAP servisi üzerinden akademik veri toplayan, Serenity
 bileşenleriyle hazırlanmış .NET 10 prototipidir. Uygulama ORCID ve Web of Science
-yayınlarını yerel veritabanında saklar; akademisyen okul sitesinde gösterilmesine
-izin verdiği yayınları ayrıca seçer.
+ile YÖKSİS yayınlarını yerel veritabanında saklar; akademisyen okul sitesinde
+gösterilmesine izin verdiği yayınları ayrıca seçer.
 
 ## Mevcut iş akışı
 
@@ -28,7 +28,7 @@ ve Google Scholar entegrasyonları çalışma zamanından kaldırılmıştır.
 | Google Scholar ID | Belirlenecek uygun sağlayıcı | Google'ın resmî API'si olmadığı için sağlayıcı ve kota kararı gerekli | **Planlanan**; SerpAPI kaldırıldı |
 | Scopus Author ID | Resmî Elsevier Scopus API | Kurumsal abonelik ve API yetkisi gerekebilir | **Hedef**; entegrasyon henüz yok |
 | Web of Science ResearcherID | Resmî Clarivate Starter API v1 | API anahtarı gerekli; ücretsiz ve kurumsal planlar var | **Aktif**; `AI` sorgusuyla erişilebilen tüm WoS veri tabanlarındaki yayınlar ve plan izin verirse atıf sayıları alınıyor |
-| YÖKSİS | OzgecmisV2 SOAP servisi | Kurumsal kullanıcı/şifre, T.C. kimlik no ve gerekirse izinli çıkış IP'si | **Altyapı aktif**; 21 ana kategori ve eser ayrıntıları alınabiliyor, henüz veritabanına yazılmıyor |
+| YÖKSİS | OzgecmisV2 SOAP servisi | Kurumsal kullanıcı/şifre, T.C. kimlik no ve gerekirse izinli çıkış IP'si | **Aktif**; 21 ana kategori alınıyor, makale/bildiri/kitap/patent ayrıntıları ortak yayın tablolarına yazılıyor |
 | BYS kullanıcı kaydı | Üniversitenin kimlik ve yetki servisleri | Oturum açmış akademisyen ve kurum içi personel ID'si | **Production için gerekli** |
 | ResearchGate / Academia.edu | Resmî ve izinli API bulunursa değerlendirilecek | Scraping kullanılmayacak | **Kapsam dışı** |
 
@@ -36,7 +36,8 @@ ORCID ve Web of Science ortak yayın toplama akışında çağrılır. YÖKSİS 
 veri içerdiği için UI içinden ayrı bir endpoint üzerinden çalışır. T.C. kimlik
 numarası tarayıcıda hatırlanmaz ve istek tamamlanınca formdan temizlenir. Yeni
 bir servis, erişim sözleşmesi ve veri sahipliği netleşmeden mevcut toplama
-akışına eklenmez.
+akışına eklenmez. T.C. kimlik numarası veritabanına yazılmaz; YÖKSİS'in döndürdüğü
+Araştırmacı ID akademisyen eşleştirmesinde kullanılır.
 
 ## Gereksinimler ve çalıştırma
 
@@ -95,10 +96,11 @@ Content-Type: application/json
 }
 ```
 
-Yanıt; her kategori için kayıt sayısını, düz alanları ve YÖKSİS'in döndürdüğü
-ham SOAP XML'ini içerir. `UpdatedAfter` alanı verilirse WSDL'deki isteğe bağlı
-`P_TARIH` alanına gönderilir. T.C. kimlik numarasını `.http` dosyasına kaydedip
-Git'e göndermeyin.
+Yanıt; her kategori için kayıt sayısını, düz alanları ve varsayılan olarak
+YÖKSİS'in döndürdüğü ham SOAP XML'ini içerir. UI, gereksiz büyük yanıtı önlemek
+için kayıtları ve ham XML'i yanıta ekletmez; yayınlar yine veritabanına yazılır.
+`UpdatedAfter` alanı verilirse WSDL'deki isteğe bağlı `P_TARIH` alanına gönderilir.
+T.C. kimlik numarasını `.http` dosyasına kaydedip Git'e göndermeyin.
 
 ## Proje yapısı
 
@@ -124,17 +126,18 @@ yeniden üretilebilir veya çalışma zamanı çıktılarıdır; Git'e eklenmez.
 
 | Tablo | İçerik |
 | --- | --- |
-| `Researchers` | Akademisyen, ORCID ve Web of Science ResearcherID eşleşmesi |
+| `Researchers` | Akademisyen, ORCID, Web of Science ResearcherID ve YÖKSİS Araştırmacı ID eşleşmesi |
 | `OrcidProfiles` / `OrcidWorks` | ORCID profil, faaliyet, eser ve ham JSON verisi |
 | `WebOfScienceProfiles` | Starter API sorgu özeti ve ham yayın sayfası yanıtları |
 | `WebOfScienceWorks` | Web of Science yayınları ve varsa atıf sayıları |
-| `AcademicWorks` | Sağlayıcıdan bağımsız normalize yayınlar |
+| `AcademicWorks` | ORCID, Web of Science ve YÖKSİS'ten gelen normalize yayınlar |
 | `PublicationSummaries` | Arayüz ve raporlama için sade yayın listesi |
 | `PublicationDisplayApprovals` | Okulda gösterilmesine izin verilen yayınlar |
 
-YÖKSİS yanıtları bu aşamada veritabanına yazılmaz. Veri sahipliği, saklama
-süresi ve T.C. kimlik numarası işleme kuralları kesinleşince ayrı YÖKSİS tabloları
-eklenmelidir.
+YÖKSİS makale, bildiri, kitap ve patent ayrıntıları `AcademicWorks` tablosuna;
+grid'de kullanılacak tekilleştirilmiş halleri `PublicationSummaries` tablosuna
+yazılır. Diğer YÖKSİS kategorileri yalnızca servis yanıtında döner. T.C. kimlik
+numarası saklanmaz.
 
 ORCID atıf sayısı, h-index ve i10-index sağlamaz. Starter API v1 hazır profil
 metrikleri sunmaz. Bütün yayınlarda atıf sayısı gelirse h-index ve toplam atıf

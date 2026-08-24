@@ -64,7 +64,8 @@ public sealed class AcademicWorkSynchronizer
         {
             existingWork = existingWorks[index];
 
-            if (!matchedExistingIds.Contains(existingWork.Id))
+            if (existingWork.Provider != AcademicWorkProvider.Yoksis &&
+                !matchedExistingIds.Contains(existingWork.Id))
             {
                 _dbContext.AcademicWorks.Remove(existingWork);
             }

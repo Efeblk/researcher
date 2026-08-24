@@ -61,6 +61,11 @@ interface YoksisOperationResult {
 }
 
 interface YoksisCollectResponse {
+    ResearcherId?: number;
+    ResearcherDisplayName?: string;
+    IsSaved?: boolean;
+    YoksisPublicationCount?: number;
+    PublicationSummaryCount?: number;
     SuccessfulCategoryCount?: number;
     FailedCategoryCount?: number;
     TotalRecordCount?: number;
@@ -469,81 +474,89 @@ form?.addEventListener("submit", async event => {
     showStatus("info", "Akademik sağlayıcılar araştırılıyor. Bu işlem biraz sürebilir...");
 
     try {
-        const researcherRequest = identifiers.length
-            ? serviceRequest<ResearcherCollectResponse>(
-                "AcademicPerformance/Researcher/Collect",
-                { Identifiers: identifiers })
-            : Promise.resolve<ResearcherCollectResponse | undefined>(undefined);
-        const yoksisRequest = tcKimlikNo
-            ? serviceRequest<YoksisCollectResponse>(
-                "AcademicPerformance/Yoksis/Collect",
-                {
-                    TcKimlikNo: tcKimlikNo,
-                    IncludeRecords: false,
-                    IncludeRawResponses: false
-                })
-            : Promise.resolve<YoksisCollectResponse | undefined>(undefined);
-        const [researcherResult, yoksisResult] = await Promise.allSettled([
-            researcherRequest,
-            yoksisRequest
-        ]);
         const statusMessages: string[] = [];
         const errors: string[] = [];
         let hasSuccessfulResult = false;
+        let linkedResearcherId = 0;
 
-        if (researcherResult.status === "fulfilled" && researcherResult.value) {
-            const response = researcherResult.value;
-            const researcherId = response.Researcher?.Id ?? 0;
-            const messages = (response.Messages ?? []).filter(Boolean).join("\n");
+        if (identifiers.length) {
+            try {
+                const response = await serviceRequest<ResearcherCollectResponse>(
+                    "AcademicPerformance/Researcher/Collect",
+                    { Identifiers: identifiers });
+                const researcherId = response.Researcher?.Id ?? 0;
+                const messages = (response.Messages ?? []).filter(Boolean).join("\n");
 
-            if (response.IsSaved && researcherId) {
-                hasSuccessfulResult = true;
-                statusMessages.push(messages || "Yayın araştırması tamamlandı.");
-                rememberProviderIdentifiers();
-                showProfileSummary(response.Researcher);
-                showWebOfScienceSummary(response.Researcher);
+                if (response.IsSaved && researcherId) {
+                    const displayName = [
+                        response.Researcher?.FirstName,
+                        response.Researcher?.LastName
+                    ].filter(Boolean).join(" ") ||
+                        response.Researcher?.OrcidProfile?.DisplayName ||
+                        response.Researcher?.WebOfScienceProfile?.DisplayName;
 
-                const displayName = [
-                    response.Researcher?.FirstName,
-                    response.Researcher?.LastName
-                ].filter(Boolean).join(" ") ||
-                    response.Researcher?.OrcidProfile?.DisplayName ||
-                    response.Researcher?.WebOfScienceProfile?.DisplayName;
-                grid.setResearcher(researcherId, displayName);
+                    linkedResearcherId = researcherId;
+                    hasSuccessfulResult = true;
+                    statusMessages.push(messages || "Yayın araştırması tamamlandı.");
+                    rememberProviderIdentifiers();
+                    showProfileSummary(response.Researcher);
+                    showWebOfScienceSummary(response.Researcher);
+                    await grid.setResearcher(researcherId, displayName);
+                }
+                else {
+                    errors.push(
+                        messages ||
+                        "Yayın araştırması tamamlandı ancak kayıt oluşturulamadı.");
+                }
             }
-            else {
+            catch (error) {
                 errors.push(
-                    messages ||
-                    "Yayın araştırması tamamlandı ancak kayıt oluşturulamadı.");
+                    `Yayın araştırması tamamlanamadı: ${getErrorMessage(error)}`);
             }
         }
-        else if (researcherResult.status === "rejected") {
-            errors.push(
-                `Yayın araştırması tamamlanamadı: ${getErrorMessage(researcherResult.reason)}`);
-        }
 
-        if (yoksisResult.status === "fulfilled" && yoksisResult.value) {
-            const response = yoksisResult.value;
-            const successfulCount = response.SuccessfulCategoryCount ?? 0;
-            const failedCount = response.FailedCategoryCount ?? 0;
+        if (tcKimlikNo) {
+            try {
+                const response = await serviceRequest<YoksisCollectResponse>(
+                    "AcademicPerformance/Yoksis/Collect",
+                    {
+                        ResearcherId: linkedResearcherId || undefined,
+                        TcKimlikNo: tcKimlikNo,
+                        IncludeRecords: false,
+                        IncludeRawResponses: false
+                    });
+                const successfulCount = response.SuccessfulCategoryCount ?? 0;
+                const failedCount = response.FailedCategoryCount ?? 0;
+                const researcherId = response.ResearcherId ?? 0;
 
-            showYoksisSummary(response);
+                showYoksisSummary(response);
 
-            if (successfulCount > 0) {
-                hasSuccessfulResult = true;
-                statusMessages.push(
-                    `YÖKSİS: ${successfulCount.toLocaleString("tr-TR")} kategori başarılı, ` +
-                    `${(response.TotalRecordCount ?? 0).toLocaleString("tr-TR")} kayıt alındı.`);
+                if (response.IsSaved && researcherId) {
+                    linkedResearcherId = researcherId;
+                    hasSuccessfulResult = true;
+                    statusMessages.push(
+                        `YÖKSİS: ${(response.YoksisPublicationCount ?? 0)
+                            .toLocaleString("tr-TR")} yayın kaydedildi, ` +
+                        `${(response.PublicationSummaryCount ?? 0)
+                            .toLocaleString("tr-TR")} ortak yayın özeti hazırlandı.`);
+                    await grid.setResearcher(
+                        researcherId,
+                        response.ResearcherDisplayName);
+                }
+                else if (successfulCount > 0) {
+                    errors.push(
+                        "YÖKSİS verileri alındı ancak akademisyen kaydına yazılamadı.");
+                }
+
+                if (failedCount > 0) {
+                    errors.push(
+                        `YÖKSİS: ${failedCount.toLocaleString("tr-TR")} kategori alınamadı.`);
+                }
             }
-
-            if (failedCount > 0) {
+            catch (error) {
                 errors.push(
-                    `YÖKSİS: ${failedCount.toLocaleString("tr-TR")} kategori alınamadı.`);
+                    `YÖKSİS sorgusu tamamlanamadı: ${getErrorMessage(error)}`);
             }
-        }
-        else if (yoksisResult.status === "rejected") {
-            errors.push(
-                `YÖKSİS sorgusu tamamlanamadı: ${getErrorMessage(yoksisResult.reason)}`);
         }
 
         const combinedMessage = [...statusMessages, ...errors]

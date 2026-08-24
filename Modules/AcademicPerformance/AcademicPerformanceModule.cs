@@ -26,6 +26,8 @@ public static class AcademicPerformanceModule
         services.AddTransient<WebOfScienceClient>();
         services.AddTransient<YoksisClient>();
         services.AddTransient<YoksisCollectionService>();
+        services.AddScoped<YoksisAcademicWorkSynchronizer>();
+        services.AddScoped<YoksisCollectionHandler>();
 
         services.AddScoped(CreateDbContext);
         services.AddScoped<AcademicDatabaseInitializer>();

@@ -32,6 +32,8 @@ public sealed class AcademicDbContext : DbContext
             entity.Property(researcher => researcher.Orcid).HasMaxLength(19);
             entity.Property(researcher => researcher.WebOfScienceResearcherId)
                 .HasMaxLength(20);
+            entity.Property(researcher => researcher.YoksisResearcherId)
+                .HasMaxLength(50);
 
             entity.HasIndex(researcher => researcher.Orcid)
                 .IsUnique()
@@ -40,6 +42,10 @@ public sealed class AcademicDbContext : DbContext
             entity.HasIndex(researcher => researcher.WebOfScienceResearcherId)
                 .IsUnique()
                 .HasFilter("[WebOfScienceResearcherId] IS NOT NULL");
+
+            entity.HasIndex(researcher => researcher.YoksisResearcherId)
+                .IsUnique()
+                .HasFilter("[YoksisResearcherId] IS NOT NULL");
 
             entity.HasMany(researcher => researcher.AcademicWorks)
                 .WithOne(work => work.Researcher)

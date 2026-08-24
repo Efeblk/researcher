@@ -10,8 +10,8 @@ public sealed class YoksisEndpoint : ServiceEndpoint
     [HttpPost]
     public Task<YoksisCollectResponse> Collect(
         YoksisCollectRequest request,
-        [FromServices] YoksisCollectionService collectionService)
+        [FromServices] YoksisCollectionHandler collectionHandler)
     {
-        return collectionService.CollectAsync(request);
+        return collectionHandler.CollectAsync(request);
     }
 }
