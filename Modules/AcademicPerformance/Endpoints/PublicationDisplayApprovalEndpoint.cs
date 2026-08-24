@@ -12,10 +12,8 @@ public sealed class PublicationDisplayApprovalEndpoint : ServiceEndpoint
     [HttpPost]
     public async Task<PublicationDisplayApprovalResponse> Get(
         PublicationDisplayApprovalRequest request,
-        [FromServices] AcademicDatabaseInitializer databaseInitializer,
         [FromServices] AcademicDbContext dbContext)
     {
-        await databaseInitializer.EnsureReadyAsync();
         await EnsureResearcherExistsAsync(request.ResearcherId, dbContext);
 
         List<int> approvedIds = await dbContext.PublicationDisplayApprovals
@@ -31,10 +29,8 @@ public sealed class PublicationDisplayApprovalEndpoint : ServiceEndpoint
     [HttpPost]
     public async Task<PublicationDisplayApprovalResponse> Save(
         PublicationDisplayApprovalRequest request,
-        [FromServices] AcademicDatabaseInitializer databaseInitializer,
         [FromServices] AcademicDbContext dbContext)
     {
-        await databaseInitializer.EnsureReadyAsync();
         await EnsureResearcherExistsAsync(request.ResearcherId, dbContext);
 
         List<int> requestedIds = request.PublicationSummaryIds
@@ -95,10 +91,8 @@ public sealed class PublicationDisplayApprovalEndpoint : ServiceEndpoint
     [HttpPost]
     public async Task<ApprovedPublicationListResponse> ListApproved(
         PublicationDisplayApprovalRequest request,
-        [FromServices] AcademicDatabaseInitializer databaseInitializer,
         [FromServices] AcademicDbContext dbContext)
     {
-        await databaseInitializer.EnsureReadyAsync();
         await EnsureResearcherExistsAsync(request.ResearcherId, dbContext);
 
         List<PublicationSummary> publications = await dbContext

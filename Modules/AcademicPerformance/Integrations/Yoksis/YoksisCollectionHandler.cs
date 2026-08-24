@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis;
 
@@ -19,7 +20,7 @@ public sealed class YoksisCollectionHandler
     private readonly YoksisAcademicWorkSynchronizer _workSynchronizer;
     private readonly ResearcherRepository _researcherRepository;
     private readonly PublicationSummarySynchronizer _summarySynchronizer;
-    private readonly AcademicDatabaseInitializer _databaseInitializer;
+    private readonly AcademicDbContext _dbContext;
 
     public YoksisCollectionHandler(
         YoksisCollectionService collectionService,
@@ -27,14 +28,14 @@ public sealed class YoksisCollectionHandler
         YoksisAcademicWorkSynchronizer workSynchronizer,
         ResearcherRepository researcherRepository,
         PublicationSummarySynchronizer summarySynchronizer,
-        AcademicDatabaseInitializer databaseInitializer)
+        AcademicDbContext dbContext)
     {
         _collectionService = collectionService;
         _recordSynchronizer = recordSynchronizer;
         _workSynchronizer = workSynchronizer;
         _researcherRepository = researcherRepository;
         _summarySynchronizer = summarySynchronizer;
-        _databaseInitializer = databaseInitializer;
+        _dbContext = dbContext;
     }
 
     public async Task<YoksisCollectResponse> CollectAsync(
@@ -42,7 +43,6 @@ public sealed class YoksisCollectionHandler
     {
         YoksisCollectResponse? response = null;
 
-        await _databaseInitializer.EnsureReadyAsync();
         response = await _collectionService.CollectAsync(request);
 
         try
@@ -50,6 +50,8 @@ public sealed class YoksisCollectionHandler
             Researcher? researcher = null;
             Researcher? requestedResearcher = null;
             int publicationCount = 0;
+            await using IDbContextTransaction transaction =
+                await _dbContext.Database.BeginTransactionAsync();
 
             requestedResearcher = CreateResearcher(response);
             researcher = await ResolveResearcherAsync(
@@ -68,6 +70,7 @@ public sealed class YoksisCollectionHandler
             response.YoksisPublicationCount = publicationCount;
             response.PublicationSummaryCount =
                 await _summarySynchronizer.SyncAsync(researcher.Id);
+            await transaction.CommitAsync();
             response.IsSaved = true;
             response.Messages.Add(
                 $"[OK] YÖKSİS verileri: {response.YoksisRecordCount} kayıt " +

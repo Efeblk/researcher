@@ -37,7 +37,11 @@ public sealed class PublicationSummarySynchronizer
         {
             synchronizedSummary = CreateSummary(researcherId, groups[index]);
             existingSummary = existingSummaries.FirstOrDefault(summary =>
+                !retainedIds.Contains(summary.Id) &&
                 summary.Fingerprint == synchronizedSummary.Fingerprint);
+            existingSummary ??= existingSummaries.FirstOrDefault(summary =>
+                !retainedIds.Contains(summary.Id) &&
+                IsSamePublication(summary, synchronizedSummary));
 
             if (existingSummary is null)
             {
@@ -127,6 +131,33 @@ public sealed class PublicationSummarySynchronizer
         }
 
         return false;
+    }
+
+    private static bool IsSamePublication(
+        PublicationSummary existing,
+        PublicationSummary candidate)
+    {
+        string? existingDoi = null;
+        string? candidateDoi = null;
+        string? existingTitle = null;
+        string? candidateTitle = null;
+
+        existingDoi = NormalizeDoi(existing.Doi);
+        candidateDoi = NormalizeDoi(candidate.Doi);
+
+        if (!string.IsNullOrWhiteSpace(existingDoi) &&
+            !string.IsNullOrWhiteSpace(candidateDoi))
+        {
+            return existingDoi == candidateDoi;
+        }
+
+        existingTitle = NormalizeTitle(existing.Title);
+        candidateTitle = NormalizeTitle(candidate.Title);
+        return !string.IsNullOrWhiteSpace(existingTitle) &&
+            existingTitle == candidateTitle &&
+            YearsAreCompatible(
+                existing.PublicationYear,
+                candidate.PublicationYear);
     }
 
     private static bool YearsAreCompatible(int? first, int? second)
@@ -313,6 +344,7 @@ public sealed class PublicationSummarySynchronizer
         PublicationSummary target)
     {
         target.ResearcherId = source.ResearcherId;
+        target.Fingerprint = source.Fingerprint;
         target.Title = source.Title;
         target.PublicationYear = source.PublicationYear;
         target.PublicationDate = source.PublicationDate;

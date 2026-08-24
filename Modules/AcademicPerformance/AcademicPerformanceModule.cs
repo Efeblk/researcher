@@ -7,6 +7,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance;
 
@@ -54,10 +55,15 @@ public static class AcademicPerformanceModule
     {
         IConfiguration? configuration = null;
         DbContextOptionsBuilder<AcademicDbContext>? optionsBuilder = null;
+        IHostEnvironment? hostEnvironment = null;
 
         configuration = serviceProvider.GetRequiredService<IConfiguration>();
+        hostEnvironment = serviceProvider.GetRequiredService<IHostEnvironment>();
         optionsBuilder = new DbContextOptionsBuilder<AcademicDbContext>();
-        DatabaseConfiguration.Configure(optionsBuilder, configuration);
+        DatabaseConfiguration.Configure(
+            optionsBuilder,
+            configuration,
+            hostEnvironment.ContentRootPath);
 
         return new AcademicDbContext(optionsBuilder.Options);
     }

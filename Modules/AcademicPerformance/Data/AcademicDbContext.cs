@@ -90,10 +90,10 @@ public sealed class AcademicDbContext : DbContext
             entity.Property(record => record.RecordJson);
             entity.HasIndex(record => record.ResearcherId);
             entity.HasIndex(record => new
-                {
-                    record.ResearcherId,
-                    record.OperationName
-                });
+            {
+                record.ResearcherId,
+                record.OperationName
+            });
         });
 
         modelBuilder.Entity<OrcidProfile>(entity =>
@@ -178,10 +178,10 @@ public sealed class AcademicDbContext : DbContext
             entity.Property(work => work.Category).HasConversion<string>().HasMaxLength(50);
             entity.Property(work => work.CategorySource).HasConversion<string>().HasMaxLength(50);
             entity.HasIndex(work => new
-                {
-                    work.WebOfScienceProfileId,
-                    work.Uid
-                })
+            {
+                work.WebOfScienceProfileId,
+                work.Uid
+            })
                 .IsUnique();
         });
 
@@ -266,10 +266,10 @@ public sealed class AcademicDbContext : DbContext
 
             entity.HasIndex(summary => summary.ResearcherId);
             entity.HasIndex(summary => new
-                {
-                    summary.ResearcherId,
-                    summary.Fingerprint
-                })
+            {
+                summary.ResearcherId,
+                summary.Fingerprint
+            })
                 .IsUnique();
 
             entity.HasOne(summary => summary.DisplayApproval)

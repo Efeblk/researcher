@@ -28,31 +28,62 @@ public sealed class YoksisRecordSynchronizer
         YoksisCollectResponse response)
     {
         List<YoksisRecord>? existingRecords = null;
-        List<YoksisOperationResult>? successfulCategories = null;
-        HashSet<string>? successfulOperations = null;
+        List<YoksisOperationResult>? categoriesToSynchronize = null;
+        HashSet<string>? completedOperations = null;
+        HashSet<int>? removedRecordIds = null;
 
         existingRecords = await _dbContext.YoksisRecords
             .Where(record => record.ResearcherId == researcherId)
             .ToListAsync();
-        successfulCategories = response.Categories
+        categoriesToSynchronize = response.Categories
             .Where(category =>
-                category.IsSuccess &&
-                !string.IsNullOrWhiteSpace(category.OperationName))
+                !string.IsNullOrWhiteSpace(category.OperationName) &&
+                (category.IsSuccess || category.Records.Count > 0))
             .ToList();
-        successfulOperations = successfulCategories
+        completedOperations = categoriesToSynchronize
+            .Where(category => category.IsSuccess)
             .Select(category => category.OperationName!)
             .ToHashSet(StringComparer.Ordinal);
+        removedRecordIds = [];
 
-        _dbContext.YoksisRecords.RemoveRange(existingRecords.Where(record =>
-            successfulOperations.Contains(record.OperationName)));
+        foreach (YoksisRecord existingRecord in existingRecords)
+        {
+            if (completedOperations.Contains(existingRecord.OperationName))
+            {
+                _dbContext.YoksisRecords.Remove(existingRecord);
+                removedRecordIds.Add(existingRecord.Id);
+            }
+        }
 
-        foreach (YoksisOperationResult category in successfulCategories)
+        foreach (YoksisOperationResult category in categoriesToSynchronize)
         {
             int recordIndex = 0;
 
             foreach (Dictionary<string, string?> recordData in category.Records)
             {
+                YoksisRecord? existingRecord = null;
                 YoksisRecord? record = null;
+                string? externalRecordId = null;
+                string? recordJson = null;
+
+                externalRecordId = FindExternalRecordId(recordData);
+                recordJson = JsonSerializer.Serialize(recordData);
+
+                if (!category.IsSuccess)
+                {
+                    existingRecord = FindExistingRecord(
+                        existingRecords,
+                        removedRecordIds,
+                        category.OperationName!,
+                        externalRecordId,
+                        recordJson);
+
+                    if (existingRecord is not null)
+                    {
+                        _dbContext.YoksisRecords.Remove(existingRecord);
+                        removedRecordIds.Add(existingRecord.Id);
+                    }
+                }
 
                 record = new YoksisRecord();
                 record.ResearcherId = researcherId;
@@ -60,8 +91,8 @@ public sealed class YoksisRecordSynchronizer
                     "YÖKSİS kategorisi";
                 record.OperationName = category.OperationName!;
                 record.RecordIndex = recordIndex;
-                record.ExternalRecordId = FindExternalRecordId(recordData);
-                record.RecordJson = JsonSerializer.Serialize(recordData);
+                record.ExternalRecordId = externalRecordId;
+                record.RecordJson = recordJson;
                 record.CollectedAt = response.CollectedAt;
                 _dbContext.YoksisRecords.Add(record);
                 recordIndex++;
@@ -71,6 +102,33 @@ public sealed class YoksisRecordSynchronizer
         await _dbContext.SaveChangesAsync();
         return await _dbContext.YoksisRecords.CountAsync(record =>
             record.ResearcherId == researcherId);
+    }
+
+    private static YoksisRecord? FindExistingRecord(
+        List<YoksisRecord> existingRecords,
+        HashSet<int> removedRecordIds,
+        string operationName,
+        string? externalRecordId,
+        string recordJson)
+    {
+        YoksisRecord? matchingRecord = null;
+
+        matchingRecord = existingRecords.FirstOrDefault(record =>
+            !removedRecordIds.Contains(record.Id) &&
+            record.OperationName == operationName &&
+            !string.IsNullOrWhiteSpace(externalRecordId) &&
+            record.ExternalRecordId == externalRecordId);
+
+        if (matchingRecord is not null ||
+            !string.IsNullOrWhiteSpace(externalRecordId))
+        {
+            return matchingRecord;
+        }
+
+        return existingRecords.FirstOrDefault(record =>
+            !removedRecordIds.Contains(record.Id) &&
+            record.OperationName == operationName &&
+            record.RecordJson == recordJson);
     }
 
     private static string? FindExternalRecordId(

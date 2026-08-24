@@ -18,37 +18,14 @@ function Invoke-ProjectClean {
         (Join-Path $projectRoot "academic.db-shm"),
         (Join-Path $projectRoot "academic.db-wal")
     )
-    $storagePath = Join-Path $projectRoot "Storage"
 
-    foreach ($path in @($databasePaths) + $storagePath) {
+    foreach ($path in $databasePaths) {
         $fullPath = [System.IO.Path]::GetFullPath($path)
 
         if (-not $fullPath.StartsWith(
             $projectPrefix,
             [System.StringComparison]::OrdinalIgnoreCase)) {
             throw "Temizleme hedefi proje dışında: $fullPath"
-        }
-    }
-
-    $storageItem = $null
-
-    if (Test-Path -LiteralPath $storagePath) {
-        $storageItem = Get-Item -LiteralPath $storagePath -Force
-        $linkTypeProperty = $storageItem.PSObject.Properties["LinkType"]
-        $targetProperty = $storageItem.PSObject.Properties["Target"]
-        $hasLinkType = $null -ne $linkTypeProperty -and
-            -not [string]::IsNullOrWhiteSpace([string] $linkTypeProperty.Value)
-        $hasLinkTarget = $null -ne $targetProperty -and
-            $null -ne $targetProperty.Value -and
-            @($targetProperty.Value).Count -gt 0
-
-        if (($storageItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 -and
-            ($hasLinkType -or $hasLinkTarget)) {
-            throw "Storage bir bağlantı olduğu için otomatik silinmedi: $storagePath"
-        }
-
-        if (-not $storageItem.PSIsContainer) {
-            throw "Storage hedefi bir klasör değil: $storagePath"
         }
     }
 
@@ -82,11 +59,7 @@ function Invoke-ProjectClean {
         }
     }
 
-    if ($null -ne $storageItem) {
-        Remove-Item -LiteralPath $storagePath -Recurse -Force
-    }
-
-    Write-Host "Yerel SQLite veritabanı ve Storage klasörü silindi." -ForegroundColor Green
+    Write-Host "Yerel SQLite veritabanı silindi." -ForegroundColor Green
 }
 
 if ($Clean -or $isCleanCommand) {

@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 
@@ -10,10 +11,13 @@ public static class DatabaseConfiguration
 
     public static string Configure(
         DbContextOptionsBuilder<AcademicDbContext> optionsBuilder,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        string? contentRootPath = null)
     {
         string? provider = null;
         string? connectionString = null;
+        string? databaseRootPath = null;
+        SqliteConnectionStringBuilder? sqliteConnection = null;
 
         provider = configuration["Database:Provider"];
         connectionString = configuration.GetConnectionString("AcademicDatabase");
@@ -30,7 +34,20 @@ public static class DatabaseConfiguration
 
         if (provider.Equals(SqliteProvider, StringComparison.OrdinalIgnoreCase))
         {
-            optionsBuilder.UseSqlite(connectionString);
+            sqliteConnection = new SqliteConnectionStringBuilder(connectionString);
+            databaseRootPath = contentRootPath ?? Directory.GetCurrentDirectory();
+
+            if (!string.IsNullOrWhiteSpace(sqliteConnection.DataSource) &&
+                sqliteConnection.DataSource != ":memory:" &&
+                sqliteConnection.Mode != SqliteOpenMode.Memory &&
+                !Path.IsPathRooted(sqliteConnection.DataSource))
+            {
+                sqliteConnection.DataSource = Path.GetFullPath(
+                    sqliteConnection.DataSource,
+                    databaseRootPath);
+            }
+
+            optionsBuilder.UseSqlite(sqliteConnection.ConnectionString);
             return SqliteProvider;
         }
 

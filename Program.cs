@@ -1,4 +1,5 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using Microsoft.AspNetCore.Mvc;
 using Serenity;
 using Serenity.Extensions.DependencyInjection;
@@ -49,6 +50,16 @@ public static class Program
 
         application = builder.Build();
         Serenity.Data.RowFieldsProvider.SetDefaultFrom(application.Services);
+
+        await using (AsyncServiceScope databaseScope =
+            application.Services.CreateAsyncScope())
+        {
+            AcademicDatabaseInitializer? databaseInitializer = null;
+
+            databaseInitializer = databaseScope.ServiceProvider
+                .GetRequiredService<AcademicDatabaseInitializer>();
+            await databaseInitializer.EnsureReadyAsync();
+        }
 
         application.UseStaticFiles();
         application.UseRouting();

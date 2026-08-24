@@ -12,13 +12,10 @@ public sealed class PublicationSummaryEndpoint : ServiceEndpoint
     [HttpPost]
     public async Task<ListResponse<PublicationSummary>> List(
         ListRequest request,
-        [FromServices] AcademicDatabaseInitializer databaseInitializer,
         [FromServices] AcademicDbContext dbContext)
     {
         IQueryable<PublicationSummary> query = dbContext.PublicationSummaries
             .AsNoTracking();
-
-        await databaseInitializer.EnsureReadyAsync();
 
         if (!TryGetResearcherId(request, out int researcherId))
         {

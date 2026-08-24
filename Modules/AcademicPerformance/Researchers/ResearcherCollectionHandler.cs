@@ -1,5 +1,6 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
@@ -9,27 +10,27 @@ public sealed class ResearcherCollectionHandler
     private readonly ResearcherIdentifierParser _identifierParser;
     private readonly ResearcherCollectionService _collectionService;
     private readonly ResearcherRepository _researcherRepository;
-    private readonly AcademicDatabaseInitializer _databaseInitializer;
     private readonly AcademicWorkSynchronizer _academicWorkSynchronizer;
     private readonly PublicationSummarySynchronizer _publicationSummarySynchronizer;
     private readonly IConfiguration _configuration;
+    private readonly AcademicDbContext _dbContext;
 
     public ResearcherCollectionHandler(
         ResearcherIdentifierParser identifierParser,
         ResearcherCollectionService collectionService,
         ResearcherRepository researcherRepository,
-        AcademicDatabaseInitializer databaseInitializer,
         AcademicWorkSynchronizer academicWorkSynchronizer,
         PublicationSummarySynchronizer publicationSummarySynchronizer,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        AcademicDbContext dbContext)
     {
         _identifierParser = identifierParser;
         _collectionService = collectionService;
         _researcherRepository = researcherRepository;
-        _databaseInitializer = databaseInitializer;
         _academicWorkSynchronizer = academicWorkSynchronizer;
         _publicationSummarySynchronizer = publicationSummarySynchronizer;
         _configuration = configuration;
+        _dbContext = dbContext;
     }
 
     public async Task<ResearcherCollectResponse> CollectAsync(
@@ -46,7 +47,6 @@ public sealed class ResearcherCollectionHandler
         requestedResearcher = _identifierParser.Create(request);
         researcher = requestedResearcher;
 
-        await _databaseInitializer.EnsureReadyAsync();
         existingResearcher = await _researcherRepository.FindByIdentifiersAsync(
             requestedResearcher);
 
@@ -77,10 +77,14 @@ public sealed class ResearcherCollectionHandler
 
         try
         {
+            await using IDbContextTransaction transaction =
+                await _dbContext.Database.BeginTransactionAsync();
+
             await _researcherRepository.SaveAsync(researcher);
             await _academicWorkSynchronizer.SyncAsync(researcher);
             publicationSummaryCount = await _publicationSummarySynchronizer.SyncAsync(
                 researcher.Id);
+            await transaction.CommitAsync();
             response.Messages.Add(
                 $"[OK] Yayın özeti: {publicationSummaryCount} benzersiz yayın hazırlandı.");
 

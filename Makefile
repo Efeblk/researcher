@@ -1,6 +1,5 @@
 HOST ?= http://localhost:5001
 DATABASE_FILE := $(CURDIR)/academic.db
-STORAGE_DIR := $(CURDIR)/Storage
 empty :=
 space := $(empty) $(empty)
 comma := ,
@@ -11,7 +10,7 @@ help:
 	@echo "Kullanılabilir komutlar:"
 	@echo "  make run                  HTTP sunucusunu başlatır"
 	@echo "  make build                Projeyi derler"
-	@echo "  make clean                SQLite veritabanını ve Storage klasörünü siler"
+	@echo "  make clean                Yerel SQLite veritabanını siler"
 	@echo "  make health               Sunucunun çalıştığını kontrol eder"
 	@echo "  make collect ID=...       ORCID ve/veya ResearcherID ile veri toplar"
 	@echo "  make health HOST=...      Farklı bir sunucu adresi kullanır"
@@ -34,11 +33,7 @@ clean:
 		"$(DATABASE_FILE)" \
 		"$(DATABASE_FILE)-shm" \
 		"$(DATABASE_FILE)-wal"
-	@if [ -d "$(STORAGE_DIR)" ]; then \
-		find "$(STORAGE_DIR)" -depth -mindepth 1 -delete; \
-		rmdir "$(STORAGE_DIR)"; \
-	fi
-	@echo "Yerel SQLite veritabanı ve Storage klasörü silindi."
+	@echo "Yerel SQLite veritabanı silindi."
 
 health:
 	curl --silent --show-error "$(HOST)/"

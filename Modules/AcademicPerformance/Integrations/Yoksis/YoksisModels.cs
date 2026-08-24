@@ -7,8 +7,8 @@ public sealed class YoksisCollectRequest : ServiceRequest
     public int? ResearcherId { get; set; } = null;
     public string? TcKimlikNo { get; set; } = null;
     public DateTime? UpdatedAfter { get; set; } = null;
-    public bool IncludeRecords { get; set; } = true;
-    public bool IncludeRawResponses { get; set; } = true;
+    public bool IncludeRecords { get; set; }
+    public bool IncludeRawResponses { get; set; }
 }
 
 public sealed class YoksisCollectResponse : ServiceResponse

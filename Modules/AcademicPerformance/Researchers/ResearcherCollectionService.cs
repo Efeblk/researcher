@@ -221,8 +221,6 @@ public sealed class ResearcherCollectionService
         if (profile is null ||
             !HasBothWebOfScienceDatabaseResponses(
                 profile.DocumentPagesJson) ||
-            !string.IsNullOrWhiteSpace(profile.RawDataJson) ||
-            !string.IsNullOrWhiteSpace(profile.PeerReviewPagesJson) ||
             profile.Works is null)
         {
             return false;

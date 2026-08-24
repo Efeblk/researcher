@@ -78,7 +78,7 @@ make collect ID="0000-0001-8560-7482 A-1009-2008"
 ```
 
 Hazır IDE istekleri `Requests/AcademicPerformance.http` dosyasındadır. Temizleme
-komutu yerel SQLite dosyalarını ve `Storage/` klasörünü siler; önce sunucuyu
+komutu yerel SQLite dosyalarını siler; önce sunucuyu ve veritabanı araçlarını
 kapatın:
 
 ```powershell
@@ -96,9 +96,10 @@ Content-Type: application/json
 }
 ```
 
-Yanıt; her kategori için kayıt sayısını, düz alanları ve varsayılan olarak
-YÖKSİS'in döndürdüğü ham SOAP XML'ini içerir. UI, gereksiz büyük yanıtı önlemek
-için kayıtları ve ham XML'i yanıta ekletmez; yayınlar yine veritabanına yazılır.
+Yanıt varsayılan olarak kısa durum ve kayıt sayılarını içerir. İstenirse
+`IncludeRecords` ve `IncludeRawResponses` alanları `true` gönderilerek düz
+kayıtlar ile ham SOAP XML'i yanıta eklenebilir; bu alanlar `false` olsa da
+toplanan veriler veritabanına yazılır.
 `UpdatedAfter` alanı verilirse WSDL'deki isteğe bağlı `P_TARIH` alanına gönderilir.
 T.C. kimlik numarasını `.http` dosyasına kaydedip Git'e göndermeyin.
 
@@ -119,7 +120,7 @@ Views/                      Ortak Serenity yerleşimi
 wwwroot/Content/            Uygulama stilleri
 ```
 
-`wwwroot/esm/`, `bin/`, `obj/`, `node_modules/`, `Storage/` ve `academic.db*`
+`wwwroot/esm/`, `bin/`, `obj/`, `node_modules/` ve `academic.db*`
 yeniden üretilebilir veya çalışma zamanı çıktılarıdır; Git'e eklenmez.
 
 ## Veri modeli
@@ -156,7 +157,8 @@ sağlayıcı kapsamı belirtilerek ayrı ayrı saklanır.
 ## Yapılandırma ve production notları
 
 Varsayılan SQLite bağlantısı `appsettings.json`; sağlayıcı adresleri ve önbellek
-süresi `academicsettings.json` içindedir. Gizli değerleri repoya yazmayın. Web
+süresi `academicsettings.json` içindedir. Uygulama açılırken proje kökünde
+`academic.db` oluşturulur. Gizli değerleri repoya yazmayın. Web
 of Science API anahtarını User Secrets'a ekleyin:
 
 ```powershell
