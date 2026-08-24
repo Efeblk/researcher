@@ -64,6 +64,7 @@ interface YoksisCollectResponse {
     ResearcherId?: number;
     ResearcherDisplayName?: string;
     IsSaved?: boolean;
+    YoksisRecordCount?: number;
     YoksisPublicationCount?: number;
     PublicationSummaryCount?: number;
     SuccessfulCategoryCount?: number;
@@ -535,7 +536,9 @@ form?.addEventListener("submit", async event => {
                     linkedResearcherId = researcherId;
                     hasSuccessfulResult = true;
                     statusMessages.push(
-                        `YÖKSİS: ${(response.YoksisPublicationCount ?? 0)
+                        `YÖKSİS: ${(response.YoksisRecordCount ?? 0)
+                            .toLocaleString("tr-TR")} kategori kaydı saklandı, ` +
+                        `${(response.YoksisPublicationCount ?? 0)
                             .toLocaleString("tr-TR")} yayın kaydedildi, ` +
                         `${(response.PublicationSummaryCount ?? 0)
                             .toLocaleString("tr-TR")} ortak yayın özeti hazırlandı.`);

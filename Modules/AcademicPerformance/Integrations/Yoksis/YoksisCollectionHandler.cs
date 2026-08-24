@@ -15,6 +15,7 @@ public sealed class YoksisCollectionHandler
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     private readonly YoksisCollectionService _collectionService;
+    private readonly YoksisRecordSynchronizer _recordSynchronizer;
     private readonly YoksisAcademicWorkSynchronizer _workSynchronizer;
     private readonly ResearcherRepository _researcherRepository;
     private readonly PublicationSummarySynchronizer _summarySynchronizer;
@@ -22,12 +23,14 @@ public sealed class YoksisCollectionHandler
 
     public YoksisCollectionHandler(
         YoksisCollectionService collectionService,
+        YoksisRecordSynchronizer recordSynchronizer,
         YoksisAcademicWorkSynchronizer workSynchronizer,
         ResearcherRepository researcherRepository,
         PublicationSummarySynchronizer summarySynchronizer,
         AcademicDatabaseInitializer databaseInitializer)
     {
         _collectionService = collectionService;
+        _recordSynchronizer = recordSynchronizer;
         _workSynchronizer = workSynchronizer;
         _researcherRepository = researcherRepository;
         _summarySynchronizer = summarySynchronizer;
@@ -53,6 +56,9 @@ public sealed class YoksisCollectionHandler
                 request.ResearcherId,
                 requestedResearcher);
             await _researcherRepository.SaveAsync(researcher);
+            response.YoksisRecordCount = await _recordSynchronizer.SyncAsync(
+                researcher.Id,
+                response);
             publicationCount = await _workSynchronizer.SyncAsync(
                 researcher.Id,
                 response);
@@ -63,6 +69,9 @@ public sealed class YoksisCollectionHandler
             response.PublicationSummaryCount =
                 await _summarySynchronizer.SyncAsync(researcher.Id);
             response.IsSaved = true;
+            response.Messages.Add(
+                $"[OK] YÖKSİS verileri: {response.YoksisRecordCount} kayıt " +
+                "YoksisRecords tablosuna yazıldı.");
             response.Messages.Add(
                 $"[OK] YÖKSİS yayınları: {publicationCount} kayıt " +
                 "ortak yayın tablosuna yazıldı.");

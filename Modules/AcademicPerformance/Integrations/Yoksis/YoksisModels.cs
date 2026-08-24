@@ -16,6 +16,7 @@ public sealed class YoksisCollectResponse : ServiceResponse
     public int? ResearcherId { get; set; } = null;
     public string? ResearcherDisplayName { get; set; } = null;
     public bool IsSaved { get; set; }
+    public int YoksisRecordCount { get; set; }
     public int YoksisPublicationCount { get; set; }
     public int PublicationSummaryCount { get; set; }
     public DateTime CollectedAt { get; set; }

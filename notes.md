@@ -31,10 +31,11 @@ Kurumsal `OzgecmisV2` SOAP istemcisi WSDL sözleşmesine göre eklendi. Kullanı
 adı ve şifre `Yoksis:Username` ile `Yoksis:Password` User Secrets değerlerinden
 okunur ve hem SOAP parametrelerinde hem HTTP Basic Authentication başlığında
 gönderilir. Ana kategoriler ve yayın ayrıntıları ham XML korunarak alınır;
-makale, bildiri, kitap ve patent ayrıntıları ortak `AcademicWorks` ve
-`PublicationSummaries` tablolarına yazılır. Diğer kategoriler kalıcı olarak
-saklanmaz. T.C. kimlik numarası veritabanına yazılmaz. Production endpoint'i BYS
-yetkilendirmesi arkasında olmalıdır.
+bütün başarılı kategori kayıtları `YoksisRecords` tablosunda JSON olarak
+saklanır. Makale, bildiri, kitap ve patent ayrıntıları ayrıca ortak
+`AcademicWorks` ve `PublicationSummaries` tablolarına yazılır. T.C. kimlik
+numarası veritabanına yazılmaz. Production endpoint'i BYS yetkilendirmesi
+arkasında olmalıdır.
 
 ## Diğer platformlar
 

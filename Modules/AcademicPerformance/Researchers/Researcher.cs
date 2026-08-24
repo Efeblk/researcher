@@ -1,5 +1,6 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
 using System.Text.Json.Serialization;
 
@@ -22,6 +23,9 @@ public sealed class Researcher
 
     public OrcidProfile? OrcidProfile { get; set; } = null;
     public WebOfScienceProfile? WebOfScienceProfile { get; set; } = null;
+
+    [JsonIgnore]
+    public List<YoksisRecord>? YoksisRecords { get; set; } = null;
 
     [JsonIgnore]
     public List<AcademicWork>? AcademicWorks { get; set; } = null;

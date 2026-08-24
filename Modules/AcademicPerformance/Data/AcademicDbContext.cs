@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
 
@@ -14,6 +15,7 @@ public sealed class AcademicDbContext : DbContext
     public DbSet<WebOfScienceProfile> WebOfScienceProfiles { get; set; } = null!;
     public DbSet<WebOfScienceWork> WebOfScienceWorks { get; set; } = null!;
     public DbSet<WebOfSciencePeerReview> WebOfSciencePeerReviews { get; set; } = null!;
+    public DbSet<YoksisRecord> YoksisRecords { get; set; } = null!;
     public DbSet<AcademicWork> AcademicWorks { get; set; } = null!;
     public DbSet<PublicationSummary> PublicationSummaries { get; set; } = null!;
     public DbSet<PublicationDisplayApproval> PublicationDisplayApprovals { get; set; } = null!;
@@ -71,6 +73,27 @@ public sealed class AcademicDbContext : DbContext
                 .WithOne(approval => approval.Researcher)
                 .HasForeignKey(approval => approval.ResearcherId)
                 .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasMany(researcher => researcher.YoksisRecords)
+                .WithOne(record => record.Researcher)
+                .HasForeignKey(record => record.ResearcherId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<YoksisRecord>(entity =>
+        {
+            entity.ToTable("YoksisRecords");
+            entity.HasKey(record => record.Id);
+            entity.Property(record => record.CategoryName).HasMaxLength(250);
+            entity.Property(record => record.OperationName).HasMaxLength(250);
+            entity.Property(record => record.ExternalRecordId).HasMaxLength(500);
+            entity.Property(record => record.RecordJson);
+            entity.HasIndex(record => record.ResearcherId);
+            entity.HasIndex(record => new
+                {
+                    record.ResearcherId,
+                    record.OperationName
+                });
         });
 
         modelBuilder.Entity<OrcidProfile>(entity =>

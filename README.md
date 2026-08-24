@@ -130,14 +130,16 @@ yeniden üretilebilir veya çalışma zamanı çıktılarıdır; Git'e eklenmez.
 | `OrcidProfiles` / `OrcidWorks` | ORCID profil, faaliyet, eser ve ham JSON verisi |
 | `WebOfScienceProfiles` | Starter API sorgu özeti ve ham yayın sayfası yanıtları |
 | `WebOfScienceWorks` | Web of Science yayınları ve varsa atıf sayıları |
+| `YoksisRecords` | YÖKSİS kategorilerinden gelen tüm kayıtların eksiksiz JSON içeriği |
 | `AcademicWorks` | ORCID, Web of Science ve YÖKSİS'ten gelen normalize yayınlar |
 | `PublicationSummaries` | Arayüz ve raporlama için sade yayın listesi |
 | `PublicationDisplayApprovals` | Okulda gösterilmesine izin verilen yayınlar |
 
-YÖKSİS makale, bildiri, kitap ve patent ayrıntıları `AcademicWorks` tablosuna;
-grid'de kullanılacak tekilleştirilmiş halleri `PublicationSummaries` tablosuna
-yazılır. Diğer YÖKSİS kategorileri yalnızca servis yanıtında döner. T.C. kimlik
-numarası saklanmaz.
+YÖKSİS'in başarılı kategorilerde döndürdüğü bütün kayıtlar `YoksisRecords`
+tablosuna yazılır. Farklı kategorilerin alanları değiştiği için özgün alanlar
+`RecordJson` içinde kayıpsız tutulur. Makale, bildiri, kitap ve patent ayrıntıları
+ayrıca `AcademicWorks` tablosuna; grid'de kullanılacak tekilleştirilmiş halleri
+`PublicationSummaries` tablosuna yazılır. T.C. kimlik numarası saklanmaz.
 
 ORCID atıf sayısı, h-index ve i10-index sağlamaz. Starter API v1 hazır profil
 metrikleri sunmaz. Bütün yayınlarda atıf sayısı gelirse h-index ve toplam atıf

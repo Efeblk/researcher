@@ -38,6 +38,7 @@ public sealed class AcademicDatabaseInitializer
             await CreateSqlitePublicationDisplayApprovalsTableAsync();
             await CreateSqliteOrcidTablesAsync();
             await CreateSqliteWebOfScienceTablesAsync();
+            await CreateSqliteYoksisRecordsTableAsync();
             await AddSqliteAcademicWorkColumnsAsync();
             return;
         }
@@ -53,6 +54,7 @@ public sealed class AcademicDatabaseInitializer
             await CreateSqlServerPublicationDisplayApprovalsTableAsync();
             await CreateSqlServerOrcidTablesAsync();
             await CreateSqlServerWebOfScienceTablesAsync();
+            await CreateSqlServerYoksisRecordsTableAsync();
             await AddSqlServerAcademicWorkColumnsAsync();
         }
     }
@@ -445,6 +447,74 @@ public sealed class AcademicDatabaseInitializer
             """;
 
         await _dbContext.Database.ExecuteSqlRawAsync(createTablesSql);
+    }
+
+    private async Task CreateSqliteYoksisRecordsTableAsync()
+    {
+        string? createTableSql = null;
+        string? createResearcherIndexSql = null;
+        string? createOperationIndexSql = null;
+
+        createTableSql =
+            """
+            CREATE TABLE IF NOT EXISTS "YoksisRecords" (
+                "Id" INTEGER NOT NULL CONSTRAINT "PK_YoksisRecords"
+                    PRIMARY KEY AUTOINCREMENT,
+                "ResearcherId" INTEGER NOT NULL,
+                "CategoryName" TEXT NOT NULL,
+                "OperationName" TEXT NOT NULL,
+                "RecordIndex" INTEGER NOT NULL,
+                "ExternalRecordId" TEXT NULL,
+                "RecordJson" TEXT NOT NULL,
+                "CollectedAt" TEXT NOT NULL,
+                CONSTRAINT "FK_YoksisRecords_Researchers_ResearcherId"
+                    FOREIGN KEY ("ResearcherId") REFERENCES "Researchers" ("Id")
+                    ON DELETE CASCADE
+            );
+            """;
+        createResearcherIndexSql =
+            "CREATE INDEX IF NOT EXISTS \"IX_YoksisRecords_ResearcherId\" " +
+            "ON \"YoksisRecords\" (\"ResearcherId\");";
+        createOperationIndexSql =
+            "CREATE INDEX IF NOT EXISTS " +
+            "\"IX_YoksisRecords_ResearcherId_OperationName\" " +
+            "ON \"YoksisRecords\" (\"ResearcherId\", \"OperationName\");";
+
+        await _dbContext.Database.ExecuteSqlRawAsync(createTableSql);
+        await _dbContext.Database.ExecuteSqlRawAsync(createResearcherIndexSql);
+        await _dbContext.Database.ExecuteSqlRawAsync(createOperationIndexSql);
+    }
+
+    private async Task CreateSqlServerYoksisRecordsTableAsync()
+    {
+        string? createTableSql = null;
+
+        createTableSql =
+            """
+            IF OBJECT_ID(N'[YoksisRecords]', N'U') IS NULL
+            BEGIN
+                CREATE TABLE [YoksisRecords] (
+                    [Id] int NOT NULL IDENTITY,
+                    [ResearcherId] int NOT NULL,
+                    [CategoryName] nvarchar(250) NOT NULL,
+                    [OperationName] nvarchar(250) NOT NULL,
+                    [RecordIndex] int NOT NULL,
+                    [ExternalRecordId] nvarchar(500) NULL,
+                    [RecordJson] nvarchar(max) NOT NULL,
+                    [CollectedAt] datetime2 NOT NULL,
+                    CONSTRAINT [PK_YoksisRecords] PRIMARY KEY ([Id]),
+                    CONSTRAINT [FK_YoksisRecords_Researchers_ResearcherId]
+                        FOREIGN KEY ([ResearcherId]) REFERENCES [Researchers] ([Id])
+                        ON DELETE CASCADE
+                );
+                CREATE INDEX [IX_YoksisRecords_ResearcherId]
+                    ON [YoksisRecords] ([ResearcherId]);
+                CREATE INDEX [IX_YoksisRecords_ResearcherId_OperationName]
+                    ON [YoksisRecords] ([ResearcherId], [OperationName]);
+            END;
+            """;
+
+        await _dbContext.Database.ExecuteSqlRawAsync(createTableSql);
     }
 
     private async Task CreateSqliteAcademicWorksTableAsync()
