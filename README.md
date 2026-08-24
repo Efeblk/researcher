@@ -161,9 +161,11 @@ dotnet user-secrets set "Yoksis:Username" "<KURUMSAL_KULLANICI>"
 dotnet user-secrets set "Yoksis:Password" "<KURUMSAL_SIFRE>"
 ```
 
-YÖKSİS kimlik bilgileri SOAP gövdesinde gönderilir; uygulama bunları yanıta,
-ham XML alanına veya loglara yazmaz. Endpoint production'da BYS kimlik/yetki
-kontrolü arkasına alınmadan dış ağa açılmamalıdır.
+YÖKSİS kimlik bilgileri hem SOAP gövdesinde hem HTTP Basic Authentication
+başlığında gönderilir; uygulama bunları yanıta, ham XML alanına veya loglara
+yazmaz. Basic Authentication yalnızca Base64 kodlaması kullandığı için HTTPS
+adresi korunmalıdır. Endpoint production'da BYS kimlik/yetki kontrolü arkasına
+alınmadan dış ağa açılmamalıdır.
 
 Mevcut UI bir entegrasyon prototipidir. **Yayınlarımı Getir** için sağlayıcı
 kimliği tarayıcı `localStorage` alanında hatırlanır. BYS entegrasyonunda ORCID,

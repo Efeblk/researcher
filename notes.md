@@ -29,9 +29,11 @@ dotnet user-secrets set "ConnectionStrings:AcademicDatabase" "SQL_SERVER_CONNECT
 
 Kurumsal `OzgecmisV2` SOAP istemcisi WSDL sözleşmesine göre eklendi. Kullanıcı
 adı ve şifre `Yoksis:Username` ile `Yoksis:Password` User Secrets değerlerinden
-okunur. Ana kategoriler ve yayın ayrıntıları ham XML korunarak alınır; YÖKSİS
-yanıtları veri sahipliği ve saklama kuralları kesinleşene kadar veritabanına
-yazılmaz. Production endpoint'i BYS yetkilendirmesi arkasında olmalıdır.
+okunur ve hem SOAP parametrelerinde hem HTTP Basic Authentication başlığında
+gönderilir. Ana kategoriler ve yayın ayrıntıları ham XML korunarak alınır;
+YÖKSİS yanıtları veri sahipliği ve saklama kuralları kesinleşene kadar
+veritabanına yazılmaz. Production endpoint'i BYS yetkilendirmesi arkasında
+olmalıdır.
 
 ## Diğer platformlar
 

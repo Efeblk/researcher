@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Xml.Linq;
 using Microsoft.Extensions.Configuration;
@@ -90,6 +91,7 @@ public sealed class YoksisClient
         try
         {
             request = new HttpRequestMessage(HttpMethod.Post, serviceUrl);
+            AddBasicAuthentication(request);
             request.Headers.TryAddWithoutValidation("SOAPAction", "\"\"");
             request.Content = new StringContent(
                 envelope.ToString(SaveOptions.DisableFormatting),
@@ -126,6 +128,22 @@ public sealed class YoksisClient
         }
     }
 
+    private void AddBasicAuthentication(HttpRequestMessage request)
+    {
+        string? username = null;
+        string? password = null;
+        string? credentials = null;
+        string? encodedCredentials = null;
+
+        (username, password) = GetCredentials();
+        credentials = $"{username}:{password}";
+        encodedCredentials = Convert.ToBase64String(
+            Encoding.UTF8.GetBytes(credentials));
+        request.Headers.Authorization = new AuthenticationHeaderValue(
+            "Basic",
+            encodedCredentials);
+    }
+
     private XDocument CreateEnvelope(
         string requestElementName,
         string tcKimlikNo,
@@ -139,20 +157,7 @@ public sealed class YoksisClient
         XNamespace service = ServiceNamespace;
         XNamespace soap = SoapEnvelopeNamespace;
 
-        username = _configuration["Yoksis:Username"];
-        password = _configuration["Yoksis:Password"];
-
-        if (string.IsNullOrWhiteSpace(username))
-        {
-            throw new InvalidOperationException(
-                "Yoksis:Username User Secret değeri bulunamadı.");
-        }
-
-        if (string.IsNullOrWhiteSpace(password))
-        {
-            throw new InvalidOperationException(
-                "Yoksis:Password User Secret değeri bulunamadı.");
-        }
+        (username, password) = GetCredentials();
 
         parameters = new XElement(
             service + "parametre",
@@ -183,6 +188,29 @@ public sealed class YoksisClient
                 soap + "Envelope",
                 new XAttribute(XNamespace.Xmlns + "soap", soap),
                 new XElement(soap + "Body", requestElement)));
+    }
+
+    private (string Username, string Password) GetCredentials()
+    {
+        string? username = null;
+        string? password = null;
+
+        username = _configuration["Yoksis:Username"];
+        password = _configuration["Yoksis:Password"];
+
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            throw new InvalidOperationException(
+                "Yoksis:Username User Secret değeri bulunamadı.");
+        }
+
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            throw new InvalidOperationException(
+                "Yoksis:Password User Secret değeri bulunamadı.");
+        }
+
+        return (username.Trim(), password);
     }
 
     private YoksisOperationResult ParseResponse(
