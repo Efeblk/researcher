@@ -2,9 +2,9 @@
 
 ## Project Structure & Module Organization
 
-This is a .NET 10 application built with Serenity and Entity Framework Core. `Program.cs` configures the host and dependency injection. Collection code lives under `Modules/AcademicPerformance/`: `Endpoints/` exposes HTTP services, `Researchers/` coordinates records, `Integrations/` contains provider clients and models, `Works/` normalizes publications, and `Data/` defines persistence. UI code is in `Modules/AcademicPerformance/UI/`, shared Razor views in `Views/`, browser assets in `wwwroot/esm/`, and request examples in `Requests/AcademicPerformance.http`.
+This is a .NET 10 application built with Serenity and Entity Framework Core. `Program.cs` configures the host and dependency injection. `Modules/AcademicPerformance/` has three main areas: `Service/` contains the V1 application contract, Serenity endpoints, persistence, provider integrations, researchers, and normalized works; `WebClient/` contains the Razor page, Serenity Row/Columns, and TypeScript grid; `Background/` contains scheduled server jobs. FluentMigrator schema changes live in `Service/Data/Migrations/` and run at startup. `AcademicPerformanceModule.cs` wires these areas together. Shared Razor views are in `Views/`, technical notes in `docs/`, generated browser assets in `wwwroot/esm/`, and request examples in `Requests/AcademicPerformance.http`.
 
-Local runtime data is written to `academic.db`; it should not be committed. YÖKSİS SOAP code is under `Integrations/Yoksis/` and its HTTP entry point is `Endpoints/YoksisEndpoint.cs`. There is currently no separate test project.
+The application uses SQL Server only; local defaults target SQL Server LocalDB and production connection strings must come from secure configuration. YÖKSİS SOAP code is under `Service/Integrations/Yoksis/` and its HTTP entry point is `Service/Endpoints/YoksisEndpoint.cs`. There is currently no separate test project.
 
 ## Build, Test, and Development Commands
 
@@ -14,7 +14,7 @@ Local runtime data is written to `academic.db`; it should not be committed. YÖK
 - `make run` or `dotnet run` starts the service on `http://localhost:5001`.
 - `make health` checks whether the server is responding.
 - `make collect ID="0000-0001-8560-7482"` collects data for one or more comma-separated identifiers.
-- `make clean` deletes the local SQLite files. Stop the server and database tools first.
+- `make clean` removes .NET build outputs and never deletes the SQL Server database.
 
 Run `dotnet test` after tests are added. Also verify affected endpoints.
 
@@ -32,4 +32,4 @@ History uses short subjects such as `readme ve settings` and `update on feedback
 
 ## Security & Configuration
 
-Store API keys and YÖKSİS credentials with `dotnet user-secrets`; never commit credentials, T.C. identity numbers, raw secrets, or personal database files. Keep non-secret defaults in `academicsettings.json` and database configuration in `appsettings.json`.
+Store API keys and YÖKSİS credentials with `dotnet user-secrets`; never commit credentials, T.C. identity numbers, raw secrets, or personal database files. Keep non-secret defaults in `academicsettings.json` and database configuration in `appsettings.json`. `DevelopmentPermissionService` deliberately allows all requests in this standalone host and must be replaced by BYS authorization before production deployment.

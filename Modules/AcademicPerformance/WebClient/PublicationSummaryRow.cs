@@ -4,7 +4,7 @@ using Serenity.Data;
 using Serenity.Data.Mapping;
 using System.ComponentModel;
 
-namespace AcademicCollectorDemo.Modules.AcademicPerformance.UI;
+namespace AcademicCollectorDemo.Modules.AcademicPerformance.WebClient;
 
 [ConnectionKey("AcademicDatabase"), Module("AcademicPerformance"), TableName("PublicationSummaries")]
 [DisplayName("Yayınlar"), InstanceName("Yayın")]

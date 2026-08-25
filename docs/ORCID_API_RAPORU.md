@@ -30,7 +30,7 @@ Authorization: Bearer ACCESS_TOKEN
 ## İstek Kotası
 
 | API türü | Günlük kota | Hesaplama |
-|---|---:|---|
+| --- | ---: | --- |
 | Anonymous API | 25.000 okuma | IP adresi başına |
 | Kayıtlı Public API | 100.000 okuma | Client ID başına |
 | Member API | Günlük kota yok | Ücretli ORCID üyeliği |

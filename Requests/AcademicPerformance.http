@@ -1,40 +1,66 @@
 @host = http://localhost:5001
 @orcid = 0000-0003-2812-9917
 @researcherId = A-1009-2008
+@databaseResearcherId = 1
+@publicationId = 1
 @tcKimlikNo = TC_KIMLIK_NUMARASINI_BURAYA_YAZ
 
 ### Uygulamanın çalıştığını kontrol et
 GET {{host}}/
 Accept: application/json
 
-### ORCID ile akademisyen verisini topla
-POST {{host}}/Services/AcademicPerformance/Researcher/Collect
+### V1 API: ORCID ile akademisyen verisini topla
+POST {{host}}/Services/AcademicPerformance/V1/Collect
 Content-Type: application/json
 
 {
-  "Identifiers": [
-    "{{orcid}}"
-  ]
+  "Orcid": "{{orcid}}"
 }
 
-### Web of Science ResearcherID ile veri topla
-POST {{host}}/Services/AcademicPerformance/Researcher/Collect
+### V1 API: Web of Science ResearcherID ile veri topla
+POST {{host}}/Services/AcademicPerformance/V1/Collect
 Content-Type: application/json
 
 {
-  "Identifiers": [
-    "{{researcherId}}"
-  ]
+  "WebOfScienceResearcherId": "{{researcherId}}"
 }
 
-### ORCID ve ResearcherID değerlerini aynı akademisyene bağla
-POST {{host}}/Services/AcademicPerformance/Researcher/Collect
+### V1 API: ORCID ve ResearcherID değerlerini aynı akademisyene bağla
+POST {{host}}/Services/AcademicPerformance/V1/Collect
 Content-Type: application/json
 
 {
-  "Identifiers": [
-    "{{orcid}}",
-    "{{researcherId}}"
+  "Orcid": "{{orcid}}",
+  "WebOfScienceResearcherId": "{{researcherId}}"
+}
+
+### V1 API: Kayıtlı akademisyen özetini getir
+POST {{host}}/Services/AcademicPerformance/V1/GetResearcher
+Content-Type: application/json
+
+{
+  "Orcid": "{{orcid}}"
+}
+
+### V1 API: Akademisyenin yayınlarını sayfalı getir
+POST {{host}}/Services/AcademicPerformance/V1/ListPublications
+Content-Type: application/json
+
+{
+  "Orcid": "{{orcid}}",
+  "ApprovedOnly": false,
+  "Skip": 0,
+  "Take": 100
+}
+
+### V1 API: Okulda gösterilecek yayınları kaydet
+POST {{host}}/Services/AcademicPerformance/V1/SavePublicationSelections
+Content-Type: application/json
+
+{
+  "ResearcherId": {{databaseResearcherId}},
+  "PublicationIds": [
+    {{publicationId}}
   ]
 }
 

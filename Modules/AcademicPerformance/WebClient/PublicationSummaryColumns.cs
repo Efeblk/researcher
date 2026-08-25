@@ -1,6 +1,6 @@
 using Serenity.ComponentModel;
 
-namespace AcademicCollectorDemo.Modules.AcademicPerformance.UI;
+namespace AcademicCollectorDemo.Modules.AcademicPerformance.WebClient;
 
 [ColumnsScript("AcademicPerformance.PublicationSummary")]
 [BasedOnRow(typeof(PublicationSummaryRow), CheckNames = true)]

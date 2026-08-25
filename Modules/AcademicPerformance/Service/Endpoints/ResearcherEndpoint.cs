@@ -1,5 +1,5 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
-using Microsoft.Data.Sqlite;
+using Microsoft.Data.SqlClient;
 using Microsoft.AspNetCore.Mvc;
 using Serenity.Services;
 
@@ -32,14 +32,14 @@ public sealed class ResearcherEndpoint : ServiceEndpoint
 
             return Content(feedbackText, "text/plain; charset=utf-8");
         }
-        catch (SqliteException exception) when (exception.SqliteErrorCode == 10)
+        catch (SqlException exception)
         {
-            logger.LogError(exception, "SQLite veritabanında disk I/O hatası oluştu.");
+            logger.LogError(exception, "SQL Server veritabanı hatası oluştu.");
 
             feedbackText = string.Join(Environment.NewLine,
-                "[HATA] SQLite veritabanı dosyasına erişilemedi (disk I/O).",
-                "[ÖNERİ] WSL kullanıyorsanız projeyi /mnt/c veya OneDrive yerine " +
-                "Linux dosya sisteminde (ör. ~/researcher) çalıştırın.",
+                "[HATA] SQL Server veritabanı işlemi tamamlanamadı.",
+                "[ÖNERİ] Bağlantı cümlesini, sunucunun erişilebilirliğini ve " +
+                "veritabanı yetkilerini kontrol edin.",
                 "[BİLGİ] Teknik ayrıntılar sunucu terminaline yazıldı.");
 
             return new ContentResult

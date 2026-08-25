@@ -12,54 +12,21 @@ $isCleanCommand = $Id.Count -eq 1 -and $Id[0] -ieq "clean"
 
 function Invoke-ProjectClean {
     $projectRoot = [System.IO.Path]::GetFullPath($PSScriptRoot)
-    $projectPrefix = $projectRoot.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
-    $databasePaths = @(
-        (Join-Path $projectRoot "academic.db"),
-        (Join-Path $projectRoot "academic.db-shm"),
-        (Join-Path $projectRoot "academic.db-wal")
-    )
 
-    foreach ($path in $databasePaths) {
-        $fullPath = [System.IO.Path]::GetFullPath($path)
+    Push-Location $projectRoot
+    try {
+        & dotnet clean
 
-        if (-not $fullPath.StartsWith(
-            $projectPrefix,
-            [System.StringComparison]::OrdinalIgnoreCase)) {
-            throw "Temizleme hedefi proje dışında: $fullPath"
+        if ($LASTEXITCODE -ne 0) {
+            throw "dotnet clean hata koduyla tamamlandı: $LASTEXITCODE"
         }
     }
-
-    foreach ($databasePath in $databasePaths) {
-        if (-not (Test-Path -LiteralPath $databasePath -PathType Leaf)) {
-            continue
-        }
-
-        $stream = $null
-
-        try {
-            $stream = [System.IO.File]::Open(
-                $databasePath,
-                [System.IO.FileMode]::Open,
-                [System.IO.FileAccess]::Read,
-                [System.IO.FileShare]::None)
-        }
-        catch {
-            throw "Veritabanı kullanımda veya erişilemiyor. Sunucuyu kapatıp tekrar dene: $databasePath"
-        }
-        finally {
-            if ($null -ne $stream) {
-                $stream.Dispose()
-            }
-        }
+    finally {
+        Pop-Location
     }
 
-    foreach ($databasePath in $databasePaths) {
-        if (Test-Path -LiteralPath $databasePath -PathType Leaf) {
-            Remove-Item -LiteralPath $databasePath -Force
-        }
-    }
-
-    Write-Host "Yerel SQLite veritabanı silindi." -ForegroundColor Green
+    Write-Host "Build çıktıları temizlendi. SQL Server veritabanına dokunulmadı." `
+        -ForegroundColor Green
 }
 
 if ($Clean -or $isCleanCommand) {

@@ -1,7 +1,6 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
 using Microsoft.EntityFrameworkCore.Storage;
-using Microsoft.Extensions.Configuration;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
 
@@ -12,7 +11,6 @@ public sealed class ResearcherCollectionHandler
     private readonly ResearcherRepository _researcherRepository;
     private readonly AcademicWorkSynchronizer _academicWorkSynchronizer;
     private readonly PublicationSummarySynchronizer _publicationSummarySynchronizer;
-    private readonly IConfiguration _configuration;
     private readonly AcademicDbContext _dbContext;
 
     public ResearcherCollectionHandler(
@@ -21,7 +19,6 @@ public sealed class ResearcherCollectionHandler
         ResearcherRepository researcherRepository,
         AcademicWorkSynchronizer academicWorkSynchronizer,
         PublicationSummarySynchronizer publicationSummarySynchronizer,
-        IConfiguration configuration,
         AcademicDbContext dbContext)
     {
         _identifierParser = identifierParser;
@@ -29,7 +26,6 @@ public sealed class ResearcherCollectionHandler
         _researcherRepository = researcherRepository;
         _academicWorkSynchronizer = academicWorkSynchronizer;
         _publicationSummarySynchronizer = publicationSummarySynchronizer;
-        _configuration = configuration;
         _dbContext = dbContext;
     }
 
@@ -88,8 +84,7 @@ public sealed class ResearcherCollectionHandler
             response.Messages.Add(
                 $"[OK] Yayın özeti: {publicationSummaryCount} benzersiz yayın hazırlandı.");
 
-            provider = _configuration["Database:Provider"]
-                ?? DatabaseConfiguration.SqliteProvider;
+            provider = DatabaseConfiguration.SqlServerProvider;
             response.DatabaseProvider = provider;
             response.IsSaved = true;
             response.Messages.Add(

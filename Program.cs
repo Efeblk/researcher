@@ -8,10 +8,7 @@ public static class Program
 {
     public static async Task Main(string[] args)
     {
-        WebApplicationBuilder? builder = null;
-        WebApplication? application = null;
-
-        builder = WebApplication.CreateBuilder(args);
+        WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
         builder.Logging.ClearProviders();
         builder.Logging.AddConsole();
         builder.Logging.AddDebug();
@@ -39,7 +36,7 @@ public static class Program
         builder.Services.AddSingleton<Serenity.Data.IRowFieldsProvider,
             Serenity.Data.DefaultRowFieldsProvider>();
         builder.Services.AddSingleton<Serenity.Abstractions.IPermissionService,
-            AcademicCollectorDemo.Modules.AcademicPerformance.UI.PrototypePermissionService>();
+            AcademicCollectorDemo.Modules.AcademicPerformance.WebClient.DevelopmentPermissionService>();
         builder.Services.AddControllersWithViews();
         builder.Services.AddServiceEndpointConventions();
         builder.Services.AddDynamicScripts();
@@ -48,17 +45,15 @@ public static class Program
         builder.Services.Configure<JsonOptions>(options =>
             JSON.Defaults.Populate(options.JsonSerializerOptions));
 
-        application = builder.Build();
+        WebApplication application = builder.Build();
         Serenity.Data.RowFieldsProvider.SetDefaultFrom(application.Services);
 
         await using (AsyncServiceScope databaseScope =
             application.Services.CreateAsyncScope())
         {
-            AcademicDatabaseInitializer? databaseInitializer = null;
-
-            databaseInitializer = databaseScope.ServiceProvider
-                .GetRequiredService<AcademicDatabaseInitializer>();
-            await databaseInitializer.EnsureReadyAsync();
+            AcademicDatabaseMigrator databaseMigrator = databaseScope.ServiceProvider
+                .GetRequiredService<AcademicDatabaseMigrator>();
+            databaseMigrator.MigrateUp();
         }
 
         application.UseStaticFiles();

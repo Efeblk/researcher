@@ -483,8 +483,12 @@ form?.addEventListener("submit", async event => {
         if (identifiers.length) {
             try {
                 const response = await serviceRequest<ResearcherCollectResponse>(
-                    "AcademicPerformance/Researcher/Collect",
-                    { Identifiers: identifiers });
+                    "AcademicPerformance/V1/Collect",
+                    {
+                        Orcid: valueOf("Orcid") || undefined,
+                        WebOfScienceResearcherId:
+                            valueOf("WebOfScienceResearcherId") || undefined
+                    });
                 const researcherId = response.Researcher?.Id ?? 0;
                 const messages = (response.Messages ?? []).filter(Boolean).join("\n");
 

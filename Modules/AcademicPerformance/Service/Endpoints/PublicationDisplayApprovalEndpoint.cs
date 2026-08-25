@@ -1,4 +1,5 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Application;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -29,63 +30,17 @@ public sealed class PublicationDisplayApprovalEndpoint : ServiceEndpoint
     [HttpPost]
     public async Task<PublicationDisplayApprovalResponse> Save(
         PublicationDisplayApprovalRequest request,
-        [FromServices] AcademicDbContext dbContext)
+        [FromServices] IAcademicPerformanceApplicationService applicationService)
     {
-        await EnsureResearcherExistsAsync(request.ResearcherId, dbContext);
-
-        List<int> requestedIds = request.PublicationSummaryIds
-            .Where(id => id > 0)
-            .Distinct()
-            .OrderBy(id => id)
-            .ToList();
-        List<int> validIds = await dbContext.PublicationSummaries
-            .AsNoTracking()
-            .Where(summary =>
-                summary.ResearcherId == request.ResearcherId &&
-                requestedIds.Contains(summary.Id))
-            .Select(summary => summary.Id)
-            .OrderBy(id => id)
-            .ToListAsync();
-
-        if (validIds.Count != requestedIds.Count)
-        {
-            throw new ArgumentException(
-                "Seçilen yayınlardan biri bu akademisyene ait değil veya artık mevcut değil.");
-        }
-
-        List<PublicationDisplayApproval> existing = await dbContext
-            .PublicationDisplayApprovals
-            .Where(approval => approval.ResearcherId == request.ResearcherId)
-            .ToListAsync();
-        HashSet<int> requestedSet = validIds.ToHashSet();
-
-        dbContext.PublicationDisplayApprovals.RemoveRange(
-            existing.Where(approval =>
-                !requestedSet.Contains(approval.PublicationSummaryId)));
-
-        HashSet<int> existingIds = existing
-            .Select(approval => approval.PublicationSummaryId)
-            .ToHashSet();
-        DateTime approvedAt = DateTime.UtcNow;
-
-        foreach (int publicationSummaryId in validIds)
-        {
-            if (existingIds.Contains(publicationSummaryId))
-            {
-                continue;
-            }
-
-            dbContext.PublicationDisplayApprovals.Add(
-                new PublicationDisplayApproval
+        AcademicPublicationSelectionResponse response =
+            await applicationService.SavePublicationSelectionsAsync(
+                new AcademicPublicationSelectionRequest
                 {
                     ResearcherId = request.ResearcherId,
-                    PublicationSummaryId = publicationSummaryId,
-                    ApprovedAt = approvedAt
+                    PublicationIds = request.PublicationSummaryIds
                 });
-        }
 
-        await dbContext.SaveChangesAsync();
-        return CreateResponse(request.ResearcherId, validIds);
+        return CreateResponse(request.ResearcherId, response.PublicationIds);
     }
 
     [HttpPost]

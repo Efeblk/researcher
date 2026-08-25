@@ -1,12 +1,20 @@
-# API Notes
-https://info.orcid.org/ufaqs/what-are-the-api-limits/
-https://github.com/ORCID/orcid-model/blob/master/src/main/resources/record_3.0/README.md
 # Proje Notları
 
-- Şema kesinleştiğinde `EnsureCreated` yerine Fluent Migrations kullanılmalı.
-- Production entegrasyonunda SQLite yerine SQL Server kullanılmalı.
+- Şema FluentMigrator ile yönetiliyor; yeni değişiklikler
+  `Service/Data/Migrations/` altında ayrı migration olarak eklenmeli.
+- Uygulama yalnız SQL Server kullanıyor; tablo ve indeksler FluentMigrator ile
+  yönetiliyor.
 - Prototip Serenity UI, BYS kimlik ve yetki servisine bağlanmalı.
 - Akademisyenin kurum içi kaydı ORCID ile ilişkilendirilmeli.
+
+## Servisleşme
+
+- Yeni başvuru modülleri sürümlü `AcademicPerformance/V1` Serenity servislerini
+  kullanmalı; EF varlıkları dış client sözleşmesine çıkarılmamalı.
+- UI ve zamanlanmış görev aynı uygulama servisini çağırmalı.
+- Yerleşik zamanlayıcı yalnız tek sunucu instance'ında etkin olmalı. Çoklu
+  instance ortamında dağıtık kilitli merkezi görev altyapısına geçilmeli.
+- T.C. kimlik numarası saklanmadığı için YÖKSİS otomatik yenilemeye dahil değil.
 
 ## Aktif akademik kaynak
 
@@ -15,13 +23,12 @@ entegrasyonu, sağlayıcıya özel tabloları ve kodu kaldırılmıştır. ORCID
 sağladığı eser, istihdam, eğitim, fonlama ve hakemlik sayıları profil özetinde
 kullanılır; atıf, h-index ve i10-index ORCID tarafından sağlanmaz.
 
-## Veritabanı seçimi
+## Veritabanı
 
-Yerel geliştirmede varsayılan olarak SQLite ve `academic.db` dosyası kullanılır.
-Üniversite entegrasyonunda sağlayıcı SQL Server olarak değiştirilecektir.
+Yerel geliştirmede varsayılan bağlantı SQL Server LocalDB'dir. Kurumsal ortamda
+yalnız bağlantı cümlesi secret üzerinden değiştirilir.
 
 ```shell
-dotnet user-secrets set "Database:Provider" "SqlServer"
 dotnet user-secrets set "ConnectionStrings:AcademicDatabase" "SQL_SERVER_CONNECTION_STRING"
 ```
 

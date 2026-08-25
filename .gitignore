@@ -1,8 +1,10 @@
 bin/
 obj/
 node_modules/
+/academic.db*
 wwwroot/esm/
+.vs/
+.verification/
+TestResults/
+coverage/
 .DS_Store
-academic.db
-academic.db-shm
-academic.db-wal
