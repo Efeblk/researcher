@@ -1,11 +1,12 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Application;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Contracts.V1;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Serenity.Services;
 
-namespace AcademicCollectorDemo.Modules.AcademicPerformance.Endpoints;
+namespace AcademicCollectorDemo.Modules.AcademicPerformance.WebClient.Endpoints;
 
 [Route("Services/AcademicPerformance/PublicationDisplayApproval/[action]")]
 public sealed class PublicationDisplayApprovalEndpoint : ServiceEndpoint

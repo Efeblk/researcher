@@ -1,3 +1,5 @@
+using AcademicCollectorDemo.Modules.AcademicPerformance.Contracts.V1;
+
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Application;
 
 public interface IAcademicPerformanceApplicationService

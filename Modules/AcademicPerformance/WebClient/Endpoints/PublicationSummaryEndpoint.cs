@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Serenity.Services;
 
-namespace AcademicCollectorDemo.Modules.AcademicPerformance.Endpoints;
+namespace AcademicCollectorDemo.Modules.AcademicPerformance.WebClient.Endpoints;
 
 [Route("Services/AcademicPerformance/PublicationSummary/[action]")]
 public sealed class PublicationSummaryEndpoint : ServiceEndpoint
@@ -27,6 +27,16 @@ public sealed class PublicationSummaryEndpoint : ServiceEndpoint
         }
 
         query = query.Where(item => item.ResearcherId == researcherId);
+
+        if (!string.IsNullOrWhiteSpace(request.ContainsText))
+        {
+            string searchText = request.ContainsText.Trim();
+            query = query.Where(item =>
+                item.Title.Contains(searchText) ||
+                (item.Authors != null && item.Authors.Contains(searchText)) ||
+                (item.Publication != null && item.Publication.Contains(searchText)) ||
+                (item.Doi != null && item.Doi.Contains(searchText)));
+        }
 
         int totalCount = await query.CountAsync();
         int skip = Math.Max(request.Skip, 0);

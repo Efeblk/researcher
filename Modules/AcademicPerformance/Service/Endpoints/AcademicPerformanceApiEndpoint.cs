@@ -1,4 +1,5 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Application;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Contracts.V1;
 using Microsoft.AspNetCore.Mvc;
 using Serenity.Services;
 

@@ -84,7 +84,7 @@ public sealed class ResearcherCollectionHandler
             response.Messages.Add(
                 $"[OK] Yayın özeti: {publicationSummaryCount} benzersiz yayın hazırlandı.");
 
-            provider = DatabaseConfiguration.SqlServerProvider;
+            provider = AcademicDatabase.ProviderName;
             response.DatabaseProvider = provider;
             response.IsSaved = true;
             response.Messages.Add(

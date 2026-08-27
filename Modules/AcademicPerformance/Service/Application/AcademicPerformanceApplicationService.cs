@@ -1,3 +1,4 @@
+using AcademicCollectorDemo.Modules.AcademicPerformance.Contracts.V1;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;

@@ -48,13 +48,7 @@ public static class Program
         WebApplication application = builder.Build();
         Serenity.Data.RowFieldsProvider.SetDefaultFrom(application.Services);
 
-        await using (AsyncServiceScope databaseScope =
-            application.Services.CreateAsyncScope())
-        {
-            AcademicDatabaseMigrator databaseMigrator = databaseScope.ServiceProvider
-                .GetRequiredService<AcademicDatabaseMigrator>();
-            databaseMigrator.MigrateUp();
-        }
+        application.Services.MigrateAcademicDatabase();
 
         application.UseStaticFiles();
         application.UseRouting();

@@ -19,21 +19,22 @@ gösterilmesine izin verdiği yayınları ayrıca seçer.
 PDF indirilmez; sağlayıcıların sunduğu DOI ve yayın bilgileri saklanır. OpenAlex
 ve Google Scholar entegrasyonları çalışma zamanından kaldırılmıştır.
 
-## Serenity servis mimarisi
+## API-first Serenity servis mimarisi
 
-Yeni client'lar veritabanı varlıklarına bağlı eski endpoint'ler yerine sürümlü
-`V1` sözleşmesini kullanmalıdır. Endpoint'ler ince bir HTTP katmanıdır; UI ve
-sunucu zamanlayıcısı aynı `IAcademicPerformanceApplicationService` iş akışını
-kullanır.
+Yeni web, mobil, BYS ve başvuru client'ları veritabanı varlıklarına bağlı
+Serenity UI endpoint'leri yerine sürümlü `V1` sözleşmesini kullanmalıdır.
+Endpoint'ler ince bir HTTP katmanıdır; mevcut WebClient ve ileride eklenecek
+sunucu zamanlayıcısı da aynı `IAcademicPerformanceApplicationService` iş akışını
+kullanmalıdır. Bütün bileşenler şimdilik tek proje ve tek process içindedir.
 
 ```text
-Başvuru modülü / başka client / Serenity UI
+Web / mobil / BYS / başvuru client'ları
                 │
                 ▼
    Services/AcademicPerformance/V1/*
                 │
                 ▼
- IAcademicPerformanceApplicationService ◀── BackgroundService
+ IAcademicPerformanceApplicationService
                 │
                 ▼
        ORCID / Web of Science / EF Core
@@ -60,9 +61,10 @@ Content-Type: application/json
 }
 ```
 
-Yanıtlar ham EF entity'leri veya sağlayıcı JSON'ları yerine kararlı profil ve
-yayın DTO'ları döndürür. Eski `Researcher`, `PublicationSummary` ve
-`PublicationDisplayApproval` endpoint'leri mevcut istemciler için korunur.
+Yanıtlar ham EF entity'leri veya sağlayıcı JSON'ları yerine `Contracts/V1`
+altındaki kararlı profil ve yayın DTO'larını döndürür. `PublicationSummary` ve
+`PublicationDisplayApproval` endpoint'leri yalnız mevcut Serenity WebClient'ın
+grid adapter'larıdır; yeni client sözleşmesi olarak kullanılmamalıdır.
 YÖKSİS kişisel veri içerdiğinden ayrı `Yoksis/Collect` endpoint'inde kalır ve
 production'da ayrıca yetkilendirilmelidir.
 
@@ -169,14 +171,15 @@ T.C. kimlik numarasını `.http` dosyasına kaydedip Git'e göndermeyin.
 ```text
 Modules/AcademicPerformance/
 ├── Service/                Sunucu ve akademik veri servisi
-│   ├── Application/        V1 client sözleşmesi ve ortak iş akışı
-│   ├── Endpoints/          Serenity HTTP endpoint'leri
+│   ├── Contracts/V1/       Client bağımsız request/response sözleşmesi
+│   ├── Application/        Ortak kullanım senaryoları ve iş akışı
+│   ├── Endpoints/          V1 ve sağlayıcı HTTP endpoint'leri
 │   ├── Data/               EF Core bağlamı ve şema hazırlığı
 │   ├── Integrations/       ORCID, Web of Science ve YÖKSİS istemcileri
 │   ├── Researchers/        Kimlik ayrıştırma ve toplama akışı
 │   └── Works/              Normalizasyon, özet ve gösterim onayları
-├── WebClient/              Razor sayfası, Row/Columns ve TypeScript grid
-├── Background/             Periyodik akademik veri yenileme görevi
+├── WebClient/              Razor, TypeScript ve UI'ya özel grid endpoint'leri
+├── Background/             Planlanan periyodik yenileme görevi için ayrılmıştır
 └── AcademicPerformanceModule.cs  DI ve modül kayıtları
 Requests/                   Manuel HTTP istekleri
 docs/                       Sağlayıcı ve entegrasyon notları
@@ -186,7 +189,8 @@ wwwroot/Content/            Uygulama stilleri
 
 Klasörler çalışma ortamına göre ayrılmıştır. `Service` hem Serenity UI hem de
 harici client'ların kullandığı sunucu tarafını, `WebClient` yalnız tarayıcı
-arayüzünü, `Background` ise HTTP'den bağımsız zamanlanmış işleri içerir.
+arayüzünü içerir. `Background` henüz uygulanmamış zamanlanmış işler için
+ayrılmıştır.
 
 `wwwroot/esm/`, `bin/`, `obj/` ve `node_modules/`
 yeniden üretilebilir veya çalışma zamanı çıktılarıdır; Git'e eklenmez.
@@ -263,31 +267,6 @@ başlığında gönderilir; uygulama bunları yanıta, ham XML alanına veya log
 yazmaz. Basic Authentication yalnızca Base64 kodlaması kullandığı için HTTPS
 adresi korunmalıdır. Endpoint production'da BYS kimlik/yetki kontrolü arkasına
 alınmadan dış ağa açılmamalıdır.
-
-### Zamanlanmış toplama
-
-Sunucu içindeki periyodik yenileme varsayılan olarak kapalıdır. Açmak için
-`academicsettings.json` veya production yapılandırmasında şu bölümü değiştirin:
-
-```json
-"AcademicPerformance": {
-  "ScheduledCollection": {
-    "Enabled": true,
-    "InitialDelaySeconds": 60,
-    "IntervalMinutes": 1440,
-    "BatchSize": 100
-  }
-}
-```
-
-Görev kayıtlı akademisyenleri gruplar halinde okur ve V1 endpoint'ine HTTP
-isteği göndermek yerine aynı uygulama servisini çağırır. Sağlayıcı önbelleği
-güncel kayıtlar için gereksiz dış API çağrılarını engeller. T.C. kimlik numarası
-saklanmadığı için YÖKSİS otomatik göreve dahil edilmez.
-
-Bu yerleşik zamanlayıcı tek sunucu örneği içindir. Uygulama birden fazla instance
-ile çalışacaksa görevi yalnız bir instance'ta etkinleştirin veya veritabanı
-kilitli merkezi bir görev sistemi kullanın.
 
 Mevcut UI bir entegrasyon prototipidir. **Yayınlarımı Getir** için sağlayıcı
 kimliği tarayıcı `localStorage` alanında hatırlanır. BYS entegrasyonunda ORCID,

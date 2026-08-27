@@ -29,6 +29,10 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Modules\AcademicPerformance\Background\" />
+  </ItemGroup>
+
   <Target Name="NpmInstall" Condition="!Exists('node_modules\@serenity-is\tsbuild\package.json')">
     <Message Text="Installing NPM packages for $(ProjectName)..." Importance="high" />
     <Exec Command="npm install" />

@@ -14,13 +14,5 @@
   },
   "ProviderCache": {
     "MaxAgeHours": 24
-  },
-  "AcademicPerformance": {
-    "ScheduledCollection": {
-      "Enabled": false,
-      "InitialDelaySeconds": 60,
-      "IntervalMinutes": 1440,
-      "BatchSize": 100
-    }
   }
 }

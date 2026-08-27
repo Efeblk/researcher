@@ -1,4 +1,11 @@
+# Academic Performance V1 API için çalıştırılabilir örnekler.
+# Önce uygulamayı başlatın, değişkenleri düzenleyin ve istediğiniz isteğin
+# üzerindeki "Send Request" bağlantısını kullanın.
+# Yeni web, mobil ve BYS client'ları yalnızca {{api}} altındaki V1 sözleşmesini
+# kullanmalıdır. Alttaki YÖKSİS isteği ayrı ve yetkili bir entegrasyondur.
+
 @host = http://localhost:5001
+@api = http://localhost:5001/Services/AcademicPerformance/V1
 @orcid = 0000-0003-2812-9917
 @researcherId = A-1009-2008
 @databaseResearcherId = 1
@@ -10,7 +17,7 @@ GET {{host}}/
 Accept: application/json
 
 ### V1 API: ORCID ile akademisyen verisini topla
-POST {{host}}/Services/AcademicPerformance/V1/Collect
+POST {{api}}/Collect
 Content-Type: application/json
 
 {
@@ -18,7 +25,7 @@ Content-Type: application/json
 }
 
 ### V1 API: Web of Science ResearcherID ile veri topla
-POST {{host}}/Services/AcademicPerformance/V1/Collect
+POST {{api}}/Collect
 Content-Type: application/json
 
 {
@@ -26,7 +33,7 @@ Content-Type: application/json
 }
 
 ### V1 API: ORCID ve ResearcherID değerlerini aynı akademisyene bağla
-POST {{host}}/Services/AcademicPerformance/V1/Collect
+POST {{api}}/Collect
 Content-Type: application/json
 
 {
@@ -35,7 +42,7 @@ Content-Type: application/json
 }
 
 ### V1 API: Kayıtlı akademisyen özetini getir
-POST {{host}}/Services/AcademicPerformance/V1/GetResearcher
+POST {{api}}/GetResearcher
 Content-Type: application/json
 
 {
@@ -43,7 +50,7 @@ Content-Type: application/json
 }
 
 ### V1 API: Akademisyenin yayınlarını sayfalı getir
-POST {{host}}/Services/AcademicPerformance/V1/ListPublications
+POST {{api}}/ListPublications
 Content-Type: application/json
 
 {
@@ -54,7 +61,7 @@ Content-Type: application/json
 }
 
 ### V1 API: Okulda gösterilecek yayınları kaydet
-POST {{host}}/Services/AcademicPerformance/V1/SavePublicationSelections
+POST {{api}}/SavePublicationSelections
 Content-Type: application/json
 
 {

@@ -1,6 +1,6 @@
 using Serenity.Services;
 
-namespace AcademicCollectorDemo.Modules.AcademicPerformance.Application;
+namespace AcademicCollectorDemo.Modules.AcademicPerformance.Contracts.V1;
 
 public sealed class AcademicDataCollectRequest : ServiceRequest
 {
