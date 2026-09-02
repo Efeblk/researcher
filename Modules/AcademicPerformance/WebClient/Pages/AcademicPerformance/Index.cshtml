@@ -1,0 +1,249 @@
+@{
+    Layout = "~/Modules/AcademicPerformance/WebClient/Pages/AcademicPerformance/_Layout.cshtml";
+    ViewData["Title"] = "Akademik Performans";
+}
+
+<div class="academic-card">
+    <h1>Akademisyen Yayınlarını Araştır</h1>
+    <p class="academic-help">
+        Akademisyenin ORCID, Google Scholar ID, Web of Science ResearcherID veya
+        YÖKSİS sorgusu için T.C. kimlik numarasını girin. Sağlayıcı sorguları
+        birbirinden bağımsız çalışır.
+    </p>
+
+    <form id="ResearcherSearchForm">
+        <div class="academic-form-grid">
+            <div class="academic-field">
+                <label for="Orcid">ORCID</label>
+                <input id="Orcid" class="form-control" placeholder="0000-0001-8560-7482"
+                       autocomplete="off" data-provider-identifier="Orcid" />
+            </div>
+            <div class="academic-field">
+                <label for="GoogleScholarId">Google Scholar ID</label>
+                <input id="GoogleScholarId" class="form-control"
+                       placeholder="hIyYz_IAAAAJ" autocomplete="off"
+                       maxlength="12" data-provider-identifier="GoogleScholarId" />
+            </div>
+            <div class="academic-field">
+                <label for="WebOfScienceResearcherId">Web of Science ResearcherID</label>
+                <input id="WebOfScienceResearcherId" class="form-control"
+                       placeholder="A-1009-2008" autocomplete="off"
+                       data-provider-identifier="WebOfScienceResearcherId" />
+            </div>
+            <div class="academic-field">
+                <label for="TcKimlikNo">T.C. Kimlik No (YÖKSİS)</label>
+                <input id="TcKimlikNo" class="form-control" type="password"
+                       inputmode="numeric" maxlength="11" pattern="[0-9]{11}"
+                       placeholder="11 haneli T.C. kimlik no" autocomplete="off"
+                       aria-describedby="TcKimlikNoHelp" />
+                <small id="TcKimlikNoHelp" class="academic-field-help">
+                    Bu değer tarayıcıda hatırlanmaz.
+                </small>
+            </div>
+        </div>
+        <div class="academic-actions">
+            <button id="ResearchButton" class="btn btn-primary" type="submit">
+                <i class="fa fa-search" aria-hidden="true"></i>
+                Araştır
+            </button>
+            <button id="MyPublicationsButton" class="btn btn-outline-primary" type="button">
+                <i class="fa fa-user" aria-hidden="true"></i>
+                Yayınlarımı Getir
+            </button>
+        </div>
+        <div id="ResearchStatus" class="academic-status" role="status" aria-live="polite"></div>
+    </form>
+</div>
+
+<div id="ProviderComparison" class="academic-card" hidden>
+    <h2>Sağlayıcı Veri Karşılaştırması</h2>
+    <p class="academic-help">
+        Her satır ilgili sağlayıcının kendi kapsamını gösterir. Aynı metriğin
+        farklı çıkması normaldir; boş değerler sağlayıcının bu bilgiyi sunmadığını
+        veya henüz sorgulanmadığını belirtir.
+    </p>
+    <div class="academic-table-scroll">
+        <table class="academic-comparison-table">
+            <thead>
+                <tr>
+                    <th scope="col">Sağlayıcı</th>
+                    <th scope="col">Ad / kurum</th>
+                    <th scope="col">Yayın</th>
+                    <th scope="col">Toplam atıf</th>
+                    <th scope="col">h-index</th>
+                    <th scope="col">i10-index</th>
+                    <th scope="col">Veri tarihi</th>
+                </tr>
+            </thead>
+            <tbody id="ProviderComparisonRows"></tbody>
+        </table>
+    </div>
+    <p class="academic-help academic-comparison-note">
+        OpenAlex sonuçları yalnız karşılaştırma içindir; ortak yayın listesine
+        eklenmez.
+    </p>
+</div>
+
+<div id="YoksisSummary" class="academic-card" hidden>
+    <h2>YÖKSİS Toplama Özeti</h2>
+    <div class="academic-metrics-grid">
+        <div class="academic-metric">
+            <span>Toplam kayıt</span>
+            <strong id="YoksisTotalRecordCount">0</strong>
+        </div>
+        <div class="academic-metric">
+            <span>Başarılı kategori</span>
+            <strong id="YoksisSuccessfulCategoryCount">0</strong>
+        </div>
+        <div class="academic-metric">
+            <span>Başarısız kategori</span>
+            <strong id="YoksisFailedCategoryCount">0</strong>
+        </div>
+    </div>
+    <div id="YoksisCategoryList" class="academic-category-list"></div>
+</div>
+
+<div id="GoogleScholarSummary" class="academic-card" hidden>
+    <h2><span id="GoogleScholarResearcherName">Akademisyen</span> - Google Scholar Özeti</h2>
+    <div class="academic-metrics-grid">
+        <div class="academic-metric">
+            <span>Toplam atıf</span>
+            <strong id="GoogleScholarCitationCount">—</strong>
+        </div>
+        <div class="academic-metric">
+            <span>h-index</span>
+            <strong id="GoogleScholarHIndex">—</strong>
+        </div>
+        <div class="academic-metric">
+            <span>i10-index</span>
+            <strong id="GoogleScholarI10Index">—</strong>
+        </div>
+        <div class="academic-metric">
+            <span>Profildeki yayın</span>
+            <strong id="GoogleScholarDocumentsCount">0</strong>
+        </div>
+        <div class="academic-metric">
+            <span id="GoogleScholarRecentLabel">Yakın dönem atıf</span>
+            <strong id="GoogleScholarCitationCountRecent">—</strong>
+        </div>
+        <div class="academic-metric">
+            <span>Yakın dönem h / i10</span>
+            <strong id="GoogleScholarRecentIndexes">—</strong>
+        </div>
+    </div>
+    <p class="academic-help">
+        Veriler SearchApi üzerinden Google Scholar profilinden alınır. Metrikler
+        Google Scholar kapsamını temsil eder.
+    </p>
+</div>
+
+<div id="OpenAlexSummary" class="academic-card" hidden>
+    <h2><span id="OpenAlexResearcherName">Akademisyen</span> - OpenAlex Karşılaştırması</h2>
+    <div class="academic-metrics-grid">
+        <div class="academic-metric">
+            <span>Toplam atıf</span>
+            <strong id="OpenAlexCitedByCount">—</strong>
+        </div>
+        <div class="academic-metric">
+            <span>h-index</span>
+            <strong id="OpenAlexHIndex">—</strong>
+        </div>
+        <div class="academic-metric">
+            <span>i10-index</span>
+            <strong id="OpenAlexI10Index">—</strong>
+        </div>
+        <div class="academic-metric">
+            <span>OpenAlex yayın sayısı</span>
+            <strong id="OpenAlexWorksCount">0</strong>
+        </div>
+        <div class="academic-metric">
+            <span>Çekilen ayrı yayın</span>
+            <strong id="OpenAlexCollectedWorksCount">0</strong>
+        </div>
+        <div class="academic-metric">
+            <span>Son bilinen kurum</span>
+            <strong id="OpenAlexInstitution">—</strong>
+        </div>
+    </div>
+    <p class="academic-help">
+        OpenAlex verileri ORCID ile eşleştirilir ve yalnız karşılaştırma için ayrı
+        tablolarda tutulur; aşağıdaki ortak yayın listesine henüz eklenmez.
+    </p>
+</div>
+
+<div id="WebOfScienceSummary" class="academic-card" hidden>
+    <h2><span id="WebOfScienceResearcherName">Akademisyen</span> - Web of Science Özeti</h2>
+    <div class="academic-metrics-grid">
+        <div class="academic-metric">
+            <span>Yayınlardan hesaplanan h-index</span>
+            <strong id="WebOfScienceHIndex">—</strong>
+        </div>
+        <div class="academic-metric">
+            <span>Yayın</span>
+            <strong id="WebOfScienceDocumentsCount">0</strong>
+        </div>
+        <div class="academic-metric">
+            <span>Yayın atıfları toplamı</span>
+            <strong id="WebOfScienceTotalTimesCited">—</strong>
+        </div>
+    </div>
+    <p class="academic-help">
+        Starter API v1 profil, kurum ve hakemlik verisi sağlamaz. Atıf sayıları
+        Clarivate abonelik planına bağlıdır.
+    </p>
+</div>
+
+<div id="ResearcherSummary" class="academic-card" hidden>
+    <h2><span id="MetricsResearcherName">Akademisyen</span> - ORCID Profil Özeti</h2>
+    <div class="academic-metrics-grid">
+        <div class="academic-metric">
+            <span>ORCID kayıtlı eser</span>
+            <strong id="MetricsWorksCount">0</strong>
+        </div>
+        <div class="academic-metric">
+            <span>İstihdam kaydı</span>
+            <strong id="MetricsEmploymentsCount">0</strong>
+        </div>
+        <div class="academic-metric">
+            <span>Eğitim kaydı</span>
+            <strong id="MetricsEducationsCount">0</strong>
+        </div>
+        <div class="academic-metric">
+            <span>Fonlama kaydı</span>
+            <strong id="MetricsFundingsCount">0</strong>
+        </div>
+        <div class="academic-metric">
+            <span>Hakemlik grubu</span>
+            <strong id="MetricsPeerReviewsCount">0</strong>
+        </div>
+        <div class="academic-metric">
+            <span>Güncel kurum</span>
+            <strong id="MetricsOrganization">—</strong>
+        </div>
+        <div class="academic-metric">
+            <span>ORCID kaydı güncellendi</span>
+            <strong id="MetricsRecordUpdatedAt">—</strong>
+        </div>
+    </div>
+</div>
+
+<div class="academic-card">
+    <div class="academic-publication-selection-header">
+        <div>
+            <h2>Okulda Gösterilecek Yayınlar</h2>
+            <p class="academic-help">
+                Okul sisteminde görünmesine izin verdiğiniz yayınları işaretleyip
+                seçimlerinizi kaydedin. İşaretlenmeyen yayınlar veritabanında kalır.
+            </p>
+        </div>
+        <div class="academic-publication-selection-actions">
+            <span id="SelectionCount">0 yayın seçildi</span>
+            <button id="SavePublicationSelections" class="btn btn-primary" type="button" disabled>
+                <i class="fa fa-save" aria-hidden="true"></i>
+                Seçimleri Kaydet
+            </button>
+        </div>
+    </div>
+    <div id="SelectionStatus" class="academic-status" role="status" aria-live="polite"></div>
+    <div id="PublicationGrid"></div>
+</div>

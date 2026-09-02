@@ -1,4 +1,5 @@
 # Proje Notları
+api servisleri canlı mı diye bakılacak
 
 - Şema FluentMigrator ile yönetiliyor; yeni değişiklikler
   `Service/Data/Migrations/` altında ayrı migration olarak eklenmeli.

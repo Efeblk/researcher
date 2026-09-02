@@ -1,7 +1,7 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Application;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Contracts.V1;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Serenity.Services;

@@ -160,6 +160,45 @@ body {
     font-size: 20px;
 }
 
+.academic-table-scroll {
+    overflow-x: auto;
+}
+
+.academic-comparison-table {
+    border-collapse: collapse;
+    font-size: 13px;
+    min-width: 850px;
+    width: 100%;
+}
+
+.academic-comparison-table th,
+.academic-comparison-table td {
+    border-bottom: 1px solid var(--academic-border);
+    padding: 11px 12px;
+    text-align: left;
+    vertical-align: top;
+}
+
+.academic-comparison-table thead th {
+    background: #f7f9fb;
+    color: #526170;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.academic-comparison-table tbody th {
+    color: var(--academic-primary);
+    white-space: nowrap;
+}
+
+.academic-comparison-table .openalex-comparison-row {
+    background: #eef6fc;
+}
+
+.academic-comparison-note {
+    margin: 12px 0 0;
+}
+
 .academic-category-list {
     display: grid;
     gap: 8px;

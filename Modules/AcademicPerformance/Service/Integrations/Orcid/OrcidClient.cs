@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text.Json;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using Microsoft.Extensions.Configuration;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;

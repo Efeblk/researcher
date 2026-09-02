@@ -1,4 +1,4 @@
-using AcademicCollectorDemo.Modules.AcademicPerformance.Contracts.V1;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Application;
 

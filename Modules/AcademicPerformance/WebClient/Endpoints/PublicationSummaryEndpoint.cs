@@ -1,5 +1,5 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Serenity.Services;

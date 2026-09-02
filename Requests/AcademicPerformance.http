@@ -1,22 +1,29 @@
 # Academic Performance V1 API için çalıştırılabilir örnekler.
 # Önce uygulamayı başlatın, değişkenleri düzenleyin ve istediğiniz isteğin
 # üzerindeki "Send Request" bağlantısını kullanın.
+# Sağlayıcı toplama çağrıları 20 saniyeyi aşabilir. Visual Studio'da:
+# Araçlar > Seçenekler > Diller > Rest > Gelişmiş
+# yolundan istek zaman aşımını en az 300 saniye yapın. Visual Studio .http
+# istemcisi dosya veya istek bazında timeout ayarını desteklemez.
 # Yeni web, mobil ve BYS client'ları yalnızca {{api}} altındaki V1 sözleşmesini
 # kullanmalıdır. Alttaki YÖKSİS isteği ayrı ve yetkili bir entegrasyondur.
 
 @host = http://localhost:5001
 @api = http://localhost:5001/Services/AcademicPerformance/V1
 @orcid = 0000-0003-2812-9917
+@googleScholarId = hIyYz_IAAAAJ
 @researcherId = A-1009-2008
 @databaseResearcherId = 1
 @publicationId = 1
 @tcKimlikNo = TC_KIMLIK_NUMARASINI_BURAYA_YAZ
 
 ### Uygulamanın çalıştığını kontrol et
+# Response: Health response
 GET {{host}}/
 Accept: application/json
 
-### V1 API: ORCID ile akademisyen verisini topla
+### V1 API: ORCID ile resmî ORCID ve ayrı OpenAlex karşılaştırma verisini topla
+# Response: AcademicDataResponse (örnek 1)
 POST {{api}}/Collect
 Content-Type: application/json
 
@@ -25,6 +32,7 @@ Content-Type: application/json
 }
 
 ### V1 API: Web of Science ResearcherID ile veri topla
+# Response: AcademicDataResponse (örnek 1)
 POST {{api}}/Collect
 Content-Type: application/json
 
@@ -32,16 +40,29 @@ Content-Type: application/json
   "WebOfScienceResearcherId": "{{researcherId}}"
 }
 
-### V1 API: ORCID ve ResearcherID değerlerini aynı akademisyene bağla
+### V1 API: Google Scholar ID ile profil, metrik ve yayınları topla
+# Response: AcademicDataResponse (örnek 1)
+POST {{api}}/Collect
+Content-Type: application/json
+
+{
+  "GoogleScholarId": "{{googleScholarId}}"
+}
+
+### V1 API: ORCID, Scholar ID ve ResearcherID değerlerini aynı akademisyene bağla
+# Response: AcademicDataResponse (örnek 1)
 POST {{api}}/Collect
 Content-Type: application/json
 
 {
   "Orcid": "{{orcid}}",
+  "GoogleScholarId": "{{googleScholarId}}",
   "WebOfScienceResearcherId": "{{researcherId}}"
 }
 
 ### V1 API: Kayıtlı akademisyen özetini getir
+#başka unique ID kullanılabilir
+# Response: AcademicDataResponse (örnek 1)
 POST {{api}}/GetResearcher
 Content-Type: application/json
 
@@ -50,6 +71,7 @@ Content-Type: application/json
 }
 
 ### V1 API: Akademisyenin yayınlarını sayfalı getir
+# Response: AcademicPublicationListResponse (örnek 2)
 POST {{api}}/ListPublications
 Content-Type: application/json
 
@@ -61,6 +83,7 @@ Content-Type: application/json
 }
 
 ### V1 API: Okulda gösterilecek yayınları kaydet
+# Response: AcademicPublicationSelectionResponse (örnek 3)
 POST {{api}}/SavePublicationSelections
 Content-Type: application/json
 
@@ -73,9 +96,150 @@ Content-Type: application/json
 
 ### YÖKSİS verilerini topla
 # T.C. kimlik numarasını bu dosyaya kaydedip Git'e gönderme.
-POST {{host}}/Services/AcademicPerformance/Yoksis/Collect
+# Response: YoksisCollectResponse (örnek 4)
+POST {{api}}/Yoksis/Collect
 Content-Type: application/json
 
 {
   "TcKimlikNo": "{{tcKimlikNo}}"
 }
+
+# ============================================================================
+# RESPONSE ÖRNEKLERİ
+# Bunlar çalıştırılmaz; client geliştirenler için sözleşme örnekleridir.
+# Kimlikler, sayılar, null alanlar ve tarihler sorgulanan akademisyene göre değişir.
+#
+# Health response
+# {
+#   "Application": "AcademicCollectorDemo",
+#   "Status": "Running"
+# }
+#
+# 1) AcademicDataResponse - Collect ve GetResearcher
+# {
+#   "Researcher": {
+#     "Id": 1,
+#     "FirstName": "Ada",
+#     "LastName": "Örnek",
+#     "AcademicTitle": null,
+#     "Department": null,
+#     "Orcid": "0000-0003-2812-9917",
+#     "GoogleScholarId": null,
+#     "WebOfScienceResearcherId": null,
+#     "YoksisResearcherId": null,
+#     "LastUpdatedAt": "2026-09-01T10:30:00Z",
+#     "OrcidProfile": {
+#       "DisplayName": "Ada Örnek",
+#       "CurrentOrganization": "Örnek Üniversitesi",
+#       "CurrentDepartment": null,
+#       "CurrentRoleTitle": null,
+#       "WorksCount": 46,
+#       "EmploymentsCount": 1,
+#       "EducationsCount": 2,
+#       "FundingsCount": 0,
+#       "PeerReviewsCount": 0,
+#       "RecordLastModifiedAt": "2026-08-20T08:00:00Z",
+#       "LastUpdatedAt": "2026-09-01T10:30:00Z"
+#     },
+#     "GoogleScholarProfile": {
+#       "DisplayName": "Ada Örnek",
+#       "Affiliations": "Örnek Üniversitesi",
+#       "University": "Örnek Üniversitesi",
+#       "ProfileUrl": "https://scholar.google.com/citations?user=example",
+#       "CitationCount": 410,
+#       "CitationCountRecent": 180,
+#       "HIndex": 11,
+#       "HIndexRecent": 7,
+#       "I10Index": 9,
+#       "I10IndexRecent": 5,
+#       "MetricsSinceYear": 2021,
+#       "DocumentsCount": 48,
+#       "LastUpdatedAt": "2026-09-01T10:30:00Z"
+#     },
+#     "OpenAlexProfile": {
+#       "OpenAlexAuthorId": "A1234567890",
+#       "DisplayName": "Ada Örnek",
+#       "LastKnownInstitution": "Örnek Üniversitesi",
+#       "WorksCount": 50,
+#       "CollectedWorksCount": 50,
+#       "CitedByCount": 320,
+#       "HIndex": 9,
+#       "I10Index": 7,
+#       "TwoYearMeanCitedness": 1.25,
+#       "LastUpdatedAt": "2026-09-01T10:30:00Z"
+#     },
+#     "WebOfScienceProfile": {
+#       "DisplayName": "Ada Örnek",
+#       "PrimaryOrganization": "Örnek Üniversitesi",
+#       "HIndex": 8,
+#       "DocumentsCount": 35,
+#       "TotalTimesCited": 275,
+#       "TotalCitingPublications": 190,
+#       "PeerReviewsCount": 4,
+#       "LastUpdatedAt": "2026-09-01T10:30:00Z"
+#     }
+#   },
+#   "IsSaved": true,
+#   "PublicationCount": 46,
+#   "DatabaseProvider": "Microsoft.EntityFrameworkCore.SqlServer",
+#   "CollectedAt": "2026-09-01T10:30:01Z",
+#   "Messages": ["ORCID verileri alındı.", "Yayın özeti güncellendi."]
+# }
+#
+# 2) AcademicPublicationListResponse - ListPublications
+# {
+#   "ResearcherId": 1,
+#   "Entities": [
+#     {
+#       "Id": 101,
+#       "Title": "Örnek yayın başlığı",
+#       "PublicationYear": 2025,
+#       "Doi": "10.1234/example.2025.1",
+#       "Category": "JournalArticle",
+#       "Authors": "Ada Örnek; Ali Örnek",
+#       "Publication": "Örnek Dergi",
+#       "PublicationUrl": "https://doi.org/10.1234/example.2025.1",
+#       "Sources": "GoogleScholar,Orcid",
+#       "IsApprovedForDisplay": true
+#     }
+#   ],
+#   "TotalCount": 46,
+#   "Skip": 0,
+#   "Take": 100
+# }
+#
+# 3) AcademicPublicationSelectionResponse - SavePublicationSelections
+# PublicationIds gönderilen listenin tamamını temsil eder. Boş liste göndermek
+# akademisyenin okulda gösterilmek üzere seçilmiş tüm yayınlarını kaldırır.
+# {
+#   "ResearcherId": 1,
+#   "PublicationIds": [101, 102],
+#   "ApprovedCount": 2
+# }
+#
+# 4) YoksisCollectResponse - YÖKSİS Collect
+# {
+#   "ResearcherId": 1,
+#   "ResearcherDisplayName": "Ada Örnek",
+#   "IsSaved": true,
+#   "YoksisRecordCount": 25,
+#   "YoksisPublicationCount": 12,
+#   "PublicationSummaryCount": 12,
+#   "CollectedAt": "2026-09-01T10:30:01Z",
+#   "SuccessfulCategoryCount": 4,
+#   "FailedCategoryCount": 0,
+#   "TotalRecordCount": 25,
+#   "Messages": ["YÖKSİS verileri alındı."],
+#   "Categories": []
+# }
+#
+# Hata response'u - Serenity hata zarfı
+# HTTP durum kodu hataya göre 400 veya 500 olabilir. Client en az Error.Code ve
+# Error.Message alanlarını işlemelidir; Error.Details geliştirme ortamına özeldir.
+# {
+#   "Error": {
+#     "Code": "Exception",
+#     "Message": "Akademisyen kaydı bulunamadı.",
+#     "Details": "..."
+#   }
+# }

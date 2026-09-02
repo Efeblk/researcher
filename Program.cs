@@ -1,17 +1,37 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
+using AcademicCollectorDemo.Host;
 using Microsoft.AspNetCore.Mvc;
 using Serenity;
 using Serenity.Extensions.DependencyInjection;
 
 public static class Program
 {
+    private const string CleanDatabaseArgument = "--clean-database";
+
     public static async Task Main(string[] args)
     {
-        WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+        bool cleanDatabase = args.Any(argument => string.Equals(
+            argument,
+            CleanDatabaseArgument,
+            StringComparison.OrdinalIgnoreCase));
+        string[] hostArguments = args
+            .Where(argument => !string.Equals(
+                argument,
+                CleanDatabaseArgument,
+                StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        WebApplicationBuilder builder = WebApplication.CreateBuilder(
+            hostArguments);
         builder.Logging.ClearProviders();
         builder.Logging.AddConsole();
         builder.Logging.AddDebug();
+
+        if (cleanDatabase)
+        {
+            builder.Logging.AddFilter("FluentMigrator", LogLevel.Warning);
+        }
+
         builder.Configuration
             .AddJsonFile(
                 "appsettings.bundles.json",
@@ -36,7 +56,7 @@ public static class Program
         builder.Services.AddSingleton<Serenity.Data.IRowFieldsProvider,
             Serenity.Data.DefaultRowFieldsProvider>();
         builder.Services.AddSingleton<Serenity.Abstractions.IPermissionService,
-            AcademicCollectorDemo.Modules.AcademicPerformance.WebClient.DevelopmentPermissionService>();
+            DevelopmentPermissionService>();
         builder.Services.AddControllersWithViews();
         builder.Services.AddServiceEndpointConventions();
         builder.Services.AddDynamicScripts();
@@ -47,6 +67,23 @@ public static class Program
 
         WebApplication application = builder.Build();
         Serenity.Data.RowFieldsProvider.SetDefaultFrom(application.Services);
+
+        if (cleanDatabase)
+        {
+            if (!application.Environment.IsDevelopment())
+            {
+                Console.Error.WriteLine(
+                    "[HATA] Veritabanı temizleme yalnız Development " +
+                    "ortamında kullanılabilir.");
+                Environment.ExitCode = 1;
+                return;
+            }
+
+            application.Services.CleanAcademicDatabase();
+            Console.WriteLine(
+                "Uygulama tabloları ve verileri veritabanından kaldırıldı.");
+            return;
+        }
 
         application.Services.MigrateAcademicDatabase();
 

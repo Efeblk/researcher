@@ -1,9 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Persistence;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 
@@ -12,6 +14,10 @@ public sealed class AcademicDbContext : DbContext
     public DbSet<Researcher> Researchers { get; set; } = null!;
     public DbSet<OrcidProfile> OrcidProfiles { get; set; } = null!;
     public DbSet<OrcidWork> OrcidWorks { get; set; } = null!;
+    public DbSet<GoogleScholarProfile> GoogleScholarProfiles { get; set; } = null!;
+    public DbSet<GoogleScholarWork> GoogleScholarWorks { get; set; } = null!;
+    public DbSet<OpenAlexProfile> OpenAlexProfiles { get; set; } = null!;
+    public DbSet<OpenAlexWork> OpenAlexWorks { get; set; } = null!;
     public DbSet<WebOfScienceProfile> WebOfScienceProfiles { get; set; } = null!;
     public DbSet<WebOfScienceWork> WebOfScienceWorks { get; set; } = null!;
     public DbSet<WebOfSciencePeerReview> WebOfSciencePeerReviews { get; set; } = null!;
@@ -32,6 +38,8 @@ public sealed class AcademicDbContext : DbContext
             entity.ToTable("Researchers");
             entity.HasKey(researcher => researcher.Id);
             entity.Property(researcher => researcher.Orcid).HasMaxLength(19);
+            entity.Property(researcher => researcher.GoogleScholarId)
+                .HasMaxLength(32);
             entity.Property(researcher => researcher.WebOfScienceResearcherId)
                 .HasMaxLength(20);
             entity.Property(researcher => researcher.YoksisResearcherId)
@@ -40,6 +48,10 @@ public sealed class AcademicDbContext : DbContext
             entity.HasIndex(researcher => researcher.Orcid)
                 .IsUnique()
                 .HasFilter("[Orcid] IS NOT NULL");
+
+            entity.HasIndex(researcher => researcher.GoogleScholarId)
+                .IsUnique()
+                .HasFilter("[GoogleScholarId] IS NOT NULL");
 
             entity.HasIndex(researcher => researcher.WebOfScienceResearcherId)
                 .IsUnique()
@@ -57,6 +69,16 @@ public sealed class AcademicDbContext : DbContext
             entity.HasOne(researcher => researcher.OrcidProfile)
                 .WithOne(profile => profile.Researcher)
                 .HasForeignKey<OrcidProfile>(profile => profile.ResearcherId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(researcher => researcher.GoogleScholarProfile)
+                .WithOne(profile => profile.Researcher)
+                .HasForeignKey<GoogleScholarProfile>(profile => profile.ResearcherId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(researcher => researcher.OpenAlexProfile)
+                .WithOne(profile => profile.Researcher)
+                .HasForeignKey<OpenAlexProfile>(profile => profile.ResearcherId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(researcher => researcher.WebOfScienceProfile)
@@ -136,6 +158,76 @@ public sealed class AcademicDbContext : DbContext
             entity.Property(work => work.Category).HasConversion<string>().HasMaxLength(50);
             entity.Property(work => work.CategorySource).HasConversion<string>().HasMaxLength(50);
             entity.HasIndex(work => new { work.OrcidProfileId, work.PutCode }).IsUnique();
+        });
+
+        modelBuilder.Entity<GoogleScholarProfile>(entity =>
+        {
+            entity.ToTable("GoogleScholarProfiles");
+            entity.HasKey(profile => profile.Id);
+            entity.Property(profile => profile.DisplayName).HasMaxLength(500);
+            entity.Property(profile => profile.Affiliations).HasMaxLength(2000);
+            entity.Property(profile => profile.University).HasMaxLength(1000);
+            entity.Property(profile => profile.VerifiedEmail).HasMaxLength(500);
+            entity.Property(profile => profile.ProfileUrl).HasMaxLength(2000);
+            entity.HasIndex(profile => profile.ResearcherId).IsUnique();
+
+            entity.HasMany(profile => profile.Works)
+                .WithOne(work => work.GoogleScholarProfile)
+                .HasForeignKey(work => work.GoogleScholarProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<GoogleScholarWork>(entity =>
+        {
+            entity.ToTable("GoogleScholarWorks");
+            entity.HasKey(work => work.Id);
+            entity.Property(work => work.CitationId).HasMaxLength(200);
+            entity.Property(work => work.Title).HasMaxLength(2000);
+            entity.Property(work => work.Authors).HasMaxLength(4000);
+            entity.Property(work => work.Publication).HasMaxLength(2000);
+            entity.Property(work => work.Url).HasMaxLength(2000);
+            entity.HasIndex(work => new
+            {
+                work.GoogleScholarProfileId,
+                work.CitationId
+            }).IsUnique();
+        });
+
+        modelBuilder.Entity<OpenAlexProfile>(entity =>
+        {
+            entity.ToTable("OpenAlexProfiles");
+            entity.HasKey(profile => profile.Id);
+            entity.Property(profile => profile.OpenAlexAuthorId).HasMaxLength(100);
+            entity.Property(profile => profile.DisplayName).HasMaxLength(500);
+            entity.Property(profile => profile.LastKnownInstitution).HasMaxLength(1000);
+            entity.Property(profile => profile.TwoYearMeanCitedness)
+                .HasPrecision(18, 4);
+            entity.HasIndex(profile => profile.ResearcherId).IsUnique();
+            entity.HasIndex(profile => profile.OpenAlexAuthorId).IsUnique();
+
+            entity.HasMany(profile => profile.Works)
+                .WithOne(work => work.OpenAlexProfile)
+                .HasForeignKey(work => work.OpenAlexProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<OpenAlexWork>(entity =>
+        {
+            entity.ToTable("OpenAlexWorks");
+            entity.HasKey(work => work.Id);
+            entity.Property(work => work.OpenAlexWorkId).HasMaxLength(100);
+            entity.Property(work => work.Title).HasMaxLength(2000);
+            entity.Property(work => work.Doi).HasMaxLength(500);
+            entity.Property(work => work.WorkType).HasMaxLength(100);
+            entity.Property(work => work.Authors).HasMaxLength(4000);
+            entity.Property(work => work.SourceName).HasMaxLength(2000);
+            entity.Property(work => work.Url).HasMaxLength(2000);
+            entity.Property(work => work.OpenAccessUrl).HasMaxLength(2000);
+            entity.HasIndex(work => new
+            {
+                work.OpenAlexProfileId,
+                work.OpenAlexWorkId
+            }).IsUnique();
         });
 
         modelBuilder.Entity<WebOfScienceProfile>(entity =>
@@ -252,16 +344,8 @@ public sealed class AcademicDbContext : DbContext
                 .HasConversion<string>()
                 .HasMaxLength(50);
             entity.Property(summary => summary.Authors).HasMaxLength(4000);
-            entity.Property(summary => summary.Keywords).HasMaxLength(4000);
-            entity.Property(summary => summary.Topics).HasMaxLength(4000);
-            entity.Property(summary => summary.Language).HasMaxLength(20);
             entity.Property(summary => summary.Publication).HasMaxLength(2000);
-            entity.Property(summary => summary.Volume).HasMaxLength(100);
-            entity.Property(summary => summary.Issue).HasMaxLength(100);
-            entity.Property(summary => summary.FirstPage).HasMaxLength(100);
-            entity.Property(summary => summary.LastPage).HasMaxLength(100);
             entity.Property(summary => summary.PublicationUrl).HasMaxLength(2000);
-            entity.Property(summary => summary.PdfUrl).HasMaxLength(2000);
             entity.Property(summary => summary.Sources).HasMaxLength(200);
 
             entity.HasIndex(summary => summary.ResearcherId);

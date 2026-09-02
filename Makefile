@@ -1,7 +1,4 @@
 HOST ?= http://localhost:5001
-empty :=
-space := $(empty) $(empty)
-comma := ,
 
 .PHONY: help run build clean health collect
 
@@ -11,7 +8,7 @@ help:
 	@echo "  make build                Projeyi derler"
 	@echo "  make clean                .NET build çıktılarını temizler"
 	@echo "  make health               Sunucunun çalıştığını kontrol eder"
-	@echo "  make collect ID=...       ORCID ve/veya ResearcherID ile veri toplar"
+	@echo "  make collect ID=...       ORCID, Scholar ID ve/veya ResearcherID ile veri toplar"
 	@echo "  make health HOST=...      Farklı bir sunucu adresi kullanır"
 
 run:
@@ -34,14 +31,33 @@ collect:
 		exit 1; \
 	fi
 	@response_file="$$(mktemp -t academic-collect.XXXXXX)"; \
+	orcid=""; scholar_id=""; researcher_id=""; \
+	for identifier in $(strip $(ID)); do \
+		case "$$identifier" in \
+			????-????-????-????) orcid="$$identifier" ;; \
+			[A-Za-z]*-????-????) researcher_id="$$identifier" ;; \
+			*) scholar_id="$$identifier" ;; \
+		esac; \
+	done; \
+	request_body='{'; separator=''; \
+	if [ -n "$$orcid" ]; then \
+		request_body="$${request_body}$${separator}\"Orcid\":\"$${orcid}\""; separator=','; \
+	fi; \
+	if [ -n "$$scholar_id" ]; then \
+		request_body="$${request_body}$${separator}\"GoogleScholarId\":\"$${scholar_id}\""; separator=','; \
+	fi; \
+	if [ -n "$$researcher_id" ]; then \
+		request_body="$${request_body}$${separator}\"WebOfScienceResearcherId\":\"$${researcher_id}\""; \
+	fi; \
+	request_body="$${request_body}}"; \
 	start_time="$$(date +%s)"; \
 	echo "Toplama isteği gönderildi. Akademik kaynaklar bekleniyor..."; \
 	curl --silent --show-error \
 		--fail-with-body \
 		--request POST \
 		--header "Content-Type: application/json" \
-		--data '{"Identifiers":["$(subst $(space),"$(comma)",$(strip $(ID)))"]}' \
-		"$(HOST)/Services/AcademicPerformance/Researcher/CollectText" \
+		--data "$$request_body" \
+		"$(HOST)/Services/AcademicPerformance/V1/Collect" \
 		> "$$response_file" & \
 	request_pid="$$!"; \
 	while kill -0 "$$request_pid" 2>/dev/null; do \

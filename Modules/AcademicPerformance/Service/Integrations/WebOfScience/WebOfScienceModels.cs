@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 

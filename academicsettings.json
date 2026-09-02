@@ -2,6 +2,14 @@
   "Orcid": {
     "ApiBaseUrl": "https://pub.orcid.org/v3.0"
   },
+  "SearchApi": {
+    "ApiBaseUrl": "https://www.searchapi.io/api/v1/search",
+    "MaximumPages": 100
+  },
+  "OpenAlex": {
+    "ApiBaseUrl": "https://api.openalex.org",
+    "MaximumPages": 100
+  },
   "WebOfScience": {
     "ApiBaseUrl": "https://api.clarivate.com/apis/wos-starter/v1",
     "DatabaseIds": [

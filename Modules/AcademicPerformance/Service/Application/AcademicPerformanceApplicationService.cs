@@ -1,9 +1,12 @@
-using AcademicCollectorDemo.Modules.AcademicPerformance.Contracts.V1;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Application;
@@ -64,6 +67,7 @@ public sealed class AcademicPerformanceApplicationService :
         Researcher researcher = await ResolveResearcherAsync(
             request.ResearcherId,
             request.Orcid,
+            request.GoogleScholarId,
             request.WebOfScienceResearcherId);
         int publicationCount = await _dbContext.PublicationSummaries
             .AsNoTracking()
@@ -84,6 +88,7 @@ public sealed class AcademicPerformanceApplicationService :
         Researcher researcher = await ResolveResearcherAsync(
             request.ResearcherId,
             request.Orcid,
+            request.GoogleScholarId,
             request.WebOfScienceResearcherId);
         IQueryable<PublicationSummary> query = _dbContext.PublicationSummaries
             .AsNoTracking()
@@ -211,11 +216,14 @@ public sealed class AcademicPerformanceApplicationService :
     private async Task<Researcher> ResolveResearcherAsync(
         int? researcherId,
         string? orcid,
+        string? googleScholarId,
         string? webOfScienceResearcherId)
     {
         IQueryable<Researcher> query = _dbContext.Researchers
             .AsNoTracking()
             .Include(researcher => researcher.OrcidProfile)
+            .Include(researcher => researcher.GoogleScholarProfile)
+            .Include(researcher => researcher.OpenAlexProfile)
             .Include(researcher => researcher.WebOfScienceProfile);
 
         if (researcherId > 0)
@@ -226,6 +234,12 @@ public sealed class AcademicPerformanceApplicationService :
         {
             string normalizedOrcid = orcid.Trim();
             query = query.Where(researcher => researcher.Orcid == normalizedOrcid);
+        }
+        else if (!string.IsNullOrWhiteSpace(googleScholarId))
+        {
+            string normalizedGoogleScholarId = googleScholarId.Trim();
+            query = query.Where(researcher =>
+                researcher.GoogleScholarId == normalizedGoogleScholarId);
         }
         else if (!string.IsNullOrWhiteSpace(webOfScienceResearcherId))
         {
@@ -238,7 +252,8 @@ public sealed class AcademicPerformanceApplicationService :
         else
         {
             throw new ArgumentException(
-                "ResearcherId, ORCID veya Web of Science ResearcherID verilmelidir.");
+                "ResearcherId, ORCID, Google Scholar ID veya Web of Science " +
+                "ResearcherID verilmelidir.");
         }
 
         return await query.FirstOrDefaultAsync()
@@ -254,6 +269,12 @@ public sealed class AcademicPerformanceApplicationService :
             identifiers.Add(request.Orcid.Trim());
         }
 
+        if (!string.IsNullOrWhiteSpace(request.GoogleScholarId))
+        {
+            identifiers.Add("--scholar");
+            identifiers.Add(request.GoogleScholarId.Trim());
+        }
+
         if (!string.IsNullOrWhiteSpace(request.WebOfScienceResearcherId))
         {
             identifiers.Add(request.WebOfScienceResearcherId.Trim());
@@ -262,7 +283,8 @@ public sealed class AcademicPerformanceApplicationService :
         if (identifiers.Count == 0)
         {
             throw new ArgumentException(
-                "ORCID veya Web of Science ResearcherID verilmelidir.");
+                "ORCID, Google Scholar ID veya Web of Science ResearcherID " +
+                "verilmelidir.");
         }
 
         return identifiers;
@@ -283,12 +305,65 @@ public sealed class AcademicPerformanceApplicationService :
             AcademicTitle = researcher.AcademicTitle,
             Department = researcher.Department,
             Orcid = researcher.Orcid,
+            GoogleScholarId = researcher.GoogleScholarId,
             WebOfScienceResearcherId = researcher.WebOfScienceResearcherId,
             YoksisResearcherId = researcher.YoksisResearcherId,
             LastUpdatedAt = researcher.LastUpdatedAt,
             OrcidProfile = MapOrcidProfile(researcher.OrcidProfile),
+            GoogleScholarProfile = MapGoogleScholarProfile(
+                researcher.GoogleScholarProfile),
+            OpenAlexProfile = MapOpenAlexProfile(researcher.OpenAlexProfile),
             WebOfScienceProfile = MapWebOfScienceProfile(
                 researcher.WebOfScienceProfile)
+        };
+    }
+
+    private static OpenAlexProfileSummaryDto? MapOpenAlexProfile(
+        OpenAlexProfile? profile)
+    {
+        if (profile is null)
+        {
+            return null;
+        }
+
+        return new OpenAlexProfileSummaryDto
+        {
+            OpenAlexAuthorId = profile.OpenAlexAuthorId,
+            DisplayName = profile.DisplayName,
+            LastKnownInstitution = profile.LastKnownInstitution,
+            WorksCount = profile.WorksCount,
+            CollectedWorksCount = profile.Works?.Count ?? profile.WorksCount,
+            CitedByCount = profile.CitedByCount,
+            HIndex = profile.HIndex,
+            I10Index = profile.I10Index,
+            TwoYearMeanCitedness = profile.TwoYearMeanCitedness,
+            LastUpdatedAt = profile.LastUpdatedAt
+        };
+    }
+
+    private static GoogleScholarProfileSummaryDto? MapGoogleScholarProfile(
+        GoogleScholarProfile? profile)
+    {
+        if (profile is null)
+        {
+            return null;
+        }
+
+        return new GoogleScholarProfileSummaryDto
+        {
+            DisplayName = profile.DisplayName,
+            Affiliations = profile.Affiliations,
+            University = profile.University,
+            ProfileUrl = profile.ProfileUrl,
+            CitationCount = profile.CitationCount,
+            CitationCountRecent = profile.CitationCountRecent,
+            HIndex = profile.HIndex,
+            HIndexRecent = profile.HIndexRecent,
+            I10Index = profile.I10Index,
+            I10IndexRecent = profile.I10IndexRecent,
+            MetricsSinceYear = profile.MetricsSinceYear,
+            DocumentsCount = profile.DocumentsCount,
+            LastUpdatedAt = profile.LastUpdatedAt
         };
     }
 
@@ -345,12 +420,10 @@ public sealed class AcademicPerformanceApplicationService :
             Id = publication.Id,
             Title = publication.Title,
             PublicationYear = publication.PublicationYear,
-            PublicationDate = publication.PublicationDate,
             Doi = publication.Doi,
             Category = publication.Category.ToString(),
             Authors = publication.Authors,
             Publication = publication.Publication,
-            CitedByCount = publication.CitedByCount,
             PublicationUrl = publication.PublicationUrl,
             Sources = publication.Sources,
             IsApprovedForDisplay = isApproved

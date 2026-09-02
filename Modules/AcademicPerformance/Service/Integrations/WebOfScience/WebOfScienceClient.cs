@@ -1,6 +1,6 @@
 using System.Net;
 using System.Text.Json;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using Microsoft.Extensions.Configuration;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;

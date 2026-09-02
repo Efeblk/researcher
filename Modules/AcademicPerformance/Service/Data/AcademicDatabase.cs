@@ -37,6 +37,20 @@ public static class AcademicDatabase
         migrationRunner.MigrateUp();
     }
 
+    public static void CleanAcademicDatabase(this IServiceProvider services)
+    {
+        using IServiceScope scope = services.CreateScope();
+        IMigrationRunner migrationRunner = scope.ServiceProvider
+            .GetRequiredService<IMigrationRunner>();
+
+        migrationRunner.MigrateDown(0);
+
+        AcademicDbContext dbContext = scope.ServiceProvider
+            .GetRequiredService<AcademicDbContext>();
+        dbContext.Database.ExecuteSqlRaw(
+            "DROP TABLE IF EXISTS [dbo].[VersionInfo]");
+    }
+
     private static string GetConnectionString(IConfiguration configuration)
     {
         string? connectionString = configuration.GetConnectionString(

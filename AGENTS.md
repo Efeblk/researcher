@@ -2,9 +2,9 @@
 
 ## Project Structure & Module Organization
 
-This is a .NET 10 application built with Serenity and Entity Framework Core. `Program.cs` configures the host and dependency injection. `Modules/AcademicPerformance/` has three main areas: `Service/` contains client-independent V1 contracts in `Contracts/V1`, application workflows, HTTP endpoints, persistence, provider integrations, researchers, and normalized works; `WebClient/` contains the Razor page, Serenity Row/Columns, TypeScript grid, and UI-specific endpoint adapters; `Background/` is reserved for planned scheduled server jobs. FluentMigrator schema changes live in `Service/Data/Migrations/` and run at startup. `AcademicPerformanceModule.cs` wires these areas together. Shared Razor views are in `Views/`, technical notes in `docs/`, generated browser assets in `wwwroot/esm/`, and request examples in `Requests/AcademicPerformance.http`.
+This is a .NET 10 application built with Serenity and Entity Framework Core. `Program.cs` configures the host; host-only services live in `Host/`. `Modules/AcademicPerformance/` has three main areas: `Service/` contains V1 API contracts/endpoints, application workflows, persistence, provider integrations, researchers, and normalized works; `WebClient/` contains pages, Serenity publication metadata, and UI-only endpoint adapters; `Background/` is reserved for scheduled jobs. Keep namespaces aligned with the responsibility folders such as `Researchers/Collection`, `Researchers/Models`, `Works/Processing`, and `Works/Models`. FluentMigrator changes live in `Service/Data/Migrations/Core` or `Providers` and run at startup. Technical notes are in `docs/`, generated browser assets in `wwwroot/esm/`, and request examples in `Requests/AcademicPerformance.http`.
 
-The application uses SQL Server only; local defaults target SQL Server LocalDB and production connection strings must come from secure configuration. YÖKSİS SOAP code is under `Service/Integrations/Yoksis/` and its HTTP entry point is `Service/Endpoints/YoksisEndpoint.cs`. There is currently no separate test project.
+The application uses SQL Server only; local defaults target SQL Server LocalDB and production connection strings must come from secure configuration. Public DTOs are under `Service/Api/V1/Contracts`, supported HTTP entry points under `Service/Api/V1/Endpoints`, and YÖKSİS code under `Service/Integrations/Yoksis`. There is currently no separate test project.
 
 ## Build, Test, and Development Commands
 
@@ -13,7 +13,7 @@ The application uses SQL Server only; local defaults target SQL Server LocalDB a
 - `make build` or `dotnet build` compiles server and front-end assets.
 - `make run` or `dotnet run` starts the service on `http://localhost:5001`.
 - `make health` checks whether the server is responding.
-- `make collect ID="0000-0001-8560-7482"` collects data for one or more comma-separated identifiers.
+- `make collect ID="0000-0001-8560-7482"` collects data for one or more space-separated identifiers.
 - `make clean` removes .NET build outputs and never deletes the SQL Server database.
 
 Run `dotnet test` after tests are added. Also verify affected endpoints.

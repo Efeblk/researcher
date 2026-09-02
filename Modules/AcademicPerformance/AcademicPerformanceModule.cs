@@ -1,10 +1,15 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Application;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Works;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Collection;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Persistence;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Persistence;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -23,6 +28,8 @@ public static class AcademicPerformanceModule
         services.AddSingleton<AcademicWorkCategorizer>();
         services.AddSingleton<ResearcherCollectionFeedback>();
         services.AddTransient<OrcidClient>();
+        services.AddTransient<GoogleScholarClient>();
+        services.AddTransient<OpenAlexClient>();
         services.AddTransient<WebOfScienceClient>();
         services.AddTransient<YoksisClient>();
         services.AddTransient<YoksisCollectionService>();
