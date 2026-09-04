@@ -55,3 +55,9 @@ Changes reach `main` through a short-lived branch and a pull request.
 Keep each pull request focused on one change. Explain the behavior, list the validation commands, mention schema or configuration changes, and include screenshots for UI changes. Do not merge when required checks are failing.
 
 Prefer **Squash and merge** so each pull request becomes one clear commit on `main`.
+
+## Automated review
+
+Every pull request must pass the `Build` check. When the pull request author has an eligible paid Copilot plan, GitHub Copilot also reviews new pull requests and new pushes using the repository guidance in `.github/copilot-instructions.md` and `AGENTS.md`.
+
+CI and AI review have different roles: CI gives a repeatable pass or fail result, while AI review suggests possible problems that still require developer judgment. Resolve or answer each useful review comment before merging.
