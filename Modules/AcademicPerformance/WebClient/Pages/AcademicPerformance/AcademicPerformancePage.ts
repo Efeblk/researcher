@@ -1,4 +1,4 @@
-import { EntityGrid, ListRequest, ServiceResponse, serviceRequest } from "@serenity-is/corelib";
+import { addLocalText, EntityGrid, ListRequest, ServiceResponse, serviceRequest } from "@serenity-is/corelib";
 import { Column } from "@serenity-is/sleekgrid";
 import { restoreProviderIdentifiers } from "./ProviderIdentifiers";
 
@@ -273,9 +273,23 @@ const saveSelectionsButton = document.querySelector<HTMLButtonElement>(
     "#SavePublicationSelections");
 const selectionCount = document.querySelector<HTMLElement>("#SelectionCount");
 const selectionStatus = document.querySelector<HTMLElement>("#SelectionStatus");
+addLocalText({
+    Controls: {
+        Pager: {
+            Page: "Sayfa",
+            PageStatus: "{total} yayından {from}–{to} arası gösteriliyor",
+            NoRowStatus: "Gösterilecek yayın yok",
+            LoadingStatus: "Yayınlar yükleniyor...",
+            DefaultLoadError: "Yayınlar yüklenemedi."
+        },
+        QuickSearch: {
+            Placeholder: "Yayınlarda ara...",
+            Hint: "Yayın başlığında ara",
+            FieldSelection: "Arama alanını seç"
+        }
+    }
+});
 const grid = new PublicationSummaryGrid({ element: "#PublicationGrid" });
-document.querySelector<HTMLInputElement>(".s-QuickSearchInput")
-    ?.setAttribute("placeholder", "Yayınlarda ara...");
 
 function valueOf(id: string) {
     return document.querySelector<HTMLInputElement>(`#${id}`)?.value.trim() ?? "";

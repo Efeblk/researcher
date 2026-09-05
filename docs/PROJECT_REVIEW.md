@@ -27,6 +27,7 @@ ve uygulanmış migration'lar değiştirilmedi.
 | Web of Science | Yapılandırılmış tek veritabanlı önbellek kullanılmıyor ve sayfalama sınırsız kalabiliyordu. Önbellek seçili veritabanlarını izliyor; varsayılan 100 sayfa sınırı uygulanıyor. |
 | Arayüz kimlikleri | Hatırlanan kimlikler yüklenirken önceki aramadaki diğer sağlayıcı kimlikleri kalıyordu. Eski alanlar temizleniyor ve bozuk localStorage güvenle ele alınıyor. |
 | Arayüz durumu | Yeni araştırma sırasında eski akademisyenin grid'i kalabiliyordu. Grid ve seçim durumu sıfırlanıyor; kimlik alanları işlem bitene kadar kilitleniyor. |
+| Arayüz metinleri | Grid araması ve sayfalama alanında çeviri anahtarları görünüyordu. Kontroller oluşturulmadan önce Türkçe metinler kaydediliyor. |
 | Doğrulama | Paketleme başarılı olsa da dört TypeScript tip hatası tespit edilmiyordu. Tipler düzeltildi; CI'a tip kontrolü, ön yüz testleri, xUnit ve gerçek SQL Server testleri eklendi. |
 | Host yapılandırması | User Secrets her ortamda yükleniyordu. Artık yalnız Development ortamında yükleniyor; test host'u Testing ortamında açılıyor. |
 
@@ -38,6 +39,17 @@ SQL testleri gerçek FluentMigrator zincirini boş bir test veritabanında uygul
 HTTP testi gerçek host process'inde GetResearcher, ListPublications ve geçersiz
 Collect isteğini doğrular. Sağlayıcı yanıtları sentetiktir; ücretli servisler ve
 gerçek kişisel veriler kullanılmaz.
+
+Tarayıcıda sentetik API yanıtlarıyla bozuk localStorage temizliği, araştırma
+sırasında alanların kilitlenmesi, eski yayın ve seçimlerin temizlenmesi, kayıtlı
+onayın yüklenmesi ve Türkçe grid metinleri doğrulandı. Serenity statik dosyaları
+test host'unda başarıyla yükleniyor.
+
+![Sentetik verilerle yayın seçimi ve Türkçe grid kontrolleri](images/project-review.png)
+
+HTTP testinde sentetik bir akademisyen için `GetResearcher` kaydedilen kimliği
+döndürür, `ListPublications` yanıtı `{"Entities":[],"TotalCount":0}` içerir;
+geçersiz ORCID ile `Collect` isteği ise `Error` alanıyla reddedilir.
 
 SQL Server test yaklaşımı Microsoft'un
 [üretim veritabanı motoruyla test rehberi](https://learn.microsoft.com/en-us/ef/core/testing/choosing-a-testing-strategy)
