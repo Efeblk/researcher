@@ -132,6 +132,17 @@ public sealed class YoksisAcademicWorkSynchronizer
         work.Provider = AcademicWorkProvider.Yoksis;
         work.CategorySource = AcademicWorkCategorySource.Yoksis;
         work.SourceName = "YÖKSİS";
+        if (string.IsNullOrWhiteSpace(work.SourceId))
+        {
+            // Without a provider ID, preserve distinct source records. Sorting
+            // fields makes the fallback stable when SOAP field order changes.
+            string canonicalRecord = JsonSerializer.Serialize(record
+                .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                .ToDictionary(pair => pair.Key, pair => pair.Value));
+            work.ProviderWorkId = $"{work.SourceType}:generated:" +
+                Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonicalRecord)))
+                    .ToLowerInvariant();
+        }
         work.ProviderPayload = JsonSerializer.Serialize(record);
         work.SyncedAt = DateTime.UtcNow;
         return work;
@@ -310,8 +321,7 @@ public sealed class YoksisAcademicWorkSynchronizer
         work = new AcademicWork();
         work.ResearcherId = researcherId;
         work.ProviderWorkId = string.IsNullOrWhiteSpace(sourceId)
-            ? $"{sourceType}:generated:" + Convert.ToHexString(SHA256.HashData(
-                Encoding.UTF8.GetBytes($"{title?.Trim()}|{dateText?.Trim()}|{doi?.Trim()}"))).ToLowerInvariant()
+            ? string.Empty
             : $"{sourceType}:{sourceId}";
         work.Title = title;
         work.PublicationDate = ParseDate(dateText);

@@ -93,6 +93,29 @@ public sealed class PublicationSummarySynchronizerTests(SqlServerFixture fixture
     };
 
     [Fact]
+    public async Task SyncAsync_SelectedTitleMatchesTwoDois_DoesNotTransferApproval()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        var researcher = new Researcher();
+        db.Researchers.Add(researcher);
+        await db.SaveChangesAsync();
+        var original = Work(researcher.Id, "Ambiguous title", null);
+        db.AcademicWorks.Add(original);
+        await db.SaveChangesAsync();
+        var sync = new PublicationSummarySynchronizer(db);
+        await sync.SyncAsync(researcher.Id);
+        var selected = await db.PublicationSummaries.SingleAsync(x => x.ResearcherId == researcher.Id);
+        db.PublicationDisplayApprovals.Add(new() { ResearcherId = researcher.Id, PublicationSummaryId = selected.Id, ApprovedAt = DateTime.UtcNow });
+        db.AcademicWorks.Remove(original);
+        db.AcademicWorks.AddRange(Work(researcher.Id, "Ambiguous title", "10.1234/first"), Work(researcher.Id, "Ambiguous title", "10.1234/second"));
+        await db.SaveChangesAsync();
+
+        Assert.Equal(2, await sync.SyncAsync(researcher.Id));
+        Assert.False(await db.PublicationDisplayApprovals.AnyAsync(x => x.ResearcherId == researcher.Id));
+    }
+
+    [Fact]
     public async Task SyncAsync_MergedGroupsChangePreferredTitle_PreservesSelectedSummary()
     {
         using var scope = fixture.Services.CreateScope();

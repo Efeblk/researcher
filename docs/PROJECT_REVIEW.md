@@ -20,7 +20,8 @@ ve uygulanmış migration'lar değiştirilmedi.
 | Yayın onayları | Gruplar birleştiğinde tercih edilen başlığın değişmesi onayı düşürebiliyordu. Tek anlamlı eşleşmede mevcut onaylı özet korunuyor; belirsiz eşleşmede onay başka yayına taşınmıyor. |
 | DOI normalizasyonu | `dx.doi.org` bağlantıları düz DOI'den ayrı sayılıyordu. Eski ve yeni DOI URL biçimleri normalize ediliyor. |
 | YÖKSİS artımlı güncelleme | `UpdatedAfter` ile gelen kısmi liste tam liste gibi işlenip eski kayıtlar, yayınlar ve onaylar silinebiliyordu. Artımlı güncelleme yalnız gelen kayıtları güncelliyor. |
-| YÖKSİS eksik eser ID | ID'siz eserlerin tamamı tek gruba düşüyordu. Eser türü ve metadatadan kararlı bir yedek kimlik oluşturuluyor. |
+| YÖKSİS eksik eser ID | ID'siz eserlerin tamamı tek gruba düşüyordu. Alan sırasından bağımsız, kaynak kaydın tüm içeriğinden bir yedek kimlik oluşturuluyor; aynı başlıklı farklı yazar, dergi veya bağlantı içeren kayıtlar korunuyor. |
+| Özet eşleştirme maliyeti | Belirsizlik her aday içinde tekrar hesaplanıyordu. Fingerprint eşleştirmesi indeksleniyor; belirsizlik her eski özet için bir kez hesaplanıp ikinci eşleşmede duruyor. |
 | YÖKSİS hassas yanıt | Başarılı SOAP yanıtları içindeki geri yansıtılmış T.C. kimlik numarası ve kimlik bilgileri korunabiliyordu. Kayıt alanları, sonuç mesajı ve ham XML çıkarılmadan önce maskeleme uygulanıyor. |
 | ORCID yanıtı | İsteğe bağlı bölümler yokken `GetRawText()` hata veriyordu. Eksik bölümler null olarak ele alınıyor; geçersiz yıl tarih oluşturmayı düşürmüyor. |
 | OpenAlex sayacı | Profil tekrar okunurken toplanmış eser sayısı yerine sağlayıcının toplam sayısı gösteriliyordu. Kaydedilmiş eser sayısı SQL üzerinden hesaplanıyor. |
@@ -34,7 +35,9 @@ ve uygulanmış migration'lar değiştirilmedi.
 ## Doğrulama
 
 İlk 19 regresyon senaryosunun 16'sı düzeltme öncesinde başarısızdı.
-Düzeltmelerden sonra genişletilmiş 24 C# testi ve 7 ön yüz testi geçti.
+Düzeltmelerden sonra genişletilmiş 28 C# testi ve 7 ön yüz testi geçti.
+Copilot geri bildirimi üzerine eklenen üç YÖKSİS metadata çakışma senaryosu da
+düzeltme öncesinde başarısız, düzeltme sonrasında başarılı oldu.
 SQL testleri gerçek FluentMigrator zincirini boş bir test veritabanında uygular;
 HTTP testi gerçek host process'inde GetResearcher, ListPublications ve geçersiz
 Collect isteğini doğrular. Sağlayıcı yanıtları sentetiktir; ücretli servisler ve
@@ -63,6 +66,10 @@ ile uyumludur.
 - Canlı ORCID, OpenAlex, SearchApi, Clarivate ve YÖKSİS sözleşmeleri bu incelemede
   gerçek hesaplarla uçtan uca denenmedi; fixture testleri ücretli API erişiminin
   yerine geçmez.
+- Kaynak eser ID'si bulunmayan YÖKSİS kayıtlarında içerik değişikliği yeni bir
+  yedek kimlik üretir. Artımlı yanıtta eski sürüm korunabilir; kaynak ID'si olmadan
+  bir güncelleme ile ayrı eseri kesin ayırt etmek mümkün değildir. Ortak yayın
+  özetleri ayrıca DOI/başlık kurallarıyla tekilleştirilir.
 - Uzun toplama işlemleri hâlâ HTTP isteği içinde çalışır. Uçtan uca iptal,
   sağlayıcıya göre yeniden deneme/kota yönetimi ve aynı akademisyenin eşzamanlı
   güncellemelerini koordine eden arka plan işi ayrı bir geliştirme konusudur.

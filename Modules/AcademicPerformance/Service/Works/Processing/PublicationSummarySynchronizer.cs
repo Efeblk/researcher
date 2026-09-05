@@ -29,18 +29,33 @@ public sealed class PublicationSummarySynchronizer
         Dictionary<PublicationSummary, List<AcademicWork>> desiredGroups = CreateGroups(works)
             .ToDictionary(group => CreateSummary(researcherId, group));
         List<PublicationSummary> desired = desiredGroups.Keys.ToList();
+        Dictionary<string, PublicationSummary> desiredByFingerprint = desired
+            .ToDictionary(summary => summary.Fingerprint, StringComparer.Ordinal);
+        Dictionary<PublicationSummary, List<PublicationSummary>> existingMatches = desired
+            .ToDictionary(summary => summary, _ => new List<PublicationSummary>());
         HashSet<int> retainedIds = [];
+
+        foreach (PublicationSummary summary in existing)
+        {
+            if (desiredByFingerprint.TryGetValue(summary.Fingerprint, out PublicationSummary? exact))
+            {
+                existingMatches[exact].Add(summary);
+                continue;
+            }
+
+            // Evaluate ambiguity once per stored summary, stopping at two
+            // matches. Only an unambiguous match can transfer a selection.
+            List<PublicationSummary> candidates = desired
+                .Where(candidate => IsSamePublication(summary, candidate, desiredGroups[candidate]))
+                .Take(2)
+                .ToList();
+            if (candidates.Count == 1)
+                existingMatches[candidates[0]].Add(summary);
+        }
 
         foreach (PublicationSummary candidate in desired)
         {
-            // Only move a title-based selection when it identifies exactly one
-            // publication. Missing metadata must not transfer consent between DOIs.
-            List<PublicationSummary> matches = existing.Where(summary =>
-                !retainedIds.Contains(summary.Id) &&
-                (summary.Fingerprint == candidate.Fingerprint ||
-                    IsSamePublication(summary, candidate, desiredGroups[candidate]) &&
-                    !desired.Any(other => other.Fingerprint == summary.Fingerprint) &&
-                    desired.Count(other => IsSamePublication(summary, other, desiredGroups[other])) == 1))
+            List<PublicationSummary> matches = existingMatches[candidate]
                 .OrderByDescending(summary => summary.DisplayApproval is not null)
                 .ThenByDescending(summary => summary.Fingerprint == candidate.Fingerprint)
                 .ThenBy(summary => summary.Id)

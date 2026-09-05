@@ -69,4 +69,31 @@ public sealed class YoksisPersistenceTests(SqlServerFixture fixture)
         Assert.Equal(2, await sync.SyncAsync(researcher.Id, response));
         Assert.Equal(2, await sync.SyncAsync(researcher.Id, response));
     }
+
+    [Theory]
+    [InlineData("YAZAR_ADI")]
+    [InlineData("DERGI_ADI")]
+    [InlineData("ERISIM_LINKI")]
+    public async Task SyncAsync_SameTitleWithoutIdsAndDifferentMetadata_PreservesBothRecords(string field)
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        var researcher = new Researcher();
+        db.Researchers.Add(researcher);
+        await db.SaveChangesAsync();
+        var first = new Dictionary<string, string?> { ["MAKALE_ADI"] = "Shared title", ["YIL"] = "2026", [field] = "First value" };
+        var second = new Dictionary<string, string?>(first) { [field] = "Second value" };
+        var response = new YoksisCollectResponse
+        {
+            Categories = [new() { OperationName = "getMakaleBilgisiDetayV1", IsSuccess = true, Records = [first, second] }]
+        };
+        var sync = new YoksisAcademicWorkSynchronizer(db);
+        Assert.Equal(2, await sync.SyncAsync(researcher.Id, response));
+        var ids = await db.AcademicWorks.Where(x => x.ResearcherId == researcher.Id).OrderBy(x => x.Id).Select(x => x.Id).ToListAsync();
+
+        response.Categories[0].Records = response.Categories[0].Records
+            .Select(record => record.Reverse().ToDictionary(pair => pair.Key, pair => pair.Value)).Reverse().ToList();
+        Assert.Equal(2, await sync.SyncAsync(researcher.Id, response, isIncremental: true));
+        Assert.Equal(ids, await db.AcademicWorks.Where(x => x.ResearcherId == researcher.Id).OrderBy(x => x.Id).Select(x => x.Id).ToListAsync());
+    }
 }
