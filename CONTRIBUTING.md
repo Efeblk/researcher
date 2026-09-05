@@ -23,6 +23,9 @@ Changes reach `main` through a short-lived branch and a pull request.
 
    ```powershell
    dotnet build
+   dotnet test AcademicCollectorDemo.Tests/AcademicCollectorDemo.Tests.csproj
+   npm run typecheck
+   npm test
    git status
    git diff
    ```
@@ -61,6 +64,8 @@ Prefer **Squash and merge** so each pull request becomes one clear commit on `ma
 Every pull request must pass the `Build`, `Dependency Review`, and both `CodeQL` checks. When the pull request author has an eligible Copilot plan, including Copilot Student, GitHub Copilot also reviews new pull requests and new pushes using the repository guidance in `.github/copilot-instructions.md` and `AGENTS.md`.
 
 CI and AI review have different roles: CI gives a repeatable pass or fail result, while AI review suggests possible problems that still require developer judgment. Resolve or answer each useful review comment before merging.
+
+The `Build` check also runs the xUnit suite against an isolated SQL Server, TypeScript type checking, and the front-end behavior tests. On Windows the SQL tests default to LocalDB; elsewhere set `ACADEMIC_TEST_SQLSERVER` to a dedicated test SQL Server. Tests generate and remove only their own database and do not load application connection strings or provider credentials.
 
 ## Security automation
 

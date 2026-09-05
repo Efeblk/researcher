@@ -6,11 +6,11 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collecti
 public sealed class ResearcherIdentifierParser
 {
     private static readonly Regex OrcidPattern = new(
-        @"^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$",
-        RegexOptions.IgnoreCase);
+        @"^[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static readonly Regex WebOfScienceResearcherIdPattern = new(
-        @"^[A-Z]{1,3}-\d{4}-\d{4}$",
-        RegexOptions.IgnoreCase);
+        @"^[A-Z]{1,3}-[0-9]{4}-[0-9]{4}$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static readonly Regex GoogleScholarIdPattern = new(
         @"^[A-Za-z0-9_-]{12}$",
         RegexOptions.CultureInvariant);
@@ -27,7 +27,7 @@ public sealed class ResearcherIdentifierParser
 
         for (index = 0; index < identifiers.Count; index++)
         {
-            identifier = identifiers[index];
+            identifier = identifiers[index]?.Trim() ?? string.Empty;
 
             if (TryAssignNamedIdentifier(researcher, identifiers, ref index))
             {
@@ -39,7 +39,7 @@ public sealed class ResearcherIdentifierParser
                 continue;
             }
 
-            throw new ArgumentException($"Bilinmeyen veya eksik kimlik: {identifier}");
+            throw new ArgumentException("Bilinmeyen veya eksik sağlayıcı kimliği.");
         }
 
         if (string.IsNullOrWhiteSpace(researcher.Orcid) &&
@@ -84,7 +84,7 @@ public sealed class ResearcherIdentifierParser
         if (argumentName == "--orcid")
         {
             EnsureIdentifierIsEmpty(researcher.Orcid, "ORCID");
-            researcher.Orcid = identifier;
+            researcher.Orcid = NormalizeOrcid(identifier);
         }
         else if (argumentName is "--scholar" or "--googlescholar")
         {
@@ -96,7 +96,7 @@ public sealed class ResearcherIdentifierParser
             EnsureIdentifierIsEmpty(
                 researcher.WebOfScienceResearcherId,
                 "Web of Science ResearcherID");
-            researcher.WebOfScienceResearcherId = identifier;
+            researcher.WebOfScienceResearcherId = NormalizeResearcherId(identifier);
         }
 
         return true;
@@ -107,7 +107,7 @@ public sealed class ResearcherIdentifierParser
         if (OrcidPattern.IsMatch(identifier))
         {
             EnsureIdentifierIsEmpty(researcher.Orcid, "ORCID");
-            researcher.Orcid = identifier;
+            researcher.Orcid = NormalizeOrcid(identifier);
             return true;
         }
 
@@ -130,9 +130,25 @@ public sealed class ResearcherIdentifierParser
         return false;
     }
 
-    private static string NormalizeGoogleScholarId(string identifier)
+    public static string NormalizeOrcid(string? identifier)
     {
-        string normalized = identifier.Trim();
+        string normalized = identifier?.Trim().ToUpperInvariant() ?? string.Empty;
+        if (!OrcidPattern.IsMatch(normalized))
+            throw new ArgumentException("ORCID biçimi geçersiz.");
+        return normalized;
+    }
+
+    public static string NormalizeResearcherId(string? identifier)
+    {
+        string normalized = identifier?.Trim().ToUpperInvariant() ?? string.Empty;
+        if (!WebOfScienceResearcherIdPattern.IsMatch(normalized))
+            throw new ArgumentException("Web of Science ResearcherID biçimi geçersiz.");
+        return normalized;
+    }
+
+    public static string NormalizeGoogleScholarId(string? identifier)
+    {
+        string normalized = identifier?.Trim() ?? string.Empty;
 
         if (!GoogleScholarIdPattern.IsMatch(normalized))
         {

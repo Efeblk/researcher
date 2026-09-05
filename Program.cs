@@ -40,13 +40,19 @@ public static class Program
             .AddJsonFile(
                 "academicsettings.json",
                 optional: false,
-                reloadOnChange: true)
-            .AddUserSecrets(
+                reloadOnChange: true);
+
+        if (builder.Environment.IsDevelopment())
+        {
+            builder.Configuration.AddUserSecrets(
                 typeof(Program).Assembly,
                 optional: true,
-                reloadOnChange: true)
+                reloadOnChange: true);
+        }
+
+        builder.Configuration
             .AddEnvironmentVariables()
-            .AddCommandLine(args);
+            .AddCommandLine(hostArguments);
 
         builder.Services.AddAcademicPerformanceModule(builder.Configuration);
         builder.Services.AddApplicationPartsTypeSource();

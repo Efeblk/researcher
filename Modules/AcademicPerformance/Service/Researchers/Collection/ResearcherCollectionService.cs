@@ -370,14 +370,14 @@ public sealed class ResearcherCollectionService
         }
     }
 
-    private static bool HasCompleteWebOfScienceRawData(
+    private bool HasCompleteWebOfScienceRawData(
         WebOfScienceProfile? profile)
     {
         int index = 0;
         WebOfScienceWork? work = null;
 
         if (profile is null ||
-            !HasBothWebOfScienceDatabaseResponses(
+            !HasConfiguredWebOfScienceDatabaseResponses(
                 profile.DocumentPagesJson) ||
             profile.Works is null)
         {
@@ -397,13 +397,11 @@ public sealed class ResearcherCollectionService
         return true;
     }
 
-    private static bool HasBothWebOfScienceDatabaseResponses(
+    private bool HasConfiguredWebOfScienceDatabaseResponses(
         string? documentPagesJson)
     {
         JsonDocument? document = null;
         JsonElement root = default;
-        JsonElement coreCollectionPages = default;
-        JsonElement allDatabasePages = default;
 
         if (string.IsNullOrWhiteSpace(documentPagesJson))
         {
@@ -416,10 +414,9 @@ public sealed class ResearcherCollectionService
             root = document.RootElement;
 
             return root.ValueKind == JsonValueKind.Object &&
-                root.TryGetProperty("WOS", out coreCollectionPages) &&
-                coreCollectionPages.ValueKind == JsonValueKind.Array &&
-                root.TryGetProperty("WOK", out allDatabasePages) &&
-                allDatabasePages.ValueKind == JsonValueKind.Array;
+                _webOfScienceClient.GetDatabaseIds().All(database =>
+                    root.TryGetProperty(database, out JsonElement pages) &&
+                    pages.ValueKind == JsonValueKind.Array && pages.GetArrayLength() > 0);
         }
         catch (JsonException)
         {

@@ -44,6 +44,7 @@ public sealed class PublicationSummaryEndpoint : ServiceEndpoint
         List<PublicationSummary> entities = await query
             .OrderByDescending(item => item.PublicationYear)
             .ThenBy(item => item.Title)
+            .ThenBy(item => item.Id)
             .Skip(skip)
             .Take(take)
             .ToListAsync();

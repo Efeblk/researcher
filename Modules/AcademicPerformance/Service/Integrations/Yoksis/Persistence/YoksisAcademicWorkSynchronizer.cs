@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
@@ -23,7 +25,8 @@ public sealed class YoksisAcademicWorkSynchronizer
 
     public async Task<int> SyncAsync(
         int researcherId,
-        YoksisCollectResponse response)
+        YoksisCollectResponse response,
+        bool isIncremental = false)
     {
         List<AcademicWork>? existingWorks = null;
         List<AcademicWork>? incomingWorks = null;
@@ -37,7 +40,7 @@ public sealed class YoksisAcademicWorkSynchronizer
             .ToListAsync();
         incomingWorks = CreateWorks(researcherId, response);
         matchedExistingIds = [];
-        completedSourceTypes = GetCompletedSourceTypes(response);
+        completedSourceTypes = isIncremental ? [] : GetCompletedSourceTypes(response);
 
         foreach (AcademicWork incomingWork in incomingWorks)
         {
@@ -307,7 +310,8 @@ public sealed class YoksisAcademicWorkSynchronizer
         work = new AcademicWork();
         work.ResearcherId = researcherId;
         work.ProviderWorkId = string.IsNullOrWhiteSpace(sourceId)
-            ? null
+            ? $"{sourceType}:generated:" + Convert.ToHexString(SHA256.HashData(
+                Encoding.UTF8.GetBytes($"{title?.Trim()}|{dateText?.Trim()}|{doi?.Trim()}"))).ToLowerInvariant()
             : $"{sourceType}:{sourceId}";
         work.Title = title;
         work.PublicationDate = ParseDate(dateText);

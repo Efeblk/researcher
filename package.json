@@ -1,5 +1,9 @@
 {
   "name": "academic-collector-demo",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test AcademicCollectorDemo.Tests/*.test.mjs"
+  },
   "dependencies": {
     "@serenity-is/assets": "./node_modules/.dotnet/serenity.assets",
     "@serenity-is/corelib": "./node_modules/.dotnet/serenity.corelib",
@@ -8,7 +12,8 @@
     "@serenity-is/sleekgrid": "./node_modules/.dotnet/serenity.sleekgrid"
   },
   "devDependencies": {
-    "@serenity-is/tsbuild": "10.3.7"
+    "@serenity-is/tsbuild": "10.3.7",
+    "typescript": "7.0.2"
   },
   "private": true,
   "type": "module"

@@ -35,10 +35,26 @@ jobs:
           cache: npm
 
       - name: Restore .NET dependencies
-        run: dotnet restore
+        run: dotnet restore AcademicCollectorDemo.Tests/AcademicCollectorDemo.Tests.csproj
 
       - name: Install front-end dependencies
         run: npm ci
 
       - name: Build
         run: dotnet build --configuration Release --no-restore
+
+      - name: Type-check front end
+        run: npm run typecheck
+
+      - name: Test front-end behavior
+        run: npm test
+
+      - name: Start isolated test SQL Server
+        run: bash .github/scripts/start-test-sqlserver.sh
+
+      - name: Test server and SQL Server persistence
+        run: dotnet test AcademicCollectorDemo.Tests/AcademicCollectorDemo.Tests.csproj --configuration Release --no-restore
+
+      - name: Stop test SQL Server
+        if: always()
+        run: docker rm -f academic-test-sqlserver || true

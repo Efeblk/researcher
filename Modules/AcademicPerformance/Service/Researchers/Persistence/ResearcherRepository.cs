@@ -18,40 +18,20 @@ public sealed class ResearcherRepository
 
     public async Task<Researcher?> FindByIdentifiersAsync(Researcher identifiers)
     {
-        Researcher? researcher = null;
+        List<int> matchingIds = await _dbContext.Researchers
+            .Where(item =>
+                (identifiers.Orcid != null && item.Orcid == identifiers.Orcid) ||
+                (identifiers.GoogleScholarId != null && item.GoogleScholarId == identifiers.GoogleScholarId) ||
+                (identifiers.WebOfScienceResearcherId != null && item.WebOfScienceResearcherId == identifiers.WebOfScienceResearcherId) ||
+                (identifiers.YoksisResearcherId != null && item.YoksisResearcherId == identifiers.YoksisResearcherId))
+            .Select(item => item.Id)
+            .Take(2)
+            .ToListAsync();
 
-        if (!string.IsNullOrWhiteSpace(identifiers.Orcid))
-        {
-            researcher = await CreateResearcherQuery()
-                .FirstOrDefaultAsync(item => item.Orcid == identifiers.Orcid);
-        }
+        if (matchingIds.Count > 1)
+            throw new ArgumentException("Sağlayıcı kimlikleri farklı akademisyen kayıtlarına ait.");
 
-        if (researcher is null &&
-            !string.IsNullOrWhiteSpace(identifiers.GoogleScholarId))
-        {
-            researcher = await CreateResearcherQuery()
-                .FirstOrDefaultAsync(item =>
-                    item.GoogleScholarId == identifiers.GoogleScholarId);
-        }
-
-        if (researcher is null &&
-            !string.IsNullOrWhiteSpace(identifiers.WebOfScienceResearcherId))
-        {
-            researcher = await CreateResearcherQuery()
-                .FirstOrDefaultAsync(item =>
-                    item.WebOfScienceResearcherId ==
-                    identifiers.WebOfScienceResearcherId);
-        }
-
-        if (researcher is null &&
-            !string.IsNullOrWhiteSpace(identifiers.YoksisResearcherId))
-        {
-            researcher = await CreateResearcherQuery()
-                .FirstOrDefaultAsync(item =>
-                    item.YoksisResearcherId == identifiers.YoksisResearcherId);
-        }
-
-        return researcher;
+        return matchingIds.Count == 0 ? null : await FindByIdAsync(matchingIds[0]);
     }
 
     public Task<Researcher?> FindByIdAsync(int researcherId)
