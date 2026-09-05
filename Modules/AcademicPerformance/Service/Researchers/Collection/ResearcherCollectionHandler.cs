@@ -34,18 +34,11 @@ public sealed class ResearcherCollectionHandler
     public async Task<ResearcherCollectResponse> CollectAsync(
         ResearcherCollectRequest request)
     {
-        ResearcherCollectResponse? response = null;
-        Researcher? researcher = null;
-        Researcher? requestedResearcher = null;
-        Researcher? existingResearcher = null;
-        string? provider = null;
-        int publicationSummaryCount = 0;
+        ResearcherCollectResponse response = new();
+        Researcher requestedResearcher = _identifierParser.Create(request);
+        Researcher researcher = requestedResearcher;
 
-        response = new ResearcherCollectResponse();
-        requestedResearcher = _identifierParser.Create(request);
-        researcher = requestedResearcher;
-
-        existingResearcher = await _researcherRepository.FindByIdentifiersAsync(
+        Researcher? existingResearcher = await _researcherRepository.FindByIdentifiersAsync(
             requestedResearcher);
 
         if (existingResearcher is not null)
@@ -82,13 +75,13 @@ public sealed class ResearcherCollectionHandler
 
             await _researcherRepository.SaveAsync(researcher);
             await _academicWorkSynchronizer.SyncAsync(researcher);
-            publicationSummaryCount = await _publicationSummarySynchronizer.SyncAsync(
+            int publicationSummaryCount = await _publicationSummarySynchronizer.SyncAsync(
                 researcher.Id);
             await transaction.CommitAsync();
             response.Messages.Add(
                 $"[OK] Yayın özeti: {publicationSummaryCount} benzersiz yayın hazırlandı.");
 
-            provider = AcademicDatabase.ProviderName;
+            string provider = AcademicDatabase.ProviderName;
             response.DatabaseProvider = provider;
             response.IsSaved = true;
             response.Messages.Add(

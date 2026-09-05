@@ -4,7 +4,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace AcademicCollectorDemo.Tests;
+namespace AcademicCollectorDemo.Tests.Infrastructure;
 
 public sealed class SqlServerFixture : IAsyncLifetime
 {

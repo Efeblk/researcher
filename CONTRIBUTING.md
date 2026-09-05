@@ -2,6 +2,8 @@
 
 Changes reach `main` through a short-lived branch and a pull request.
 
+Read the [codebase guide](docs/CODEBASE_GUIDE.md) before choosing where a change belongs. Use `refactor/` for changes that improve structure without changing behavior.
+
 ## Workflow
 
 1. Update your local `main` branch:

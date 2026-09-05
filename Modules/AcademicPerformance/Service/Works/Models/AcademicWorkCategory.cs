@@ -30,11 +30,3 @@ public enum AcademicWorkCategory
     Standard,
     SupplementaryMaterials
 }
-
-public enum AcademicWorkCategorySource
-{
-    Unknown,
-    Orcid,
-    WebOfScience,
-    Yoksis
-}

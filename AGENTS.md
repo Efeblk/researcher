@@ -6,6 +6,8 @@ This is a .NET 10 application built with Serenity and Entity Framework Core. `Pr
 
 The application uses SQL Server only; local defaults target SQL Server LocalDB and production connection strings must come from secure configuration. Public DTOs are under `Service/Api/V1/Contracts`, supported HTTP entry points under `Service/Api/V1/Endpoints`, and YÖKSİS code under `Service/Integrations/Yoksis`. Tests live in `AcademicCollectorDemo.Tests/` and use synthetic provider responses and an isolated SQL Server database.
 
+See `docs/CODEBASE_GUIDE.md` for the request flow and folder map. Tests are grouped into `Unit/`, `Integration/`, and shared `Infrastructure/`. Prefer filenames matching their main type, and declare local variables near their first use.
+
 ## Build, Test, and Development Commands
 
 - `dotnet restore` restores NuGet dependencies.

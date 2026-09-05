@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text;
 
-namespace AcademicCollectorDemo.Tests;
+namespace AcademicCollectorDemo.Tests.Infrastructure;
 
 public sealed class StubHttpHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
 {

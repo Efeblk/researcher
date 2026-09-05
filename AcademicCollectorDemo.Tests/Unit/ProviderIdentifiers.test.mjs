@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { restoreProviderIdentifiers } from "../Modules/AcademicPerformance/WebClient/Pages/AcademicPerformance/ProviderIdentifiers.ts";
+import { restoreProviderIdentifiers } from "../../Modules/AcademicPerformance/WebClient/Pages/AcademicPerformance/ProviderIdentifiers.ts";
 
 test("restoring one identity clears a previous researcher's other identities", () => {
     const inputs = [

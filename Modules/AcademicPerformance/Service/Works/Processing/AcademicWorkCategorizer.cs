@@ -96,9 +96,7 @@ public sealed class AcademicWorkCategorizer
 
     public AcademicWorkCategory GetWebOfScienceCategory(string? types)
     {
-        List<string>? normalizedTypes = null;
-
-        normalizedTypes = (types ?? string.Empty)
+        List<string>? normalizedTypes = (types ?? string.Empty)
             .Split(',', StringSplitOptions.RemoveEmptyEntries)
             .Select(type => type.Trim().ToLowerInvariant())
             .ToList();

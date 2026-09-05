@@ -31,9 +31,7 @@ public sealed class YoksisClient
         string tcKimlikNo,
         DateTime? updatedAfter)
     {
-        XDocument? envelope = null;
-
-        envelope = CreateEnvelope(
+        XDocument? envelope = CreateEnvelope(
             operation.RequestElementName,
             tcKimlikNo,
             updatedAfter,
@@ -48,8 +46,6 @@ public sealed class YoksisClient
         string eserId,
         DateTime? updatedAfter)
     {
-        XDocument? envelope = null;
-
         if (string.IsNullOrWhiteSpace(operation.DetailOperationName) ||
             string.IsNullOrWhiteSpace(operation.DetailRequestElementName) ||
             string.IsNullOrWhiteSpace(operation.DetailCategoryName))
@@ -58,7 +54,7 @@ public sealed class YoksisClient
                 "Bu YÖKSİS kategorisi için ayrıntı işlemi tanımlı değil.");
         }
 
-        envelope = CreateEnvelope(
+        XDocument? envelope = CreateEnvelope(
             operation.DetailRequestElementName,
             tcKimlikNo,
             updatedAfter,
@@ -78,14 +74,13 @@ public sealed class YoksisClient
         XDocument envelope,
         string tcKimlikNo)
     {
-        string? serviceUrl = null;
         string? responseXml = null;
         string? safeError = null;
         HttpRequestMessage? request = null;
         HttpResponseMessage? response = null;
         YoksisOperationResult? result = null;
 
-        serviceUrl = _configuration["Yoksis:ServiceUrl"]
+        string? serviceUrl = _configuration["Yoksis:ServiceUrl"]
             ?? DefaultServiceUrl;
 
         try
@@ -132,12 +127,10 @@ public sealed class YoksisClient
     {
         string? username = null;
         string? password = null;
-        string? credentials = null;
-        string? encodedCredentials = null;
 
         (username, password) = GetCredentials();
-        credentials = $"{username}:{password}";
-        encodedCredentials = Convert.ToBase64String(
+        string? credentials = $"{username}:{password}";
+        string? encodedCredentials = Convert.ToBase64String(
             Encoding.UTF8.GetBytes(credentials));
         request.Headers.Authorization = new AuthenticationHeaderValue(
             "Basic",
@@ -152,14 +145,13 @@ public sealed class YoksisClient
     {
         string? username = null;
         string? password = null;
-        XElement? parameters = null;
-        XElement? requestElement = null;
+
         XNamespace service = ServiceNamespace;
         XNamespace soap = SoapEnvelopeNamespace;
 
         (username, password) = GetCredentials();
 
-        parameters = new XElement(
+        XElement? parameters = new XElement(
             service + "parametre",
             new XElement(service + "P_KULLANICI_ID", username.Trim()),
             new XElement(service + "P_SIFRE", password),
@@ -179,7 +171,7 @@ public sealed class YoksisClient
                     CultureInfo.InvariantCulture)));
         }
 
-        requestElement = new XElement(
+        XElement? requestElement = new XElement(
             service + requestElementName,
             parameters);
 
@@ -192,11 +184,8 @@ public sealed class YoksisClient
 
     private (string Username, string Password) GetCredentials()
     {
-        string? username = null;
-        string? password = null;
-
-        username = _configuration["Yoksis:Username"];
-        password = _configuration["Yoksis:Password"];
+        string? username = _configuration["Yoksis:Username"];
+        string? password = _configuration["Yoksis:Password"];
 
         if (string.IsNullOrWhiteSpace(username))
         {
@@ -219,11 +208,7 @@ public sealed class YoksisClient
         string tcKimlikNo)
     {
         XDocument? document = null;
-        XElement? body = null;
-        XElement? fault = null;
-        XElement? responseElement = null;
-        XElement? resultElement = null;
-        YoksisOperationResult? result = null;
+
         int resultCode = 0;
 
         try
@@ -251,10 +236,10 @@ public sealed class YoksisClient
         foreach (XAttribute attribute in document.Descendants().Attributes().Where(attribute => !attribute.IsNamespaceDeclaration))
             attribute.Value = SanitizeSensitiveData(attribute.Value, tcKimlikNo);
 
-        body = document
+        XElement? body = document
             .Descendants()
             .FirstOrDefault(element => element.Name.LocalName == "Body");
-        fault = body?
+        XElement? fault = body?
             .Elements()
             .FirstOrDefault(element => element.Name.LocalName == "Fault");
 
@@ -267,7 +252,7 @@ public sealed class YoksisClient
                     tcKimlikNo));
         }
 
-        responseElement = body?.Elements().FirstOrDefault();
+        XElement? responseElement = body?.Elements().FirstOrDefault();
 
         if (responseElement is null)
         {
@@ -275,7 +260,7 @@ public sealed class YoksisClient
                 "YÖKSİS SOAP yanıt gövdesi boş geldi.");
         }
 
-        resultElement = responseElement
+        XElement? resultElement = responseElement
             .Elements()
             .FirstOrDefault(element => element.Name.LocalName == "Sonuc");
         int.TryParse(
@@ -284,7 +269,7 @@ public sealed class YoksisClient
             CultureInfo.InvariantCulture,
             out resultCode);
 
-        result = new YoksisOperationResult();
+        YoksisOperationResult? result = new YoksisOperationResult();
         result.CategoryName = operation.CategoryName;
         result.OperationName = operation.OperationName;
         result.ResultCode = resultElement is null ? null : resultCode;
@@ -303,20 +288,16 @@ public sealed class YoksisClient
     private static List<Dictionary<string, string?>> CreateRecords(
         XElement responseElement)
     {
-        List<Dictionary<string, string?>>? records = null;
-
-        records = [];
+        List<Dictionary<string, string?>>? records = [];
 
         foreach (XElement recordElement in responseElement.Elements())
         {
-            Dictionary<string, string?>? record = null;
-
             if (recordElement.Name.LocalName == "Sonuc")
             {
                 continue;
             }
 
-            record = new Dictionary<string, string?>(StringComparer.Ordinal);
+            Dictionary<string, string?>? record = new Dictionary<string, string?>(StringComparer.Ordinal);
 
             if (!recordElement.HasElements)
             {
@@ -369,13 +350,9 @@ public sealed class YoksisClient
         string message,
         string tcKimlikNo)
     {
-        string? username = null;
-        string? password = null;
-        string? sanitizedMessage = null;
-
-        username = _configuration["Yoksis:Username"];
-        password = _configuration["Yoksis:Password"];
-        sanitizedMessage = message.Replace(
+        string? username = _configuration["Yoksis:Username"];
+        string? password = _configuration["Yoksis:Password"];
+        string? sanitizedMessage = message.Replace(
             tcKimlikNo,
             "[TC_KIMLIK_NO_GİZLENDİ]",
             StringComparison.Ordinal);

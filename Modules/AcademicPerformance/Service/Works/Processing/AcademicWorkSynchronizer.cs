@@ -19,19 +19,16 @@ public sealed class AcademicWorkSynchronizer
 
     public async Task SyncAsync(Researcher researcher)
     {
-        List<AcademicWork>? existingWorks = null;
-        List<AcademicWork>? synchronizedWorks = null;
-        HashSet<int>? matchedExistingIds = null;
         AcademicWork? synchronizedWork = null;
         AcademicWork? existingWork = null;
         DateTime synchronizedAt = DateTime.UtcNow;
         int index = 0;
 
-        existingWorks = await _dbContext.AcademicWorks
+        List<AcademicWork>? existingWorks = await _dbContext.AcademicWorks
             .Where(work => work.ResearcherId == researcher.Id)
             .ToListAsync();
-        synchronizedWorks = [];
-        matchedExistingIds = [];
+        List<AcademicWork>? synchronizedWorks = [];
+        HashSet<int>? matchedExistingIds = [];
 
         AddOrcidWorks(
             synchronizedWorks,

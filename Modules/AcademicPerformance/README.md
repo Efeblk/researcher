@@ -1,5 +1,7 @@
 # Academic Performance Module
 
+Start here: [Codebase guide](../../docs/CODEBASE_GUIDE.md) — folders, request flow, and where to make changes.
+
 Bu modül üç ana çalışma alanına ayrılır:
 
 - `Service/`: Client'tan bağımsız API, iş akışları, veri erişimi ve sağlayıcı

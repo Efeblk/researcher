@@ -126,12 +126,8 @@ public sealed class PublicationSummarySynchronizer
         PublicationSummary candidate,
         List<AcademicWork> candidateWorks)
     {
-        string? existingDoi = null;
-        string? candidateDoi = null;
-        string? existingTitle = null;
-
-        existingDoi = NormalizeDoi(existing.Doi);
-        candidateDoi = NormalizeDoi(candidate.Doi);
+        string? existingDoi = NormalizeDoi(existing.Doi);
+        string? candidateDoi = NormalizeDoi(candidate.Doi);
 
         if (!string.IsNullOrWhiteSpace(existingDoi) &&
             !string.IsNullOrWhiteSpace(candidateDoi))
@@ -143,7 +139,7 @@ public sealed class PublicationSummarySynchronizer
         if (existing.Title == "Başlıksız yayın" || candidate.Title == "Başlıksız yayın")
             return false;
 
-        existingTitle = NormalizeTitle(existing.Title);
+        string? existingTitle = NormalizeTitle(existing.Title);
         return !string.IsNullOrWhiteSpace(existingTitle) &&
             candidateWorks.Any(work => existingTitle == NormalizeTitle(work.Title) &&
                 YearsAreCompatible(existing.PublicationYear, work.PublicationYear));
@@ -158,24 +154,18 @@ public sealed class PublicationSummarySynchronizer
         int researcherId,
         List<AcademicWork> works)
     {
-        List<AcademicWork>? preferredWorks = null;
-        PublicationSummary? summary = null;
-        string? doi = null;
-        string? title = null;
-        int? publicationYear = null;
-
-        preferredWorks = works
+        List<AcademicWork>? preferredWorks = works
             .OrderByDescending(work => work.Provider == AcademicWorkProvider.Orcid)
             .ThenByDescending(GetMetadataScore)
             .ThenBy(work => work.Id)
             .ToList();
-        doi = FirstText(preferredWorks, work => NormalizeDoi(work.Doi));
-        title = FirstText(preferredWorks, work => work.Title) ?? "Başlıksız yayın";
-        publicationYear = preferredWorks
+        string? doi = FirstText(preferredWorks, work => NormalizeDoi(work.Doi));
+        string? title = FirstText(preferredWorks, work => work.Title) ?? "Başlıksız yayın";
+        int? publicationYear = preferredWorks
             .Select(work => work.PublicationYear)
             .FirstOrDefault(value => value.HasValue);
 
-        summary = new PublicationSummary();
+        PublicationSummary? summary = new PublicationSummary();
         summary.ResearcherId = researcherId;
         summary.Fingerprint = CreateFingerprint(doi, title, publicationYear,
             preferredWorks.All(work => NormalizeTitle(work.Title).Length == 0)
@@ -218,12 +208,9 @@ public sealed class PublicationSummarySynchronizer
         List<AcademicWork> works,
         Func<AcademicWork, string?> selector)
     {
-        string? value = null;
-        int index = 0;
-
-        for (index = 0; index < works.Count; index++)
+        foreach (AcademicWork work in works)
         {
-            value = selector(works[index]);
+            string? value = selector(work);
 
             if (!string.IsNullOrWhiteSpace(value))
             {
@@ -256,21 +243,17 @@ public sealed class PublicationSummarySynchronizer
 
     private static string NormalizeTitle(string? title)
     {
-        StringBuilder? normalized = null;
-        int index = 0;
-
-        normalized = new StringBuilder();
-
         if (string.IsNullOrWhiteSpace(title))
         {
-            return normalized.ToString();
+            return string.Empty;
         }
 
-        for (index = 0; index < title.Length; index++)
+        StringBuilder normalized = new();
+        foreach (char character in title)
         {
-            if (char.IsLetterOrDigit(title[index]))
+            if (char.IsLetterOrDigit(character))
             {
-                normalized.Append(char.ToLowerInvariant(title[index]));
+                normalized.Append(char.ToLowerInvariant(character));
             }
         }
 
@@ -283,13 +266,10 @@ public sealed class PublicationSummarySynchronizer
         int? publicationYear,
         string? fallbackIdentity = null)
     {
-        string? source = null;
-        byte[]? hash = null;
-
-        source = !string.IsNullOrWhiteSpace(doi)
+        string source = !string.IsNullOrWhiteSpace(doi)
             ? "doi:" + doi
             : fallbackIdentity ?? $"title:{NormalizeTitle(title)}|year:{publicationYear}";
-        hash = SHA256.HashData(Encoding.UTF8.GetBytes(source));
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(source));
 
         return Convert.ToHexString(hash).ToLowerInvariant();
     }

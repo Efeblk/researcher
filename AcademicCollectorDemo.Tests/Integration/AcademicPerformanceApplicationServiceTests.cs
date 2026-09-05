@@ -1,3 +1,4 @@
+using AcademicCollectorDemo.Tests.Infrastructure;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Application;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
@@ -5,10 +6,10 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace AcademicCollectorDemo.Tests;
+namespace AcademicCollectorDemo.Tests.Integration;
 
 [Collection("SQL Server")]
-public sealed class ApplicationServiceTests(SqlServerFixture fixture)
+public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture fixture)
 {
     [Fact]
     public async Task GetResearcherAsync_PartialOpenAlexCollection_ReturnsStoredCount()

@@ -1,5 +1,7 @@
 # Akademik Performans Modülü
 
+Start here: [Codebase guide](docs/CODEBASE_GUIDE.md) — folders, request flow, and where to make changes.
+
 Resmî ORCID Public API, SearchApi Google Scholar Author API, Clarivate Web of
 Science Starter API v1 ve YÖKSİS OzgecmisV2 SOAP servisi üzerinden akademik veri
 toplayan, Serenity bileşenleriyle hazırlanmış .NET 10 prototipidir. Uygulama

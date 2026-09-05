@@ -1,3 +1,4 @@
+using AcademicCollectorDemo.Tests.Infrastructure;
 using System.Text.Json;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
@@ -6,7 +7,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Coll
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using Microsoft.Extensions.Configuration;
 
-namespace AcademicCollectorDemo.Tests;
+namespace AcademicCollectorDemo.Tests.Integration;
 
 public sealed class ProviderResponseTests
 {

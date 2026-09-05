@@ -28,25 +28,18 @@ public sealed class YoksisAcademicWorkSynchronizer
         YoksisCollectResponse response,
         bool isIncremental = false)
     {
-        List<AcademicWork>? existingWorks = null;
-        List<AcademicWork>? incomingWorks = null;
-        HashSet<int>? matchedExistingIds = null;
-        HashSet<string>? completedSourceTypes = null;
-
-        existingWorks = await _dbContext.AcademicWorks
+        List<AcademicWork>? existingWorks = await _dbContext.AcademicWorks
             .Where(work =>
                 work.ResearcherId == researcherId &&
                 work.Provider == AcademicWorkProvider.Yoksis)
             .ToListAsync();
-        incomingWorks = CreateWorks(researcherId, response);
-        matchedExistingIds = [];
-        completedSourceTypes = isIncremental ? [] : GetCompletedSourceTypes(response);
+        List<AcademicWork>? incomingWorks = CreateWorks(researcherId, response);
+        HashSet<int>? matchedExistingIds = [];
+        HashSet<string>? completedSourceTypes = isIncremental ? [] : GetCompletedSourceTypes(response);
 
         foreach (AcademicWork incomingWork in incomingWorks)
         {
-            AcademicWork? existingWork = null;
-
-            existingWork = existingWorks.FirstOrDefault(work =>
+            AcademicWork? existingWork = existingWorks.FirstOrDefault(work =>
                 !matchedExistingIds.Contains(work.Id) &&
                 work.ProviderWorkId == incomingWork.ProviderWorkId);
 
@@ -78,17 +71,13 @@ public sealed class YoksisAcademicWorkSynchronizer
         int researcherId,
         YoksisCollectResponse response)
     {
-        List<AcademicWork>? works = null;
-
-        works = [];
+        List<AcademicWork>? works = [];
 
         foreach (YoksisOperationResult category in response.Categories)
         {
             foreach (Dictionary<string, string?> record in category.Records)
             {
-                AcademicWork? work = null;
-
-                work = CreateWork(
+                AcademicWork? work = CreateWork(
                     researcherId,
                     category.OperationName,
                     record);
@@ -111,9 +100,7 @@ public sealed class YoksisAcademicWorkSynchronizer
         string? operationName,
         Dictionary<string, string?> record)
     {
-        AcademicWork? work = null;
-
-        work = operationName switch
+        AcademicWork? work = operationName switch
         {
             "getMakaleBilgisiDetayV1" => CreateArticle(researcherId, record),
             "getBildiriBilgisiDetayV1" => CreateConferencePaper(
@@ -152,9 +139,7 @@ public sealed class YoksisAcademicWorkSynchronizer
         int researcherId,
         Dictionary<string, string?> record)
     {
-        AcademicWork? work = null;
-
-        work = CreateBaseWork(
+        AcademicWork? work = CreateBaseWork(
             researcherId,
             "Makale",
             Get(record, "YAYIN_ID"),
@@ -183,12 +168,9 @@ public sealed class YoksisAcademicWorkSynchronizer
         int researcherId,
         Dictionary<string, string?> record)
     {
-        AcademicWork? work = null;
-        string? dateText = null;
-
-        dateText = Get(record, "BASIM_TARIHI") ??
+        string? dateText = Get(record, "BASIM_TARIHI") ??
             Get(record, "ETKINLIK_BAS_TARIHI");
-        work = CreateBaseWork(
+        AcademicWork? work = CreateBaseWork(
             researcherId,
             "Bildiri",
             Get(record, "YAYIN_ID"),
@@ -217,13 +199,9 @@ public sealed class YoksisAcademicWorkSynchronizer
         int researcherId,
         Dictionary<string, string?> record)
     {
-        AcademicWork? work = null;
-        string? bookTitle = null;
-        string? chapterTitle = null;
-
-        bookTitle = Get(record, "KITAP_ADI");
-        chapterTitle = Get(record, "BOLUM_ADI");
-        work = CreateBaseWork(
+        string? bookTitle = Get(record, "KITAP_ADI");
+        string? chapterTitle = Get(record, "BOLUM_ADI");
+        AcademicWork? work = CreateBaseWork(
             researcherId,
             "Kitap",
             Get(record, "YAYIN_ID"),
@@ -253,9 +231,7 @@ public sealed class YoksisAcademicWorkSynchronizer
     private static HashSet<string> GetCompletedSourceTypes(
         YoksisCollectResponse response)
     {
-        HashSet<string>? sourceTypes = null;
-
-        sourceTypes = [];
+        HashSet<string>? sourceTypes = [];
 
         foreach (YoksisOperationResult category in response.Categories)
         {
@@ -288,9 +264,7 @@ public sealed class YoksisAcademicWorkSynchronizer
         int researcherId,
         Dictionary<string, string?> record)
     {
-        AcademicWork? work = null;
-
-        work = CreateBaseWork(
+        AcademicWork? work = CreateBaseWork(
             researcherId,
             "Patent",
             Get(record, "PATENT_ID"),
@@ -316,9 +290,7 @@ public sealed class YoksisAcademicWorkSynchronizer
         string? authors,
         string? link)
     {
-        AcademicWork? work = null;
-
-        work = new AcademicWork();
+        AcademicWork? work = new AcademicWork();
         work.ResearcherId = researcherId;
         work.ProviderWorkId = string.IsNullOrWhiteSpace(sourceId)
             ? string.Empty
@@ -340,9 +312,7 @@ public sealed class YoksisAcademicWorkSynchronizer
         AcademicWork work,
         Dictionary<string, string?> record)
     {
-        string? accessType = null;
-
-        accessType = Get(record, "ERISIM_TURU_AD") ??
+        string? accessType = Get(record, "ERISIM_TURU_AD") ??
             Get(record, "ERISIM_TURU");
         work.OpenAccessStatus = accessType;
         work.IsOpenAccess = accessType?.Contains(
@@ -374,7 +344,6 @@ public sealed class YoksisAcademicWorkSynchronizer
 
     private static int? ParseYear(string? value)
     {
-        Match? match = null;
         int year = 0;
 
         if (string.IsNullOrWhiteSpace(value))
@@ -387,7 +356,7 @@ public sealed class YoksisAcademicWorkSynchronizer
             return year;
         }
 
-        match = YearPattern.Match(value);
+        Match? match = YearPattern.Match(value);
         return match.Success && int.TryParse(match.Value, out year)
             ? year
             : null;

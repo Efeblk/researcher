@@ -1,6 +1,6 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 
-namespace AcademicCollectorDemo.Tests;
+namespace AcademicCollectorDemo.Tests.Unit;
 
 public sealed class ResearcherIdentifierParserTests
 {
