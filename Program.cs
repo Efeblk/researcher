@@ -27,6 +27,9 @@ public static class Program
         builder.Logging.AddConsole();
         builder.Logging.AddDebug();
 
+        if (builder.Environment.IsEnvironment("Testing"))
+            builder.WebHost.UseStaticWebAssets();
+
         if (cleanDatabase)
         {
             builder.Logging.AddFilter("FluentMigrator", LogLevel.Warning);

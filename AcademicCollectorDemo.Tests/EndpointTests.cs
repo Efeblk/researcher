@@ -20,6 +20,10 @@ public sealed class EndpointTests(SqlServerFixture fixture)
 
         using var host = new HostProcess(fixture.ConnectionString);
         await host.WaitUntilReadyAsync();
+        using var page = await host.Client.GetAsync("/AcademicPerformance");
+        page.EnsureSuccessStatusCode();
+        using var coreScript = await host.Client.GetAsync("/Serenity.Corelib/index.global.js");
+        coreScript.EnsureSuccessStatusCode();
         using var profile = await host.Client.PostAsJsonAsync("/Services/AcademicPerformance/V1/GetResearcher", new { ResearcherId = researcher.Id });
         profile.EnsureSuccessStatusCode();
         var body = await profile.Content.ReadFromJsonAsync<JsonElement>();
