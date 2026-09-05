@@ -1,5 +1,7 @@
 # Akademik Performans Modülü
 
+Bulk processing: [SQL import, queue worker, and provider limits](docs/BULK_COLLECTION.md).
+
 Start here: [Codebase guide](docs/CODEBASE_GUIDE.md) — folders, request flow, and where to make changes.
 
 Resmî ORCID Public API, SearchApi Google Scholar Author API, Clarivate Web of
