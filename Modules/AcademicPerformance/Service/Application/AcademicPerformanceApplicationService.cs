@@ -31,17 +31,14 @@ public sealed class AcademicPerformanceApplicationService :
     public async Task<AcademicDataResponse> CollectAsync(
         AcademicDataCollectRequest request)
     {
-        ResearcherCollectRequest? collectionRequest = null;
-        ResearcherCollectResponse? collectionResponse = null;
-        int researcherId = 0;
         int publicationCount = 0;
 
-        collectionRequest = new ResearcherCollectRequest
+        ResearcherCollectRequest? collectionRequest = new ResearcherCollectRequest
         {
             Identifiers = CreateIdentifiers(request)
         };
-        collectionResponse = await _collectionHandler.CollectAsync(collectionRequest);
-        researcherId = collectionResponse.Researcher?.Id ?? 0;
+        ResearcherCollectResponse? collectionResponse = await _collectionHandler.CollectAsync(collectionRequest);
+        int researcherId = collectionResponse.Researcher?.Id ?? 0;
 
         if (collectionResponse.IsSaved && researcherId > 0)
         {
@@ -52,7 +49,7 @@ public sealed class AcademicPerformanceApplicationService :
 
         return new AcademicDataResponse
         {
-            Researcher = MapResearcher(collectionResponse.Researcher),
+            Researcher = AcademicPerformanceDtoMapper.MapResearcher(collectionResponse.Researcher),
             IsSaved = collectionResponse.IsSaved,
             PublicationCount = publicationCount,
             DatabaseProvider = collectionResponse.DatabaseProvider,
@@ -73,7 +70,7 @@ public sealed class AcademicPerformanceApplicationService :
             .AsNoTracking()
             .CountAsync(summary => summary.ResearcherId == researcher.Id);
 
-        AcademicResearcherDto? researcherDto = MapResearcher(researcher);
+        AcademicResearcherDto? researcherDto = AcademicPerformanceDtoMapper.MapResearcher(researcher);
         if (researcherDto?.OpenAlexProfile is not null)
         {
             researcherDto.OpenAlexProfile.CollectedWorksCount = await _dbContext.OpenAlexWorks
@@ -143,7 +140,7 @@ public sealed class AcademicPerformanceApplicationService :
         {
             ResearcherId = researcher.Id,
             Entities = publications
-                .Select(publication => MapPublication(
+                .Select(publication => AcademicPerformanceDtoMapper.MapPublication(
                     publication,
                     approvedIds.Contains(publication.Id)))
                 .ToList(),
@@ -299,145 +296,5 @@ public sealed class AcademicPerformanceApplicationService :
         }
 
         return identifiers;
-    }
-
-    private static AcademicResearcherDto? MapResearcher(Researcher? researcher)
-    {
-        if (researcher is null)
-        {
-            return null;
-        }
-
-        return new AcademicResearcherDto
-        {
-            Id = researcher.Id,
-            FirstName = researcher.FirstName,
-            LastName = researcher.LastName,
-            AcademicTitle = researcher.AcademicTitle,
-            Department = researcher.Department,
-            Orcid = researcher.Orcid,
-            GoogleScholarId = researcher.GoogleScholarId,
-            WebOfScienceResearcherId = researcher.WebOfScienceResearcherId,
-            YoksisResearcherId = researcher.YoksisResearcherId,
-            LastUpdatedAt = researcher.LastUpdatedAt,
-            OrcidProfile = MapOrcidProfile(researcher.OrcidProfile),
-            GoogleScholarProfile = MapGoogleScholarProfile(
-                researcher.GoogleScholarProfile),
-            OpenAlexProfile = MapOpenAlexProfile(researcher.OpenAlexProfile),
-            WebOfScienceProfile = MapWebOfScienceProfile(
-                researcher.WebOfScienceProfile)
-        };
-    }
-
-    private static OpenAlexProfileSummaryDto? MapOpenAlexProfile(
-        OpenAlexProfile? profile)
-    {
-        if (profile is null)
-        {
-            return null;
-        }
-
-        return new OpenAlexProfileSummaryDto
-        {
-            OpenAlexAuthorId = profile.OpenAlexAuthorId,
-            DisplayName = profile.DisplayName,
-            LastKnownInstitution = profile.LastKnownInstitution,
-            WorksCount = profile.WorksCount,
-            CollectedWorksCount = profile.Works?.Count ?? profile.WorksCount,
-            CitedByCount = profile.CitedByCount,
-            HIndex = profile.HIndex,
-            I10Index = profile.I10Index,
-            TwoYearMeanCitedness = profile.TwoYearMeanCitedness,
-            LastUpdatedAt = profile.LastUpdatedAt
-        };
-    }
-
-    private static GoogleScholarProfileSummaryDto? MapGoogleScholarProfile(
-        GoogleScholarProfile? profile)
-    {
-        if (profile is null)
-        {
-            return null;
-        }
-
-        return new GoogleScholarProfileSummaryDto
-        {
-            DisplayName = profile.DisplayName,
-            Affiliations = profile.Affiliations,
-            University = profile.University,
-            ProfileUrl = profile.ProfileUrl,
-            CitationCount = profile.CitationCount,
-            CitationCountRecent = profile.CitationCountRecent,
-            HIndex = profile.HIndex,
-            HIndexRecent = profile.HIndexRecent,
-            I10Index = profile.I10Index,
-            I10IndexRecent = profile.I10IndexRecent,
-            MetricsSinceYear = profile.MetricsSinceYear,
-            DocumentsCount = profile.DocumentsCount,
-            LastUpdatedAt = profile.LastUpdatedAt
-        };
-    }
-
-    private static OrcidProfileSummaryDto? MapOrcidProfile(OrcidProfile? profile)
-    {
-        if (profile is null)
-        {
-            return null;
-        }
-
-        return new OrcidProfileSummaryDto
-        {
-            DisplayName = profile.DisplayName,
-            CurrentOrganization = profile.CurrentOrganization,
-            CurrentDepartment = profile.CurrentDepartment,
-            CurrentRoleTitle = profile.CurrentRoleTitle,
-            WorksCount = profile.WorksCount,
-            EmploymentsCount = profile.EmploymentsCount,
-            EducationsCount = profile.EducationsCount,
-            FundingsCount = profile.FundingsCount,
-            PeerReviewsCount = profile.PeerReviewsCount,
-            RecordLastModifiedAt = profile.RecordLastModifiedAt,
-            LastUpdatedAt = profile.LastUpdatedAt
-        };
-    }
-
-    private static WebOfScienceProfileSummaryDto? MapWebOfScienceProfile(
-        WebOfScienceProfile? profile)
-    {
-        if (profile is null)
-        {
-            return null;
-        }
-
-        return new WebOfScienceProfileSummaryDto
-        {
-            DisplayName = profile.DisplayName,
-            PrimaryOrganization = profile.PrimaryOrganization,
-            HIndex = profile.HIndex,
-            DocumentsCount = profile.DocumentsCount,
-            TotalTimesCited = profile.TotalTimesCited,
-            TotalCitingPublications = profile.TotalCitingPublications,
-            PeerReviewsCount = profile.PeerReviewsCount,
-            LastUpdatedAt = profile.LastUpdatedAt
-        };
-    }
-
-    private static AcademicPublicationDto MapPublication(
-        PublicationSummary publication,
-        bool isApproved)
-    {
-        return new AcademicPublicationDto
-        {
-            Id = publication.Id,
-            Title = publication.Title,
-            PublicationYear = publication.PublicationYear,
-            Doi = publication.Doi,
-            Category = publication.Category.ToString(),
-            Authors = publication.Authors,
-            Publication = publication.Publication,
-            PublicationUrl = publication.PublicationUrl,
-            Sources = publication.Sources,
-            IsApprovedForDisplay = isApproved
-        };
     }
 }

@@ -97,19 +97,15 @@ public sealed class ResearcherCollectionFeedback
         WebOfScienceProfile? profile,
         List<string> messages)
     {
-        List<WebOfScienceWork>? works = null;
-        int doiCount = 0;
-        int citationCount = 0;
-
         if (profile is null)
         {
             messages.Add("[EKSİK] Web of Science yayınları alınamadı.");
             return;
         }
 
-        works = profile.Works ?? [];
-        doiCount = works.Count(work => !string.IsNullOrWhiteSpace(work.Doi));
-        citationCount = works.Count(work => work.TimesCited.HasValue);
+        List<WebOfScienceWork>? works = profile.Works ?? [];
+        int doiCount = works.Count(work => !string.IsNullOrWhiteSpace(work.Doi));
+        int citationCount = works.Count(work => work.TimesCited.HasValue);
 
         messages.Add(
             !string.IsNullOrWhiteSpace(profile.DisplayName)

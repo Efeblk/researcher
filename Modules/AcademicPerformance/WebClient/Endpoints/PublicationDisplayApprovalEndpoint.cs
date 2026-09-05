@@ -1,3 +1,4 @@
+using AcademicCollectorDemo.Modules.AcademicPerformance.WebClient.Contracts;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Application;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;

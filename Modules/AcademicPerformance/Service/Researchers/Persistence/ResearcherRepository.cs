@@ -121,9 +121,7 @@ public sealed class ResearcherRepository
 
     private IQueryable<Researcher> CreateResearcherQuery()
     {
-        IQueryable<Researcher>? query = null;
-
-        query = _dbContext.Researchers
+        IQueryable<Researcher>? query = _dbContext.Researchers
             .Include(researcher => researcher.OrcidProfile)
                 .ThenInclude(profile => profile!.Works)
             .Include(researcher => researcher.GoogleScholarProfile)
@@ -223,10 +221,7 @@ public sealed class ResearcherRepository
 
     private void UpdateWebOfScience(Researcher target, Researcher source)
     {
-        WebOfScienceProfile? targetProfile = null;
-        WebOfScienceProfile? sourceProfile = null;
-
-        sourceProfile = source.WebOfScienceProfile;
+        WebOfScienceProfile? sourceProfile = source.WebOfScienceProfile;
 
         if (sourceProfile is null)
         {
@@ -239,7 +234,7 @@ public sealed class ResearcherRepository
             return;
         }
 
-        targetProfile = target.WebOfScienceProfile;
+        WebOfScienceProfile? targetProfile = target.WebOfScienceProfile;
         targetProfile.DisplayName = sourceProfile.DisplayName;
         targetProfile.FirstName = sourceProfile.FirstName;
         targetProfile.LastName = sourceProfile.LastName;

@@ -1,10 +1,11 @@
+using AcademicCollectorDemo.Tests.Infrastructure;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace AcademicCollectorDemo.Tests;
+namespace AcademicCollectorDemo.Tests.Integration;
 
 [Collection("SQL Server")]
 public sealed class EndpointTests(SqlServerFixture fixture)

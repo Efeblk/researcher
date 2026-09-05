@@ -43,20 +43,15 @@ public sealed class YoksisCollectionHandler
     public async Task<YoksisCollectResponse> CollectAsync(
         YoksisCollectRequest request)
     {
-        YoksisCollectResponse? response = null;
-
-        response = await _collectionService.CollectAsync(request);
+        YoksisCollectResponse? response = await _collectionService.CollectAsync(request);
 
         try
         {
-            Researcher? researcher = null;
-            Researcher? requestedResearcher = null;
-            int publicationCount = 0;
             await using IDbContextTransaction transaction =
                 await _dbContext.Database.BeginTransactionAsync();
 
-            requestedResearcher = CreateResearcher(response);
-            researcher = await ResolveResearcherAsync(
+            Researcher? requestedResearcher = CreateResearcher(response);
+            Researcher? researcher = await ResolveResearcherAsync(
                 request.ResearcherId,
                 requestedResearcher);
             await _researcherRepository.SaveAsync(researcher);
@@ -64,7 +59,7 @@ public sealed class YoksisCollectionHandler
                 researcher.Id,
                 response,
                 isIncremental: request.UpdatedAfter.HasValue);
-            publicationCount = await _workSynchronizer.SyncAsync(
+            int publicationCount = await _workSynchronizer.SyncAsync(
                 researcher.Id,
                 response,
                 isIncremental: request.UpdatedAfter.HasValue);
@@ -148,14 +143,10 @@ public sealed class YoksisCollectionHandler
     private static Researcher CreateResearcher(
         YoksisCollectResponse response)
     {
-        YoksisOperationResult? identityCategory = null;
-        Dictionary<string, string?>? identityRecord = null;
-        Researcher? researcher = null;
-
-        identityCategory = response.Categories.FirstOrDefault(category =>
+        YoksisOperationResult? identityCategory = response.Categories.FirstOrDefault(category =>
             category.OperationName == "getPersonelLinkV1");
-        identityRecord = identityCategory?.Records.FirstOrDefault();
-        researcher = new Researcher();
+        Dictionary<string, string?>? identityRecord = identityCategory?.Records.FirstOrDefault();
+        Researcher? researcher = new Researcher();
 
         if (identityRecord is null)
         {
@@ -175,9 +166,7 @@ public sealed class YoksisCollectionHandler
 
     private static string? NormalizeOrcid(string? value)
     {
-        string? normalized = null;
-
-        normalized = value?.Trim();
+        string? normalized = value?.Trim();
         return !string.IsNullOrWhiteSpace(normalized) &&
             OrcidPattern.IsMatch(normalized)
             ? normalized.ToUpperInvariant()
@@ -186,9 +175,7 @@ public sealed class YoksisCollectionHandler
 
     private static string? NormalizeResearcherId(string? value)
     {
-        string? normalized = null;
-
-        normalized = value?.Trim();
+        string? normalized = value?.Trim();
         return !string.IsNullOrWhiteSpace(normalized) &&
             WebOfScienceResearcherIdPattern.IsMatch(normalized)
             ? normalized.ToUpperInvariant()
@@ -199,17 +186,13 @@ public sealed class YoksisCollectionHandler
         Dictionary<string, string?> record,
         string fieldName)
     {
-        string? value = null;
-
-        value = record.GetValueOrDefault(fieldName);
+        string? value = record.GetValueOrDefault(fieldName);
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
     private static string CreateDisplayName(Researcher researcher)
     {
-        string? displayName = null;
-
-        displayName = string.Join(
+        string? displayName = string.Join(
             " ",
             new[] { researcher.FirstName, researcher.LastName }
                 .Where(value => !string.IsNullOrWhiteSpace(value)));

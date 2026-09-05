@@ -28,24 +28,19 @@ public sealed class YoksisRecordSynchronizer
         YoksisCollectResponse response,
         bool isIncremental = false)
     {
-        List<YoksisRecord>? existingRecords = null;
-        List<YoksisOperationResult>? categoriesToSynchronize = null;
-        HashSet<string>? completedOperations = null;
-        HashSet<int>? removedRecordIds = null;
-
-        existingRecords = await _dbContext.YoksisRecords
+        List<YoksisRecord>? existingRecords = await _dbContext.YoksisRecords
             .Where(record => record.ResearcherId == researcherId)
             .ToListAsync();
-        categoriesToSynchronize = response.Categories
+        List<YoksisOperationResult>? categoriesToSynchronize = response.Categories
             .Where(category =>
                 !string.IsNullOrWhiteSpace(category.OperationName) &&
                 (category.IsSuccess || category.Records.Count > 0))
             .ToList();
-        completedOperations = categoriesToSynchronize
+        HashSet<string>? completedOperations = categoriesToSynchronize
             .Where(category => category.IsSuccess && !isIncremental)
             .Select(category => category.OperationName!)
             .ToHashSet(StringComparer.Ordinal);
-        removedRecordIds = [];
+        HashSet<int>? removedRecordIds = [];
 
         foreach (YoksisRecord existingRecord in existingRecords)
         {
@@ -63,12 +58,9 @@ public sealed class YoksisRecordSynchronizer
             foreach (Dictionary<string, string?> recordData in category.Records)
             {
                 YoksisRecord? existingRecord = null;
-                YoksisRecord? record = null;
-                string? externalRecordId = null;
-                string? recordJson = null;
 
-                externalRecordId = FindExternalRecordId(recordData);
-                recordJson = JsonSerializer.Serialize(recordData);
+                string? externalRecordId = FindExternalRecordId(recordData);
+                string? recordJson = JsonSerializer.Serialize(recordData);
 
                 if (!category.IsSuccess || isIncremental)
                 {
@@ -86,7 +78,7 @@ public sealed class YoksisRecordSynchronizer
                     }
                 }
 
-                record = new YoksisRecord();
+                YoksisRecord? record = new YoksisRecord();
                 record.ResearcherId = researcherId;
                 record.CategoryName = category.CategoryName ??
                     "YÖKSİS kategorisi";
@@ -112,9 +104,7 @@ public sealed class YoksisRecordSynchronizer
         string? externalRecordId,
         string recordJson)
     {
-        YoksisRecord? matchingRecord = null;
-
-        matchingRecord = existingRecords.FirstOrDefault(record =>
+        YoksisRecord? matchingRecord = existingRecords.FirstOrDefault(record =>
             !removedRecordIds.Contains(record.Id) &&
             record.OperationName == operationName &&
             !string.IsNullOrWhiteSpace(externalRecordId) &&

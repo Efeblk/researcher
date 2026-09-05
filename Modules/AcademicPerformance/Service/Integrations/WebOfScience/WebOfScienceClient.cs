@@ -29,13 +29,9 @@ public sealed class WebOfScienceClient
         Researcher researcher,
         string researcherIdentifier)
     {
-        Dictionary<string, List<string>>? documentPagesByDatabase = null;
-        List<string>? databaseIds = null;
-        WebOfScienceProfile? profile = null;
-
-        documentPagesByDatabase = new Dictionary<string, List<string>>(
+        Dictionary<string, List<string>>? documentPagesByDatabase = new Dictionary<string, List<string>>(
             StringComparer.OrdinalIgnoreCase);
-        databaseIds = GetDatabaseIds();
+        List<string>? databaseIds = GetDatabaseIds();
 
         foreach (string databaseId in databaseIds)
         {
@@ -44,7 +40,7 @@ public sealed class WebOfScienceClient
                 databaseId);
         }
 
-        profile = CreateProfile(researcherIdentifier, documentPagesByDatabase);
+        WebOfScienceProfile? profile = CreateProfile(researcherIdentifier, documentPagesByDatabase);
 
         researcher.WebOfScienceResearcherId = researcherIdentifier;
 
@@ -61,17 +57,16 @@ public sealed class WebOfScienceClient
         string researcherIdentifier,
         string databaseId)
     {
-        List<string>? pages = null;
         string? responseJson = null;
-        string? query = null;
+
         int page = 1;
         int total = 0;
         int limit = DocumentsPageSize;
         int maximumPages = int.TryParse(_configuration["WebOfScience:MaximumPages"], out int configured)
             && configured > 0 ? configured : DefaultMaximumPages;
 
-        pages = [];
-        query = Uri.EscapeDataString($"AI=({researcherIdentifier})");
+        List<string>? pages = [];
+        string? query = Uri.EscapeDataString($"AI=({researcherIdentifier})");
 
         do
         {
@@ -91,13 +86,9 @@ public sealed class WebOfScienceClient
 
     internal List<string> GetDatabaseIds()
     {
-        IConfigurationSection? databaseIdsSection = null;
-        List<string>? databaseIds = null;
-        string? legacyDatabaseId = null;
-
-        databaseIdsSection = _configuration.GetSection(
+        IConfigurationSection? databaseIdsSection = _configuration.GetSection(
             "WebOfScience:DatabaseIds");
-        databaseIds = databaseIdsSection
+        List<string>? databaseIds = databaseIdsSection
             .GetChildren()
             .Select(item => item.Value)
             .Where(value => !string.IsNullOrWhiteSpace(value))
@@ -110,7 +101,7 @@ public sealed class WebOfScienceClient
             return databaseIds;
         }
 
-        legacyDatabaseId = _configuration["WebOfScience:DatabaseId"];
+        string? legacyDatabaseId = _configuration["WebOfScience:DatabaseId"];
 
         if (!string.IsNullOrWhiteSpace(legacyDatabaseId))
         {
@@ -122,15 +113,13 @@ public sealed class WebOfScienceClient
 
     private async Task<string> GetJsonAsync(string relativePath)
     {
-        string? baseUrl = null;
-        string? apiKey = null;
         HttpRequestMessage? request = null;
         HttpResponseMessage? response = null;
         string? body = null;
 
-        baseUrl = _configuration["WebOfScience:ApiBaseUrl"]
+        string? baseUrl = _configuration["WebOfScience:ApiBaseUrl"]
             ?? DefaultApiBaseUrl;
-        apiKey = _configuration["WebOfScience:ApiKey"];
+        string? apiKey = _configuration["WebOfScience:ApiKey"];
 
         if (string.IsNullOrWhiteSpace(apiKey))
         {
@@ -176,15 +165,11 @@ public sealed class WebOfScienceClient
         string researcherIdentifier,
         Dictionary<string, List<string>> documentPagesByDatabase)
     {
-        List<string>? allDocumentPages = null;
-        List<WebOfScienceWork>? works = null;
-        WebOfScienceProfile? profile = null;
-
-        allDocumentPages = documentPagesByDatabase
+        List<string>? allDocumentPages = documentPagesByDatabase
             .Values
             .SelectMany(pages => pages)
             .ToList();
-        works = CreateWorks(documentPagesByDatabase);
+        List<WebOfScienceWork>? works = CreateWorks(documentPagesByDatabase);
 
         if (works.Count == 0)
         {
@@ -192,7 +177,7 @@ public sealed class WebOfScienceClient
                 "Bu ResearcherID için Web of Science yayını bulunamadı.");
         }
 
-        profile = new WebOfScienceProfile();
+        WebOfScienceProfile? profile = new WebOfScienceProfile();
         profile.DisplayName = FindResearcherDisplayName(
             allDocumentPages,
             researcherIdentifier);
@@ -258,7 +243,6 @@ public sealed class WebOfScienceClient
 
     private static int? CalculateHIndex(List<WebOfScienceWork> works)
     {
-        List<int>? citationCounts = null;
         int index = 0;
 
         if (works.Count == 0 || works.Any(work => !work.TimesCited.HasValue))
@@ -266,7 +250,7 @@ public sealed class WebOfScienceClient
             return null;
         }
 
-        citationCounts = works
+        List<int>? citationCounts = works
             .Select(work => work.TimesCited!.Value)
             .OrderByDescending(count => count)
             .ToList();
@@ -295,11 +279,8 @@ public sealed class WebOfScienceClient
     private static List<WebOfScienceWork> CreateWorks(
         Dictionary<string, List<string>> documentPagesByDatabase)
     {
-        List<WebOfScienceWork>? works = null;
-        Dictionary<string, WebOfScienceWork>? worksByIdentifier = null;
-
-        works = [];
-        worksByIdentifier = new Dictionary<string, WebOfScienceWork>(
+        List<WebOfScienceWork>? works = [];
+        Dictionary<string, WebOfScienceWork>? worksByIdentifier = new Dictionary<string, WebOfScienceWork>(
             StringComparer.OrdinalIgnoreCase);
 
         foreach (KeyValuePair<string, List<string>> databasePages in
@@ -387,9 +368,8 @@ public sealed class WebOfScienceClient
     {
         JsonElement source = GetProperty(hit, "source");
         JsonElement citations = GetProperty(hit, "citations");
-        WebOfScienceWork? work = null;
 
-        work = new WebOfScienceWork();
+        WebOfScienceWork? work = new WebOfScienceWork();
         work.Uid = GetString(hit, "uid");
         work.Title = GetString(hit, "title");
         work.WorkTypes = JoinStrings(hit, "types");
@@ -521,9 +501,7 @@ public sealed class WebOfScienceClient
     private static string CreateRawDatabasePages(
         Dictionary<string, List<string>> documentPagesByDatabase)
     {
-        List<string>? databaseProperties = null;
-
-        databaseProperties = documentPagesByDatabase
+        List<string>? databaseProperties = documentPagesByDatabase
             .Select(databasePages =>
                 $"{JsonSerializer.Serialize(databasePages.Key)}:" +
                 CreateRawPageArray(databasePages.Value))

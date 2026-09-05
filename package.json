@@ -2,7 +2,7 @@
   "name": "academic-collector-demo",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test AcademicCollectorDemo.Tests/*.test.mjs"
+    "test": "node --experimental-strip-types --test AcademicCollectorDemo.Tests/Unit/*.test.mjs"
   },
   "dependencies": {
     "@serenity-is/assets": "./node_modules/.dotnet/serenity.assets",

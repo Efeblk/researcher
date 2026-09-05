@@ -17,13 +17,11 @@ public sealed class ResearcherIdentifierParser
 
     public Researcher Create(ResearcherCollectRequest request)
     {
-        Researcher? researcher = null;
-        List<string>? identifiers = null;
         int index = 0;
         string? identifier = null;
 
-        researcher = new Researcher();
-        identifiers = request.Identifiers ?? [];
+        Researcher? researcher = new Researcher();
+        List<string>? identifiers = request.Identifiers ?? [];
 
         for (index = 0; index < identifiers.Count; index++)
         {
@@ -59,10 +57,7 @@ public sealed class ResearcherIdentifierParser
         List<string> identifiers,
         ref int index)
     {
-        string? argumentName = null;
-        string? identifier = null;
-
-        argumentName = identifiers[index];
+        string? argumentName = identifiers[index];
 
         if (argumentName != "--orcid" &&
             argumentName != "--scholar" &&
@@ -78,7 +73,7 @@ public sealed class ResearcherIdentifierParser
             throw new ArgumentException($"{argumentName} için bir kimlik değeri verilmelidir.");
         }
 
-        identifier = identifiers[index + 1];
+        string? identifier = identifiers[index + 1];
         index++;
 
         if (argumentName == "--orcid")
