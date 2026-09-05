@@ -61,7 +61,7 @@ Prefer **Squash and merge** so each pull request becomes one clear commit on `ma
 
 ## Automated review
 
-Every pull request must pass the `Build`, `Dependency Review`, and both `CodeQL` checks. When the pull request author has an eligible Copilot plan, including Copilot Student, GitHub Copilot also reviews new pull requests and new pushes using the repository guidance in `.github/copilot-instructions.md` and `AGENTS.md`.
+Every pull request must pass the `Build`, `Dependency Review`, and CodeQL checks. Automatic Copilot reviews are disabled for this repository to conserve AI credits. Copilot review is optional: when a pull request is ready and your plan has available usage, request Copilot manually from the pull request's **Reviewers** section. It uses the repository guidance in `.github/copilot-instructions.md` and `AGENTS.md`. Request another review only when needed after substantive changes.
 
 CI and AI review have different roles: CI gives a repeatable pass or fail result, while AI review suggests possible problems that still require developer judgment. Resolve or answer each useful review comment before merging.
 
@@ -71,4 +71,4 @@ The `Build` check also runs the xUnit suite against an isolated SQL Server, Type
 
 Dependency Review blocks pull requests that introduce dependencies with known vulnerabilities of moderate severity or higher. CodeQL scans the C# and JavaScript/TypeScript code on pull requests, pushes to `main`, and every Monday. Dependabot checks NuGet, npm, and GitHub Actions dependencies every Monday and opens update pull requests.
 
-Handle a Dependabot pull request like any other change: read the release notes, wait for all checks and Copilot review, then squash-merge it when the update is safe.
+Handle a Dependabot pull request like any other change: read the release notes, review the diff, wait for all required checks, then squash-merge it when the update is safe. A Copilot review is optional; an exhausted Copilot allowance does not block the required checks or merging.
