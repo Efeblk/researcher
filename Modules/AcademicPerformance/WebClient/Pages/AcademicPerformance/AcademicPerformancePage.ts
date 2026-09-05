@@ -1,5 +1,6 @@
-import { EntityGrid, ListRequest, serviceRequest } from "@serenity-is/corelib";
+import { addLocalText, EntityGrid, ListRequest, ServiceResponse, serviceRequest } from "@serenity-is/corelib";
 import { Column } from "@serenity-is/sleekgrid";
+import { restoreProviderIdentifiers } from "./ProviderIdentifiers";
 
 const providerIdentifierStorageKey =
     "AcademicPerformance.ProviderIdentifiers.v1";
@@ -18,13 +19,13 @@ interface PublicationSummaryRow {
     IsApprovedForDisplay?: boolean;
 }
 
-interface PublicationDisplayApprovalResponse {
+interface PublicationDisplayApprovalResponse extends ServiceResponse {
     ResearcherId?: number;
     PublicationSummaryIds?: number[];
     ApprovedCount?: number;
 }
 
-interface ResearcherCollectResponse {
+interface ResearcherCollectResponse extends ServiceResponse {
     Researcher?: {
         Id?: number;
         FirstName?: string;
@@ -89,7 +90,7 @@ interface YoksisOperationResult {
     Errors?: string[];
 }
 
-interface YoksisCollectResponse {
+interface YoksisCollectResponse extends ServiceResponse {
     ResearcherId?: number;
     ResearcherDisplayName?: string;
     IsSaved?: boolean;
@@ -106,6 +107,7 @@ interface YoksisCollectResponse {
 class PublicationSummaryGrid extends EntityGrid<PublicationSummaryRow> {
     private researcherId = 0;
     private approvedPublicationIds = new Set<number>();
+    private selectionsLoaded = false;
 
     protected override useAsync() { return true; }
     protected override getIdProperty() { return "Id"; }
@@ -128,7 +130,7 @@ class PublicationSummaryGrid extends EntityGrid<PublicationSummaryRow> {
                     checkbox.type = "checkbox";
                     checkbox.className = "academic-publication-approval";
                     checkbox.checked = this.approvedPublicationIds.has(publicationId);
-                    checkbox.disabled = publicationId <= 0;
+                    checkbox.disabled = publicationId <= 0 || !this.selectionsLoaded;
                     checkbox.setAttribute(
                         "aria-label",
                         `${context.item.Title ?? "Yayın"} okulda gösterilsin`);
@@ -173,10 +175,15 @@ class PublicationSummaryGrid extends EntityGrid<PublicationSummaryRow> {
 
     async setResearcher(researcherId: number, displayName?: string) {
         this.researcherId = researcherId;
+        this.selectionsLoaded = false;
         this.approvedPublicationIds.clear();
+        this.view.setItems([]);
         this.setTitle(displayName ? `${displayName} - Yayınlar` : "Yayınlar");
         setSelectionControlsEnabled(false);
         updateSelectionCount(0);
+
+        if (researcherId <= 0)
+            return;
 
         try {
             const response = await serviceRequest<PublicationDisplayApprovalResponse>(
@@ -187,6 +194,7 @@ class PublicationSummaryGrid extends EntityGrid<PublicationSummaryRow> {
                 return;
 
             this.approvedPublicationIds = new Set(response.PublicationSummaryIds ?? []);
+            this.selectionsLoaded = true;
             updateSelectionCount(this.approvedPublicationIds.size);
             setSelectionControlsEnabled(true);
         }
@@ -201,7 +209,7 @@ class PublicationSummaryGrid extends EntityGrid<PublicationSummaryRow> {
     }
 
     async saveApprovals() {
-        if (this.researcherId <= 0)
+        if (this.researcherId <= 0 || !this.selectionsLoaded)
             throw new Error("Önce bir akademisyen araştırın.");
 
         return serviceRequest<PublicationDisplayApprovalResponse>(
@@ -214,6 +222,10 @@ class PublicationSummaryGrid extends EntityGrid<PublicationSummaryRow> {
 
     getApprovedCount() {
         return this.approvedPublicationIds.size;
+    }
+
+    canSaveSelections() {
+        return this.selectionsLoaded;
     }
 }
 
@@ -261,9 +273,23 @@ const saveSelectionsButton = document.querySelector<HTMLButtonElement>(
     "#SavePublicationSelections");
 const selectionCount = document.querySelector<HTMLElement>("#SelectionCount");
 const selectionStatus = document.querySelector<HTMLElement>("#SelectionStatus");
+addLocalText({
+    Controls: {
+        Pager: {
+            Page: "Sayfa",
+            PageStatus: "{total} yayından {from}–{to} arası gösteriliyor",
+            NoRowStatus: "Gösterilecek yayın yok",
+            LoadingStatus: "Yayınlar yükleniyor...",
+            DefaultLoadError: "Yayınlar yüklenemedi."
+        },
+        QuickSearch: {
+            Placeholder: "Yayınlarda ara...",
+            Hint: "Yayın başlığında ara",
+            FieldSelection: "Arama alanını seç"
+        }
+    }
+});
 const grid = new PublicationSummaryGrid({ element: "#PublicationGrid" });
-document.querySelector<HTMLInputElement>(".s-QuickSearchInput")
-    ?.setAttribute("placeholder", "Yayınlarda ara...");
 
 function valueOf(id: string) {
     return document.querySelector<HTMLInputElement>(`#${id}`)?.value.trim() ?? "";
@@ -296,35 +322,22 @@ function rememberProviderIdentifiers() {
 }
 
 function fillRememberedProviderIdentifiers() {
-    let identifiers: Record<string, string> = {};
-
+    let storedValue: string | null = null;
     try {
-        const storedValue = localStorage.getItem(providerIdentifierStorageKey);
-        identifiers = storedValue
-            ? JSON.parse(storedValue) as Record<string, string>
-            : {};
+        storedValue = localStorage.getItem(providerIdentifierStorageKey);
     }
     catch {
-        identifiers = {};
+        // Storage can be disabled.
     }
-
-    let filledCount = 0;
-
-    for (const input of getProviderIdentifierInputs()) {
-        const providerName = input.dataset.providerIdentifier;
-        const value = providerName ? identifiers[providerName] : undefined;
-
-        if (!value)
-            continue;
-
-        input.value = value;
-        filledCount++;
-    }
-
-    return filledCount;
+    return restoreProviderIdentifiers(getProviderIdentifierInputs(), storedValue);
 }
 
+let researchBusy = false;
+
 function setResearchButtonsEnabled(enabled: boolean) {
+    researchBusy = !enabled;
+    for (const input of form?.querySelectorAll<HTMLInputElement>("input") ?? [])
+        input.disabled = !enabled;
     if (button)
         button.disabled = !enabled;
     if (myPublicationsButton)
@@ -356,7 +369,7 @@ function updateSelectionCount(count: number) {
 
 function setSelectionControlsEnabled(enabled: boolean) {
     if (saveSelectionsButton)
-        saveSelectionsButton.disabled = !enabled;
+        saveSelectionsButton.disabled = !enabled || researchBusy;
 }
 
 function showProfileSummary(researcher?: ResearcherCollectResponse["Researcher"]) {
@@ -681,6 +694,8 @@ function getErrorMessage(error: unknown) {
 
 form?.addEventListener("submit", async event => {
     event.preventDefault();
+    if (researchBusy)
+        return;
 
     const identifiers = [
         valueOf("Orcid"),
@@ -703,6 +718,7 @@ form?.addEventListener("submit", async event => {
     }
 
     setResearchButtonsEnabled(false);
+    await grid.setResearcher(0);
     showProfileSummary(undefined);
     showGoogleScholarSummary(undefined);
     showOpenAlexSummary(undefined);
@@ -828,6 +844,7 @@ form?.addEventListener("submit", async event => {
         if (tcKimlikInput)
             tcKimlikInput.value = "";
         setResearchButtonsEnabled(true);
+        setSelectionControlsEnabled(grid.canSaveSelections());
     }
 });
 

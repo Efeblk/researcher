@@ -10,6 +10,7 @@ public sealed class WebOfScienceClient
     private const string DefaultApiBaseUrl =
         "https://api.clarivate.com/apis/wos-starter/v1";
     private const int DocumentsPageSize = 50;
+    private const int DefaultMaximumPages = 100;
 
     private static readonly string[] DefaultDatabaseIds = ["WOS", "WOK"];
 
@@ -66,6 +67,8 @@ public sealed class WebOfScienceClient
         int page = 1;
         int total = 0;
         int limit = DocumentsPageSize;
+        int maximumPages = int.TryParse(_configuration["WebOfScience:MaximumPages"], out int configured)
+            && configured > 0 ? configured : DefaultMaximumPages;
 
         pages = [];
         query = Uri.EscapeDataString($"AI=({researcherIdentifier})");
@@ -77,14 +80,16 @@ public sealed class WebOfScienceClient
                 $"&page={page}&limit={DocumentsPageSize}&sortField=PY%2BD");
             pages.Add(responseJson);
             (total, limit) = ReadPagination(responseJson, DocumentsPageSize);
+            if ((long)page * limit < total && page >= maximumPages)
+                throw new HttpRequestException("Web of Science sayfa sınırı aşıldı; eksik veri kaydedilmedi.");
             page++;
         }
-        while ((page - 1) * limit < total);
+        while ((long)(page - 1) * limit < total);
 
         return pages;
     }
 
-    private List<string> GetDatabaseIds()
+    internal List<string> GetDatabaseIds()
     {
         IConfigurationSection? databaseIdsSection = null;
         List<string>? databaseIds = null;

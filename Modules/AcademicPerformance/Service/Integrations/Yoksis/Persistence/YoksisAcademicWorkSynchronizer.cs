@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
@@ -23,7 +25,8 @@ public sealed class YoksisAcademicWorkSynchronizer
 
     public async Task<int> SyncAsync(
         int researcherId,
-        YoksisCollectResponse response)
+        YoksisCollectResponse response,
+        bool isIncremental = false)
     {
         List<AcademicWork>? existingWorks = null;
         List<AcademicWork>? incomingWorks = null;
@@ -37,7 +40,7 @@ public sealed class YoksisAcademicWorkSynchronizer
             .ToListAsync();
         incomingWorks = CreateWorks(researcherId, response);
         matchedExistingIds = [];
-        completedSourceTypes = GetCompletedSourceTypes(response);
+        completedSourceTypes = isIncremental ? [] : GetCompletedSourceTypes(response);
 
         foreach (AcademicWork incomingWork in incomingWorks)
         {
@@ -129,6 +132,17 @@ public sealed class YoksisAcademicWorkSynchronizer
         work.Provider = AcademicWorkProvider.Yoksis;
         work.CategorySource = AcademicWorkCategorySource.Yoksis;
         work.SourceName = "YÖKSİS";
+        if (string.IsNullOrWhiteSpace(work.SourceId))
+        {
+            // Without a provider ID, preserve distinct source records. Sorting
+            // fields makes the fallback stable when SOAP field order changes.
+            string canonicalRecord = JsonSerializer.Serialize(record
+                .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                .ToDictionary(pair => pair.Key, pair => pair.Value));
+            work.ProviderWorkId = $"{work.SourceType}:generated:" +
+                Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonicalRecord)))
+                    .ToLowerInvariant();
+        }
         work.ProviderPayload = JsonSerializer.Serialize(record);
         work.SyncedAt = DateTime.UtcNow;
         return work;
@@ -307,7 +321,7 @@ public sealed class YoksisAcademicWorkSynchronizer
         work = new AcademicWork();
         work.ResearcherId = researcherId;
         work.ProviderWorkId = string.IsNullOrWhiteSpace(sourceId)
-            ? null
+            ? string.Empty
             : $"{sourceType}:{sourceId}";
         work.Title = title;
         work.PublicationDate = ParseDate(dateText);

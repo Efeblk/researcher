@@ -31,6 +31,9 @@
 
   <ItemGroup>
     <Folder Include="Modules\AcademicPerformance\Background\" />
+    <Compile Remove="AcademicCollectorDemo.Tests\**\*" />
+    <Content Remove="AcademicCollectorDemo.Tests\**\*" />
+    <None Remove="AcademicCollectorDemo.Tests\**\*" />
   </ItemGroup>
 
   <Target Name="NpmInstall" Condition="!Exists('node_modules\@serenity-is\tsbuild\package.json')">

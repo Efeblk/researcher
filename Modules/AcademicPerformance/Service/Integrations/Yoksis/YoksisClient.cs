@@ -239,6 +239,18 @@ public sealed class YoksisClient
                 exception);
         }
 
+        // Providers can echo credentials and identity values even in successful
+        // responses. Sanitize decoded XML before extracting records or raw XML.
+        foreach (XElement element in document.Descendants().Where(element => !element.HasElements))
+        {
+            string name = element.Name.LocalName.Replace("_", string.Empty).ToUpperInvariant();
+            element.Value = name is "TCKIMLIKNO" or "PTCKIMLIKNO" or "TCKN" or "TCNO" or "PSIFRE" or "PKULLANICIID"
+                ? "[GİZLENDİ]"
+                : SanitizeSensitiveData(element.Value, tcKimlikNo);
+        }
+        foreach (XAttribute attribute in document.Descendants().Attributes().Where(attribute => !attribute.IsNamespaceDeclaration))
+            attribute.Value = SanitizeSensitiveData(attribute.Value, tcKimlikNo);
+
         body = document
             .Descendants()
             .FirstOrDefault(element => element.Name.LocalName == "Body");
@@ -284,7 +296,7 @@ public sealed class YoksisClient
         result.RequestCount = 1;
         result.Records = CreateRecords(responseElement);
         result.RecordCount = result.Records.Count;
-        result.RawResponsesXml.Add(responseXml);
+        result.RawResponsesXml.Add(document.ToString(SaveOptions.DisableFormatting));
         return result;
     }
 

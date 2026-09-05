@@ -184,9 +184,9 @@ public sealed class OrcidClient
             LastUpdatedAt = DateTime.UtcNow,
             ResearcherUrlsJson = GetRawText(person, "researcher-urls"),
             ExternalIdentifiersJson = GetRawText(person, "external-identifiers"),
-            EmploymentsJson = employments.GetRawText(),
-            EducationsJson = educations.GetRawText(),
-            ActivitiesJson = activities.GetRawText(),
+            EmploymentsJson = GetRawText(activities, "employments"),
+            EducationsJson = GetRawText(activities, "educations"),
+            ActivitiesJson = GetRawText(root, "activities-summary"),
             RawDataJson = rawJson
         };
     }
@@ -437,7 +437,7 @@ public sealed class OrcidClient
 
     private static DateTime? CreateDate(int? year, int? month, int? day)
     {
-        if (!year.HasValue)
+        if (!year.HasValue || year.Value is < 1 or > 9999)
         {
             return null;
         }

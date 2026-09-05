@@ -73,9 +73,16 @@ public sealed class AcademicPerformanceApplicationService :
             .AsNoTracking()
             .CountAsync(summary => summary.ResearcherId == researcher.Id);
 
+        AcademicResearcherDto? researcherDto = MapResearcher(researcher);
+        if (researcherDto?.OpenAlexProfile is not null)
+        {
+            researcherDto.OpenAlexProfile.CollectedWorksCount = await _dbContext.OpenAlexWorks
+                .CountAsync(work => work.OpenAlexProfileId == researcher.OpenAlexProfile!.Id);
+        }
+
         return new AcademicDataResponse
         {
-            Researcher = MapResearcher(researcher),
+            Researcher = researcherDto,
             IsSaved = true,
             PublicationCount = publicationCount,
             CollectedAt = DateTime.UtcNow
@@ -116,6 +123,7 @@ public sealed class AcademicPerformanceApplicationService :
         List<PublicationSummary> publications = await query
             .OrderByDescending(summary => summary.PublicationYear)
             .ThenBy(summary => summary.Title)
+            .ThenBy(summary => summary.Id)
             .Skip(skip)
             .Take(take)
             .ToListAsync();
@@ -154,6 +162,9 @@ public sealed class AcademicPerformanceApplicationService :
         {
             throw new ArgumentException("Akademisyen kaydı bulunamadı.");
         }
+
+        if (request.PublicationIds is null)
+            throw new ArgumentException("Yayın seçim listesi verilmelidir; tüm seçimleri kaldırmak için boş liste gönderin.");
 
         List<int> requestedIds = request.PublicationIds
             .Where(id => id > 0)
@@ -232,20 +243,18 @@ public sealed class AcademicPerformanceApplicationService :
         }
         else if (!string.IsNullOrWhiteSpace(orcid))
         {
-            string normalizedOrcid = orcid.Trim();
+            string normalizedOrcid = ResearcherIdentifierParser.NormalizeOrcid(orcid);
             query = query.Where(researcher => researcher.Orcid == normalizedOrcid);
         }
         else if (!string.IsNullOrWhiteSpace(googleScholarId))
         {
-            string normalizedGoogleScholarId = googleScholarId.Trim();
+            string normalizedGoogleScholarId = ResearcherIdentifierParser.NormalizeGoogleScholarId(googleScholarId);
             query = query.Where(researcher =>
                 researcher.GoogleScholarId == normalizedGoogleScholarId);
         }
         else if (!string.IsNullOrWhiteSpace(webOfScienceResearcherId))
         {
-            string normalizedResearcherId = webOfScienceResearcherId
-                .Trim()
-                .ToUpperInvariant();
+            string normalizedResearcherId = ResearcherIdentifierParser.NormalizeResearcherId(webOfScienceResearcherId);
             query = query.Where(researcher =>
                 researcher.WebOfScienceResearcherId == normalizedResearcherId);
         }
@@ -266,6 +275,7 @@ public sealed class AcademicPerformanceApplicationService :
 
         if (!string.IsNullOrWhiteSpace(request.Orcid))
         {
+            identifiers.Add("--orcid");
             identifiers.Add(request.Orcid.Trim());
         }
 
@@ -277,6 +287,7 @@ public sealed class AcademicPerformanceApplicationService :
 
         if (!string.IsNullOrWhiteSpace(request.WebOfScienceResearcherId))
         {
+            identifiers.Add("--researcherid");
             identifiers.Add(request.WebOfScienceResearcherId.Trim());
         }
 

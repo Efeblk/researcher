@@ -349,7 +349,20 @@ servis adresi HTTP görünse de yapılandırmada şifreli HTTPS adresi kullanıl
 
 ## Doğrulama
 
-Projede henüz otomatik test projesi yoktur. Değişikliklerden sonra en az
-`dotnet build` çalıştırın ve etkilenen akışı arayüzden veya `.http` dosyasından
-kontrol edin. Yeni iş kuralları için dış API'leri taklit eden birim testleri
-eklenmelidir.
+Doğrulama komutları:
+
+```powershell
+dotnet build --configuration Release
+dotnet test AcademicCollectorDemo.Tests/AcademicCollectorDemo.Tests.csproj --configuration Release
+npm run typecheck
+npm test
+```
+
+xUnit testleri sağlayıcı yanıtlarını taklit eder; gerçek ücretli API çağrısı
+yapmaz. Veritabanı ve HTTP testleri Windows'ta LocalDB kullanır. Diğer ortamlarda
+`ACADEMIC_TEST_SQLSERVER` ile ayrı bir test SQL Server bağlantısı verin.
+Her çalıştırma yalnız kendisinin oluşturduğu rastgele isimli test veritabanını
+kullanır ve sonunda kaldırır; uygulamanın veritabanına veya User Secrets'a
+bağlanmaz. GitHub CI, SQL Server'ı geçici bir container'da çalıştırır.
+
+İnceleme bulguları ve kapsam sınırları: [proje incelemesi](docs/PROJECT_REVIEW.md).

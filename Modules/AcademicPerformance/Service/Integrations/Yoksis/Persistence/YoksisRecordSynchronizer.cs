@@ -25,7 +25,8 @@ public sealed class YoksisRecordSynchronizer
 
     public async Task<int> SyncAsync(
         int researcherId,
-        YoksisCollectResponse response)
+        YoksisCollectResponse response,
+        bool isIncremental = false)
     {
         List<YoksisRecord>? existingRecords = null;
         List<YoksisOperationResult>? categoriesToSynchronize = null;
@@ -41,7 +42,7 @@ public sealed class YoksisRecordSynchronizer
                 (category.IsSuccess || category.Records.Count > 0))
             .ToList();
         completedOperations = categoriesToSynchronize
-            .Where(category => category.IsSuccess)
+            .Where(category => category.IsSuccess && !isIncremental)
             .Select(category => category.OperationName!)
             .ToHashSet(StringComparer.Ordinal);
         removedRecordIds = [];
@@ -69,7 +70,7 @@ public sealed class YoksisRecordSynchronizer
                 externalRecordId = FindExternalRecordId(recordData);
                 recordJson = JsonSerializer.Serialize(recordData);
 
-                if (!category.IsSuccess)
+                if (!category.IsSuccess || isIncremental)
                 {
                     existingRecord = FindExistingRecord(
                         existingRecords,

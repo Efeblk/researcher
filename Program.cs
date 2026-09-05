@@ -27,6 +27,9 @@ public static class Program
         builder.Logging.AddConsole();
         builder.Logging.AddDebug();
 
+        if (builder.Environment.IsEnvironment("Testing"))
+            builder.WebHost.UseStaticWebAssets();
+
         if (cleanDatabase)
         {
             builder.Logging.AddFilter("FluentMigrator", LogLevel.Warning);
@@ -40,13 +43,19 @@ public static class Program
             .AddJsonFile(
                 "academicsettings.json",
                 optional: false,
-                reloadOnChange: true)
-            .AddUserSecrets(
+                reloadOnChange: true);
+
+        if (builder.Environment.IsDevelopment())
+        {
+            builder.Configuration.AddUserSecrets(
                 typeof(Program).Assembly,
                 optional: true,
-                reloadOnChange: true)
+                reloadOnChange: true);
+        }
+
+        builder.Configuration
             .AddEnvironmentVariables()
-            .AddCommandLine(args);
+            .AddCommandLine(hostArguments);
 
         builder.Services.AddAcademicPerformanceModule(builder.Configuration);
         builder.Services.AddApplicationPartsTypeSource();

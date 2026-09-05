@@ -17,131 +17,118 @@ public sealed class PublicationSummarySynchronizer
 
     public async Task<int> SyncAsync(int researcherId)
     {
-        List<AcademicWork>? works = null;
-        List<PublicationSummary>? existingSummaries = null;
-        List<List<AcademicWork>>? groups = null;
-        HashSet<int>? retainedIds = null;
-        PublicationSummary? synchronizedSummary = null;
-        PublicationSummary? existingSummary = null;
-        int index = 0;
-
-        works = await _dbContext.AcademicWorks
+        List<AcademicWork> works = await _dbContext.AcademicWorks
             .Where(work => work.ResearcherId == researcherId)
+            .OrderBy(work => work.Id)
             .ToListAsync();
-        existingSummaries = await _dbContext.PublicationSummaries
+        List<PublicationSummary> existing = await _dbContext.PublicationSummaries
+            .Include(summary => summary.DisplayApproval)
             .Where(summary => summary.ResearcherId == researcherId)
+            .OrderBy(summary => summary.Id)
             .ToListAsync();
-        groups = CreateGroups(works);
-        retainedIds = [];
+        Dictionary<PublicationSummary, List<AcademicWork>> desiredGroups = CreateGroups(works)
+            .ToDictionary(group => CreateSummary(researcherId, group));
+        List<PublicationSummary> desired = desiredGroups.Keys.ToList();
+        Dictionary<string, PublicationSummary> desiredByFingerprint = desired
+            .ToDictionary(summary => summary.Fingerprint, StringComparer.Ordinal);
+        Dictionary<PublicationSummary, List<PublicationSummary>> existingMatches = desired
+            .ToDictionary(summary => summary, _ => new List<PublicationSummary>());
+        HashSet<int> retainedIds = [];
 
-        for (index = 0; index < groups.Count; index++)
+        foreach (PublicationSummary summary in existing)
         {
-            synchronizedSummary = CreateSummary(researcherId, groups[index]);
-            existingSummary = existingSummaries.FirstOrDefault(summary =>
-                !retainedIds.Contains(summary.Id) &&
-                summary.Fingerprint == synchronizedSummary.Fingerprint);
-            existingSummary ??= existingSummaries.FirstOrDefault(summary =>
-                !retainedIds.Contains(summary.Id) &&
-                IsSamePublication(summary, synchronizedSummary));
-
-            if (existingSummary is null)
+            if (desiredByFingerprint.TryGetValue(summary.Fingerprint, out PublicationSummary? exact))
             {
-                _dbContext.PublicationSummaries.Add(synchronizedSummary);
+                existingMatches[exact].Add(summary);
                 continue;
             }
 
-            CopyValues(synchronizedSummary, existingSummary);
-            retainedIds.Add(existingSummary.Id);
+            // Evaluate ambiguity once per stored summary, stopping at two
+            // matches. Only an unambiguous match can transfer a selection.
+            List<PublicationSummary> candidates = desired
+                .Where(candidate => IsSamePublication(summary, candidate, desiredGroups[candidate]))
+                .Take(2)
+                .ToList();
+            if (candidates.Count == 1)
+                existingMatches[candidates[0]].Add(summary);
         }
 
-        for (index = 0; index < existingSummaries.Count; index++)
+        foreach (PublicationSummary candidate in desired)
         {
-            existingSummary = existingSummaries[index];
+            List<PublicationSummary> matches = existingMatches[candidate]
+                .OrderByDescending(summary => summary.DisplayApproval is not null)
+                .ThenByDescending(summary => summary.Fingerprint == candidate.Fingerprint)
+                .ThenBy(summary => summary.Id)
+                .ToList();
+            PublicationSummary? target = matches.FirstOrDefault();
 
-            if (!retainedIds.Contains(existingSummary.Id))
+            if (target is null)
             {
-                _dbContext.PublicationSummaries.Remove(existingSummary);
+                _dbContext.PublicationSummaries.Add(candidate);
+                continue;
             }
+
+            CopyValues(candidate, target);
+            retainedIds.Add(target.Id);
         }
 
+        _dbContext.PublicationSummaries.RemoveRange(
+            existing.Where(summary => !retainedIds.Contains(summary.Id)));
         await _dbContext.SaveChangesAsync();
-        return groups.Count;
+        return desired.Count;
     }
 
     private static List<List<AcademicWork>> CreateGroups(List<AcademicWork> works)
     {
-        List<List<AcademicWork>>? groups = null;
-        List<AcademicWork>? matchingGroup = null;
-        AcademicWork? work = null;
-        int index = 0;
+        // Establish DOI groups first, so a DOI-less record cannot bridge two
+        // conflicting DOIs or split one DOI into multiple summary fingerprints.
+        List<List<AcademicWork>> groups = works
+            .Where(work => NormalizeDoi(work.Doi) is not null)
+            .GroupBy(work => NormalizeDoi(work.Doi), StringComparer.Ordinal)
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
+            .Select(group => group.ToList())
+            .ToList();
 
-        groups = [];
-
-        for (index = 0; index < works.Count; index++)
+        foreach (AcademicWork work in works
+            .Where(work => NormalizeDoi(work.Doi) is null)
+            .OrderByDescending(work => work.PublicationYear.HasValue)
+            .ThenBy(work => NormalizeTitle(work.Title), StringComparer.Ordinal)
+            .ThenBy(work => work.PublicationYear)
+            .ThenBy(work => work.Id))
         {
-            work = works[index];
-            matchingGroup = groups.FirstOrDefault(group => IsSamePublication(group, work));
-
-            if (matchingGroup is null)
+            string title = NormalizeTitle(work.Title);
+            if (title.Length == 0)
             {
                 groups.Add([work]);
                 continue;
             }
 
-            matchingGroup.Add(work);
+            List<List<AcademicWork>> matches = groups.Where(group => group.Any(existing =>
+                NormalizeTitle(existing.Title) == title &&
+                YearsAreCompatible(existing.PublicationYear, work.PublicationYear))).ToList();
+            List<AcademicWork>? exactTitleGroup = matches.FirstOrDefault(group =>
+                group.All(existing => NormalizeDoi(existing.Doi) is null) &&
+                group.All(existing => existing.PublicationYear == work.PublicationYear));
+            List<AcademicWork>? target = exactTitleGroup ??
+                (matches.Count == 1 ? matches[0] : null);
+
+            if (target is null)
+                groups.Add([work]);
+            else
+                target.Add(work);
         }
 
         return groups;
     }
 
     private static bool IsSamePublication(
-        List<AcademicWork> group,
-        AcademicWork candidate)
-    {
-        string? candidateDoi = null;
-        string? candidateTitle = null;
-        string? existingDoi = null;
-        int index = 0;
-        AcademicWork? existing = null;
-
-        candidateDoi = NormalizeDoi(candidate.Doi);
-        candidateTitle = NormalizeTitle(candidate.Title);
-
-        for (index = 0; index < group.Count; index++)
-        {
-            existing = group[index];
-            existingDoi = NormalizeDoi(existing.Doi);
-
-            if (!string.IsNullOrWhiteSpace(candidateDoi) &&
-                !string.IsNullOrWhiteSpace(existingDoi))
-            {
-                if (candidateDoi == existingDoi)
-                {
-                    return true;
-                }
-
-                continue;
-            }
-
-            if (!string.IsNullOrWhiteSpace(candidateTitle) &&
-                candidateTitle == NormalizeTitle(existing.Title) &&
-                YearsAreCompatible(candidate.PublicationYear, existing.PublicationYear))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool IsSamePublication(
         PublicationSummary existing,
-        PublicationSummary candidate)
+        PublicationSummary candidate,
+        List<AcademicWork> candidateWorks)
     {
         string? existingDoi = null;
         string? candidateDoi = null;
         string? existingTitle = null;
-        string? candidateTitle = null;
 
         existingDoi = NormalizeDoi(existing.Doi);
         candidateDoi = NormalizeDoi(candidate.Doi);
@@ -152,13 +139,14 @@ public sealed class PublicationSummarySynchronizer
             return existingDoi == candidateDoi;
         }
 
+        // Placeholder titles are not publication identities.
+        if (existing.Title == "Başlıksız yayın" || candidate.Title == "Başlıksız yayın")
+            return false;
+
         existingTitle = NormalizeTitle(existing.Title);
-        candidateTitle = NormalizeTitle(candidate.Title);
         return !string.IsNullOrWhiteSpace(existingTitle) &&
-            existingTitle == candidateTitle &&
-            YearsAreCompatible(
-                existing.PublicationYear,
-                candidate.PublicationYear);
+            candidateWorks.Any(work => existingTitle == NormalizeTitle(work.Title) &&
+                YearsAreCompatible(existing.PublicationYear, work.PublicationYear));
     }
 
     private static bool YearsAreCompatible(int? first, int? second)
@@ -179,6 +167,7 @@ public sealed class PublicationSummarySynchronizer
         preferredWorks = works
             .OrderByDescending(work => work.Provider == AcademicWorkProvider.Orcid)
             .ThenByDescending(GetMetadataScore)
+            .ThenBy(work => work.Id)
             .ToList();
         doi = FirstText(preferredWorks, work => NormalizeDoi(work.Doi));
         title = FirstText(preferredWorks, work => work.Title) ?? "Başlıksız yayın";
@@ -188,7 +177,10 @@ public sealed class PublicationSummarySynchronizer
 
         summary = new PublicationSummary();
         summary.ResearcherId = researcherId;
-        summary.Fingerprint = CreateFingerprint(doi, title, publicationYear);
+        summary.Fingerprint = CreateFingerprint(doi, title, publicationYear,
+            preferredWorks.All(work => NormalizeTitle(work.Title).Length == 0)
+                ? $"work:{preferredWorks[0].Id}"
+                : null);
         summary.Title = title;
         summary.PublicationYear = publicationYear;
         summary.Doi = doi;
@@ -244,22 +236,22 @@ public sealed class PublicationSummarySynchronizer
 
     private static string? NormalizeDoi(string? doi)
     {
-        string? normalized = null;
-
-        normalized = doi?.Trim().ToLowerInvariant();
-
+        string? normalized = doi?.Trim().ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(normalized))
-        {
             return null;
+
+        if (normalized.StartsWith("doi:", StringComparison.Ordinal))
+            normalized = normalized[4..].Trim();
+
+        foreach (string prefix in new[] { "https://doi.org/", "http://doi.org/", "https://dx.doi.org/", "http://dx.doi.org/" })
+        {
+            if (normalized.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                normalized = normalized[prefix.Length..].Trim();
+                break;
+            }
         }
-
-        normalized = normalized
-            .Replace("https://doi.org/", string.Empty, StringComparison.Ordinal)
-            .Replace("http://doi.org/", string.Empty, StringComparison.Ordinal);
-
-        return normalized.StartsWith("doi:", StringComparison.Ordinal)
-            ? normalized[4..].Trim()
-            : normalized;
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 
     private static string NormalizeTitle(string? title)
@@ -288,14 +280,15 @@ public sealed class PublicationSummarySynchronizer
     private static string CreateFingerprint(
         string? doi,
         string title,
-        int? publicationYear)
+        int? publicationYear,
+        string? fallbackIdentity = null)
     {
         string? source = null;
         byte[]? hash = null;
 
         source = !string.IsNullOrWhiteSpace(doi)
             ? "doi:" + doi
-            : $"title:{NormalizeTitle(title)}|year:{publicationYear}";
+            : fallbackIdentity ?? $"title:{NormalizeTitle(title)}|year:{publicationYear}";
         hash = SHA256.HashData(Encoding.UTF8.GetBytes(source));
 
         return Convert.ToHexString(hash).ToLowerInvariant();

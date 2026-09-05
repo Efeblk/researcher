@@ -62,10 +62,12 @@ public sealed class YoksisCollectionHandler
             await _researcherRepository.SaveAsync(researcher);
             response.YoksisRecordCount = await _recordSynchronizer.SyncAsync(
                 researcher.Id,
-                response);
+                response,
+                isIncremental: request.UpdatedAfter.HasValue);
             publicationCount = await _workSynchronizer.SyncAsync(
                 researcher.Id,
-                response);
+                response,
+                isIncremental: request.UpdatedAfter.HasValue);
 
             response.ResearcherId = researcher.Id;
             response.ResearcherDisplayName = CreateDisplayName(researcher);
