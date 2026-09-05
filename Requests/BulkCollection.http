@@ -1,0 +1,40 @@
+# Synthetic examples. WorkerEnabled is false by default.
+# Generate a new BatchId for each new batch; reuse it only for identical input.
+@bulk = http://localhost:5001/Services/AcademicPerformance/V1/Bulk
+@batchId = a3700086-8ad7-4871-becf-0fbd2ce586e3
+
+### Save a batch of researcher identifiers
+POST {{bulk}}/Submit
+Content-Type: application/json
+
+{
+  "BatchId": "{{batchId}}",
+  "Researchers": [
+    {
+      "SourceResearcherId": "employee-001",
+      "WebOfScienceId": "A-1234-2020"
+    },
+    {
+      "SourceResearcherId": "employee-002",
+      "Orcid": "0000-0000-0000-0001"
+    }
+  ]
+}
+
+### Read aggregate progress and the first page of results
+POST {{bulk}}/Status
+Content-Type: application/json
+
+{
+  "BatchId": "{{batchId}}",
+  "Skip": 0,
+  "Take": 100
+}
+
+### Import the configured SQL query (configure BulkSqlSource and use a new BatchId)
+POST {{bulk}}/ImportSql
+Content-Type: application/json
+
+{
+  "BatchId": "55e75e5c-dad5-40eb-97af-717f5c865da8"
+}

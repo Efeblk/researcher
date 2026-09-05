@@ -22,6 +22,7 @@ Modules/AcademicPerformance/
       Contracts/                   Public request and response types
       Endpoints/                   Supported HTTP API entry points
     Application/                   Use cases and entity-to-API mapping
+    Bulk/                          Persistent batch queue and configurable SQL import
     Researchers/
       Collection/                  Parse identifiers and collect provider data
       Models/                      Shared researcher data
@@ -43,7 +44,7 @@ Modules/AcademicPerformance/
     Endpoints/                     Serenity UI adapters
     Pages/AcademicPerformance/     Page markup, orchestration, and summary panels
     Publications/                  Publication grid and Serenity metadata
-  Background/                      Reserved for scheduled jobs
+  Background/                      Bulk queue worker and future scheduled jobs
 AcademicCollectorDemo.Tests/
   Unit/                            Identifier parsing and browser storage tests
   Integration/                     Provider, persistence, and endpoint tests
@@ -110,3 +111,5 @@ npm test
 Integration tests use synthetic provider responses and an isolated SQL Server database. They use Windows LocalDB or `ACADEMIC_TEST_SQLSERVER`, never the application's database settings. Browser storage tests run with Node through `npm test`.
 
 Follow [CONTRIBUTING.md](../CONTRIBUTING.md) to create a branch, open a PR, and check CI before merging.
+
+For SQL query imports, bulk jobs, and provider pacing, see [Bulk collection](BULK_COLLECTION.md).

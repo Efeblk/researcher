@@ -22,5 +22,43 @@
   },
   "ProviderCache": {
     "MaxAgeHours": 24
+  },
+  "BulkCollection": {
+    "WorkerEnabled": false,
+    "MaximumBatchSize": 10000,
+    "MaximumAttempts": 3,
+    "PollSeconds": 5,
+    "RetrySeconds": 60
+  },
+  "BulkSqlSource": {
+    "Enabled": false,
+    "Query": "",
+    "CommandTimeoutSeconds": 30,
+    "SourceResearcherIdColumn": "ResearcherId",
+    "OrcidColumn": "Orcid",
+    "GoogleScholarIdColumn": "GoogleScholarId",
+    "WebOfScienceIdColumn": "WebOfScienceID"
+  },
+  "ProviderRequestLimits": {
+    "Orcid": {
+      "MinimumIntervalMilliseconds": 1000,
+      "DailyRequestLimit": 0
+    },
+    "SearchApi": {
+      "MinimumIntervalMilliseconds": 1000,
+      "DailyRequestLimit": 0
+    },
+    "OpenAlex": {
+      "MinimumIntervalMilliseconds": 1000,
+      "DailyRequestLimit": 0
+    },
+    "WebOfScience": {
+      "MinimumIntervalMilliseconds": 1000,
+      "DailyRequestLimit": 0
+    },
+    "Yoksis": {
+      "MinimumIntervalMilliseconds": 1000,
+      "DailyRequestLimit": 0
+    }
   }
 }

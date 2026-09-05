@@ -1,3 +1,4 @@
+using AcademicCollectorDemo.Modules.AcademicPerformance.Bulk.Models;
 using Microsoft.EntityFrameworkCore;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
@@ -11,6 +12,8 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 
 public sealed class AcademicDbContext : DbContext
 {
+    public DbSet<BulkCollectionBatch> BulkCollectionBatches { get; set; } = null!;
+    public DbSet<BulkCollectionJob> BulkCollectionJobs { get; set; } = null!;
     public DbSet<Researcher> Researchers { get; set; } = null!;
     public DbSet<OrcidProfile> OrcidProfiles { get; set; } = null!;
     public DbSet<OrcidWork> OrcidWorks { get; set; } = null!;
@@ -33,6 +36,23 @@ public sealed class AcademicDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<BulkCollectionBatch>(entity =>
+        {
+            entity.ToTable("BulkCollectionBatches");
+            entity.HasKey(batch => batch.Id);
+            entity.Property(batch => batch.InputHash).HasMaxLength(64);
+        });
+        modelBuilder.Entity<BulkCollectionJob>(entity =>
+        {
+            entity.ToTable("BulkCollectionJobs");
+            entity.HasKey(job => job.Id);
+            entity.Property(job => job.SourceResearcherId).HasMaxLength(200);
+            entity.Property(job => job.Status).HasMaxLength(20);
+            entity.Property(job => job.ResultMessage).HasMaxLength(1000);
+            entity.HasOne<BulkCollectionBatch>().WithMany().HasForeignKey(job => job.BatchId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
         modelBuilder.Entity<Researcher>(entity =>
         {
             entity.ToTable("Researchers");
