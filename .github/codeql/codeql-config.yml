@@ -1,0 +1,10 @@
+name: Researcher CodeQL configuration
+
+queries:
+  - uses: security-extended
+
+paths-ignore:
+  - bin/**
+  - node_modules/**
+  - obj/**
+  - wwwroot/esm/**
