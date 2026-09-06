@@ -23,11 +23,12 @@ Tablodaki hızlar saniye/saat başına çağrı sayısıdır; paralel bağlantı
 değildir. Açıklanmayan sınırlar sınırsız kabul edilmemelidir.
 
 Bir akademisyen sorgusu sayfalama nedeniyle birden fazla dış çağrı harcar.
-Mevcut kod tek toplama içinde sıralı çalışır; bütün kullanıcıları kapsayan
-merkezi hız/kota sınırlayıcı henüz yoktur.
+Mevcut kod tek toplama içinde sıralı çalışır. Ortak SQL tabanlı hız/günlük kota
+sınırlayıcı, sayfalama dahil dış çağrıları denetler. Yapılandırılabilir varsayılanlar
+ve toplu iş kuyruğu için [toplu toplama rehberine](BULK_COLLECTION.md) bakın.
 
 ## Proje Kararları
 
 - Sağlayıcı metrikleri birbirinin yerine kullanılmaz; OpenAlex karşılaştırma verisi ayrı tutulur.
 - Tüm yayınlar saklanır; okulda yalnız akademisyenin onayladıkları gösterilir.
-- Canlıya geçmeden kurumsal kullanım hakları, BYS yetkilendirmesi ve ortak kota kontrolü tamamlanmalıdır.
+- Canlıya geçmeden kurumsal kullanım hakları, BYS yetkilendirmesi ve hesaplara özgü bütçe ayarları tamamlanmalıdır.

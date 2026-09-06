@@ -41,20 +41,20 @@
   },
   "ProviderRequestLimits": {
     "Orcid": {
-      "MinimumIntervalMilliseconds": 1000,
-      "DailyRequestLimit": 0
+      "MinimumIntervalMilliseconds": 100,
+      "DailyRequestLimit": 25000
     },
     "SearchApi": {
-      "MinimumIntervalMilliseconds": 1000,
+      "MinimumIntervalMilliseconds": 2000,
       "DailyRequestLimit": 0
     },
     "OpenAlex": {
-      "MinimumIntervalMilliseconds": 1000,
-      "DailyRequestLimit": 0
+      "MinimumIntervalMilliseconds": 20,
+      "DailyRequestLimit": 1000
     },
     "WebOfScience": {
-      "MinimumIntervalMilliseconds": 1000,
-      "DailyRequestLimit": 0
+      "MinimumIntervalMilliseconds": 250,
+      "DailyRequestLimit": 5000
     },
     "Yoksis": {
       "MinimumIntervalMilliseconds": 1000,

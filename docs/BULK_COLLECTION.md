@@ -119,7 +119,21 @@ Each provider has settings under `ProviderRequestLimits`: `Orcid`, `SearchApi`, 
 | `MinimumIntervalMilliseconds` | Minimum spacing between HTTP requests for that provider. |
 | `DailyRequestLimit` | Application-side request cap per UTC day; `0` means no daily cap enforced by this application. |
 
-The committed 1,000 ms interval is a starting configuration, **not a claim about any provider's subscription limits**. Set the interval and budget to your account's actual allowance before running bulk collections. Daily request counts cannot represent providers that charge different credit amounts per endpoint, and they do not include calls made by other applications outside this database.
+Defaults now follow the [repository provider reports](API_OZET_RAPORU.md), with spacing below the published ceilings. Official sources were rechecked on 6 September 2026.
+
+| Provider | Default spacing | Application daily cap | Basis |
+| --- | --- | --- | --- |
+| ORCID | 100 ms (up to 10/s) | 25,000 | Public/anonymous ceiling is 12/s. Anonymous access allows 25,000 reads/day; registered public access allows 100,000. The default uses the lower allowance. |
+| OpenAlex | 20 ms (up to 50/s) | 1,000 | Published ceiling is 100/s. Our current client uses filter queries; 1,000 such calls cost the documented $0.10 keyless daily budget. A free key allows a larger budget. |
+| Web of Science | 250 ms (up to 4/s) | 5,000 | The project report confirms Free Institutional Member: 5/s and 5,000/day. |
+| SearchApi | 2,000 ms (up to 1,800/hour) | No application daily cap | Conservative spacing below the documented Developer example's 2,000/hour. The purchased plan is still unconfirmed; this is not a claim about the account entitlement. |
+| YÖKSİS | 1,000 ms (up to 1/s) | No application daily cap | Provider limits remain unverified; this is a placeholder. |
+
+Sources: [ORCID limits](https://info.orcid.org/ufaqs/what-are-the-api-limits/), [OpenAlex authentication](https://help.openalex.org/api/authentication/), [OpenAlex costs](https://help.openalex.org/access/example-costs/), [WoS plans](https://developer.clarivate.com/apis/wos-starter), [SearchApi limits](https://www.searchapi.io/pricing).
+
+Every spacing and cap remains adjustable in `academicsettings.json` or deployment overrides. These are maximum launch rates, not guaranteed throughput. Provider response time, SQL coordination, and sequential collection can make processing slower.
+
+Raise ORCID's cap to 100,000 only when using registered public credentials. For OpenAlex's free-key budget, the current filter-only client can use a 10,000 daily request cap. Revisit this approximation if endpoint costs or query types change: request counts are not a general monetary-budget limiter. SearchApi enforces an hourly allowance of 20% of plan credits; smooth spacing does not track the remaining monthly or trial balance. Confirm that plan before bulk use. Requests from other applications are not included in our database counters.
 
 Every HTTP request passes through the limiter, including pagination and detail requests. Interactive requests share the same budget. Different providers have separate pacing and cooldown state. Limits are coordinated through the application SQL database, so hosts using the same database share these budgets. Requests already represented by the existing fresh provider cache make no HTTP call.
 
