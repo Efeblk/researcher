@@ -42,16 +42,17 @@ public sealed class OllamaReportGeneratorTests
     }
 
     [Theory]
-    [InlineData("{\"done\":false,\"done_reason\":\"stop\"}")]
-    [InlineData("{\"done\":true,\"done_reason\":\"length\"}")]
-    [InlineData("{\"done\":true,\"done_reason\":\"stop\",\"message\":{\"content\":\"{}\"}}")]
-    [InlineData("not json")]
-    public async Task Generate_TruncatedOrMalformedOutput_RejectsReport(string response)
+    [InlineData("{\"done\":false,\"done_reason\":\"stop\"}", AnalysisFailure.IncompleteOutput)]
+    [InlineData("{\"done\":true,\"done_reason\":\"length\"}", AnalysisFailure.OutputLimit)]
+    [InlineData("{\"done\":true,\"done_reason\":\"stop\",\"message\":{\"content\":\"{}\"}}", AnalysisFailure.InvalidJson)]
+    [InlineData("not json", AnalysisFailure.InvalidJson)]
+    public async Task Generate_TruncatedOrMalformedOutput_RejectsReport(string response, AnalysisFailure reason)
     {
         using StubHandler handler = new(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         { Content = new StringContent(response) }));
         using HttpClient client = new(handler);
-        await Assert.ThrowsAsync<InvalidAnalysisException>(() => Generator(client).GenerateAsync(AnalysisSamples.Request(), CancellationToken.None));
+        InvalidAnalysisException exception = await Assert.ThrowsAsync<InvalidAnalysisException>(() => Generator(client).GenerateAsync(AnalysisSamples.Request(), CancellationToken.None));
+        Assert.Equal(reason, exception.Reason);
     }
 
     [Fact]

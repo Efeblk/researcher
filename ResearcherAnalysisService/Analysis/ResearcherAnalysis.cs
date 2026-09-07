@@ -62,15 +62,18 @@ public sealed class ResearcherAnalysis(IResearcherReportGenerator generator)
             if (observation is null || string.IsNullOrWhiteSpace(observation.Observation) ||
                 observation.Observation.Length > 2000 || observation.Evidence is null ||
                 observation.Evidence.Count is < 1 or > 5)
-                throw new InvalidAnalysisException();
+                throw new InvalidAnalysisException(AnalysisFailure.InvalidObservation);
 
             foreach (PublicationEvidence evidence in observation.Evidence)
             {
                 if (evidence is null || string.IsNullOrWhiteSpace(evidence.PublicationId) ||
-                    !byId.TryGetValue(evidence.PublicationId, out AnalysisPublication? publication) ||
                     string.IsNullOrWhiteSpace(evidence.Quote) || evidence.Quote.Length is < 10 or > 600 ||
-                    (writing && evidence.Field != "abstract"))
-                    throw new InvalidAnalysisException();
+                    evidence.Field is not ("title" or "abstract" or "keywords"))
+                    throw new InvalidAnalysisException(AnalysisFailure.InvalidEvidence);
+                if (!byId.TryGetValue(evidence.PublicationId, out AnalysisPublication? publication))
+                    throw new InvalidAnalysisException(AnalysisFailure.UnknownPublication);
+                if (writing && evidence.Field != "abstract")
+                    throw new InvalidAnalysisException(AnalysisFailure.WritingEvidenceNotAbstract);
 
                 string? source = evidence.Field switch
                 {
@@ -80,7 +83,7 @@ public sealed class ResearcherAnalysis(IResearcherReportGenerator generator)
                     _ => null
                 };
                 if (source is null || !source.Contains(evidence.Quote, StringComparison.Ordinal))
-                    throw new InvalidAnalysisException();
+                    throw new InvalidAnalysisException(AnalysisFailure.QuoteMismatch);
             }
         }
     }
