@@ -14,6 +14,48 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  windows-build:
+    name: Windows build
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Restore dependencies
+        run: dotnet restore AcademicCollectorDemo.sln
+
+      - name: Install front-end dependencies
+        run: npm ci
+
+      - name: Verify collector excludes nested analysis projects
+        shell: pwsh
+        run: |
+          $items = dotnet msbuild AcademicCollectorDemo.csproj -getItem:Compile,Content,None -p:DefaultItemExcludes=**/obj/**
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $evaluated = ($items | ConvertFrom-Json).Items
+          foreach ($kind in @('Compile', 'Content', 'None')) {
+            $included = $evaluated.$kind | Where-Object { $_.Identity -match '^ResearcherAnalysisService(\.Tests)?[\\/]' }
+            if ($included) { throw "Collector includes analysis project files as $kind" }
+          }
+
+      - name: Build solution
+        run: dotnet build AcademicCollectorDemo.sln --configuration Release --no-restore
+
+      - name: Test analysis service
+        run: dotnet test ResearcherAnalysisService.Tests/ResearcherAnalysisService.Tests.csproj --configuration Release --no-build --no-restore
+
   build:
     name: Build
     runs-on: ubuntu-latest

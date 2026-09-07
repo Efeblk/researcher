@@ -35,6 +35,10 @@
     <Compile Remove="AcademicCollectorDemo.Tests\**\*" />
     <Content Remove="AcademicCollectorDemo.Tests\**\*" />
     <None Remove="AcademicCollectorDemo.Tests\**\*" />
+    <!-- These are independent projects, not collector source or web content. -->
+    <Compile Remove="ResearcherAnalysisService\**\*;ResearcherAnalysisService.Tests\**\*" />
+    <Content Remove="ResearcherAnalysisService\**\*;ResearcherAnalysisService.Tests\**\*" />
+    <None Remove="ResearcherAnalysisService\**\*;ResearcherAnalysisService.Tests\**\*" />
   </ItemGroup>
 
   <Target Name="NpmInstall" Condition="!Exists('node_modules\@serenity-is\tsbuild\package.json')">
