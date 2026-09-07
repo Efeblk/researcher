@@ -41,7 +41,7 @@
     <Exec Command="npm install" />
   </Target>
 
-  <Target Name="RunTSBuild" DependsOnTargets="RestoreNodeTypes;NpmInstall" BeforeTargets="ResolveProjectStaticWebAssets" AfterTargets="ResolveProjectReferences" Condition="'$(SkipTSBuild)' != 'true'">
+  <Target Name="RunTSBuild" DependsOnTargets="RestoreNodeTypes;NpmInstall" BeforeTargets="ResolveProjectStaticWebAssets" AfterTargets="ResolveProjectReferences" Condition="'$(SkipTSBuild)' != 'true' And '$(DesignTimeBuild)' != 'true'">
     <Message Text="Executing TypeScript compiler for $(ProjectName)..." Importance="high" />
     <Exec Command="node ./tsbuild.js" />
     <ItemGroup>
