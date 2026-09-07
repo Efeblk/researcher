@@ -178,7 +178,15 @@ public sealed class AnalyzeEndpointTests
         await using AnalysisTestHost host = await AnalysisTestHost.StartAsync(generator);
         using HttpResponseMessage response = await host.Client.PostAsJsonAsync("/api/v1/analyze", AnalysisSamples.Request());
         Assert.Equal(expected, response.StatusCode);
-        Assert.DoesNotContain("sensitive", await response.Content.ReadAsStringAsync());
+        string body = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("sensitive", body);
+        if (!timeout)
+        {
+            using JsonDocument problem = JsonDocument.Parse(body);
+            Assert.Equal("ProviderRequestFailed", problem.RootElement.GetProperty("reason").GetString());
+            Assert.Equal(JsonValueKind.Null, problem.RootElement.GetProperty("providerStatus").ValueKind);
+            Assert.False(string.IsNullOrWhiteSpace(problem.RootElement.GetProperty("detail").GetString()));
+        }
     }
 
     [Fact]

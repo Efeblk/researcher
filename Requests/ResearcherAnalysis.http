@@ -156,7 +156,9 @@ Accept: application/json
 # Troubleshooting valid analysis requests:
 # 401: Supply the service access key if Service:ApiKey is configured.
 # 422: Use fewer/shorter abstracts for the configured Ollama context.
-# 502: Model output was incomplete, malformed, or failed evidence validation.
+# 502: Read reason and detail in the response body; type is only the HTTP error documentation link.
+# ProviderRequestFailed: providerStatus is Ollama's HTTP status (null if unavailable); check its logs.
+# Other reasons describe incomplete/malformed model output or failed evidence validation.
 # 503: Start Ollama, download the configured model, or check service configuration.
 # 504: Local inference timed out; try a smaller sample.
 # A 200 /health response only confirms the HTTP service is running, not that the model is ready.
