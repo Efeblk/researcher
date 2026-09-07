@@ -41,6 +41,53 @@ public sealed class OllamaReportGeneratorTests
         Assert.Single(result.Findings.ResearchFocus);
     }
 
+    [Fact]
+    public async Task Generate_EachSnapshot_ConstrainsEvidenceAndDoesNotReusePublicationIds()
+    {
+        int calls = 0;
+        using StubHandler handler = new(async request =>
+        {
+            calls++;
+            using JsonDocument body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            JsonElement schema = body.RootElement.GetProperty("format");
+            JsonElement definitions = schema.GetProperty("$defs");
+            JsonElement evidence = definitions.GetProperty("evidence").GetProperty("properties");
+            string[] ids = evidence.GetProperty("publicationId").GetProperty("enum").EnumerateArray()
+                .Select(id => id.GetString()!).ToArray();
+            Assert.Equal(calls == 1 ? new[] { "p1", "p2", "p3" } : new[] { "other", "p2", "p3" }, ids);
+            Assert.Equal(10, evidence.GetProperty("quote").GetProperty("minLength").GetInt32());
+            Assert.Equal(600, evidence.GetProperty("quote").GetProperty("maxLength").GetInt32());
+            JsonElement observation = definitions.GetProperty("observation").GetProperty("properties");
+            Assert.Equal(1, observation.GetProperty("evidence").GetProperty("minItems").GetInt32());
+            Assert.Equal(5, observation.GetProperty("evidence").GetProperty("maxItems").GetInt32());
+            Assert.Equal(2000, observation.GetProperty("observation").GetProperty("maxLength").GetInt32());
+            JsonElement writing = schema.GetProperty("properties").GetProperty("writingObservations");
+            Assert.Equal(calls == 1 ? 6 : 0, writing.GetProperty("maxItems").GetInt32());
+            Assert.Equal("#/$defs/writingObservation", writing.GetProperty("items").GetProperty("$ref").GetString());
+            Assert.Equal("#/$defs/writingEvidence", definitions.GetProperty("writingObservation")
+                .GetProperty("properties").GetProperty("evidence").GetProperty("items").GetProperty("$ref").GetString());
+            string?[] fields = definitions.GetProperty("writingEvidence").GetProperty("properties")
+                .GetProperty("field").GetProperty("enum").EnumerateArray().Select(field => field.GetString()).ToArray();
+            Assert.Equal(new[] { "abstract" }, fields);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new
+                {
+                    model = "qwen3:1.7b", done = true, done_reason = "stop",
+                    message = new { content = "{\"researchFocus\":[],\"writingObservations\":[]}" }
+                })
+            };
+        });
+        using HttpClient client = new(handler);
+        OllamaReportGenerator generator = Generator(client);
+        await generator.GenerateAsync(AnalysisSamples.Request(), CancellationToken.None);
+        var second = AnalysisSamples.Request();
+        second.Publications[0].Id = "other";
+        second.Publications.ForEach(publication => publication.Abstract = null);
+        await generator.GenerateAsync(second, CancellationToken.None);
+        Assert.Equal(2, calls);
+    }
+
     [Theory]
     [InlineData("{\"done\":false,\"done_reason\":\"stop\"}", AnalysisFailure.IncompleteOutput)]
     [InlineData("{\"done\":true,\"done_reason\":\"length\"}", AnalysisFailure.OutputLimit)]
