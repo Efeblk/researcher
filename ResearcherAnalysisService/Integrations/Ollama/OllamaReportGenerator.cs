@@ -1,7 +1,9 @@
 using System.Net;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Unicode;
 using Microsoft.Extensions.Options;
 using ResearcherAnalysisService.Analysis;
 using ResearcherAnalysisService.Api.V1.Contracts;
@@ -21,6 +23,8 @@ public sealed class OllamaReportGenerator(HttpClient client, IOptions<AiOptions>
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
+        // This JSON becomes message text; preserve Turkish letters for the model to quote.
+        Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
     };
 
@@ -46,9 +50,12 @@ public sealed class OllamaReportGenerator(HttpClient client, IOptions<AiOptions>
                 publication.Abstract, publication.Keywords
             })
         }, JsonOptions);
+        string instructions = request.Language == "tr"
+            ? Instructions + "\nWrite every observation in Turkish. Keep evidence quotes in the original source language."
+            : Instructions;
         // Conservative byte-based allowance, reserving space for output and the chat template.
         // Avoid silently dropping earlier publications when using a small local context window.
-        int inputBudget = Encoding.UTF8.GetByteCount(Instructions) + Encoding.UTF8.GetByteCount(input) + 512;
+        int inputBudget = Encoding.UTF8.GetByteCount(instructions) + Encoding.UTF8.GetByteCount(input) + 512;
         if (inputBudget + settings.MaxOutputTokens > settings.OllamaContextTokens)
             throw new AnalysisInputTooLargeException();
 
@@ -61,7 +68,7 @@ public sealed class OllamaReportGenerator(HttpClient client, IOptions<AiOptions>
             format = OllamaReportSchema.Create(request.Publications),
             messages = new[]
             {
-                new { role = "system", content = Instructions },
+                new { role = "system", content = instructions },
                 new { role = "user", content = input }
             },
             options = new
@@ -93,7 +100,7 @@ public sealed class OllamaReportGenerator(HttpClient client, IOptions<AiOptions>
             AnalysisFindings findings = JsonSerializer.Deserialize<AnalysisFindings>(content, JsonOptions)
                 ?? throw new InvalidAnalysisException(AnalysisFailure.InvalidJson);
             return new GeneratedFindings(findings, root.GetProperty("model").GetString() ?? settings.Model,
-                ReportPrompt.Version + "-ollama-v2");
+                ReportPrompt.Version + "-ollama-v3");
         }
         catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException)
         {

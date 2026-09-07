@@ -17,7 +17,8 @@ internal static class OllamaReportSchema
         JsonNode definitions = schema["$defs"]!;
         JsonNode observation = definitions["observation"]!["properties"]!;
         observation["observation"]!["minLength"] = 1;
-        observation["observation"]!["maxLength"] = 2000;
+        // maxLength: 2000 exceeds Ollama 0.33.3's grammar repetition limit.
+        // Keep that limit in the prompt and backend validation, not the sampling grammar.
         observation["evidence"]!["minItems"] = 1;
         observation["evidence"]!["maxItems"] = 5;
 
