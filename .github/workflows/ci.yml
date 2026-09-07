@@ -35,13 +35,16 @@ jobs:
           cache: npm
 
       - name: Restore .NET dependencies
-        run: dotnet restore AcademicCollectorDemo.Tests/AcademicCollectorDemo.Tests.csproj
+        run: dotnet restore AcademicCollectorDemo.sln
 
       - name: Install front-end dependencies
         run: npm ci
 
       - name: Build
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build AcademicCollectorDemo.sln --configuration Release --no-restore
+
+      - name: Test analysis service with synthetic AI responses
+        run: dotnet test ResearcherAnalysisService.Tests/ResearcherAnalysisService.Tests.csproj --configuration Release --no-build --no-restore
 
       - name: Type-check front end
         run: npm run typecheck

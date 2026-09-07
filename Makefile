@@ -15,10 +15,10 @@ run:
 	dotnet run
 
 build:
-	dotnet build
+	dotnet build AcademicCollectorDemo.sln
 
 clean:
-	dotnet clean
+	dotnet clean AcademicCollectorDemo.sln
 	@echo "Build çıktıları temizlendi. SQL Server veritabanına dokunulmadı."
 
 health:
