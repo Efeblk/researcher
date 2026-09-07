@@ -24,6 +24,10 @@ public sealed class AnalyzeController(ResearcherAnalysis analysis, ILogger<Analy
         {
             return Problem(statusCode: 503, title: exception.Message);
         }
+        catch (AnalysisInputTooLargeException exception)
+        {
+            return Problem(statusCode: 422, title: exception.Message);
+        }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             return Problem(statusCode: 504, title: "AI analysis timed out. Try a smaller publication sample.");

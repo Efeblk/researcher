@@ -26,31 +26,72 @@ From the repository root:
 dotnet run --project ResearcherAnalysisService --launch-profile http
 ```
 
-Health only confirms that the HTTP service is running. Analysis also requires an AI
-API key and a model that supports the Responses API with strict JSON Schema output.
-The model is deliberately unset; choose an available model for your account and budget.
+Health only confirms that the HTTP service is running. Analysis uses a local Ollama
+model by default; no paid AI API key or subscription is required.
 
-Right-click **ResearcherAnalysisService → Manage User Secrets** and set:
+## Local setup for an M2 Mac with 8 GB RAM
+
+1. Install and open [Ollama](https://ollama.com/download/mac).
+2. Download the configured small model once:
+
+   ```sh
+   ollama pull qwen3:1.7b
+   ```
+
+3. Run the analysis project and use the example request. Ollama must remain running;
+   if its desktop app is not running, start the local server with `ollama serve`.
+
+The checked-in settings are:
 
 ```json
 {
   "Ai": {
-    "ApiKey": "YOUR_API_KEY",
-    "Model": "YOUR_MODEL_ID"
+    "Provider": "Ollama",
+    "Model": "qwen3:1.7b",
+    "OllamaBaseUrl": "http://localhost:11434/",
+    "OllamaContextTokens": 8192,
+    "TimeoutSeconds": 180,
+    "MaxOutputTokens": 2000
   }
 }
 ```
 
-These secrets belong to the new project, independently of the collector's secrets.
-Production equivalents are `Ai__ApiKey` and `Ai__Model` environment variables.
-Never put credentials in source control or `.http` examples.
+The [Qwen3 1.7B download](https://ollama.com/library/qwen3:1.7b) is approximately
+1.4 GB; runtime memory also includes the context and model runtime. This is a starting
+configuration for limited-memory hardware, not a measured quality or speed guarantee.
+Begin with a few short abstracts and close memory-heavy applications. The adapter
+requests `think: false` to disable Qwen3's extra reasoning output. It does not download
+models or fall back to a paid/cloud provider. Only a loopback Ollama URL is accepted.
+For strictly local operation, disable Ollama cloud features with `OLLAMA_NO_CLOUD=1`
+in the Ollama server environment and restart Ollama.
 
-The first provider adapter uses the OpenAI Responses API with strict structured output.
-It sends publication IDs, titles, years, abstracts, keywords, report language, and the
-declared total count. Researcher name, department, DOI, and provider metrics are not
-sent to the model. Provider metrics are returned unchanged in the report.
-The request sets `store: false`; this is not a claim of zero provider retention.
+The local adapter sends the report JSON schema with the request and uses the same
+quotation/reference validation as the cloud adapter. It applies a conservative UTF-8
+byte-based input allowance, reserving context for output and the chat template. Samples
+that exceed this allowance return `422` before calling the model. This is intentionally
+more restrictive than the general 60,000-character request limit. Reduce the sample;
+only raise context size if the selected model and available memory support it.
+
+The model receives publication IDs, titles, years, abstracts, keywords, language, and
+the declared total count. Researcher name, department, DOI, and provider metrics are
+not sent to the model. Provider metrics are returned unchanged in the report.
+
+References: [Ollama local authentication](https://docs.ollama.com/api/authentication),
+[structured outputs](https://docs.ollama.com/capabilities/structured-outputs),
+[thinking controls](https://docs.ollama.com/capabilities/thinking), and
+[server configuration](https://docs.ollama.com/faq).
+
+## Optional paid provider
+
+The OpenAI adapter remains available only when explicitly selected. To use it, set
+`Ai:Provider` to `OpenAI` and configure `Ai:Model` and `Ai:ApiKey` in the new project's
+**Manage User Secrets**. Choose a model supporting the Responses API with strict
+JSON Schema output. These secrets are independent of the collector's secrets.
+Production equivalents are `Ai__Provider`, `Ai__Model`, and `Ai__ApiKey`.
+
+The OpenAI request sets `store: false`; this is not a claim of zero provider retention.
 Implementation reference: [official Structured Outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs).
+Never put credentials in source control or `.http` examples.
 
 ## HTTP contract
 
@@ -118,11 +159,12 @@ HTTPS for remote service calls and keep the key on the collector backend, not in
 | `400` | Invalid snapshot; the model is not called |
 | `401` | Missing or incorrect configured service access key |
 | `413` | Request exceeds the HTTP body limit |
+| `422` | Publication sample exceeds the configured local context allowance |
 | `502` | Provider error, refusal, incomplete output, or invalid evidence |
-| `503` | AI configuration missing, or remote service access not configured |
+| `503` | Model/provider configuration missing, Ollama unavailable/model not downloaded, or remote service access not configured |
 | `504` | Provider request timed out |
 
-`Ai:TimeoutSeconds` defaults to 90 and `Ai:MaxOutputTokens` to 4000. Caller cancellation
+`Ai:TimeoutSeconds` defaults to 180 and `Ai:MaxOutputTokens` to 2000. Caller cancellation
 is forwarded to the provider request. Timeouts or invalid output do not trigger a second
 paid request. Submitted text and provider response/error bodies are not logged by the service.
 

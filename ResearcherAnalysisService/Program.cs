@@ -3,6 +3,7 @@ using ResearcherAnalysisService.Analysis;
 using ResearcherAnalysisService.Api;
 using ResearcherAnalysisService.Configuration;
 using ResearcherAnalysisService.Integrations.OpenAi;
+using ResearcherAnalysisService.Integrations.Ollama;
 
 namespace ResearcherAnalysisService;
 
@@ -26,11 +27,17 @@ public static class Program
         builder.Services.AddOptions<AiOptions>().BindConfiguration("Ai").ValidateDataAnnotations().ValidateOnStart();
         builder.Services.AddScoped<AnalysisAccessFilter>();
         builder.Services.AddScoped<ResearcherAnalysis>();
-        builder.Services.AddHttpClient<IResearcherReportGenerator, OpenAiReportGenerator>((services, client) =>
+        Action<IServiceProvider, HttpClient> configureClient = (services, client) =>
         {
             client.Timeout = TimeSpan.FromSeconds(services.GetRequiredService<IOptions<AiOptions>>().Value.TimeoutSeconds);
             client.MaxResponseContentBufferSize = 1024 * 1024;
-        });
+        };
+        builder.Services.AddHttpClient<OpenAiReportGenerator>(configureClient);
+        builder.Services.AddHttpClient<OllamaReportGenerator>(configureClient);
+        builder.Services.AddScoped<IResearcherReportGenerator>(services =>
+            services.GetRequiredService<IOptions<AiOptions>>().Value.Provider == "Ollama"
+                ? services.GetRequiredService<OllamaReportGenerator>()
+                : services.GetRequiredService<OpenAiReportGenerator>());
         configure?.Invoke(builder);
 
         WebApplication application = builder.Build();

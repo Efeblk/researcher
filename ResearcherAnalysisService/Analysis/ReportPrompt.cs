@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace ResearcherAnalysisService.Integrations.OpenAi;
+namespace ResearcherAnalysisService.Analysis;
 
 internal static class ReportPrompt
 {

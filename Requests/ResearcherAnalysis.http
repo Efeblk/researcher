@@ -1,9 +1,9 @@
 @analysisHost = http://localhost:5011
 
-### Health: no SQL Server or AI key required
+### Health: no SQL Server or model required
 GET {{analysisHost}}/health
 
-### Analyze a synthetic snapshot (requires Ai:ApiKey and Ai:Model)
+### Analyze a synthetic snapshot (start Ollama and pull qwen3:1.7b first; no AI key required)
 # For remote/production use, add X-Analysis-Key with your Service:ApiKey from secure configuration.
 # Do not save real keys in this file.
 POST {{analysisHost}}/api/v1/analyze
