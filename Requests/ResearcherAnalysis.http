@@ -162,3 +162,19 @@ Accept: application/json
 # 503: Start Ollama, download the configured model, or check service configuration.
 # 504: Local inference timed out; try a smaller sample.
 # A 200 /health response only confirms the HTTP service is running, not that the model is ready.
+
+### Ollama direct test: bypass the analysis service to see Ollama's own response
+# Requires Ollama running locally with qwen3:1.7b installed. No analysis service or SQL Server needed.
+# Send this request to investigate provider HTTP 400 errors; inspect the response body for "error".
+POST http://localhost:11434/api/chat
+Content-Type: application/json
+
+{
+  "model": "qwen3:1.7b",
+  "stream": false,
+  "think": false,
+  "format": "json",
+  "messages": [
+    { "role": "user", "content": "Return JSON: {\"ok\":true}" }
+  ]
+}
