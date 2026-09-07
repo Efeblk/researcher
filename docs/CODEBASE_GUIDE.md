@@ -2,6 +2,10 @@
 
 This application collects academic profiles and publications, combines duplicate publications, and lets a researcher choose which publications appear on a school website.
 
+Open `AcademicCollectorDemo.sln` to work with both the collector and the independent `ResearcherAnalysisService`.
+The latter accepts JSON snapshots for AI reporting and has no database or collector project reference.
+See [Researcher analysis](RESEARCHER_ANALYSIS.md) for its contract, setup, and current integration boundary.
+
 ## Start with these files
 
 1. `Program.cs` sets up the web host, registers services, and runs migrations.

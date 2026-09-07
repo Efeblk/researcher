@@ -1,0 +1,53 @@
+@analysisHost = http://localhost:5011
+
+### Health: no SQL Server or AI key required
+GET {{analysisHost}}/health
+
+### Analyze a synthetic snapshot (requires Ai:ApiKey and Ai:Model)
+# For remote/production use, add X-Analysis-Key with your Service:ApiKey from secure configuration.
+# Do not save real keys in this file.
+POST {{analysisHost}}/api/v1/analyze
+Content-Type: application/json
+
+{
+  "researcherId": 42,
+  "researcherName": "Synthetic Researcher",
+  "department": "Environmental Engineering",
+  "snapshotAt": "2026-01-01T00:00:00Z",
+  "language": "en",
+  "totalPublicationCount": 3,
+  "publications": [
+    {
+      "id": "publication-101",
+      "title": "Coastal water monitoring",
+      "year": 2024,
+      "category": "Article",
+      "abstract": "We compare two monitoring methods. Further validation is needed.",
+      "keywords": "water quality; coastal monitoring",
+      "sources": "ORCID"
+    },
+    {
+      "id": "publication-102",
+      "title": "Monitoring water quality",
+      "year": 2025,
+      "category": "Article",
+      "abstract": null,
+      "keywords": null,
+      "sources": "WebOfScience"
+    }
+  ],
+  "citationMetrics": [
+    {
+      "provider": "GoogleScholar",
+      "citationCount": 12,
+      "hIndex": 2,
+      "collectedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "provider": "WebOfScience",
+      "citationCount": null,
+      "hIndex": null,
+      "collectedAt": "2026-01-01T00:00:00Z"
+    }
+  ]
+}

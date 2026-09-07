@@ -127,7 +127,7 @@ Araştırmacı ID akademisyen eşleştirmesinde kullanılır.
 - SQL Server; Windows geliştirme ortamında SQL Server Express LocalDB yeterlidir
 
 ```powershell
-dotnet restore
+dotnet restore AcademicCollectorDemo.sln
 sqllocaldb start MSSQLLocalDB
 sqlcmd -S "(localdb)\MSSQLLocalDB" -E -Q "IF DB_ID(N'AcademicCollectorDemo') IS NULL EXEC(N'CREATE DATABASE [AcademicCollectorDemo]')"
 dotnet run
@@ -156,8 +156,12 @@ Build sırasında `npm install` ve TypeScript derlemesi gerektiğinde otomatik
 Yalnızca derlemek için:
 
 ```powershell
-dotnet build
+dotnet build AcademicCollectorDemo.sln
 ```
+
+Visual Studio'da `AcademicCollectorDemo.sln` dosyasını açın. Ayrı çalışan AI analiz API'si
+`ResearcherAnalysisService` projesindedir; varsayılan adresi `http://localhost:5011`.
+Kurulum, istek sözleşmesi ve kapsam: [Araştırmacı analizi](docs/RESEARCHER_ANALYSIS.md).
 
 ## Veri toplama komutları
 
@@ -356,8 +360,9 @@ servis adresi HTTP görünse de yapılandırmada şifreli HTTPS adresi kullanıl
 Doğrulama komutları:
 
 ```powershell
-dotnet build --configuration Release
+dotnet build AcademicCollectorDemo.sln --configuration Release
 dotnet test AcademicCollectorDemo.Tests/AcademicCollectorDemo.Tests.csproj --configuration Release
+dotnet test ResearcherAnalysisService.Tests/ResearcherAnalysisService.Tests.csproj --configuration Release
 npm run typecheck
 npm test
 ```

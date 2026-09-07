@@ -8,6 +8,7 @@
     <SerenityUsings>false</SerenityUsings>
     <TypeScriptCompileBlocked>true</TypeScriptCompileBlocked>
     <TypeScriptNoEmitOnError>false</TypeScriptNoEmitOnError>
+    <DefaultItemExcludes>$(DefaultItemExcludes);ResearcherAnalysisService/**;ResearcherAnalysisService.Tests/**</DefaultItemExcludes>
     <GenerateComputedBuildStaticWebAssetsDependsOn>RunTSBuild;$(GenerateComputedBuildStaticWebAssetsDependsOn)</GenerateComputedBuildStaticWebAssetsDependsOn>
   </PropertyGroup>
 
