@@ -109,6 +109,23 @@ public sealed class AnalyzeEndpointTests
         Assert.DoesNotContain("Coastal water monitoring", body);
     }
 
+    [Theory]
+    [InlineData(9, HttpStatusCode.BadGateway)]
+    [InlineData(10, HttpStatusCode.OK)]
+    [InlineData(600, HttpStatusCode.OK)]
+    [InlineData(601, HttpStatusCode.BadGateway)]
+    public async Task Analyze_VerbatimQuote_EnforcesLengthBounds(int length, HttpStatusCode expected)
+    {
+        string quote = new('a', length);
+        AnalyzeResearcherRequest request = AnalysisSamples.Request();
+        request.Publications[0].Abstract = new string('a', 700);
+        StubReportGenerator generator = new()
+        { Result = AnalysisSamples.Findings("p1", "abstract", quote, writing: true) };
+        await using AnalysisTestHost host = await AnalysisTestHost.StartAsync(generator);
+        using HttpResponseMessage response = await host.Client.PostAsJsonAsync("/api/v1/analyze", request);
+        Assert.Equal(expected, response.StatusCode);
+    }
+
     [Fact]
     public async Task Analyze_VerbatimAbstractEvidence_ReturnsWritingObservation()
     {

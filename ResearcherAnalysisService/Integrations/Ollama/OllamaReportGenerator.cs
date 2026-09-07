@@ -12,6 +12,13 @@ namespace ResearcherAnalysisService.Integrations.Ollama;
 public sealed class OllamaReportGenerator(HttpClient client, IOptions<AiOptions> options)
     : IResearcherReportGenerator
 {
+    private const string Instructions = ReportPrompt.Instructions + "\n\n" + """
+        Keep the report concise. Prefer one short, complete source sentence per evidence quote.
+        Copy publicationId from the publication's id value, not its title or DOI.
+        A quote must contain 10-600 characters: copy a longer continuous passage if a phrase is too short.
+        Do not translate, paraphrase, or join separate passages in a quote. Omit unsupported observations.
+        """;
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
@@ -41,7 +48,7 @@ public sealed class OllamaReportGenerator(HttpClient client, IOptions<AiOptions>
         }, JsonOptions);
         // Conservative byte-based allowance, reserving space for output and the chat template.
         // Avoid silently dropping earlier publications when using a small local context window.
-        int inputBudget = Encoding.UTF8.GetByteCount(ReportPrompt.Instructions) + Encoding.UTF8.GetByteCount(input) + 512;
+        int inputBudget = Encoding.UTF8.GetByteCount(Instructions) + Encoding.UTF8.GetByteCount(input) + 512;
         if (inputBudget + settings.MaxOutputTokens > settings.OllamaContextTokens)
             throw new AnalysisInputTooLargeException();
 
@@ -51,10 +58,10 @@ public sealed class OllamaReportGenerator(HttpClient client, IOptions<AiOptions>
             model = settings.Model,
             stream = false,
             think = false,
-            format = ReportPrompt.Schema,
+            format = OllamaReportSchema.Create(request.Publications),
             messages = new[]
             {
-                new { role = "system", content = ReportPrompt.Instructions },
+                new { role = "system", content = Instructions },
                 new { role = "user", content = input }
             },
             options = new
@@ -85,7 +92,8 @@ public sealed class OllamaReportGenerator(HttpClient client, IOptions<AiOptions>
             string content = root.GetProperty("message").GetProperty("content").GetString() ?? string.Empty;
             AnalysisFindings findings = JsonSerializer.Deserialize<AnalysisFindings>(content, JsonOptions)
                 ?? throw new InvalidAnalysisException(AnalysisFailure.InvalidJson);
-            return new GeneratedFindings(findings, root.GetProperty("model").GetString() ?? settings.Model, ReportPrompt.Version);
+            return new GeneratedFindings(findings, root.GetProperty("model").GetString() ?? settings.Model,
+                ReportPrompt.Version + "-ollama-v2");
         }
         catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException)
         {

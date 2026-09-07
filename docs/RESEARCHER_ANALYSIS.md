@@ -187,3 +187,12 @@ For a `502` invalid report, inspect the HTTP response without attaching a debugg
 `UnknownPublication` means a cited ID was not supplied. These reports remain rejected.
 The same reason is logged as `AI analysis failed (InvalidAnalysisException, QuoteMismatch)`
 (for example). Neither diagnostic includes submitted text or raw model output.
+
+Ollama uses a request-specific structured-output schema with quote length (10–600),
+observation length (1–2000), evidence count (1–5), and observation count (up to 6)
+bounds. Publication IDs are limited to the supplied snapshot. Writing evidence must
+use abstracts; snapshots without abstracts request an empty writing-observation array.
+These constraints follow Ollama's [structured-output API](https://docs.ollama.com/capabilities/structured-outputs).
+The backend still verifies quotes against source text and rejects invalid reports;
+the schema does not establish that an observation is substantively correct. Ollama
+reports now identify the prompt as `research-profile-v1-ollama-v2`.
