@@ -32,7 +32,15 @@ public sealed class AnalyzeController(ResearcherAnalysis analysis, ILogger<Analy
         {
             return Problem(statusCode: 504, title: "AI analysis timed out. Try a smaller publication sample.");
         }
-        catch (Exception exception) when (exception is HttpRequestException or InvalidAnalysisException)
+        catch (InvalidAnalysisException exception)
+        {
+            logger.LogWarning("AI analysis failed ({ErrorType}, {Reason}).",
+                nameof(InvalidAnalysisException), exception.Reason);
+            return Problem(statusCode: 502, title: "The AI provider did not return a usable report.",
+                detail: exception.Message,
+                extensions: new Dictionary<string, object?> { ["reason"] = exception.Reason.ToString() });
+        }
+        catch (HttpRequestException exception)
         {
             // Provider error bodies and submitted research text must not enter logs or error responses.
             logger.LogWarning("AI analysis failed ({ErrorType}).", exception.GetType().Name);

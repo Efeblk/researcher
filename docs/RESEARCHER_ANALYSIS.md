@@ -160,7 +160,7 @@ HTTPS for remote service calls and keep the key on the collector backend, not in
 | `401` | Missing or incorrect configured service access key |
 | `413` | Request exceeds the HTTP body limit |
 | `422` | Publication sample exceeds the configured local context allowance |
-| `502` | Provider error, refusal, incomplete output, or invalid evidence |
+| `502` | Provider error, refusal, incomplete output, or invalid evidence. Invalid reports include a safe `reason` and `detail` in the response. |
 | `503` | Model/provider configuration missing, Ollama unavailable/model not downloaded, or remote service access not configured |
 | `504` | Provider request timed out |
 
@@ -179,3 +179,11 @@ Tests start the real HTTP pipeline on an ephemeral local port, inject a fake gen
 and test the provider adapter with synthetic HTTP responses. They use no SQL database,
 developer secrets, or paid AI requests. Real-model quality and account/model availability
 still require a separately configured evaluation with representative article samples.
+
+For a `502` invalid report, inspect the HTTP response without attaching a debugger:
+`OutputLimit` means generation hit the output token limit; try fewer publications first.
+`InvalidJson` means the response failed JSON parsing or the required structure.
+`QuoteMismatch` means a quote was not copied verbatim from the cited field;
+`UnknownPublication` means a cited ID was not supplied. These reports remain rejected.
+The same reason is logged as `AI analysis failed (InvalidAnalysisException, QuoteMismatch)`
+(for example). Neither diagnostic includes submitted text or raw model output.

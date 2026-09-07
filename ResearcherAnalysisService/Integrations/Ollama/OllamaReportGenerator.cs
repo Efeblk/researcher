@@ -76,16 +76,20 @@ public sealed class OllamaReportGenerator(HttpClient client, IOptions<AiOptions>
             using JsonDocument document = await JsonDocument.ParseAsync(
                 await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
             JsonElement root = document.RootElement;
-            if (!root.GetProperty("done").GetBoolean() || root.GetProperty("done_reason").GetString() != "stop")
-                throw new InvalidAnalysisException();
+            if (!root.GetProperty("done").GetBoolean())
+                throw new InvalidAnalysisException(AnalysisFailure.IncompleteOutput);
+            string? doneReason = root.GetProperty("done_reason").GetString();
+            if (doneReason != "stop")
+                throw new InvalidAnalysisException(doneReason == "length"
+                    ? AnalysisFailure.OutputLimit : AnalysisFailure.IncompleteOutput);
             string content = root.GetProperty("message").GetProperty("content").GetString() ?? string.Empty;
             AnalysisFindings findings = JsonSerializer.Deserialize<AnalysisFindings>(content, JsonOptions)
-                ?? throw new InvalidAnalysisException();
+                ?? throw new InvalidAnalysisException(AnalysisFailure.InvalidJson);
             return new GeneratedFindings(findings, root.GetProperty("model").GetString() ?? settings.Model, ReportPrompt.Version);
         }
         catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException)
         {
-            throw new InvalidAnalysisException();
+            throw new InvalidAnalysisException(AnalysisFailure.InvalidJson);
         }
     }
 

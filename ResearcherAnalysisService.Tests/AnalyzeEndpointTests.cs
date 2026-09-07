@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
+using ResearcherAnalysisService.Analysis;
 using ResearcherAnalysisService.Api.V1.Contracts;
 using ResearcherAnalysisService.Tests.Infrastructure;
 
@@ -72,17 +74,39 @@ public sealed class AnalyzeEndpointTests
     }
 
     [Theory]
-    [InlineData("unknown", "title", "Coastal water monitoring", false)]
-    [InlineData("p1", "title", "This quotation was invented", false)]
-    [InlineData("p1", "title", "Coastal water monitoring", true)]
-    [InlineData("p2", "abstract", "This paper has no abstract", true)]
-    public async Task Analyze_UnsupportedEvidence_DoesNotReturnReport(string id, string field, string quote, bool writing)
+    [InlineData("unknown", "title", "Coastal water monitoring", false, "UnknownPublication")]
+    [InlineData("p1", "title", "This quotation was invented", false, "QuoteMismatch")]
+    [InlineData("p1", "title", "Coastal water monitoring", true, "WritingEvidenceNotAbstract")]
+    [InlineData("p2", "abstract", "This paper has no abstract", true, "QuoteMismatch")]
+    public async Task Analyze_UnsupportedEvidence_DoesNotReturnReport(string id, string field, string quote, bool writing, string reason)
     {
         StubReportGenerator generator = new() { Result = AnalysisSamples.Findings(id, field, quote, writing) };
         await using AnalysisTestHost host = await AnalysisTestHost.StartAsync(generator);
         using HttpResponseMessage response = await host.Client.PostAsJsonAsync("/api/v1/analyze", AnalysisSamples.Request());
         Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
-        Assert.DoesNotContain(quote, await response.Content.ReadAsStringAsync());
+        string body = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(quote, body);
+        using JsonDocument problem = JsonDocument.Parse(body);
+        Assert.Equal(reason, problem.RootElement.GetProperty("reason").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(problem.RootElement.GetProperty("detail").GetString()));
+    }
+
+    [Theory]
+    [InlineData(AnalysisFailure.OutputLimit)]
+    [InlineData(AnalysisFailure.IncompleteOutput)]
+    [InlineData(AnalysisFailure.InvalidJson)]
+    public async Task Analyze_InvalidModelOutput_ReturnsDiagnosticWithoutResearchText(AnalysisFailure reason)
+    {
+        StubReportGenerator generator = new() { Error = new InvalidAnalysisException(reason) };
+        await using AnalysisTestHost host = await AnalysisTestHost.StartAsync(generator);
+        using HttpResponseMessage response = await host.Client.PostAsJsonAsync("/api/v1/analyze", AnalysisSamples.Request());
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        string body = await response.Content.ReadAsStringAsync();
+        using JsonDocument problem = JsonDocument.Parse(body);
+        Assert.Equal(reason.ToString(), problem.RootElement.GetProperty("reason").GetString());
+        Assert.Equal(new InvalidAnalysisException(reason).Message, problem.RootElement.GetProperty("detail").GetString());
+        Assert.DoesNotContain("Synthetic Researcher", body);
+        Assert.DoesNotContain("Coastal water monitoring", body);
     }
 
     [Fact]
