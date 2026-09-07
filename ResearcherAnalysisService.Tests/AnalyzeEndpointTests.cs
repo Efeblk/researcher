@@ -126,6 +126,27 @@ public sealed class AnalyzeEndpointTests
         Assert.Equal(expected, response.StatusCode);
     }
 
+    [Theory]
+    [InlineData(2000, HttpStatusCode.OK)]
+    [InlineData(2001, HttpStatusCode.BadGateway)]
+    public async Task Analyze_ObservationLength_EnforcesBackendLimit(int length, HttpStatusCode expected)
+    {
+        GeneratedFindings generated = AnalysisSamples.Findings();
+        generated.Findings.ResearchFocus[0] = new AnalysisObservation
+        {
+            Observation = new string('a', length),
+            Evidence = generated.Findings.ResearchFocus[0].Evidence
+        };
+        await using AnalysisTestHost host = await AnalysisTestHost.StartAsync(new StubReportGenerator { Result = generated });
+        using HttpResponseMessage response = await host.Client.PostAsJsonAsync("/api/v1/analyze", AnalysisSamples.Request());
+        Assert.Equal(expected, response.StatusCode);
+        if (expected == HttpStatusCode.BadGateway)
+        {
+            using JsonDocument problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            Assert.Equal("InvalidObservation", problem.RootElement.GetProperty("reason").GetString());
+        }
+    }
+
     [Fact]
     public async Task Analyze_VerbatimAbstractEvidence_ReturnsWritingObservation()
     {

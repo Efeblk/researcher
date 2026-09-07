@@ -60,7 +60,9 @@ public sealed class OllamaReportGeneratorTests
             JsonElement observation = definitions.GetProperty("observation").GetProperty("properties");
             Assert.Equal(1, observation.GetProperty("evidence").GetProperty("minItems").GetInt32());
             Assert.Equal(5, observation.GetProperty("evidence").GetProperty("maxItems").GetInt32());
-            Assert.Equal(2000, observation.GetProperty("observation").GetProperty("maxLength").GetInt32());
+            Assert.False(observation.GetProperty("observation").TryGetProperty("maxLength", out _));
+            Assert.False(definitions.GetProperty("writingObservation").GetProperty("properties")
+                .GetProperty("observation").TryGetProperty("maxLength", out _));
             JsonElement writing = schema.GetProperty("properties").GetProperty("writingObservations");
             Assert.Equal(calls == 1 ? 6 : 0, writing.GetProperty("maxItems").GetInt32());
             Assert.Equal("#/$defs/writingObservation", writing.GetProperty("items").GetProperty("$ref").GetString());
@@ -86,6 +88,33 @@ public sealed class OllamaReportGeneratorTests
         second.Publications.ForEach(publication => publication.Abstract = null);
         await generator.GenerateAsync(second, CancellationToken.None);
         Assert.Equal(2, calls);
+    }
+
+    [Fact]
+    public async Task Generate_TurkishSource_PreservesLettersInModelInput()
+    {
+        using StubHandler handler = new(async request =>
+        {
+            using JsonDocument body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            JsonElement messages = body.RootElement.GetProperty("messages");
+            string input = messages[1].GetProperty("content").GetString()!;
+            Assert.Contains("Kıyı sularında kalite izleme", input);
+            Assert.DoesNotContain(@"\u0131", input);
+            Assert.Contains("Write every observation in Turkish", messages[0].GetProperty("content").GetString());
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new
+                {
+                    model = "qwen3:1.7b", done = true, done_reason = "stop",
+                    message = new { content = "{\"researchFocus\":[],\"writingObservations\":[]}" }
+                })
+            };
+        });
+        using HttpClient client = new(handler);
+        var request = AnalysisSamples.Request();
+        request.Language = "tr";
+        request.Publications[0].Title = "Kıyı sularında kalite izleme";
+        await Generator(client).GenerateAsync(request, CancellationToken.None);
     }
 
     [Theory]

@@ -189,13 +189,14 @@ The same reason is logged as `AI analysis failed (InvalidAnalysisException, Quot
 (for example). Neither diagnostic includes submitted text or raw model output.
 
 Ollama uses a request-specific structured-output schema with quote length (10–600),
-observation length (1–2000), evidence count (1–5), and observation count (up to 6)
-bounds. Publication IDs are limited to the supplied snapshot. Writing evidence must
+evidence count (1–5), and observation count (up to 6) bounds. Observations must
+be nonempty; their 2000-character maximum is enforced by the backend and prompt.
+Publication IDs are limited to the supplied snapshot. Writing evidence must
 use abstracts; snapshots without abstracts request an empty writing-observation array.
 These constraints follow Ollama's [structured-output API](https://docs.ollama.com/capabilities/structured-outputs).
 The backend still verifies quotes against source text and rejects invalid reports;
 the schema does not establish that an observation is substantively correct. Ollama
-reports now identify the prompt as `research-profile-v1-ollama-v2`.
+reports now identify the prompt as `research-profile-v1-ollama-v3`.
 
 A `502` with `reason: ProviderRequestFailed` means the provider request failed,
 before a report could be validated. `providerStatus` contains the upstream HTTP
@@ -203,3 +204,12 @@ status when available (otherwise null); `detail` provides a safe explanation.
 For Ollama failures, inspect its server logs for the actual runtime error.
 The `type` URL ending in `section-15.6.3` is HTTP error documentation, not an
 analysis endpoint or a diagnostic reason. Provider error bodies remain private.
+
+Ollama 0.33.3 rejects the former `maxLength: 2000` observation schema with HTTP 400
+(`Failed to initialize samplers: failed to parse grammar`). Its grammar parser
+rejects the generated repetition complexity. The v3 Ollama schema omits that one
+sampling bound while retaining backend validation and the quote constraints.
+
+The JSON embedded in Ollama message text preserves Turkish letters rather than
+turning them into literal Unicode escape sequences. Turkish requests also receive
+an explicit instruction to write observations in Turkish; source quotes stay verbatim.
