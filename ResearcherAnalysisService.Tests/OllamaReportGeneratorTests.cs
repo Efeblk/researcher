@@ -140,6 +140,27 @@ public sealed class OllamaReportGeneratorTests
         Assert.Equal(1, calls);
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    public async Task Analyze_OllamaHttpFailure_ReturnsStatusWithoutProviderBody(HttpStatusCode status)
+    {
+        using StubHandler handler = new(_ => Task.FromResult(new HttpResponseMessage(status)
+        { Content = new StringContent("sensitive provider body") }));
+        using HttpClient providerClient = new(handler);
+        await using AnalysisTestHost host = await AnalysisTestHost.StartAsync(Generator(providerClient));
+        using HttpResponseMessage response = await host.Client.PostAsJsonAsync("/api/v1/analyze", AnalysisSamples.Request());
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        string body = await response.Content.ReadAsStringAsync();
+        using JsonDocument problem = JsonDocument.Parse(body);
+        Assert.Equal("ProviderRequestFailed", problem.RootElement.GetProperty("reason").GetString());
+        Assert.Equal((int)status, problem.RootElement.GetProperty("providerStatus").GetInt32());
+        Assert.Contains($"HTTP {(int)status}", problem.RootElement.GetProperty("detail").GetString());
+        Assert.DoesNotContain("sensitive", body);
+    }
+
     private static OllamaReportGenerator Generator(HttpClient client) => new(client, Options.Create(new AiOptions
     { Model = "qwen3:1.7b" }));
 

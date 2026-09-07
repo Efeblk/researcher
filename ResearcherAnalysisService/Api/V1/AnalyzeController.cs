@@ -43,8 +43,18 @@ public sealed class AnalyzeController(ResearcherAnalysis analysis, ILogger<Analy
         catch (HttpRequestException exception)
         {
             // Provider error bodies and submitted research text must not enter logs or error responses.
-            logger.LogWarning("AI analysis failed ({ErrorType}).", exception.GetType().Name);
-            return Problem(statusCode: 502, title: "The AI provider did not return a usable report.");
+            int? providerStatus = exception.StatusCode is { } status ? (int)status : null;
+            logger.LogWarning("AI analysis failed ({ErrorType}, provider HTTP status: {ProviderStatus}).",
+                exception.GetType().Name, providerStatus);
+            string detail = providerStatus.HasValue
+                ? $"The AI provider returned HTTP {providerStatus.Value}. Check the provider logs for the underlying error."
+                : "The AI provider request failed before a usable response was received. Check the provider logs and connection.";
+            return Problem(statusCode: 502, title: "The AI provider did not return a usable report.",
+                detail: detail, extensions: new Dictionary<string, object?>
+                {
+                    ["reason"] = "ProviderRequestFailed",
+                    ["providerStatus"] = providerStatus
+                });
         }
     }
 }

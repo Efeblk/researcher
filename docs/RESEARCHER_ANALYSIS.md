@@ -196,3 +196,10 @@ These constraints follow Ollama's [structured-output API](https://docs.ollama.co
 The backend still verifies quotes against source text and rejects invalid reports;
 the schema does not establish that an observation is substantively correct. Ollama
 reports now identify the prompt as `research-profile-v1-ollama-v2`.
+
+A `502` with `reason: ProviderRequestFailed` means the provider request failed,
+before a report could be validated. `providerStatus` contains the upstream HTTP
+status when available (otherwise null); `detail` provides a safe explanation.
+For Ollama failures, inspect its server logs for the actual runtime error.
+The `type` URL ending in `section-15.6.3` is HTTP error documentation, not an
+analysis endpoint or a diagnostic reason. Provider error bodies remain private.
