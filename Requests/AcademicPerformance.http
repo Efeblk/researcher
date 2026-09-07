@@ -82,6 +82,30 @@ Content-Type: application/json
   "Take": 100
 }
 
+### V1 API: Veritabanı ID'si ile kayıtlı akademisyeni getir
+# Toplama çağrısının Researcher.Id değerini databaseResearcherId değişkenine yazın.
+# Bu istek yalnız kaydedilmiş veriyi okur; sağlayıcılardan yeni veri toplamaz.
+POST {{api}}/GetResearcher
+Content-Type: application/json
+
+{
+  "ResearcherId": {{databaseResearcherId}}
+}
+
+### V1 API: Veritabanı ID'si ile akademisyenin yayınlarını getir
+# Sonraki sayfa için Skip değerini artırın; TotalCount toplam yayın sayısını verir.
+# Bu endpoint özet/anahtar kelime alanlarını içermez. AI servisine otomatik veri aktarımı henüz bağlı değil.
+# AI endpoint testleri: Requests/ResearcherAnalysis.http
+POST {{api}}/ListPublications
+Content-Type: application/json
+
+{
+  "ResearcherId": {{databaseResearcherId}},
+  "ApprovedOnly": false,
+  "Skip": 0,
+  "Take": 100
+}
+
 ### V1 API: Okulda gösterilecek yayınları kaydet
 # Response: AcademicPublicationSelectionResponse (örnek 3)
 POST {{api}}/SavePublicationSelections
