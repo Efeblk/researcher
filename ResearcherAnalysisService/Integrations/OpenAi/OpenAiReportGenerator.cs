@@ -3,7 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Options;
 using ResearcherAnalysisService.Analysis;
-using ResearcherAnalysisService.Api.V1.Contracts;
+using AcademicCollector.Analysis.Contracts;
 using ResearcherAnalysisService.Configuration;
 
 namespace ResearcherAnalysisService.Integrations.OpenAi;

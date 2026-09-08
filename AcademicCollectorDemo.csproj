@@ -8,11 +8,12 @@
     <SerenityUsings>false</SerenityUsings>
     <TypeScriptCompileBlocked>true</TypeScriptCompileBlocked>
     <TypeScriptNoEmitOnError>false</TypeScriptNoEmitOnError>
-    <DefaultItemExcludes>$(DefaultItemExcludes);ResearcherAnalysisService/**;ResearcherAnalysisService.Tests/**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);ResearcherAnalysisService/**;ResearcherAnalysisService.Tests/**;ResearcherAnalysis.Contracts/**</DefaultItemExcludes>
     <GenerateComputedBuildStaticWebAssetsDependsOn>RunTSBuild;$(GenerateComputedBuildStaticWebAssetsDependsOn)</GenerateComputedBuildStaticWebAssetsDependsOn>
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="ResearcherAnalysis.Contracts/ResearcherAnalysis.Contracts.csproj" />
     <PackageReference Include="FluentMigrator.Runner.SqlServer" Version="8.0.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.11" />
     <PackageReference Include="Serenity.Assets" Version="10.5.0" />
@@ -39,6 +40,9 @@
     <Compile Remove="ResearcherAnalysisService\**\*;ResearcherAnalysisService.Tests\**\*" />
     <Content Remove="ResearcherAnalysisService\**\*;ResearcherAnalysisService.Tests\**\*" />
     <None Remove="ResearcherAnalysisService\**\*;ResearcherAnalysisService.Tests\**\*" />
+    <Compile Remove="ResearcherAnalysis.Contracts\**\*" />
+    <Content Remove="ResearcherAnalysis.Contracts\**\*" />
+    <None Remove="ResearcherAnalysis.Contracts\**\*" />
   </ItemGroup>
 
   <Target Name="NpmInstall" Condition="!Exists('node_modules\@serenity-is\tsbuild\package.json')">

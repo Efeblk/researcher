@@ -5,4 +5,7 @@
     <Nullable>enable</Nullable>
     <UserSecretsId>researcher-analysis-service-7ee882b9-4273-45ec-9928-a42501ff4f15</UserSecretsId>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../ResearcherAnalysis.Contracts/ResearcherAnalysis.Contracts.csproj" />
+  </ItemGroup>
 </Project>

@@ -94,7 +94,7 @@ Content-Type: application/json
 
 ### V1 API: Veritabanı ID'si ile akademisyenin yayınlarını getir
 # Sonraki sayfa için Skip değerini artırın; TotalCount toplam yayın sayısını verir.
-# Bu endpoint özet/anahtar kelime alanlarını içermez. AI servisine otomatik veri aktarımı henüz bağlı değil.
+# This list omits abstracts/keywords. AnalyzeResearcher builds the AI snapshot automatically.
 # AI endpoint testleri: Requests/ResearcherAnalysis.http
 POST {{api}}/ListPublications
 Content-Type: application/json
@@ -104,6 +104,28 @@ Content-Type: application/json
   "ApprovedOnly": false,
   "Skip": 0,
   "Take": 100
+}
+
+### V1 API: Generate and save a researcher analysis
+# Requires the collector, analysis service (5011), and Ollama. Uses saved data; no provider refresh.
+# Every successful call creates a new report and preserves previous reports.
+# Response: { Id, SavedAt, Report }. Report contains model, prompt version, coverage and findings.
+# 404: researcher missing; 422: no usable saved publications; 502/503/504: analysis failed, no report saved.
+POST {{api}}/AnalyzeResearcher
+Content-Type: application/json
+
+{
+  "ResearcherId": {{databaseResearcherId}}
+}
+
+### V1 API: Retrieve the latest saved analysis
+# Requires only the collector and SQL Server. Does not call Ollama or any provider.
+# 404 means no saved analysis exists. Returns the same response shape as AnalyzeResearcher.
+POST {{api}}/GetResearcherAnalysis
+Content-Type: application/json
+
+{
+  "ResearcherId": {{databaseResearcherId}}
 }
 
 ### V1 API: Okulda gösterilecek yayınları kaydet

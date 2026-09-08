@@ -46,7 +46,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $evaluated = ($items | ConvertFrom-Json).Items
           foreach ($kind in @('Compile', 'Content', 'None')) {
-            $included = $evaluated.$kind | Where-Object { $_.Identity -match '^ResearcherAnalysisService(\.Tests)?[\\/]' }
+            $included = $evaluated.$kind | Where-Object { $_.Identity -match '^ResearcherAnalysis(Service(\.Tests)?|\.Contracts)[\\/]' }
             if ($included) { throw "Collector includes analysis project files as $kind" }
           }
 

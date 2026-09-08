@@ -1,4 +1,4 @@
-namespace ResearcherAnalysisService.Api.V1.Contracts;
+namespace AcademicCollector.Analysis.Contracts;
 
 public sealed class AnalysisFindings
 {

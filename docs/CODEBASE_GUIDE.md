@@ -4,6 +4,9 @@ This application collects academic profiles and publications, combines duplicate
 
 Open `AcademicCollectorDemo.sln` to work with both the collector and the independent `ResearcherAnalysisService`.
 The latter accepts JSON snapshots for AI reporting and has no database or collector project reference.
+The collector's `Service/Analysis/` builds those snapshots and saves reports in SQL Server.
+The ID-only `AnalyzeResearcher` and `GetResearcherAnalysis` endpoints generate/save and retrieve
+reports respectively. Both applications reference the DTO library `ResearcherAnalysis.Contracts/`.
 See [Researcher analysis](RESEARCHER_ANALYSIS.md) for its contract, setup, and current integration boundary.
 
 ## Start with these files

@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
 using ResearcherAnalysisService.Analysis;
-using ResearcherAnalysisService.Api.V1.Contracts;
+using AcademicCollector.Analysis.Contracts;
 
 namespace ResearcherAnalysisService.Integrations.Ollama;
 

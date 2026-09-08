@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using ResearcherAnalysisService.Analysis;
-using ResearcherAnalysisService.Api.V1.Contracts;
+using AcademicCollector.Analysis.Contracts;
 using ResearcherAnalysisService.Tests.Infrastructure;
 
 namespace ResearcherAnalysisService.Tests;

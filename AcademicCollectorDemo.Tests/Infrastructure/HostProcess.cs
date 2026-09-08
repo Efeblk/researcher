@@ -9,7 +9,7 @@ public sealed class HostProcess : IDisposable
     private readonly Process _process;
     public HttpClient Client { get; }
 
-    public HostProcess(string connectionString)
+    public HostProcess(string connectionString, string? analysisBaseUrl = null)
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
@@ -31,6 +31,8 @@ public sealed class HostProcess : IDisposable
         start.Environment["ASPNETCORE_ENVIRONMENT"] = "Testing";
         start.Environment["DOTNET_ENVIRONMENT"] = "Testing";
         start.Environment["ConnectionStrings__AcademicDatabase"] = connectionString;
+        if (analysisBaseUrl is not null)
+            start.Environment["AnalysisService__BaseUrl"] = analysisBaseUrl;
         _process = Process.Start(start) ?? throw new InvalidOperationException("Host did not start.");
         _process.BeginOutputReadLine();
         _process.BeginErrorReadLine();
