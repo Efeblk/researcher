@@ -5,10 +5,10 @@ SearchApi (Google Scholar), OpenAlex, Web of Science, YOKSIS and researcher anal
 The endpoint returns HTTP 200 with individual results even when a dependency fails.
 The collector must be running; it is not a replacement for host liveness monitoring.
 
-Open [Requests/ProviderStatus.http](../Requests/ProviderStatus.http), set `@host` to
-the collector's address (default `http://localhost:5001`), and send the GET request.
-The file includes Turkish usage notes and an annotated synthetic response. Provider
-credentials are read from the server configuration; no request body is needed.
+Open [Requests/ProviderStatus.http](../Requests/ProviderStatus.http), edit the GET URL
+if the collector is not running at `http://localhost:5001`, and send the request.
+The file includes concise Turkish usage notes. Provider credentials are read from the
+server configuration; no request body is needed.
 
 ## Behavior
 

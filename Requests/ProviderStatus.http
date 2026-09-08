@@ -1,13 +1,11 @@
 # Provider API durumunu ve kota bilgisini sorgulama.
 # 1. Collector uygulamasını repo kökünde dotnet run ile başlatın.
-# 2. Aşağıdaki @host değerini çalışan collector adresine göre düzenleyin.
+# 2. GET adresini çalışan collector adresine göre düzenleyin.
 # 3. İsteğin üzerindeki "Send Request" bağlantısını kullanın.
 # Sağlayıcı anahtarları sunucunun dotnet user-secrets ayarlarından okunur;
 # bu dosyaya sağlayıcı anahtarı veya YÖKSİS kullanıcı bilgisi yazmayın.
 # İlk sorgu 20 saniyeyi aşabilir; HTTP istemcisinin zaman aşımını en az 60 saniye yapın.
 # Visual Studio: Araçlar > Seçenekler > Diller > Rest > Gelişmiş.
-
-@host = http://localhost:5001
 
 ### Sağlayıcı durumları ve güncel yerel/sağlayıcı kotaları
 # ORCID, SearchApi (Google Scholar), OpenAlex, Web of Science, YÖKSİS ve AnalysisService.
