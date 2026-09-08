@@ -13,7 +13,7 @@ public sealed class ResearcherAnalysisWorkflow(
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public async Task<SavedResearcherAnalysisResponse?> AnalyzeAsync(int researcherId, CancellationToken cancellationToken)
+    public async Task<SavedResearcherAnalysisResponse?> AnalyzeAsync(int researcherId, DateTimeOffset? snapshotAt, CancellationToken cancellationToken)
     {
         AnalyzeResearcherRequest snapshot;
         // Capture a consistent input, then release SQL locks before waiting for the model.
@@ -35,6 +35,7 @@ public sealed class ResearcherAnalysisWorkflow(
                     PublicationYear = value.PublicationYear, Abstract = value.Abstract, Keywords = value.Keywords
                 }).ToListAsync(cancellationToken);
             snapshot = ResearcherSnapshotBuilder.Build(researcher, summaries, works, options.Value);
+            snapshot.SnapshotAt = snapshotAt?.ToUniversalTime() ?? snapshot.SnapshotAt;
             await transaction.CommitAsync(cancellationToken);
         }
         if (snapshot.Publications.Count == 0)
