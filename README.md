@@ -374,4 +374,4 @@ Her çalıştırma yalnız kendisinin oluşturduğu rastgele isimli test veritab
 kullanır ve sonunda kaldırır; uygulamanın veritabanına veya User Secrets'a
 bağlanmaz. GitHub CI, SQL Server'ı geçici bir container'da çalıştırır.
 
-İnceleme bulguları ve kapsam sınırları: [proje incelemesi](docs/PROJECT_REVIEW.md).
+Güncel durum ve öncelikler: [proje özeti ve yol haritası](docs/PROJECT_REVIEW.md).
