@@ -23,6 +23,32 @@
 - [x] **Kayıtlı raporu getirme:** Son raporu sağlayıcıya veya modele yeniden çağrı yapmadan döndürme.
   Analiz veri toplamaz; snapshot zamanı rapora giren mevcut kaydı etiketler.
 
+## Bir İstek Ne Yapar?
+
+Bir araştırmacıyı toplamak, aşağıdaki dış çağrıların birden fazlasını yapabilir.
+
+| Sağlayıcı | İstek ne getirir? | İstek birimi |
+| --- | --- | --- |
+| ORCID | `/record`: profil ve yayın özetleri; ek çağrılar: eser ayrıntıları | Profil için 1; eserler en fazla 100'lük gruplar halinde |
+| Google Scholar / SearchApi | `google_scholar_author`: profil, atıf metrikleri ve yayın sayfası | Her sonuç sayfası için 1; tüm yayınlar tek çağrıya sığmayabilir |
+| OpenAlex | ORCID ile yazar profili/metrikleri; ardından yazarın eserleri | Yazar için 1; eserler en fazla 100'lük sayfalar halinde |
+| Web of Science | ResearcherID ile `documents`: yayınlar ve atıf bilgileri | Her seçili veritabanında en fazla 50 sonuçluk sayfa için 1 |
+| YÖKSİS | Kategori listeleri ve desteklenen eser ayrıntıları | 21 liste işlemi; bulunan bazı eserler için ayrıca detay çağrısı |
+| Yerel Ollama | `/api/chat` ile kayıtlı snapshot analizi | Üretilen rapor başına model çağrısı |
+
+Önbellek kullanılırsa dış çağrı atlanabilir. Provider Status ayrıca küçük sağlık/kota sorguları yapar.
+
+## Gereklilikler
+
+| Durum | Bileşen | Gereken karar veya ayar |
+| --- | --- | --- |
+| [ ] | [ORCID](https://info.orcid.org/documentation/integration-guide/registering-a-public-api-client/) | Hesap açılacak; e-posta doğrulanıp Public API istemcisi ve erişim tokenı yapılandırılacak. Anonim okuma da mümkündür. |
+| [ ] | [Google Scholar / SearchApi](https://www.searchapi.io/google-scholar) | Yöntem ve plan kararlaştırılacak; Scholar'ın resmî API'si olmadığı için şu an üçüncü taraf scraping servisi kullanılıyor. |
+| [ ] | [OpenAlex](https://help.openalex.org/api/authentication/) | Ücretsiz hesap açılıp API anahtarı kullanılacak. [Günlük bütçe](https://help.openalex.org/access/example-costs/) $0,10 → $1 (10 kat); kart gerekmez, 100 istek/sn değişmez. |
+| [ ] | Web of Science | Kurumsal API anahtarı, erişilen plan ve veritabanları doğrulanacak. |
+| [ ] | YÖKSİS | Kurumsal kullanıcı bilgileri ve servis yetkisi sağlanacak. |
+| [x] | Yerel Ollama | Kurulu; Qwen modeliyle smoke testi yapıldı. |
+
 ## API Planları, Fiyat ve Hız
 
 *API tablosu: 3 Eylül 2026 kaynak notları; güncel plan ve kotalar hesap bazında teyit edilmeli.*
