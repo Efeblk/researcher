@@ -63,7 +63,7 @@ public sealed class ResearcherAnalysisEndpointTests(SqlServerFixture fixture)
             });
         });
         await analysis.StartAsync();
-        var input = new { PersonelId = researcher.PersonelId, SnapshotAt = snapshotAt };
+        var input = new { PersonelID = $"  {researcher.PersonelId}  ", SnapshotAt = snapshotAt };
         long latestId;
         using (var host = new HostProcess(fixture.ConnectionString, analysis.Urls.Single()))
         {
@@ -113,7 +113,7 @@ public sealed class ResearcherAnalysisEndpointTests(SqlServerFixture fixture)
         foreach (DateTimeOffset invalidDate in new[] { default(DateTimeOffset), DateTimeOffset.UtcNow.AddDays(1) })
         {
             using var invalid = await host.Client.PostAsJsonAsync(Api + "AnalyzeResearcher",
-                new { PersonelId = researcher.PersonelId, SnapshotAt = invalidDate });
+                new { PersonelID = researcher.PersonelId, SnapshotAt = invalidDate });
             Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
         }
         foreach (var (id, status) in new[]
@@ -122,7 +122,7 @@ public sealed class ResearcherAnalysisEndpointTests(SqlServerFixture fixture)
             (researcher.PersonelId, HttpStatusCode.UnprocessableEntity)
         })
         {
-            using var response = await host.Client.PostAsJsonAsync(Api + "AnalyzeResearcher", new { PersonelId = id });
+            using var response = await host.Client.PostAsJsonAsync(Api + "AnalyzeResearcher", new { PersonelID = id });
             Assert.True(status == response.StatusCode, await response.Content.ReadAsStringAsync());
         }
         Assert.False(await database.ResearcherAnalyses.AnyAsync(value => value.PersonelId == researcher.PersonelId));
