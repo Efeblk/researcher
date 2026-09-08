@@ -16,6 +16,8 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Persistence;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Analysis;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance;
 
@@ -25,6 +27,18 @@ public static class AcademicPerformanceModule
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddOptions<AnalysisServiceOptions>().Bind(configuration.GetSection("AnalysisService"))
+            .ValidateDataAnnotations().Validate(value => Uri.TryCreate(value.BaseUrl, UriKind.Absolute, out var uri) &&
+                (uri.Scheme == "https" || uri.Scheme == "http" && uri.IsLoopback) && string.IsNullOrEmpty(uri.UserInfo),
+                "AnalysisService:BaseUrl must use HTTPS or loopback HTTP.");
+        services.AddHttpClient<AnalysisServiceClient>((provider, client) =>
+        {
+            AnalysisServiceOptions options = provider.GetRequiredService<IOptions<AnalysisServiceOptions>>().Value;
+            client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+            client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+            client.MaxResponseContentBufferSize = 1024 * 1024;
+        }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+        services.AddScoped<ResearcherAnalysisWorkflow>();
         services.AddSingleton(_ => CreateHttpClient(configuration));
         services.AddSingleton<Integrations.Status.ProviderStatusService>();
         services.AddHttpClient("ProviderStatus", client => client.Timeout = TimeSpan.FromSeconds(15))

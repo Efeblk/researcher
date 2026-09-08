@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using ResearcherAnalysisService.Analysis;
-using ResearcherAnalysisService.Api.V1.Contracts;
+using AcademicCollector.Analysis.Contracts;
 
 namespace ResearcherAnalysisService.Api.V1;
 

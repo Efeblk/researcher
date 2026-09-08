@@ -4,10 +4,54 @@
 It accepts a caller-supplied researcher snapshot and returns a structured research
 profile and abstract writing review. It runs without SQL Server, Serenity, or Node.js.
 
-This first slice provides the service contract and provider integration. The collector
-does not call it yet, and the existing page has no report button. A collector snapshot
-adapter and report viewer are the next integration step. There is no report persistence,
-queue, embedding index, web crawling, full-text retrieval, or PDF upload in this version.
+The collector creates snapshots from saved SQL Server records and stores successful
+reports with their exact input snapshots. The AI service itself remains stateless.
+There is no page report button, analysis queue, embedding index, web crawling,
+full-text retrieval, or PDF upload in this version.
+
+## Generate/save and retrieve by researcher ID
+
+Use the requests in [AcademicPerformance.http](../Requests/AcademicPerformance.http):
+
+| Collector endpoint | Behavior |
+| --- | --- |
+| `POST /Services/AcademicPerformance/V1/AnalyzeResearcher` | Load saved data, create a snapshot, call the AI service, and save a new report. |
+| `POST /Services/AcademicPerformance/V1/GetResearcherAnalysis` | Return the latest saved report without calling the AI service or providers. |
+
+Both accept only `{ "ResearcherId": 42 }`, where 42 is the collector database ID.
+Both return `{ "Id": 123, "SavedAt": "...", "Report": { ... } }`.
+Generation requires both applications and the configured model to be running.
+Retrieval needs only the collector and SQL Server, and still works after a restart.
+Collect fresh provider data separately with the existing `Collect` endpoint.
+
+Each successful generation inserts a new `ResearcherAnalyses` row; older reports are
+preserved. The row contains the exact snapshot and complete report, including model,
+prompt version, generation time and coverage. Latest means highest saved report ID.
+Snapshot time is when the saved-data input was captured; provider metric collection
+timestamps remain separate. Failed generation never replaces a saved report.
+
+Missing researchers/reports return 404; invalid IDs return 400; no usable publications
+returns 422. Upstream failure returns 502 (with `AnalysisServiceStatus`), unavailable
+service 503, and timeout 504. No automatic retries generate duplicate reports.
+
+Collector settings are under `AnalysisService` in `academicsettings.json`:
+`BaseUrl` defaults to `http://localhost:5011/`, `Language` to `en`,
+`MaximumPublications` to 10, `MaximumTextBytes` to 2500, and `TimeoutSeconds` to 240.
+If the AI service requires `Service:ApiKey`, set the matching collector
+`AnalysisService:ApiKey` through user secrets. Use HTTPS for a remote service.
+
+Selection uses deduplicated publication summaries, newest year first then ID. The
+total count includes all saved summaries, while findings and activity describe only
+the selected sample. Titles and whole abstracts/keywords must fit the UTF-8 byte
+budget; oversized fields are omitted, never silently truncated. An abstract is attached
+only through an unambiguous DOI or exact title/year match to a saved normalized work.
+Coverage reports the selected count and available abstract count. The AI service may
+still reject input exceeding its own model context limit; tune the collector limits
+alongside that context. Turkish model output still needs quality review.
+
+Migration `202609080001` creates the report table on collector startup. Contracts
+shared by the two applications live in `ResearcherAnalysis.Contracts/`; the collector
+references that library, not the AI web application.
 
 ## Run in Visual Studio
 

@@ -12,6 +12,7 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 
 public sealed class AcademicDbContext : DbContext
 {
+    public DbSet<Analysis.SavedResearcherAnalysis> ResearcherAnalyses { get; set; } = null!;
     public DbSet<BulkCollectionBatch> BulkCollectionBatches { get; set; } = null!;
     public DbSet<BulkCollectionJob> BulkCollectionJobs { get; set; } = null!;
     public DbSet<Researcher> Researchers { get; set; } = null!;
@@ -36,6 +37,14 @@ public sealed class AcademicDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Analysis.SavedResearcherAnalysis>(entity =>
+        {
+            entity.ToTable("ResearcherAnalyses");
+            entity.HasKey(value => value.Id);
+            entity.HasIndex(value => new { value.ResearcherId, value.Id }).IsDescending(false, true);
+            entity.HasOne<Researcher>().WithMany().HasForeignKey(value => value.ResearcherId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
         modelBuilder.Entity<BulkCollectionBatch>(entity =>
         {
             entity.ToTable("BulkCollectionBatches");

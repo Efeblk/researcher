@@ -1,4 +1,11 @@
 {
+  "AnalysisService": {
+    "BaseUrl": "http://localhost:5011/",
+    "Language": "en",
+    "MaximumPublications": 10,
+    "MaximumTextBytes": 2500,
+    "TimeoutSeconds": 240
+  },
   "Orcid": {
     "ApiBaseUrl": "https://pub.orcid.org/v3.0"
   },

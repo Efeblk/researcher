@@ -3,7 +3,8 @@
 # In Visual Studio, set the HTTP client timeout to at least 300 seconds for local inference.
 # Run individual requests using "Send Request"; the last requests intentionally return 400.
 # These are synthetic fixtures. They do not fetch or modify researcher records.
-# The current analysis endpoint requires a snapshot; { "researcherId": 42 } alone is not supported yet.
+# These direct AI tests require a snapshot. For ID-only generate/save and retrieve requests,
+# use AnalyzeResearcher and GetResearcherAnalysis in AcademicPerformance.http.
 # For real collector data, use the database-ID requests in AcademicPerformance.http.
 # If Service:ApiKey is configured, supply X-Analysis-Key using your HTTP client's private settings.
 # A service access key is separate from a paid AI key; local Development needs neither.
