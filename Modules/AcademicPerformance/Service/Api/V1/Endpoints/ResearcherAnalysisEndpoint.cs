@@ -18,7 +18,7 @@ public sealed class ResearcherAnalysisEndpoint : ServiceEndpoint
             return BadRequest(new { Message = "ResearcherId must be a positive database ID." });
         try
         {
-            SavedResearcherAnalysisResponse? result = await workflow.AnalyzeAsync(request.ResearcherId, cancellationToken);
+            SavedResearcherAnalysisResponse? result = await workflow.AnalyzeAsync(request.ResearcherId, request.SnapshotAt, cancellationToken);
             return result is null ? NotFound(new { Message = "Researcher not found." }) : Ok(result);
         }
         catch (AnalysisInputUnavailableException exception)

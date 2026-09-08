@@ -18,7 +18,12 @@ Use the requests in [AcademicPerformance.http](../Requests/AcademicPerformance.h
 | `POST /Services/AcademicPerformance/V1/AnalyzeResearcher` | Load saved data, create a snapshot, call the AI service, and save a new report. |
 | `POST /Services/AcademicPerformance/V1/GetResearcherAnalysis` | Return the latest saved report without calling the AI service or providers. |
 
-Both accept only `{ "ResearcherId": 42 }`, where 42 is the collector database ID.
+Generation accepts `{ "researcherId": 42, "snapshotAt": "2026-09-08T00:00:00Z" }`.
+Retrieval accepts `{ "researcherId": 42 }`, where 42 is the collector database ID.
+The concise requests are in [ResearcherAnalysis.http](../Requests/ResearcherAnalysis.http).
+`snapshotAt` is optional (defaults to capture time); supplied dates must be non-default
+and no more than five minutes in the future. It labels the current saved-data snapshot,
+not a historical query: the collector does not reconstruct records as of that date.
 Both return `{ "Id": 123, "SavedAt": "...", "Report": { ... } }`.
 Generation requires both applications and the configured model to be running.
 Retrieval needs only the collector and SQL Server, and still works after a restart.
@@ -27,7 +32,7 @@ Collect fresh provider data separately with the existing `Collect` endpoint.
 Each successful generation inserts a new `ResearcherAnalyses` row; older reports are
 preserved. The row contains the exact snapshot and complete report, including model,
 prompt version, generation time and coverage. Latest means highest saved report ID.
-Snapshot time is when the saved-data input was captured; provider metric collection
+Snapshot time is the supplied date or the saved-data capture time; provider metric collection
 timestamps remain separate. Failed generation never replaces a saved report.
 
 Missing researchers/reports return 404; invalid IDs return 400; no usable publications
@@ -139,7 +144,7 @@ Never put credentials in source control or `.http` examples.
 
 ## HTTP contract
 
-Use the synthetic example in [Requests/ResearcherAnalysis.http](../Requests/ResearcherAnalysis.http).
+The collector-facing examples in [Requests/ResearcherAnalysis.http](../Requests/ResearcherAnalysis.http) build this full internal request automatically.
 
 `POST /api/v1/analyze` returns the completed report synchronously. `language` accepts
 `en` (default) or `tr`. Findings and coverage notes follow that language; source quotes

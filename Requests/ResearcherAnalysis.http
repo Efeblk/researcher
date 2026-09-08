@@ -1,181 +1,24 @@
-# Run ResearcherAnalysisService with its http (Development) launch profile.
-# Start Ollama and run: ollama pull qwen3:1.7b
-# In Visual Studio, set the HTTP client timeout to at least 300 seconds for local inference.
-# Run individual requests using "Send Request"; the last requests intentionally return 400.
-# These are synthetic fixtures. They do not fetch or modify researcher records.
-# These direct AI tests require a snapshot. For ID-only generate/save and retrieve requests,
-# use AnalyzeResearcher and GetResearcherAnalysis in AcademicPerformance.http.
-# For real collector data, use the database-ID requests in AcademicPerformance.http.
-# If Service:ApiKey is configured, supply X-Analysis-Key using your HTTP client's private settings.
-# A service access key is separate from a paid AI key; local Development needs neither.
-# Never commit real credentials or researcher input to this file.
+# Collector (5001), ResearcherAnalysisService (5011), SQL Server ve Ollama calisir durumda olmali.
+# researcherId: collector veritabanindaki ID. Yayinlar otomatik alinir.
+# snapshotAt: rapora yazilan veri tarihi; gecmise yonelik kayit secmez.
 
-@analysisHost = http://localhost:5011
-@syntheticResearcherId = 42
-@snapshotAt = 2026-01-01T00:00:00Z
+@host = http://localhost:5001
+@researcherId = 42
+@snapshotAt = 2026-09-08T00:00:00Z
 
-### Health: no SQL Server or model required
-GET {{analysisHost}}/health
-Accept: application/json
-
-### English report: partial sample with abstracts and separate provider metrics
-# Expected: 200; activity count 2, coverage total 3, isPartial true, publicationsWithAbstract 1.
-# Exact model wording varies; every observation must cite a supplied field and verbatim quote.
-POST {{analysisHost}}/api/v1/analyze
+### Analiz olustur ve kaydet
+POST {{host}}/Services/AcademicPerformance/V1/AnalyzeResearcher
 Content-Type: application/json
-Accept: application/json
 
 {
-  "researcherId": {{syntheticResearcherId}},
-  "researcherName": "Synthetic Researcher",
-  "department": "Environmental Engineering",
-  "snapshotAt": "{{snapshotAt}}",
-  "language": "en",
-  "totalPublicationCount": 3,
-  "publications": [
-    {
-      "id": "publication-101",
-      "title": "Coastal water monitoring",
-      "year": 2024,
-      "category": "Article",
-      "abstract": "We compare two monitoring methods. Further validation is needed.",
-      "keywords": "water quality; coastal monitoring",
-      "sources": "ORCID"
-    },
-    {
-      "id": "publication-102",
-      "title": "Monitoring water quality",
-      "year": 2025,
-      "category": "Article",
-      "abstract": null,
-      "keywords": null,
-      "sources": "WebOfScience"
-    }
-  ],
-  "citationMetrics": [
-    {
-      "provider": "GoogleScholar",
-      "citationCount": 12,
-      "hIndex": 2,
-      "collectedAt": "{{snapshotAt}}"
-    },
-    {
-      "provider": "WebOfScience",
-      "citationCount": null,
-      "hIndex": null,
-      "collectedAt": "{{snapshotAt}}"
-    }
-  ]
+  "researcherId": {{researcherId}},
+  "snapshotAt": "{{snapshotAt}}"
 }
 
-### Turkish report: complete synthetic sample
-# Expected: 200; observations and coverage notes in Turkish, original quotes unchanged.
-POST {{analysisHost}}/api/v1/analyze
-Content-Type: application/json
-Accept: application/json
-
-{
-  "researcherId": {{syntheticResearcherId}},
-  "researcherName": "Örnek Araştırmacı",
-  "snapshotAt": "{{snapshotAt}}",
-  "language": "tr",
-  "totalPublicationCount": 1,
-  "publications": [
-    {
-      "id": "publication-201",
-      "title": "Kıyı sularında kalite izleme",
-      "year": 2025,
-      "category": "Article",
-      "abstract": "Bu çalışmada iki su kalitesi izleme yöntemi karşılaştırılmıştır. Sonuçların farklı bölgelerde doğrulanması gerekmektedir.",
-      "keywords": "su kalitesi; kıyı izleme",
-      "sources": "ORCID"
-    }
-  ],
-  "citationMetrics": []
-}
-
-### Titles only: missing abstracts and unknown publication year
-# Expected: 200; writingObservations [], publicationsWithAbstract 0, publicationsWithoutYear 1.
-# Research themes may be empty when the model considers the title insufficient evidence.
-POST {{analysisHost}}/api/v1/analyze
-Content-Type: application/json
-Accept: application/json
-
-{
-  "researcherId": {{syntheticResearcherId}},
-  "researcherName": "Synthetic Researcher",
-  "snapshotAt": "{{snapshotAt}}",
-  "language": "en",
-  "totalPublicationCount": 1,
-  "publications": [
-    {
-      "id": "publication-301",
-      "title": "Coastal water monitoring methods",
-      "year": null,
-      "category": "Unknown",
-      "abstract": null,
-      "keywords": null,
-      "sources": "ORCID"
-    }
-  ],
-  "citationMetrics": []
-}
-
-### Validation: empty publication list (no model call)
-# Expected: 400 ValidationProblemDetails with a Publications error.
-POST {{analysisHost}}/api/v1/analyze
-Content-Type: application/json
-Accept: application/json
-
-{
-  "researcherId": {{syntheticResearcherId}},
-  "researcherName": "Synthetic Researcher",
-  "snapshotAt": "{{snapshotAt}}",
-  "totalPublicationCount": 0,
-  "publications": [],
-  "citationMetrics": []
-}
-
-### Validation: duplicate publication IDs (no model call)
-# Expected: 400; IDs must be unique within the submitted snapshot.
-POST {{analysisHost}}/api/v1/analyze
-Content-Type: application/json
-Accept: application/json
-
-{
-  "researcherId": {{syntheticResearcherId}},
-  "researcherName": "Synthetic Researcher",
-  "snapshotAt": "{{snapshotAt}}",
-  "totalPublicationCount": 2,
-  "publications": [
-    { "id": "duplicate", "title": "Coastal water monitoring", "sources": "ORCID" },
-    { "id": "duplicate", "title": "Monitoring water quality", "sources": "WebOfScience" }
-  ],
-  "citationMetrics": []
-}
-
-# Troubleshooting valid analysis requests:
-# 401: Supply the service access key if Service:ApiKey is configured.
-# 422: Use fewer/shorter abstracts for the configured Ollama context.
-# 502: Read reason and detail in the response body; type is only the HTTP error documentation link.
-# ProviderRequestFailed: providerStatus is Ollama's HTTP status (null if unavailable); check its logs.
-# Other reasons describe incomplete/malformed model output or failed evidence validation.
-# 503: Start Ollama, download the configured model, or check service configuration.
-# 504: Local inference timed out; try a smaller sample.
-# A 200 /health response only confirms the HTTP service is running, not that the model is ready.
-
-### Ollama direct test: bypass the analysis service to see Ollama's own response
-# Requires Ollama running locally with qwen3:1.7b installed. No analysis service or SQL Server needed.
-# Send this request to investigate provider HTTP 400 errors; inspect the response body for "error".
-POST http://localhost:11434/api/chat
+### Son kayitli raporu getir
+POST {{host}}/Services/AcademicPerformance/V1/GetResearcherAnalysis
 Content-Type: application/json
 
 {
-  "model": "qwen3:1.7b",
-  "stream": false,
-  "think": false,
-  "format": "json",
-  "messages": [
-    { "role": "user", "content": "Return JSON: {\"ok\":true}" }
-  ]
+  "researcherId": {{researcherId}}
 }
