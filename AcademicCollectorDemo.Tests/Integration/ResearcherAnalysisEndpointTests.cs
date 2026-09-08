@@ -36,6 +36,7 @@ public sealed class ResearcherAnalysisEndpointTests(SqlServerFixture fixture)
         });
         await database.SaveChangesAsync();
 
+        DateTimeOffset snapshotAt = DateTimeOffset.UtcNow.AddMinutes(-1);
         int calls = 0;
         bool fail = false;
         var builder = WebApplication.CreateBuilder();
@@ -48,6 +49,7 @@ public sealed class ResearcherAnalysisEndpointTests(SqlServerFixture fixture)
             if (fail)
                 return Results.StatusCode(502);
             Assert.Equal(researcher.Id, snapshot.ResearcherId);
+            Assert.Equal(snapshotAt, snapshot.SnapshotAt);
             Assert.Single(snapshot.Publications);
             return Results.Json(new ResearcherAnalysisReport
             {
@@ -59,7 +61,7 @@ public sealed class ResearcherAnalysisEndpointTests(SqlServerFixture fixture)
             });
         });
         await analysis.StartAsync();
-        var input = new { ResearcherId = researcher.Id };
+        var input = new { ResearcherId = researcher.Id, SnapshotAt = snapshotAt };
         long latestId;
         using (var host = new HostProcess(fixture.ConnectionString, analysis.Urls.Single()))
         {
@@ -77,6 +79,7 @@ public sealed class ResearcherAnalysisEndpointTests(SqlServerFixture fixture)
             latestId = saved[1].Id;
             var snapshot = JsonSerializer.Deserialize<AnalyzeResearcherRequest>(saved[1].SnapshotJson, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
             Assert.Equal("Coastal water monitoring", Assert.Single(snapshot.Publications).Title);
+            Assert.Equal(snapshotAt, snapshot.SnapshotAt);
             fail = true;
             using var failed = await host.Client.PostAsJsonAsync(Api + "AnalyzeResearcher", input);
             Assert.Equal(HttpStatusCode.BadGateway, failed.StatusCode);
@@ -103,6 +106,12 @@ public sealed class ResearcherAnalysisEndpointTests(SqlServerFixture fixture)
         await database.SaveChangesAsync();
         using var host = new HostProcess(fixture.ConnectionString, "http://127.0.0.1:1/");
         await host.WaitUntilReadyAsync();
+        foreach (DateTimeOffset invalidDate in new[] { default(DateTimeOffset), DateTimeOffset.UtcNow.AddDays(1) })
+        {
+            using var invalid = await host.Client.PostAsJsonAsync(Api + "AnalyzeResearcher",
+                new { ResearcherId = researcher.Id, SnapshotAt = invalidDate });
+            Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+        }
         foreach (var (id, status) in new[]
         {
             (0, HttpStatusCode.BadRequest), (int.MaxValue, HttpStatusCode.NotFound),
