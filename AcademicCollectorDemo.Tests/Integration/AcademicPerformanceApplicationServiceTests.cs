@@ -15,12 +15,13 @@ public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture 
     [Fact]
     public async Task GetResearcherAsync_PartialOpenAlexCollection_ReturnsStoredCount()
     {
-        int id;
+        string personelId;
         using (var scope = fixture.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
             var researcher = new Researcher
-            {
+        {
+            PersonelId = "test-" + Guid.NewGuid().ToString("N"),
                 OpenAlexProfile = new OpenAlexProfile
                 {
                     OpenAlexAuthorId = "https://openalex.org/A" + Guid.NewGuid().ToString("N"),
@@ -30,12 +31,12 @@ public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture 
             };
             db.Researchers.Add(researcher);
             await db.SaveChangesAsync();
-            id = researcher.Id;
+            personelId = researcher.PersonelId;
         }
 
         using var readScope = fixture.Services.CreateScope();
         var service = readScope.ServiceProvider.GetRequiredService<IAcademicPerformanceApplicationService>();
-        var response = await service.GetResearcherAsync(new() { Id = id });
+        var response = await service.GetResearcherAsync(new() { PersonelId = personelId });
         Assert.Equal(7, response.Researcher!.OpenAlexProfile!.WorksCount);
         Assert.Equal(1, response.Researcher.OpenAlexProfile.CollectedWorksCount);
     }
@@ -45,7 +46,22 @@ public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture 
     {
         using var scope = fixture.Services.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<IAcademicPerformanceApplicationService>();
-        await Assert.ThrowsAsync<ArgumentException>(() => service.CollectAsync(new() { Orcid = "A-1009-2008" }));
+        await Assert.ThrowsAsync<ArgumentException>(() => service.CollectAsync(new()
+        {
+            PersonelId = "invalid-provider-person",
+            Orcid = "A-1009-2008"
+        }));
+    }
+
+    [Fact]
+    public async Task CollectAsync_MissingPersonelId_RejectsBeforeCallingProviders()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<IAcademicPerformanceApplicationService>();
+        await Assert.ThrowsAsync<ArgumentException>(() => service.CollectAsync(new()
+        {
+            Orcid = "0000-0002-1825-0097"
+        }));
     }
 
     [Fact]
@@ -56,6 +72,7 @@ public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture 
         const string researcherId = "A-1234-2020";
         db.Researchers.Add(new Researcher
         {
+            PersonelId = "messy-person",
             WebOfScienceResearcherId = researcherId,
             WebOfScienceProfile = new WebOfScienceProfile
             {
@@ -70,7 +87,8 @@ public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture 
         const string orcid = "A-1234-2020";
         var request = new AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts.AcademicDataCollectRequest
         {
-            WebOfScienceResearcherId = wos, Orcid = orcid, ScopusId = "unsupported-scopus"
+            PersonelId = "messy-person", WebOfScienceResearcherId = wos,
+            Orcid = orcid, ScopusId = "unsupported-scopus"
         };
 
         var response = await service.CollectAsync(request);
@@ -93,6 +111,7 @@ public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture 
         const string researcherId = "C-1234-2020";
         var stored = new Researcher
         {
+            PersonelId = "person-collect",
             WebOfScienceResearcherId = researcherId,
             WebOfScienceProfile = new WebOfScienceProfile
             {
@@ -118,10 +137,10 @@ public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture 
         });
 
         Assert.True(first.IsSaved);
-        Assert.Equal(stored.Id, first.Researcher!.Id);
-        Assert.Equal(stored.Id, repeated.Researcher!.Id);
+        Assert.Equal(stored.PersonelId, first.Researcher!.PersonelId);
+        Assert.Equal(stored.PersonelId, repeated.Researcher!.PersonelId);
         Assert.Equal("person-collect", repeated.Researcher.PersonelId);
-        Assert.Equal("person-collect", (await db.Researchers.FindAsync(stored.Id))!.PersonelId);
+        Assert.Equal("person-collect", (await db.Researchers.FindAsync(stored.PersonelId))!.PersonelId);
         await Assert.ThrowsAsync<ArgumentException>(() => service.CollectAsync(new()
         {
             PersonelId = "different-person",
@@ -134,8 +153,10 @@ public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture 
     {
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
-        db.Researchers.AddRange(new Researcher { PersonelId = "unique-person" },
-            new Researcher { PersonelId = "unique-person" });
+        db.Researchers.Add(new Researcher { PersonelId = "unique-person" });
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        db.Researchers.Add(new Researcher { PersonelId = "unique-person" });
 
         await Assert.ThrowsAsync<Microsoft.EntityFrameworkCore.DbUpdateException>(
             () => db.SaveChangesAsync());
@@ -148,7 +169,10 @@ public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture 
         var service = scope.ServiceProvider.GetRequiredService<IAcademicPerformanceApplicationService>();
         const string scopus = "private-scopus-value";
         ArgumentException exception = await Assert.ThrowsAsync<ArgumentException>(
-            () => service.CollectAsync(new() { ScopusId = scopus }));
+            () => service.CollectAsync(new()
+            {
+                PersonelId = "scopus-only", ScopusId = scopus
+            }));
         Assert.DoesNotContain(scopus, exception.Message);
         Assert.Contains("Scopus ID", exception.Message);
         Assert.Contains("unsupported", exception.Message);
@@ -159,8 +183,12 @@ public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture 
     {
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
-        db.Researchers.AddRange(new Researcher { Orcid = "0000-0001-8560-7482" },
-            new Researcher { GoogleScholarId = "AbCdEfGhIjKl" });
+        db.Researchers.AddRange(new Researcher
+        {
+            PersonelId = "test-" + Guid.NewGuid().ToString("N"), Orcid = "0000-0001-8560-7482" },
+            new Researcher
+        {
+            PersonelId = "test-" + Guid.NewGuid().ToString("N"), GoogleScholarId = "AbCdEfGhIjKl" });
         await db.SaveChangesAsync();
         await Assert.ThrowsAsync<ArgumentException>(() => new ResearcherRepository(db).FindByIdentifiersAsync(
             new() { Orcid = "0000-0001-8560-7482", GoogleScholarId = "AbCdEfGhIjKl" }));
@@ -172,7 +200,9 @@ public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture 
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
         db.Researchers.AddRange(new Researcher { PersonelId = "person-a" },
-            new Researcher { Orcid = "0000-0002-1825-009X" });
+            new Researcher
+        {
+            PersonelId = "test-" + Guid.NewGuid().ToString("N"), Orcid = "0000-0002-1825-009X" });
         await db.SaveChangesAsync();
 
         await Assert.ThrowsAsync<ArgumentException>(() => new ResearcherRepository(db)

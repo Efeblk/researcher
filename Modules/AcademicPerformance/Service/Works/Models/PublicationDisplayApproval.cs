@@ -6,7 +6,7 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 public sealed class PublicationDisplayApproval
 {
     public int Id { get; set; }
-    public int ResearcherId { get; set; }
+    public string PersonelId { get; set; } = string.Empty;
     public int PublicationSummaryId { get; set; }
     public DateTime ApprovedAt { get; set; }
 

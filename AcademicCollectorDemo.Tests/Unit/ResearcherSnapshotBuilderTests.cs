@@ -20,7 +20,9 @@ public sealed class ResearcherSnapshotBuilderTests
             new() { Id = 1, Title = "Same title", PublicationYear = 2025, Abstract = "Ambiguous source without DOI." },
             new() { Id = 2, Title = "Different provider title", Doi = "https://doi.org/10.1/second", Abstract = "Correct source for the second publication." }
         };
-        var snapshot = ResearcherSnapshotBuilder.Build(new Researcher { Id = 1 }, summaries, works, new());
+        var snapshot = ResearcherSnapshotBuilder.Build(new Researcher
+        {
+            PersonelId = "00123-A" }, summaries, works, new());
         Assert.Null(snapshot.Publications[0].Abstract);
         Assert.Equal(works[1].Abstract, snapshot.Publications[1].Abstract);
     }
@@ -32,7 +34,9 @@ public sealed class ResearcherSnapshotBuilderTests
         {
             Id = id, Title = "Kıyı sularında kalite izleme", PublicationYear = 2000 + id
         }).ToList();
-        var snapshot = ResearcherSnapshotBuilder.Build(new Researcher { Id = 1 }, summaries, [],
+        var snapshot = ResearcherSnapshotBuilder.Build(new Researcher
+        {
+            PersonelId = "00123-A" }, summaries, [],
             new() { MaximumPublications = 3, MaximumTextBytes = 200, Language = "tr" });
         Assert.Equal(20, snapshot.TotalPublicationCount);
         Assert.Equal(3, snapshot.Publications.Count);

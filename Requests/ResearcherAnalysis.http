@@ -1,9 +1,9 @@
 # Collector (5001), ResearcherAnalysisService (5011), SQL Server ve Ollama calisir durumda olmali.
-# researcherId: collector veritabanindaki ID. Yayinlar otomatik alinir.
+# personelId: kurumun PersonelID degeri. Yayinlar otomatik alinir.
 # snapshotAt: rapora yazilan veri tarihi; gecmise yonelik kayit secmez.
 
 @host = http://localhost:5001
-@researcherId = 42
+@personelId = 00123-A
 @snapshotAt = 2026-09-08T00:00:00Z
 
 ### Analiz olustur ve kaydet
@@ -11,7 +11,7 @@ POST {{host}}/Services/AcademicPerformance/V1/AnalyzeResearcher
 Content-Type: application/json
 
 {
-  "researcherId": {{researcherId}},
+  "PersonelID": "{{personelId}}",
   "snapshotAt": "{{snapshotAt}}"
 }
 
@@ -20,5 +20,5 @@ POST {{host}}/Services/AcademicPerformance/V1/GetResearcherAnalysis
 Content-Type: application/json
 
 {
-  "researcherId": {{researcherId}}
+  "PersonelID": "{{personelId}}"
 }

@@ -1,11 +1,13 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace AcademicCollector.Analysis.Contracts;
 
 public sealed class AnalyzeResearcherRequest : IValidatableObject
 {
-    [Range(1, int.MaxValue)]
-    public int ResearcherId { get; set; }
+    [Required, StringLength(200)]
+    [JsonPropertyName("PersonelID")]
+    public string PersonelId { get; set; } = string.Empty;
 
     [Required, StringLength(200)]
     public string ResearcherName { get; set; } = string.Empty;

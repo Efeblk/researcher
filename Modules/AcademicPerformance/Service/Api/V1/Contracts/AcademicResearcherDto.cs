@@ -5,9 +5,8 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
 
 public sealed class AcademicResearcherDto
 {
-    public int Id { get; set; }
     [JsonPropertyName("PersonelID"), Newtonsoft.Json.JsonProperty("PersonelID")]
-    public string? PersonelId { get; set; } = null;
+    public string PersonelId { get; set; } = string.Empty;
     public string? FirstName { get; set; } = null;
     public string? LastName { get; set; } = null;
     public string? AcademicTitle { get; set; } = null;

@@ -8,7 +8,6 @@ public sealed class BulkCollectionJobDto
     public string PersonelId { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public int Attempts { get; set; }
-    public int? CollectorResearcherId { get; set; } = null;
     public DateTime NextAttemptAt { get; set; }
     public string? Message { get; set; } = null;
     public List<string> Warnings { get; set; } = [];

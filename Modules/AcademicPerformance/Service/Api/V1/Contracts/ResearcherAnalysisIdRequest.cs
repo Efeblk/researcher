@@ -1,11 +1,13 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
 
 public sealed class ResearcherAnalysisIdRequest : IValidatableObject
 {
-    [Range(1, int.MaxValue)]
-    public int ResearcherId { get; set; }
+    [Required, StringLength(200)]
+    [JsonPropertyName("PersonelID"), Newtonsoft.Json.JsonProperty("PersonelID")]
+    public string PersonelId { get; set; } = string.Empty;
 
     public DateTimeOffset? SnapshotAt { get; set; } = null;
 

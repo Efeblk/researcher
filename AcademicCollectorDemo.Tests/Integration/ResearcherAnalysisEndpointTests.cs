@@ -26,12 +26,14 @@ public sealed class ResearcherAnalysisEndpointTests(SqlServerFixture fixture)
     {
         using var scope = fixture.Services.CreateScope();
         var database = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
-        var researcher = new Researcher { FirstName = "Synthetic", LastName = "Researcher" };
+        var researcher = new Researcher
+        {
+            PersonelId = "test-" + Guid.NewGuid().ToString("N"), FirstName = "Synthetic", LastName = "Researcher" };
         database.Researchers.Add(researcher);
         await database.SaveChangesAsync();
         database.PublicationSummaries.Add(new PublicationSummary
         {
-            ResearcherId = researcher.Id, Title = "Coastal water monitoring", Fingerprint = Guid.NewGuid().ToString("N"),
+            PersonelId = researcher.PersonelId, Title = "Coastal water monitoring", Fingerprint = Guid.NewGuid().ToString("N"),
             PublicationYear = 2025, Sources = "Orcid", UpdatedAt = DateTime.UtcNow
         });
         await database.SaveChangesAsync();
@@ -48,12 +50,12 @@ public sealed class ResearcherAnalysisEndpointTests(SqlServerFixture fixture)
             calls++;
             if (fail)
                 return Results.StatusCode(502);
-            Assert.Equal(researcher.Id, snapshot.ResearcherId);
+            Assert.Equal(researcher.PersonelId, snapshot.PersonelId);
             Assert.Equal(snapshotAt, snapshot.SnapshotAt);
             Assert.Single(snapshot.Publications);
             return Results.Json(new ResearcherAnalysisReport
             {
-                ResearcherId = snapshot.ResearcherId, GeneratedAt = DateTimeOffset.UtcNow,
+                PersonelId = snapshot.PersonelId, GeneratedAt = DateTimeOffset.UtcNow,
                 Model = "synthetic-model", PromptVersion = "synthetic-v1",
                 Findings = new() { ResearchFocus = [], WritingObservations = [] },
                 Activity = new(snapshot.Publications.Count, [], []), CitationMetrics = snapshot.CitationMetrics,
@@ -61,7 +63,7 @@ public sealed class ResearcherAnalysisEndpointTests(SqlServerFixture fixture)
             });
         });
         await analysis.StartAsync();
-        var input = new { ResearcherId = researcher.Id, SnapshotAt = snapshotAt };
+        var input = new { PersonelId = researcher.PersonelId, SnapshotAt = snapshotAt };
         long latestId;
         using (var host = new HostProcess(fixture.ConnectionString, analysis.Urls.Single()))
         {
@@ -73,7 +75,7 @@ public sealed class ResearcherAnalysisEndpointTests(SqlServerFixture fixture)
                 using var response = await host.Client.PostAsJsonAsync(Api + "AnalyzeResearcher", input);
                 Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             }
-            var saved = await database.ResearcherAnalyses.AsNoTracking().Where(value => value.ResearcherId == researcher.Id)
+            var saved = await database.ResearcherAnalyses.AsNoTracking().Where(value => value.PersonelId == researcher.PersonelId)
                 .OrderBy(value => value.Id).ToListAsync();
             Assert.Equal(2, saved.Count);
             latestId = saved[1].Id;
@@ -83,7 +85,7 @@ public sealed class ResearcherAnalysisEndpointTests(SqlServerFixture fixture)
             fail = true;
             using var failed = await host.Client.PostAsJsonAsync(Api + "AnalyzeResearcher", input);
             Assert.Equal(HttpStatusCode.BadGateway, failed.StatusCode);
-            Assert.Equal(2, await database.ResearcherAnalyses.CountAsync(value => value.ResearcherId == researcher.Id));
+            Assert.Equal(2, await database.ResearcherAnalyses.CountAsync(value => value.PersonelId == researcher.PersonelId));
         }
         await analysis.StopAsync();
         using var restarted = new HostProcess(fixture.ConnectionString, analysis.Urls.FirstOrDefault() ?? "http://127.0.0.1:1/");
@@ -101,7 +103,9 @@ public sealed class ResearcherAnalysisEndpointTests(SqlServerFixture fixture)
     {
         using var scope = fixture.Services.CreateScope();
         var database = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
-        var researcher = new Researcher { FirstName = "Synthetic empty" };
+        var researcher = new Researcher
+        {
+            PersonelId = "test-" + Guid.NewGuid().ToString("N"), FirstName = "Synthetic empty" };
         database.Researchers.Add(researcher);
         await database.SaveChangesAsync();
         using var host = new HostProcess(fixture.ConnectionString, "http://127.0.0.1:1/");
@@ -109,18 +113,18 @@ public sealed class ResearcherAnalysisEndpointTests(SqlServerFixture fixture)
         foreach (DateTimeOffset invalidDate in new[] { default(DateTimeOffset), DateTimeOffset.UtcNow.AddDays(1) })
         {
             using var invalid = await host.Client.PostAsJsonAsync(Api + "AnalyzeResearcher",
-                new { ResearcherId = researcher.Id, SnapshotAt = invalidDate });
+                new { PersonelId = researcher.PersonelId, SnapshotAt = invalidDate });
             Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
         }
         foreach (var (id, status) in new[]
         {
-            (0, HttpStatusCode.BadRequest), (int.MaxValue, HttpStatusCode.NotFound),
-            (researcher.Id, HttpStatusCode.UnprocessableEntity)
+            (string.Empty, HttpStatusCode.BadRequest), ("missing-person", HttpStatusCode.NotFound),
+            (researcher.PersonelId, HttpStatusCode.UnprocessableEntity)
         })
         {
-            using var response = await host.Client.PostAsJsonAsync(Api + "AnalyzeResearcher", new { ResearcherId = id });
+            using var response = await host.Client.PostAsJsonAsync(Api + "AnalyzeResearcher", new { PersonelId = id });
             Assert.True(status == response.StatusCode, await response.Content.ReadAsStringAsync());
         }
-        Assert.False(await database.ResearcherAnalyses.AnyAsync(value => value.ResearcherId == researcher.Id));
+        Assert.False(await database.ResearcherAnalyses.AnyAsync(value => value.PersonelId == researcher.PersonelId));
     }
 }

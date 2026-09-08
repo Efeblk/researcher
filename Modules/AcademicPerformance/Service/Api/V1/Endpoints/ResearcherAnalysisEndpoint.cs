@@ -14,11 +14,11 @@ public sealed class ResearcherAnalysisEndpoint : ServiceEndpoint
         [FromBody] ResearcherAnalysisIdRequest? request,
         [FromServices] ResearcherAnalysisWorkflow workflow, CancellationToken cancellationToken)
     {
-        if (!ModelState.IsValid || request is null || request.ResearcherId <= 0)
-            return BadRequest(new { Message = "ResearcherId must be a positive database ID." });
+        if (!ModelState.IsValid || request is null || string.IsNullOrWhiteSpace(request.PersonelId))
+            return BadRequest(new { Message = "PersonelID is required." });
         try
         {
-            SavedResearcherAnalysisResponse? result = await workflow.AnalyzeAsync(request.ResearcherId, request.SnapshotAt, cancellationToken);
+            SavedResearcherAnalysisResponse? result = await workflow.AnalyzeAsync(request.PersonelId.Trim(), request.SnapshotAt, cancellationToken);
             return result is null ? NotFound(new { Message = "Researcher not found." }) : Ok(result);
         }
         catch (AnalysisInputUnavailableException exception)
@@ -46,9 +46,9 @@ public sealed class ResearcherAnalysisEndpoint : ServiceEndpoint
         [FromBody] ResearcherAnalysisIdRequest? request,
         [FromServices] ResearcherAnalysisWorkflow workflow, CancellationToken cancellationToken)
     {
-        if (!ModelState.IsValid || request is null || request.ResearcherId <= 0)
-            return BadRequest(new { Message = "ResearcherId must be a positive database ID." });
-        SavedResearcherAnalysisResponse? result = await workflow.GetLatestAsync(request.ResearcherId, cancellationToken);
+        if (!ModelState.IsValid || request is null || string.IsNullOrWhiteSpace(request.PersonelId))
+            return BadRequest(new { Message = "PersonelID is required." });
+        SavedResearcherAnalysisResponse? result = await workflow.GetLatestAsync(request.PersonelId.Trim(), cancellationToken);
         return result is null ? NotFound(new { Message = "No saved analysis exists for this researcher." }) : Ok(result);
     }
 }

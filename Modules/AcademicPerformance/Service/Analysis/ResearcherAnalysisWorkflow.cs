@@ -13,7 +13,7 @@ public sealed class ResearcherAnalysisWorkflow(
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public async Task<SavedResearcherAnalysisResponse?> AnalyzeAsync(int researcherId, DateTimeOffset? snapshotAt, CancellationToken cancellationToken)
+    public async Task<SavedResearcherAnalysisResponse?> AnalyzeAsync(string personelId, DateTimeOffset? snapshotAt, CancellationToken cancellationToken)
     {
         AnalyzeResearcherRequest snapshot;
         // Capture a consistent input, then release SQL locks before waiting for the model.
@@ -22,13 +22,13 @@ public sealed class ResearcherAnalysisWorkflow(
             var researcher = await database.Researchers.AsNoTracking()
                 .Include(value => value.GoogleScholarProfile).Include(value => value.WebOfScienceProfile)
                 .Include(value => value.OpenAlexProfile)
-                .SingleOrDefaultAsync(value => value.Id == researcherId, cancellationToken);
+                .SingleOrDefaultAsync(value => value.PersonelId == personelId, cancellationToken);
             if (researcher is null)
                 return null;
             var summaries = await database.PublicationSummaries.AsNoTracking()
-                .Where(value => value.ResearcherId == researcherId).ToListAsync(cancellationToken);
+                .Where(value => value.PersonelId == personelId).ToListAsync(cancellationToken);
             var works = await database.AcademicWorks.AsNoTracking()
-                .Where(value => value.ResearcherId == researcherId)
+                .Where(value => value.PersonelId == personelId)
                 .Select(value => new Works.Models.AcademicWork
                 {
                     Id = value.Id, Title = value.Title, Doi = value.Doi,
@@ -44,7 +44,7 @@ public sealed class ResearcherAnalysisWorkflow(
         ResearcherAnalysisReport report = await client.AnalyzeAsync(snapshot, cancellationToken);
         SavedResearcherAnalysis saved = new()
         {
-            ResearcherId = researcherId,
+            PersonelId = personelId,
             SavedAt = DateTimeOffset.UtcNow,
             SnapshotJson = JsonSerializer.Serialize(snapshot, JsonOptions),
             ReportJson = JsonSerializer.Serialize(report, JsonOptions)
@@ -54,10 +54,10 @@ public sealed class ResearcherAnalysisWorkflow(
         return new(saved.Id, saved.SavedAt, report);
     }
 
-    public async Task<SavedResearcherAnalysisResponse?> GetLatestAsync(int researcherId, CancellationToken cancellationToken)
+    public async Task<SavedResearcherAnalysisResponse?> GetLatestAsync(string personelId, CancellationToken cancellationToken)
     {
         SavedResearcherAnalysis? saved = await database.ResearcherAnalyses.AsNoTracking()
-            .Where(value => value.ResearcherId == researcherId)
+            .Where(value => value.PersonelId == personelId)
             .OrderByDescending(value => value.Id).FirstOrDefaultAsync(cancellationToken);
         return saved is null ? null : new(saved.Id, saved.SavedAt,
             JsonSerializer.Deserialize<ResearcherAnalysisReport>(saved.ReportJson, JsonOptions)!);

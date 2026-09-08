@@ -34,9 +34,14 @@ public sealed class ResearcherCollectionHandler
     public async Task<ResearcherCollectResponse> CollectAsync(
         ResearcherCollectRequest request)
     {
+        if (string.IsNullOrWhiteSpace(request.PersonelId))
+            throw new ArgumentException("PersonelID is required.");
+        if (request.PersonelId.Trim().Length > 200)
+            throw new ArgumentException("PersonelID must be at most 200 characters.");
+
         ResearcherCollectResponse response = new();
         Researcher requestedResearcher = _identifierParser.Create(request);
-        requestedResearcher.PersonelId = NormalizeOptional(request.PersonelId);
+        requestedResearcher.PersonelId = request.PersonelId.Trim();
         requestedResearcher.ScopusId = NormalizeOptional(request.ScopusId);
         Researcher researcher = requestedResearcher;
 
@@ -78,7 +83,7 @@ public sealed class ResearcherCollectionHandler
             await _researcherRepository.SaveAsync(researcher);
             await _academicWorkSynchronizer.SyncAsync(researcher);
             int publicationSummaryCount = await _publicationSummarySynchronizer.SyncAsync(
-                researcher.Id);
+                researcher.PersonelId);
             await transaction.CommitAsync();
             response.Messages.Add(
                 $"[OK] Yayın özeti: {publicationSummaryCount} benzersiz yayın hazırlandı.");
@@ -88,7 +93,7 @@ public sealed class ResearcherCollectionHandler
             response.IsSaved = true;
             response.Messages.Add(
                 $"[OK] Veritabanı: {provider} kaydı tamamlandı " +
-                $"(akademisyen ID: {researcher.Id}).");
+                $"(PersonelID: {researcher.PersonelId}).");
             response.Messages.Add(string.Empty);
         }
         catch (Exception exception)

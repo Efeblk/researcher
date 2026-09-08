@@ -22,7 +22,6 @@ public sealed class AddBulkCollection : Migration
             .WithColumn("NextAttemptAt").AsDateTime2().NotNullable()
             .WithColumn("StartedAt").AsDateTime2().Nullable()
             .WithColumn("CompletedAt").AsDateTime2().Nullable()
-            .WithColumn("CollectorResearcherId").AsInt32().Nullable()
             .WithColumn("ResultMessage").AsString(1000).Nullable();
         Create.Index("IX_BulkCollectionJobs_Queue").OnTable("BulkCollectionJobs")
             .OnColumn("Status").Ascending().OnColumn("NextAttemptAt").Ascending();

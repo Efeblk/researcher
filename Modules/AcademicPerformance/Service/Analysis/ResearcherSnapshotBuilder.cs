@@ -13,9 +13,9 @@ public static class ResearcherSnapshotBuilder
     {
         AnalyzeResearcherRequest snapshot = new()
         {
-            ResearcherId = researcher.Id,
+            PersonelId = researcher.PersonelId,
             ResearcherName = Limit($"{researcher.FirstName} {researcher.LastName}".Trim(), 200)
-                ?? $"Researcher {researcher.Id}",
+                ?? $"Researcher {researcher.PersonelId}",
             Department = Limit(researcher.Department, 200),
             SnapshotAt = DateTimeOffset.UtcNow,
             Language = options.Language,

@@ -15,19 +15,19 @@ public sealed class PublicationSummarySynchronizer
         _dbContext = dbContext;
     }
 
-    public async Task<int> SyncAsync(int researcherId)
+    public async Task<int> SyncAsync(string personelId)
     {
         List<AcademicWork> works = await _dbContext.AcademicWorks
-            .Where(work => work.ResearcherId == researcherId)
+            .Where(work => work.PersonelId == personelId)
             .OrderBy(work => work.Id)
             .ToListAsync();
         List<PublicationSummary> existing = await _dbContext.PublicationSummaries
             .Include(summary => summary.DisplayApproval)
-            .Where(summary => summary.ResearcherId == researcherId)
+            .Where(summary => summary.PersonelId == personelId)
             .OrderBy(summary => summary.Id)
             .ToListAsync();
         Dictionary<PublicationSummary, List<AcademicWork>> desiredGroups = CreateGroups(works)
-            .ToDictionary(group => CreateSummary(researcherId, group));
+            .ToDictionary(group => CreateSummary(personelId, group));
         List<PublicationSummary> desired = desiredGroups.Keys.ToList();
         Dictionary<string, PublicationSummary> desiredByFingerprint = desired
             .ToDictionary(summary => summary.Fingerprint, StringComparer.Ordinal);
@@ -151,7 +151,7 @@ public sealed class PublicationSummarySynchronizer
     }
 
     private static PublicationSummary CreateSummary(
-        int researcherId,
+        string personelId,
         List<AcademicWork> works)
     {
         List<AcademicWork>? preferredWorks = works
@@ -166,7 +166,7 @@ public sealed class PublicationSummarySynchronizer
             .FirstOrDefault(value => value.HasValue);
 
         PublicationSummary? summary = new PublicationSummary();
-        summary.ResearcherId = researcherId;
+        summary.PersonelId = personelId;
         summary.Fingerprint = CreateFingerprint(doi, title, publicationYear,
             preferredWorks.All(work => NormalizeTitle(work.Title).Length == 0)
                 ? $"work:{preferredWorks[0].Id}"
@@ -278,7 +278,7 @@ public sealed class PublicationSummarySynchronizer
         PublicationSummary source,
         PublicationSummary target)
     {
-        target.ResearcherId = source.ResearcherId;
+        target.PersonelId = source.PersonelId;
         target.Fingerprint = source.Fingerprint;
         target.Title = source.Title;
         target.PublicationYear = source.PublicationYear;

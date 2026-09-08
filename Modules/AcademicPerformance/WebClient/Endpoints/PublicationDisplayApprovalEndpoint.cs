@@ -17,16 +17,16 @@ public sealed class PublicationDisplayApprovalEndpoint : ServiceEndpoint
         PublicationDisplayApprovalRequest request,
         [FromServices] AcademicDbContext dbContext)
     {
-        await EnsureResearcherExistsAsync(request.ResearcherId, dbContext);
+        await EnsureResearcherExistsAsync(request.PersonelId, dbContext);
 
         List<int> approvedIds = await dbContext.PublicationDisplayApprovals
             .AsNoTracking()
-            .Where(approval => approval.ResearcherId == request.ResearcherId)
+            .Where(approval => approval.PersonelId == request.PersonelId)
             .OrderBy(approval => approval.PublicationSummaryId)
             .Select(approval => approval.PublicationSummaryId)
             .ToListAsync();
 
-        return CreateResponse(request.ResearcherId, approvedIds);
+        return CreateResponse(request.PersonelId, approvedIds);
     }
 
     [HttpPost]
@@ -38,11 +38,11 @@ public sealed class PublicationDisplayApprovalEndpoint : ServiceEndpoint
             await applicationService.SavePublicationSelectionsAsync(
                 new AcademicPublicationSelectionRequest
                 {
-                    ResearcherId = request.ResearcherId,
+                    PersonelId = request.PersonelId,
                     PublicationIds = request.PublicationSummaryIds
                 });
 
-        return CreateResponse(request.ResearcherId, response.PublicationIds);
+        return CreateResponse(request.PersonelId, response.PublicationIds);
     }
 
     [HttpPost]
@@ -50,12 +50,12 @@ public sealed class PublicationDisplayApprovalEndpoint : ServiceEndpoint
         PublicationDisplayApprovalRequest request,
         [FromServices] AcademicDbContext dbContext)
     {
-        await EnsureResearcherExistsAsync(request.ResearcherId, dbContext);
+        await EnsureResearcherExistsAsync(request.PersonelId, dbContext);
 
         List<PublicationSummary> publications = await dbContext
             .PublicationDisplayApprovals
             .AsNoTracking()
-            .Where(approval => approval.ResearcherId == request.ResearcherId)
+            .Where(approval => approval.PersonelId == request.PersonelId)
             .Select(approval => approval.PublicationSummary!)
             .OrderByDescending(summary => summary.PublicationYear)
             .ThenBy(summary => summary.Title)
@@ -68,30 +68,30 @@ public sealed class PublicationDisplayApprovalEndpoint : ServiceEndpoint
 
         return new ApprovedPublicationListResponse
         {
-            ResearcherId = request.ResearcherId,
+            PersonelId = request.PersonelId,
             Entities = publications,
             TotalCount = publications.Count
         };
     }
 
     private static PublicationDisplayApprovalResponse CreateResponse(
-        int researcherId,
+        string personelId,
         List<int> approvedIds)
     {
         return new PublicationDisplayApprovalResponse
         {
-            ResearcherId = researcherId,
+            PersonelId = personelId,
             PublicationSummaryIds = approvedIds,
             ApprovedCount = approvedIds.Count
         };
     }
 
     private static async Task EnsureResearcherExistsAsync(
-        int researcherId,
+        string personelId,
         AcademicDbContext dbContext)
     {
-        if (researcherId <= 0 ||
-            !await dbContext.Researchers.AnyAsync(item => item.Id == researcherId))
+        if (string.IsNullOrWhiteSpace(personelId) ||
+            !await dbContext.Researchers.AnyAsync(item => item.PersonelId == personelId))
         {
             throw new ArgumentException("Akademisyen kaydı bulunamadı.");
         }

@@ -6,7 +6,7 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 public sealed class AcademicWork
 {
     public int Id { get; set; }
-    public int ResearcherId { get; set; }
+    public string PersonelId { get; set; } = string.Empty;
 
     [JsonIgnore]
     public Researcher? Researcher { get; set; } = null;

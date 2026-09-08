@@ -60,7 +60,6 @@ public sealed class BulkJobProcessor(
                 ScopusId = input.ScopusId
             });
             saved = response.IsSaved;
-            job.CollectorResearcherId = response.Researcher?.Id > 0 ? response.Researcher.Id : null;
             bool hasErrors = providerCalls.Failures.Count > 0 ||
                 response.Messages.Any(message => message.StartsWith("[HATA]", StringComparison.Ordinal)) ||
                 (!string.IsNullOrWhiteSpace(input.Orcid) &&

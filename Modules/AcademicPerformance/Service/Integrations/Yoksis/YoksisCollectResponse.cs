@@ -1,10 +1,12 @@
 using Serenity.Services;
+using System.Text.Json.Serialization;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis;
 
 public sealed class YoksisCollectResponse : ServiceResponse
 {
-    public int? ResearcherId { get; set; } = null;
+    [JsonPropertyName("PersonelID"), Newtonsoft.Json.JsonProperty("PersonelID")]
+    public string PersonelId { get; set; } = string.Empty;
     public string? ResearcherDisplayName { get; set; } = null;
     public bool IsSaved { get; set; }
     public int YoksisRecordCount { get; set; }

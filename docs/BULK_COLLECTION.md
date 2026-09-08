@@ -75,7 +75,6 @@ Example initial status (job IDs and timestamps vary):
       "PersonelID": "employee-001",
       "Status": "Pending",
       "Attempts": 0,
-      "CollectorResearcherId": null,
       "NextAttemptAt": "2026-09-06T00:00:00",
       "Message": null,
       "Warnings": []
@@ -179,7 +178,9 @@ The first version processes one researcher at a time across bulk workers, reusin
 
 A SQL session lock owns bulk processing. After a crash, another worker can acquire the lock and resume abandoned `Running` jobs, subject to the retry limit. Delivery is **at least once**: a crash after saving provider results but before recording job completion may repeat collection. Existing caches and synchronization reduce repeated calls and reconcile saved data; there is no exactly-once guarantee for external API requests.
 
-The initial migrations now create the five personnel-export columns on `Researchers`: nullable unique `PersonelID`, plus `ORCID`, Web of Science `ResearcherID`, `ScopusID`, and `ScholarID`. They also create `BulkCollectionBatches`, `BulkCollectionJobs`, and `ProviderRequestBudgets`. Because these initial migrations were edited during the test phase, use a fresh application database when adopting this schema; do not delete an existing database or source personnel table as part of import. Jobs remain available for auditing; automatic retention/deletion and a bulk management UI are not part of this version.
+The initial migrations now make the required institution `PersonelID` the sole `Researchers` primary key; there is no internal integer `Researchers.Id`. The nine direct researcher relationships (the four provider profiles, YÖKSİS records, academic works, publication summaries, publication approvals, and saved analyses) reference that same `PersonelID`. Provider profile, work, summary, approval, and analysis row IDs remain unchanged. Single-provider and YÖKSİS collection requests also require `PersonelID` before any provider call. The remaining personnel-export columns are `ORCID`, Web of Science `ResearcherID`, `ScopusID`, and `ScholarID`.
+
+The migrations also create `BulkCollectionBatches`, `BulkCollectionJobs`, and `ProviderRequestBudgets`. Because these initial migrations were edited during the test phase, use a fresh application database when adopting this schema; do not delete an existing database or source personnel table as part of import. Jobs remain available for auditing; automatic retention/deletion and a bulk management UI are not part of this version.
 
 Production must apply the application's BYS authorization to these operational endpoints, as with the existing collection endpoints. The standalone host still uses its development permission service.
 

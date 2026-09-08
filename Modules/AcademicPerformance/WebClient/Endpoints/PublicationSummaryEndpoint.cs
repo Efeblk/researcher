@@ -17,7 +17,7 @@ public sealed class PublicationSummaryEndpoint : ServiceEndpoint
         IQueryable<PublicationSummary> query = dbContext.PublicationSummaries
             .AsNoTracking();
 
-        if (!TryGetResearcherId(request, out int researcherId))
+        if (!TryGetPersonelId(request, out string personelId))
         {
             return new ListResponse<PublicationSummary>
             {
@@ -26,7 +26,7 @@ public sealed class PublicationSummaryEndpoint : ServiceEndpoint
             };
         }
 
-        query = query.Where(item => item.ResearcherId == researcherId);
+        query = query.Where(item => item.PersonelId == personelId);
 
         if (!string.IsNullOrWhiteSpace(request.ContainsText))
         {
@@ -52,7 +52,7 @@ public sealed class PublicationSummaryEndpoint : ServiceEndpoint
         HashSet<int> approvedIds = (await dbContext.PublicationDisplayApprovals
             .AsNoTracking()
             .Where(approval =>
-                approval.ResearcherId == researcherId &&
+                approval.PersonelId == personelId &&
                 entityIds.Contains(approval.PublicationSummaryId))
             .Select(approval => approval.PublicationSummaryId)
             .ToListAsync())
@@ -70,17 +70,18 @@ public sealed class PublicationSummaryEndpoint : ServiceEndpoint
         };
     }
 
-    private static bool TryGetResearcherId(ListRequest request, out int researcherId)
+    private static bool TryGetPersonelId(ListRequest request, out string personelId)
     {
-        researcherId = 0;
+        personelId = string.Empty;
 
         if (request.EqualityFilter is null ||
-            !request.EqualityFilter.TryGetValue("ResearcherId", out object? value) ||
+            !request.EqualityFilter.TryGetValue("PersonelID", out object? value) ||
             value is null)
         {
             return false;
         }
 
-        return int.TryParse(value.ToString(), out researcherId) && researcherId > 0;
+        personelId = value.ToString()?.Trim() ?? string.Empty;
+        return personelId.Length is > 0 and <= 200;
     }
 }

@@ -17,6 +17,7 @@ public sealed class ProviderCacheTests
         using var http = new HttpClient(handler);
         var researcher = new Researcher
         {
+            PersonelId = "test-" + Guid.NewGuid().ToString("N"),
             WebOfScienceResearcherId = "A-1009-2008",
             WebOfScienceProfile = new() { LastUpdatedAt = DateTime.UtcNow, DocumentPagesJson = "{\"WOS\":[{}]}", Works = [] }
         };
@@ -39,7 +40,9 @@ public sealed class ProviderCacheTests
         var handler = new StubHttpHandler(_ => StubHttpHandler.Json("""{"metadata":{"total":10000,"limit":50},"hits":[]}"""));
         using var http = new HttpClient(handler);
         var previous = new WebOfScienceProfile { DocumentsCount = 5 };
-        var researcher = new Researcher { WebOfScienceProfile = previous };
+        var researcher = new Researcher
+        {
+            PersonelId = "test-" + Guid.NewGuid().ToString("N"), WebOfScienceProfile = previous };
         await Assert.ThrowsAsync<HttpRequestException>(() =>
             new WebOfScienceClient(http, config).FillResearcherAsync(researcher, "A-1009-2008"));
         Assert.Equal(2, handler.RequestCount);

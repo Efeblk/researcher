@@ -35,7 +35,9 @@ public sealed class AcademicPerformanceApplicationService :
         AcademicDataCollectRequest request)
     {
         int publicationCount = 0;
-        if (request.PersonelId?.Trim().Length > 200)
+        if (string.IsNullOrWhiteSpace(request.PersonelId))
+            throw new ArgumentException("PersonelID is required.");
+        if (request.PersonelId.Trim().Length > 200)
             throw new ArgumentException("PersonelID must be at most 200 characters.");
 
         ResearcherProviderInputNormalizationResult normalization = _inputNormalizer.Normalize(new()
@@ -54,18 +56,17 @@ public sealed class AcademicPerformanceApplicationService :
         }
         ResearcherCollectRequest collectionRequest =
             ResearcherProviderInputNormalizer.ToCollectionRequest(normalization.Input);
-        collectionRequest.PersonelId = string.IsNullOrWhiteSpace(request.PersonelId)
-            ? null : request.PersonelId.Trim();
+        collectionRequest.PersonelId = request.PersonelId.Trim();
         collectionRequest.ScopusId = string.IsNullOrWhiteSpace(request.ScopusId)
             ? null : request.ScopusId.Trim();
         ResearcherCollectResponse? collectionResponse = await _collectionHandler.CollectAsync(collectionRequest);
-        int researcherId = collectionResponse.Researcher?.Id ?? 0;
+        string? personelId = collectionResponse.Researcher?.PersonelId;
 
-        if (collectionResponse.IsSaved && researcherId > 0)
+        if (collectionResponse.IsSaved && !string.IsNullOrWhiteSpace(personelId))
         {
             publicationCount = await _dbContext.PublicationSummaries
                 .AsNoTracking()
-                .CountAsync(summary => summary.ResearcherId == researcherId);
+                .CountAsync(summary => summary.PersonelId == personelId);
         }
 
         return new AcademicDataResponse
@@ -85,14 +86,13 @@ public sealed class AcademicPerformanceApplicationService :
         AcademicResearcherRequest request)
     {
         Researcher researcher = await ResolveResearcherAsync(
-            request.Id,
             request.PersonelId,
             request.Orcid,
             request.GoogleScholarId,
             request.WebOfScienceResearcherId);
         int publicationCount = await _dbContext.PublicationSummaries
             .AsNoTracking()
-            .CountAsync(summary => summary.ResearcherId == researcher.Id);
+            .CountAsync(summary => summary.PersonelId == researcher.PersonelId);
 
         AcademicResearcherDto? researcherDto = AcademicPerformanceDtoMapper.MapResearcher(researcher);
         if (researcherDto?.OpenAlexProfile is not null)
@@ -114,14 +114,13 @@ public sealed class AcademicPerformanceApplicationService :
         AcademicPublicationListRequest request)
     {
         Researcher researcher = await ResolveResearcherAsync(
-            request.Id,
             request.PersonelId,
             request.Orcid,
             request.GoogleScholarId,
             request.WebOfScienceResearcherId);
         IQueryable<PublicationSummary> query = _dbContext.PublicationSummaries
             .AsNoTracking()
-            .Where(summary => summary.ResearcherId == researcher.Id);
+            .Where(summary => summary.PersonelId == researcher.PersonelId);
 
         if (request.ApprovedOnly)
         {
@@ -155,7 +154,7 @@ public sealed class AcademicPerformanceApplicationService :
         HashSet<int> approvedIds = (await _dbContext.PublicationDisplayApprovals
             .AsNoTracking()
             .Where(approval =>
-                approval.ResearcherId == researcher.Id &&
+                approval.PersonelId == researcher.PersonelId &&
                 publicationIds.Contains(approval.PublicationSummaryId))
             .Select(approval => approval.PublicationSummaryId)
             .ToListAsync())
@@ -163,7 +162,7 @@ public sealed class AcademicPerformanceApplicationService :
 
         return new AcademicPublicationListResponse
         {
-            ResearcherId = researcher.Id,
+            PersonelId = researcher.PersonelId,
             Entities = publications
                 .Select(publication => AcademicPerformanceDtoMapper.MapPublication(
                     publication,
@@ -178,9 +177,9 @@ public sealed class AcademicPerformanceApplicationService :
     public async Task<AcademicPublicationSelectionResponse>
         SavePublicationSelectionsAsync(AcademicPublicationSelectionRequest request)
     {
-        if (request.ResearcherId <= 0 ||
+        if (string.IsNullOrWhiteSpace(request.PersonelId) ||
             !await _dbContext.Researchers
-                .AnyAsync(researcher => researcher.Id == request.ResearcherId))
+                .AnyAsync(researcher => researcher.PersonelId == request.PersonelId))
         {
             throw new ArgumentException("Akademisyen kaydı bulunamadı.");
         }
@@ -196,7 +195,7 @@ public sealed class AcademicPerformanceApplicationService :
         List<int> validIds = await _dbContext.PublicationSummaries
             .AsNoTracking()
             .Where(summary =>
-                summary.ResearcherId == request.ResearcherId &&
+                summary.PersonelId == request.PersonelId &&
                 requestedIds.Contains(summary.Id))
             .Select(summary => summary.Id)
             .OrderBy(id => id)
@@ -210,7 +209,7 @@ public sealed class AcademicPerformanceApplicationService :
 
         List<PublicationDisplayApproval> existing = await _dbContext
             .PublicationDisplayApprovals
-            .Where(approval => approval.ResearcherId == request.ResearcherId)
+            .Where(approval => approval.PersonelId == request.PersonelId)
             .ToListAsync();
         HashSet<int> requestedSet = validIds.ToHashSet();
         HashSet<int> existingIds = existing
@@ -231,7 +230,7 @@ public sealed class AcademicPerformanceApplicationService :
             _dbContext.PublicationDisplayApprovals.Add(
                 new PublicationDisplayApproval
                 {
-                    ResearcherId = request.ResearcherId,
+                    PersonelId = request.PersonelId,
                     PublicationSummaryId = publicationId,
                     ApprovedAt = DateTime.UtcNow
                 });
@@ -240,14 +239,13 @@ public sealed class AcademicPerformanceApplicationService :
         await _dbContext.SaveChangesAsync();
         return new AcademicPublicationSelectionResponse
         {
-            ResearcherId = request.ResearcherId,
+            PersonelId = request.PersonelId,
             PublicationIds = validIds,
             ApprovedCount = validIds.Count
         };
     }
 
     private async Task<Researcher> ResolveResearcherAsync(
-        int? researcherId,
         string? personelId,
         string? orcid,
         string? googleScholarId,
@@ -260,14 +258,12 @@ public sealed class AcademicPerformanceApplicationService :
             .Include(researcher => researcher.OpenAlexProfile)
             .Include(researcher => researcher.WebOfScienceProfile);
 
-        bool hasSelector = researcherId > 0 || !string.IsNullOrWhiteSpace(personelId) ||
+        bool hasSelector = !string.IsNullOrWhiteSpace(personelId) ||
             !string.IsNullOrWhiteSpace(orcid) || !string.IsNullOrWhiteSpace(googleScholarId) ||
             !string.IsNullOrWhiteSpace(webOfScienceResearcherId);
         if (!hasSelector)
-            throw new ArgumentException("Id, PersonelID, ORCID, ScholarID veya ResearcherID verilmelidir.");
+            throw new ArgumentException("PersonelID, ORCID, ScholarID veya ResearcherID verilmelidir.");
 
-        if (researcherId > 0)
-            query = query.Where(researcher => researcher.Id == researcherId.Value);
         if (!string.IsNullOrWhiteSpace(personelId))
             query = query.Where(researcher => researcher.PersonelId == personelId.Trim());
         if (!string.IsNullOrWhiteSpace(orcid))

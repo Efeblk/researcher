@@ -13,11 +13,11 @@ public sealed class AddGoogleScholar : Migration
 
         Create.Table("GoogleScholarProfiles")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
-            .WithColumn("ResearcherId").AsInt32().NotNullable()
+            .WithColumn("PersonelID").AsString(200).NotNullable()
                 .ForeignKey(
-                    "FK_GoogleScholarProfiles_Researchers_ResearcherId",
+                    "FK_GoogleScholarProfiles_Researchers_PersonelID",
                     "Researchers",
-                    "Id")
+                    "PersonelID")
                 .OnDelete(Rule.Cascade)
             .WithColumn("DisplayName").AsString(500).Nullable()
             .WithColumn("Affiliations").AsString(2000).Nullable()
@@ -59,9 +59,9 @@ public sealed class AddGoogleScholar : Migration
             "ON [Researchers] ([ScholarID]) " +
             "WHERE [ScholarID] IS NOT NULL;");
 
-        Create.Index("IX_GoogleScholarProfiles_ResearcherId")
+        Create.Index("IX_GoogleScholarProfiles_PersonelID")
             .OnTable("GoogleScholarProfiles")
-            .OnColumn("ResearcherId")
+            .OnColumn("PersonelID")
             .Ascending()
             .WithOptions()
             .Unique();

@@ -9,7 +9,7 @@ public sealed class GoogleScholarProfile
     public int Id { get; set; }
 
     [JsonIgnore]
-    public int ResearcherId { get; set; }
+    public string PersonelId { get; set; } = string.Empty;
 
     [JsonIgnore]
     public Researcher? Researcher { get; set; } = null;
