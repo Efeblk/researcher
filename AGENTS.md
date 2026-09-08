@@ -35,3 +35,15 @@ History uses short subjects such as `readme ve settings` and `update on feedback
 ## Security & Configuration
 
 Store API keys and YÖKSİS credentials with `dotnet user-secrets`; never commit credentials, T.C. identity numbers, raw secrets, or personal database files. Keep non-secret defaults in `academicsettings.json` and database configuration in `appsettings.json`. `DevelopmentPermissionService` deliberately allows all requests in this standalone host and must be replaced by BYS authorization before production deployment.
+
+## Agent Workflow
+
+Use GPT-6 Astra to coordinate scope and design, write a short acceptance plan, and delegate bounded implementation, debugging, testing, and documentation work to GPT-5.6 Sol by default. Astra reviews Sol's concise diff and test summary, resolves material architectural ambiguities, and avoids duplicating Sol's work.
+
+Give Sol a minimal, self-contained handoff containing the objective, worktree and branch, allowed files, constraints, and acceptance checks or tests. Do not include the full conversation transcript by default. Prefer one Sol agent for each cohesive task. Use parallel agents only for independent tasks with separate ownership and worktrees.
+
+Before editing, verify the current directory, Git status, and branch. Never allow concurrent writers in one checkout or switch a shared checkout's branch. Keep the coordination checkout on the main branch and make no direct edits there.
+
+Batch related reads, keep command output concise, and reuse established findings. Scale testing to the change while honoring required gates; do not repeat tests unless the relevant risk changed.
+
+If model routing is unavailable, state briefly that an agent cannot switch its own model or change a T3 binding through this file, then provide the handoff for manual routing. Never claim delegation occurred when it did not. Existing authorization continues to govern writes, pushes, and merges; this workflow adds no approval requirements.
