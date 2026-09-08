@@ -53,12 +53,14 @@ public sealed class BulkJobProcessor(
             var service = collectionScope.ServiceProvider.GetRequiredService<IAcademicPerformanceApplicationService>();
             AcademicDataResponse response = await service.CollectAsync(new()
             {
+                PersonelId = input.PersonelId,
                 Orcid = input.Orcid,
                 GoogleScholarId = input.GoogleScholarId,
-                WebOfScienceResearcherId = input.WebOfScienceId
+                WebOfScienceResearcherId = input.WebOfScienceId,
+                ScopusId = input.ScopusId
             });
             saved = response.IsSaved;
-            job.ResearcherId = response.Researcher?.Id > 0 ? response.Researcher.Id : null;
+            job.CollectorResearcherId = response.Researcher?.Id > 0 ? response.Researcher.Id : null;
             bool hasErrors = providerCalls.Failures.Count > 0 ||
                 response.Messages.Any(message => message.StartsWith("[HATA]", StringComparison.Ordinal)) ||
                 (!string.IsNullOrWhiteSpace(input.Orcid) &&

@@ -41,7 +41,7 @@
     "Enabled": false,
     "Query": "",
     "CommandTimeoutSeconds": 30,
-    "SourceResearcherIdColumn": "PersonelID",
+    "PersonelIdColumn": "PersonelID",
     "OrcidColumn": "ORCID",
     "GoogleScholarIdColumn": "ScholarID",
     "WebOfScienceIdColumn": "ResearcherID",

@@ -9,7 +9,7 @@ public sealed class AddGoogleScholar : Migration
     public override void Up()
     {
         Alter.Table("Researchers")
-            .AddColumn("GoogleScholarId").AsString(32).Nullable();
+            .AddColumn("ScholarID").AsString(32).Nullable();
 
         Create.Table("GoogleScholarProfiles")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
@@ -55,9 +55,9 @@ public sealed class AddGoogleScholar : Migration
             .WithColumn("RawDataJson").AsString(int.MaxValue).Nullable();
 
         Execute.Sql(
-            "CREATE UNIQUE INDEX [IX_Researchers_GoogleScholarId] " +
-            "ON [Researchers] ([GoogleScholarId]) " +
-            "WHERE [GoogleScholarId] IS NOT NULL;");
+            "CREATE UNIQUE INDEX [IX_Researchers_ScholarID] " +
+            "ON [Researchers] ([ScholarID]) " +
+            "WHERE [ScholarID] IS NOT NULL;");
 
         Create.Index("IX_GoogleScholarProfiles_ResearcherId")
             .OnTable("GoogleScholarProfiles")
@@ -80,7 +80,7 @@ public sealed class AddGoogleScholar : Migration
     {
         Delete.Table("GoogleScholarWorks");
         Delete.Table("GoogleScholarProfiles");
-        Delete.Index("IX_Researchers_GoogleScholarId").OnTable("Researchers");
-        Delete.Column("GoogleScholarId").FromTable("Researchers");
+        Delete.Index("IX_Researchers_ScholarID").OnTable("Researchers");
+        Delete.Column("ScholarID").FromTable("Researchers");
     }
 }

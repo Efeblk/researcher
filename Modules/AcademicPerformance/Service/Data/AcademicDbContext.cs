@@ -55,7 +55,8 @@ public sealed class AcademicDbContext : DbContext
         {
             entity.ToTable("BulkCollectionJobs");
             entity.HasKey(job => job.Id);
-            entity.Property(job => job.SourceResearcherId).HasMaxLength(200);
+            entity.Property(job => job.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
+            entity.Property(job => job.CollectorResearcherId).HasColumnName("CollectorResearcherId");
             entity.Property(job => job.Status).HasMaxLength(20);
             entity.Property(job => job.ResultMessage).HasMaxLength(1000);
             entity.HasOne<BulkCollectionBatch>().WithMany().HasForeignKey(job => job.BatchId)
@@ -66,25 +67,33 @@ public sealed class AcademicDbContext : DbContext
         {
             entity.ToTable("Researchers");
             entity.HasKey(researcher => researcher.Id);
-            entity.Property(researcher => researcher.Orcid).HasMaxLength(19);
+            entity.Property(researcher => researcher.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
+            entity.Property(researcher => researcher.Orcid).HasColumnName("ORCID").HasMaxLength(19);
+            entity.Property(researcher => researcher.ScopusId).HasColumnName("ScopusID");
             entity.Property(researcher => researcher.GoogleScholarId)
+                .HasColumnName("ScholarID")
                 .HasMaxLength(32);
             entity.Property(researcher => researcher.WebOfScienceResearcherId)
+                .HasColumnName("ResearcherID")
                 .HasMaxLength(20);
             entity.Property(researcher => researcher.YoksisResearcherId)
                 .HasMaxLength(50);
 
+            entity.HasIndex(researcher => researcher.PersonelId)
+                .IsUnique()
+                .HasFilter("[PersonelID] IS NOT NULL");
+
             entity.HasIndex(researcher => researcher.Orcid)
                 .IsUnique()
-                .HasFilter("[Orcid] IS NOT NULL");
+                .HasFilter("[ORCID] IS NOT NULL");
 
             entity.HasIndex(researcher => researcher.GoogleScholarId)
                 .IsUnique()
-                .HasFilter("[GoogleScholarId] IS NOT NULL");
+                .HasFilter("[ScholarID] IS NOT NULL");
 
             entity.HasIndex(researcher => researcher.WebOfScienceResearcherId)
                 .IsUnique()
-                .HasFilter("[WebOfScienceResearcherId] IS NOT NULL");
+                .HasFilter("[ResearcherID] IS NOT NULL");
 
             entity.HasIndex(researcher => researcher.YoksisResearcherId)
                 .IsUnique()

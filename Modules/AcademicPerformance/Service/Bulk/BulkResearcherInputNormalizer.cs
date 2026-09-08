@@ -18,10 +18,11 @@ public sealed class BulkResearcherInputNormalizer(ResearcherProviderInputNormali
         });
         return new(new()
         {
-            SourceResearcherId = input.SourceResearcherId.Trim(),
+            PersonelId = input.PersonelId.Trim(),
             Orcid = result.Input.Orcid,
             GoogleScholarId = result.Input.GoogleScholarId,
-            WebOfScienceId = result.Input.WebOfScienceResearcherId
+            WebOfScienceId = result.Input.WebOfScienceResearcherId,
+            ScopusId = input.ScopusId?.Trim()
         }, result.Warnings, result.RejectionReason);
     }
 }
