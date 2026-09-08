@@ -63,7 +63,7 @@ wwwroot/esm/                       Generated browser bundles; edit TypeScript so
 
 ## Follow a collection request
 
-The V1 endpoint accepts an `AcademicDataCollectRequest` and calls the application service. The application service converts it into the internal collection request.
+The V1 endpoint accepts an `AcademicDataCollectRequest` and calls the application service. The application service normalizes narrowly recognized ORCID, Google Scholar, and Web of Science export forms without changing the request object, then converts the valid subset into the internal collection request. Invalid optional fields and unsupported Scopus IDs are returned as safe `Warnings`; when no supported identifier remains, collection stops before provider calls.
 
 `ResearcherCollectionHandler` parses identifiers, finds an existing researcher if one matches, and asks `ResearcherCollectionService` to collect provider data. Provider integrations handle HTTP responses and caching. The handler then saves the researcher, synchronizes normalized works, and rebuilds publication summaries inside a database transaction.
 

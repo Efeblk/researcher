@@ -10,4 +10,5 @@ public sealed class AcademicDataResponse : ServiceResponse
     public string? DatabaseProvider { get; set; } = null;
     public DateTime CollectedAt { get; set; }
     public List<string> Messages { get; set; } = [];
+    public List<string> Warnings { get; set; } = [];
 }

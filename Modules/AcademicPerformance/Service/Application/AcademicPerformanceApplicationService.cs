@@ -19,13 +19,16 @@ public sealed class AcademicPerformanceApplicationService :
 
     private readonly ResearcherCollectionHandler _collectionHandler;
     private readonly AcademicDbContext _dbContext;
+    private readonly ResearcherProviderInputNormalizer _inputNormalizer;
 
     public AcademicPerformanceApplicationService(
         ResearcherCollectionHandler collectionHandler,
-        AcademicDbContext dbContext)
+        AcademicDbContext dbContext,
+        ResearcherProviderInputNormalizer inputNormalizer)
     {
         _collectionHandler = collectionHandler;
         _dbContext = dbContext;
+        _inputNormalizer = inputNormalizer;
     }
 
     public async Task<AcademicDataResponse> CollectAsync(
@@ -33,10 +36,22 @@ public sealed class AcademicPerformanceApplicationService :
     {
         int publicationCount = 0;
 
-        ResearcherCollectRequest? collectionRequest = new ResearcherCollectRequest
+        ResearcherProviderInputNormalizationResult normalization = _inputNormalizer.Normalize(new()
         {
-            Identifiers = CreateIdentifiers(request)
-        };
+            Orcid = request.Orcid,
+            GoogleScholarId = request.GoogleScholarId,
+            WebOfScienceResearcherId = request.WebOfScienceResearcherId,
+            ScopusId = request.ScopusId
+        });
+        if (normalization.RejectionReason is not null)
+        {
+            string details = normalization.Warnings.Count == 0
+                ? string.Empty
+                : " " + string.Join(" ", normalization.Warnings);
+            throw new ArgumentException(normalization.RejectionReason + details);
+        }
+        ResearcherCollectRequest collectionRequest =
+            ResearcherProviderInputNormalizer.ToCollectionRequest(normalization.Input);
         ResearcherCollectResponse? collectionResponse = await _collectionHandler.CollectAsync(collectionRequest);
         int researcherId = collectionResponse.Researcher?.Id ?? 0;
 
@@ -55,6 +70,8 @@ public sealed class AcademicPerformanceApplicationService :
             DatabaseProvider = collectionResponse.DatabaseProvider,
             CollectedAt = DateTime.UtcNow,
             Messages = collectionResponse.Messages
+                .Concat(normalization.Warnings.Select(warning => "[UYARI] " + warning)).ToList(),
+            Warnings = normalization.Warnings
         };
     }
 
@@ -266,35 +283,4 @@ public sealed class AcademicPerformanceApplicationService :
             ?? throw new ArgumentException("Akademisyen kaydı bulunamadı.");
     }
 
-    private static List<string> CreateIdentifiers(AcademicDataCollectRequest request)
-    {
-        List<string> identifiers = [];
-
-        if (!string.IsNullOrWhiteSpace(request.Orcid))
-        {
-            identifiers.Add("--orcid");
-            identifiers.Add(request.Orcid.Trim());
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.GoogleScholarId))
-        {
-            identifiers.Add("--scholar");
-            identifiers.Add(request.GoogleScholarId.Trim());
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.WebOfScienceResearcherId))
-        {
-            identifiers.Add("--researcherid");
-            identifiers.Add(request.WebOfScienceResearcherId.Trim());
-        }
-
-        if (identifiers.Count == 0)
-        {
-            throw new ArgumentException(
-                "ORCID, Google Scholar ID veya Web of Science ResearcherID " +
-                "verilmelidir.");
-        }
-
-        return identifiers;
-    }
 }

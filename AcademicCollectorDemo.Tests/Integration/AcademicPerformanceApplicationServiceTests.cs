@@ -2,6 +2,7 @@ using AcademicCollectorDemo.Tests.Infrastructure;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Application;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Persistence;
 using Microsoft.Extensions.DependencyInjection;
@@ -45,6 +46,56 @@ public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture 
         using var scope = fixture.Services.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<IAcademicPerformanceApplicationService>();
         await Assert.ThrowsAsync<ArgumentException>(() => service.CollectAsync(new() { Orcid = "A-1009-2008" }));
+    }
+
+    [Fact]
+    public async Task CollectAsync_ValidMessyInputWithInvalidOptionalFields_PreservesRequestAndWarns()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        const string researcherId = "A-1234-2020";
+        db.Researchers.Add(new Researcher
+        {
+            WebOfScienceResearcherId = researcherId,
+            WebOfScienceProfile = new WebOfScienceProfile
+            {
+                LastUpdatedAt = DateTime.UtcNow,
+                DocumentPagesJson = "{\"WOS\":[{}]}",
+                Works = []
+            }
+        });
+        await db.SaveChangesAsync();
+        var service = scope.ServiceProvider.GetRequiredService<IAcademicPerformanceApplicationService>();
+        const string wos = "https://www.webofscience.com/wos/author/record/A-1234-2020.";
+        const string orcid = "A-1234-2020";
+        var request = new AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts.AcademicDataCollectRequest
+        {
+            WebOfScienceResearcherId = wos, Orcid = orcid, ScopusId = "unsupported-scopus"
+        };
+
+        var response = await service.CollectAsync(request);
+
+        Assert.Equal(orcid, request.Orcid);
+        Assert.Equal(wos, request.WebOfScienceResearcherId);
+        Assert.Equal("unsupported-scopus", request.ScopusId);
+        Assert.True(response.IsSaved);
+        Assert.Equal(researcherId, response.Researcher!.WebOfScienceResearcherId);
+        Assert.Equal(2, response.Warnings.Count);
+        Assert.Equal(2, response.Messages.Count(message => message.StartsWith("[UYARI] ")));
+        Assert.DoesNotContain(orcid, string.Join(' ', response.Warnings));
+    }
+
+    [Fact]
+    public async Task CollectAsync_ScopusOnly_RejectsWithSafeReason()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<IAcademicPerformanceApplicationService>();
+        const string scopus = "private-scopus-value";
+        ArgumentException exception = await Assert.ThrowsAsync<ArgumentException>(
+            () => service.CollectAsync(new() { ScopusId = scopus }));
+        Assert.DoesNotContain(scopus, exception.Message);
+        Assert.Contains("Scopus ID", exception.Message);
+        Assert.Contains("unsupported", exception.Message);
     }
 
     [Fact]

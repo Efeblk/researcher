@@ -7,4 +7,5 @@ public sealed class AcademicDataCollectRequest : ServiceRequest
     public string? Orcid { get; set; } = null;
     public string? GoogleScholarId { get; set; } = null;
     public string? WebOfScienceResearcherId { get; set; } = null;
+    public string? ScopusId { get; set; } = null;
 }
