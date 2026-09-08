@@ -79,8 +79,15 @@ public sealed class ResearcherAnalysisWorkflow(
             string normalizedPersonelId = personelId.Trim();
             Researcher? researcher = await researchers.SingleOrDefaultAsync(
                 value => value.PersonelId == normalizedPersonelId, cancellationToken);
-            if (researcher is not null && researcherId is not null && researcher.Id != researcherId)
-                throw new ResearcherIdentityMismatchException();
+            if (researcherId is not null)
+            {
+                Researcher? researcherById = await researchers.SingleOrDefaultAsync(
+                    value => value.Id == researcherId, cancellationToken);
+                if (researcher is null || researcherById is null)
+                    return null;
+                if (researcher.Id != researcherById.Id)
+                    throw new ResearcherIdentityMismatchException();
+            }
             return researcher;
         }
 

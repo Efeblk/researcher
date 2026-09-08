@@ -149,10 +149,17 @@ public sealed class ResearcherAnalysisEndpointTests(SqlServerFixture fixture)
             using var missing = await host.Client.PostAsJsonAsync(Api + action,
                 new { PersonelID = "missing-for-both-actions" });
             Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+            using var missingPersonelId = await host.Client.PostAsJsonAsync(Api + action,
+                new { PersonelID = "missing-with-existing-id", ResearcherId = researcher.Id });
+            Assert.Equal(HttpStatusCode.NotFound, missingPersonelId.StatusCode);
+            using var missingResearcherId = await host.Client.PostAsJsonAsync(Api + action,
+                new { PersonelID = researcher.PersonelId, ResearcherId = int.MaxValue });
+            Assert.Equal(HttpStatusCode.NotFound, missingResearcherId.StatusCode);
             using var mismatch = await host.Client.PostAsJsonAsync(Api + action,
                 new { PersonelID = researcher.PersonelId, ResearcherId = otherResearcher.Id });
             Assert.Equal(HttpStatusCode.BadRequest, mismatch.StatusCode);
         }
-        Assert.False(await database.ResearcherAnalyses.AnyAsync(value => value.ResearcherId == researcher.Id));
+        Assert.False(await database.ResearcherAnalyses.AnyAsync(
+            value => value.ResearcherId == researcher.Id || value.ResearcherId == otherResearcher.Id));
     }
 }
