@@ -35,7 +35,7 @@ public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture 
 
         using var readScope = fixture.Services.CreateScope();
         var service = readScope.ServiceProvider.GetRequiredService<IAcademicPerformanceApplicationService>();
-        var response = await service.GetResearcherAsync(new() { ResearcherId = id });
+        var response = await service.GetResearcherAsync(new() { Id = id });
         Assert.Equal(7, response.Researcher!.OpenAlexProfile!.WorksCount);
         Assert.Equal(1, response.Researcher.OpenAlexProfile.CollectedWorksCount);
     }
@@ -86,6 +86,62 @@ public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture 
     }
 
     [Fact]
+    public async Task CollectAsync_PersonelId_PersistsAndCannotBeReassigned()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        const string researcherId = "C-1234-2020";
+        var stored = new Researcher
+        {
+            WebOfScienceResearcherId = researcherId,
+            WebOfScienceProfile = new WebOfScienceProfile
+            {
+                LastUpdatedAt = DateTime.UtcNow,
+                DocumentPagesJson = "{\"WOS\":[{}]}",
+                Works = []
+            }
+        };
+        db.Researchers.Add(stored);
+        await db.SaveChangesAsync();
+        var service = scope.ServiceProvider.GetRequiredService<IAcademicPerformanceApplicationService>();
+
+        var first = await service.CollectAsync(new()
+        {
+            PersonelId = "person-collect",
+            WebOfScienceResearcherId = researcherId
+        });
+        var repeated = await service.CollectAsync(new()
+        {
+            PersonelId = "person-collect",
+            WebOfScienceResearcherId = researcherId,
+            ScopusId = "#NAME?"
+        });
+
+        Assert.True(first.IsSaved);
+        Assert.Equal(stored.Id, first.Researcher!.Id);
+        Assert.Equal(stored.Id, repeated.Researcher!.Id);
+        Assert.Equal("person-collect", repeated.Researcher.PersonelId);
+        Assert.Equal("person-collect", (await db.Researchers.FindAsync(stored.Id))!.PersonelId);
+        await Assert.ThrowsAsync<ArgumentException>(() => service.CollectAsync(new()
+        {
+            PersonelId = "different-person",
+            WebOfScienceResearcherId = researcherId
+        }));
+    }
+
+    [Fact]
+    public async Task Researchers_DuplicatePersonelId_IsRejectedByDatabase()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        db.Researchers.AddRange(new Researcher { PersonelId = "unique-person" },
+            new Researcher { PersonelId = "unique-person" });
+
+        await Assert.ThrowsAsync<Microsoft.EntityFrameworkCore.DbUpdateException>(
+            () => db.SaveChangesAsync());
+    }
+
+    [Fact]
     public async Task CollectAsync_ScopusOnly_RejectsWithSafeReason()
     {
         using var scope = fixture.Services.CreateScope();
@@ -108,5 +164,22 @@ public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture 
         await db.SaveChangesAsync();
         await Assert.ThrowsAsync<ArgumentException>(() => new ResearcherRepository(db).FindByIdentifiersAsync(
             new() { Orcid = "0000-0001-8560-7482", GoogleScholarId = "AbCdEfGhIjKl" }));
+    }
+
+    [Fact]
+    public async Task FindByIdentifiersAsync_PersonelAndProviderBelongToDifferentResearchers_RejectsCombination()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        db.Researchers.AddRange(new Researcher { PersonelId = "person-a" },
+            new Researcher { Orcid = "0000-0002-1825-009X" });
+        await db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<ArgumentException>(() => new ResearcherRepository(db)
+            .FindByIdentifiersAsync(new()
+            {
+                PersonelId = "person-a",
+                Orcid = "0000-0002-1825-009X"
+            }));
     }
 }

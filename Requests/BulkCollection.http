@@ -11,15 +11,15 @@ Content-Type: application/json
   "BatchId": "{{batchId}}",
   "Researchers": [
     {
-      "SourceResearcherId": "employee-001",
-      "WebOfScienceId": "A-1234-2020"
+      "PersonelID": "employee-001",
+      "ResearcherID": "A-1234-2020"
     },
     {
-      "SourceResearcherId": "employee-002",
-      "Orcid": "(https://orcid.org/0000-0002-1825-009X) ,",
-      "GoogleScholarId": "https://scholar.google.com.tr/citations?user=AbCdEfGhIjKl&hl=tr&utm_source=synthetic",
-      "WebOfScienceId": "invalid optional value",
-      "ScopusId": "unsupported-source-id"
+      "PersonelID": "employee-002",
+      "ORCID": "(https://orcid.org/0000-0002-1825-009X) ,",
+      "ScholarID": "https://scholar.google.com.tr/citations?user=AbCdEfGhIjKl&hl=tr&utm_source=synthetic",
+      "ResearcherID": "invalid optional value",
+      "ScopusID": "unsupported-source-id"
     }
   ]
 }

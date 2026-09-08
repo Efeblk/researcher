@@ -35,6 +35,8 @@ public sealed class AcademicPerformanceApplicationService :
         AcademicDataCollectRequest request)
     {
         int publicationCount = 0;
+        if (request.PersonelId?.Trim().Length > 200)
+            throw new ArgumentException("PersonelID must be at most 200 characters.");
 
         ResearcherProviderInputNormalizationResult normalization = _inputNormalizer.Normalize(new()
         {
@@ -52,6 +54,10 @@ public sealed class AcademicPerformanceApplicationService :
         }
         ResearcherCollectRequest collectionRequest =
             ResearcherProviderInputNormalizer.ToCollectionRequest(normalization.Input);
+        collectionRequest.PersonelId = string.IsNullOrWhiteSpace(request.PersonelId)
+            ? null : request.PersonelId.Trim();
+        collectionRequest.ScopusId = string.IsNullOrWhiteSpace(request.ScopusId)
+            ? null : request.ScopusId.Trim();
         ResearcherCollectResponse? collectionResponse = await _collectionHandler.CollectAsync(collectionRequest);
         int researcherId = collectionResponse.Researcher?.Id ?? 0;
 
@@ -79,7 +85,8 @@ public sealed class AcademicPerformanceApplicationService :
         AcademicResearcherRequest request)
     {
         Researcher researcher = await ResolveResearcherAsync(
-            request.ResearcherId,
+            request.Id,
+            request.PersonelId,
             request.Orcid,
             request.GoogleScholarId,
             request.WebOfScienceResearcherId);
@@ -107,7 +114,8 @@ public sealed class AcademicPerformanceApplicationService :
         AcademicPublicationListRequest request)
     {
         Researcher researcher = await ResolveResearcherAsync(
-            request.ResearcherId,
+            request.Id,
+            request.PersonelId,
             request.Orcid,
             request.GoogleScholarId,
             request.WebOfScienceResearcherId);
@@ -240,6 +248,7 @@ public sealed class AcademicPerformanceApplicationService :
 
     private async Task<Researcher> ResolveResearcherAsync(
         int? researcherId,
+        string? personelId,
         string? orcid,
         string? googleScholarId,
         string? webOfScienceResearcherId)
@@ -251,34 +260,33 @@ public sealed class AcademicPerformanceApplicationService :
             .Include(researcher => researcher.OpenAlexProfile)
             .Include(researcher => researcher.WebOfScienceProfile);
 
+        bool hasSelector = researcherId > 0 || !string.IsNullOrWhiteSpace(personelId) ||
+            !string.IsNullOrWhiteSpace(orcid) || !string.IsNullOrWhiteSpace(googleScholarId) ||
+            !string.IsNullOrWhiteSpace(webOfScienceResearcherId);
+        if (!hasSelector)
+            throw new ArgumentException("Id, PersonelID, ORCID, ScholarID veya ResearcherID verilmelidir.");
+
         if (researcherId > 0)
-        {
             query = query.Where(researcher => researcher.Id == researcherId.Value);
-        }
-        else if (!string.IsNullOrWhiteSpace(orcid))
+        if (!string.IsNullOrWhiteSpace(personelId))
+            query = query.Where(researcher => researcher.PersonelId == personelId.Trim());
+        if (!string.IsNullOrWhiteSpace(orcid))
         {
             string normalizedOrcid = ResearcherIdentifierParser.NormalizeOrcid(orcid);
             query = query.Where(researcher => researcher.Orcid == normalizedOrcid);
         }
-        else if (!string.IsNullOrWhiteSpace(googleScholarId))
+        if (!string.IsNullOrWhiteSpace(googleScholarId))
         {
             string normalizedGoogleScholarId = ResearcherIdentifierParser.NormalizeGoogleScholarId(googleScholarId);
             query = query.Where(researcher =>
                 researcher.GoogleScholarId == normalizedGoogleScholarId);
         }
-        else if (!string.IsNullOrWhiteSpace(webOfScienceResearcherId))
+        if (!string.IsNullOrWhiteSpace(webOfScienceResearcherId))
         {
             string normalizedResearcherId = ResearcherIdentifierParser.NormalizeResearcherId(webOfScienceResearcherId);
             query = query.Where(researcher =>
                 researcher.WebOfScienceResearcherId == normalizedResearcherId);
         }
-        else
-        {
-            throw new ArgumentException(
-                "ResearcherId, ORCID, Google Scholar ID veya Web of Science " +
-                "ResearcherID verilmelidir.");
-        }
-
         return await query.FirstOrDefaultAsync()
             ?? throw new ArgumentException("Akademisyen kaydı bulunamadı.");
     }

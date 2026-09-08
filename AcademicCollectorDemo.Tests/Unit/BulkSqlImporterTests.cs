@@ -6,17 +6,17 @@ namespace AcademicCollectorDemo.Tests.Unit;
 public sealed class BulkSqlImporterTests
 {
     [Fact]
-    public void ReadRow_OnlyWebOfScienceColumn_UsesRowNumberAndLeavesOtherIdsEmpty()
+    public void ReadRow_OnlyWebOfScienceColumn_LeavesPersonnelAndOtherIdsEmpty()
     {
         DataTable data = new();
-        data.Columns.Add("webofscienceID");
+        data.Columns.Add("ResearcherID");
         data.Rows.Add(" A-1234-2020 ");
         using var reader = data.CreateDataReader();
         reader.Read();
-        var columns = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { ["webofscienceID"] = 0 };
+        var columns = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { ["ResearcherID"] = 0 };
         var row = BulkSqlImporter.ReadRow(reader, columns, new(), 1);
         Assert.Equal(" A-1234-2020 ", row.WebOfScienceId);
-        Assert.Equal("row-1", row.SourceResearcherId);
+        Assert.Empty(row.PersonelId);
         Assert.Null(row.Orcid);
         Assert.Null(row.GoogleScholarId);
     }
@@ -37,14 +37,14 @@ public sealed class BulkSqlImporterTests
             .ToDictionary(reader.GetName, index => index, StringComparer.OrdinalIgnoreCase);
         var options = new BulkSqlSourceOptions
         {
-            SourceResearcherIdColumn = "PersonelID", OrcidColumn = "ORCID",
+            PersonelIdColumn = "PersonelID", OrcidColumn = "ORCID",
             WebOfScienceIdColumn = "ResearcherID", GoogleScholarIdColumn = "ScholarID",
             ScopusIdColumn = "ScopusID"
         };
 
         var row = BulkSqlImporter.ReadRow(reader, columns, options, 1);
 
-        Assert.Equal(" person-7 ", row.SourceResearcherId);
+        Assert.Equal(" person-7 ", row.PersonelId);
         Assert.Equal(" 0000-0002-1825-009X ", row.Orcid);
         Assert.Equal("A-1234-2020", row.WebOfScienceId);
         Assert.Equal("AbCdEfGhIjKl", row.GoogleScholarId);

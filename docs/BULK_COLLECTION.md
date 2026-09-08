@@ -13,21 +13,21 @@ JSON rows or configured SQL query
 
 ## Input
 
-Each row has a source identifier and any combination of the supported provider identifiers:
+Each row has a unique personnel identity and any combination of the supported provider identifiers:
 
 ```json
 {
   "BatchId": "a3700086-8ad7-4871-becf-0fbd2ce586e3",
   "Researchers": [
     {
-      "SourceResearcherId": "employee-001",
-      "WebOfScienceId": "A-1234-2020"
+      "PersonelID": "employee-001",
+      "ResearcherID": "A-1234-2020"
     }
   ]
 }
 ```
 
-`Orcid` and `GoogleScholarId` are optional. `WebOfScienceId` maps to the existing application's `WebOfScienceResearcherId`. ORCID collection also requests OpenAlex comparison data. This input does not include T.C. identity numbers or YÖKSİS bulk collection.
+`ORCID`, `ResearcherID` (Web of Science), `ScopusID`, and `ScholarID` match the personnel export column names. Provider IDs are optional, but at least one supported provider ID is required. ORCID collection also requests OpenAlex comparison data. This input does not include T.C. identity numbers or YÖKSİS bulk collection.
 
 Bulk cleanup and the single V1 `Collect` API use the same normalizer. It accepts canonical identifiers and narrowly recognized export forms: ORCID URLs on `orcid.org`, four space-separated ORCID groups, Web of Science author-record URLs, and Google Scholar profile URLs on `scholar.google.com`, `scholar.google.com.tr`, or `scholar.google.co.za`. Safe surrounding punctuation and Scholar tracking query parameters are removed. Final IDs must still pass the strict application parser. Cleanup never pads, truncates, guesses, moves a value between provider fields, or mines arbitrary text for an ID.
 
@@ -35,7 +35,7 @@ Bulk cleanup and the single V1 `Collect` API use the same normalizer. It accepts
 
 Scopus collection is unsupported. `ScopusID` is retained in the original queued row and produces a warning, but it creates no provider call.
 
-`SourceResearcherId` is an opaque identifier from the source system, not a name or national identity number. It lets callers match each result back to an input row. Provider identifiers still determine which local researcher is updated.
+`PersonelID` is the institution's unique personnel identity. It is stored on the researcher and used together with provider identifiers to find the same person. A request is rejected when supplied identifiers belong to different stored researchers.
 
 ## API
 
@@ -49,7 +49,7 @@ Use the requests in [BulkCollection.http](../Requests/BulkCollection.http).
 
 Generate one new `BatchId` for each new batch. Reusing a batch ID with identical JSON rows returns the existing batch; different input under that ID is rejected. Input ordering is part of this comparison. SQL imports should use a stable `ORDER BY` and a stable source snapshot if they need to be resubmitted.
 
-The default maximum is 10,000 rows per batch and 500 job results per status page. Oversized SQL query results are rejected before any jobs are saved. A row is `Rejected` when cleanup leaves no usable provider identifier. Duplicate source IDs are also rejected. If any normalized ORCID, Scholar ID, or Web of Science ID is shared by different personnel in one batch, every involved row is rejected for manual review. Other valid rows continue. Different batches may intentionally collect the same researcher again, using the existing provider cache.
+The default maximum is 10,000 rows per batch and 500 job results per status page. Oversized SQL query results are rejected before any jobs are saved. A row is `Rejected` when cleanup leaves no usable provider identifier. Duplicate `PersonelID` values are also rejected. If any normalized ORCID, Scholar ID, or Web of Science ID is shared by different personnel in one batch, every involved row is rejected for manual review. Other valid rows continue. Different batches may intentionally collect the same researcher again, using the existing provider cache.
 
 Example initial status (job IDs and timestamps vary):
 
@@ -62,10 +62,10 @@ Example initial status (job IDs and timestamps vary):
   "Jobs": [
     {
       "Id": 1,
-      "SourceResearcherId": "employee-001",
+      "PersonelID": "employee-001",
       "Status": "Pending",
       "Attempts": 0,
-      "ResearcherId": null,
+      "CollectorResearcherId": null,
       "NextAttemptAt": "2026-09-06T00:00:00",
       "Message": null,
       "Warnings": []
@@ -99,7 +99,7 @@ The committed host profile is ready for the supplied personnel-export schema whi
   "BulkSqlSource": {
     "Enabled": false,
     "Query": "",
-    "SourceResearcherIdColumn": "PersonelID",
+    "PersonelIdColumn": "PersonelID",
     "OrcidColumn": "ORCID",
     "WebOfScienceIdColumn": "ResearcherID",
     "GoogleScholarIdColumn": "ScholarID",
@@ -108,7 +108,7 @@ The committed host profile is ready for the supplied personnel-export schema whi
 }
 ```
 
-Here `ResearcherID` means the Web of Science identifier. `ScopusID` is preserved for audit but is not collected. Set `Query` to an operator-owned `SELECT` with a stable `ORDER BY`; SQL is never accepted from the HTTP request. Column matching is case-insensitive. Missing ORCID or Google Scholar columns are allowed. At least one configured supported-provider column must exist. If the source ID column is absent or null, the importer assigns `row-1`, `row-2`, and so on. `BulkSqlSourceOptions` retains its earlier generic defaults for library consumers; these committed configuration values override them for the host.
+Here `ResearcherID` means the Web of Science identifier. `ScopusID` is preserved in the audit envelope and stored as metadata, but it is not collected. Set `Query` to a simple operator-owned `SELECT` with a stable `ORDER BY`; SQL is never accepted from the HTTP request. Column matching is case-insensitive. The configured `PersonelID` column is required and every row must contain a nonblank value. Missing ORCID or ScholarID columns are allowed. At least one configured supported-provider column must exist.
 
 Importing is explicit: call `ImportSql` to create a batch. The worker polls the saved queue, not the source query. This avoids repeatedly importing the entire source table.
 
@@ -167,7 +167,7 @@ The first version processes one researcher at a time across bulk workers, reusin
 
 A SQL session lock owns bulk processing. After a crash, another worker can acquire the lock and resume abandoned `Running` jobs, subject to the retry limit. Delivery is **at least once**: a crash after saving provider results but before recording job completion may repeat collection. Existing caches and synchronization reduce repeated calls and reconcile saved data; there is no exactly-once guarantee for external API requests.
 
-The new migration adds `BulkCollectionBatches`, `BulkCollectionJobs`, and `ProviderRequestBudgets`. It does not change existing researcher or publication tables. Jobs remain available for auditing; automatic retention/deletion and a bulk management UI are not part of this version.
+The initial migrations now create the five personnel-export columns on `Researchers`: nullable unique `PersonelID`, plus `ORCID`, Web of Science `ResearcherID`, `ScopusID`, and `ScholarID`. They also create `BulkCollectionBatches`, `BulkCollectionJobs`, and `ProviderRequestBudgets`. Because these initial migrations were edited during the test phase, use a fresh application database when adopting this schema; do not delete an existing database or source personnel table as part of import. Jobs remain available for auditing; automatic retention/deletion and a bulk management UI are not part of this version.
 
 Production must apply the application's BYS authorization to these operational endpoints, as with the existing collection endpoints. The standalone host still uses its development permission service.
 

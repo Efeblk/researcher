@@ -12,13 +12,14 @@ public sealed class Researcher
 {
     public int Id { get; set; }
 
-    public string? UniversityPersonnelId { get; set; } = null;
+    public string? PersonelId { get; set; } = null;
     public string? FirstName { get; set; } = null;
     public string? LastName { get; set; } = null;
     public string? AcademicTitle { get; set; } = null;
     public string? Department { get; set; } = null;
 
     public string? Orcid { get; set; } = null;
+    public string? ScopusId { get; set; } = null;
     public string? GoogleScholarId { get; set; } = null;
     public string? WebOfScienceResearcherId { get; set; } = null;
     public string? YoksisResearcherId { get; set; } = null;

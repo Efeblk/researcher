@@ -28,7 +28,7 @@ POST {{api}}/Collect
 Content-Type: application/json
 
 {
-  "Orcid": "{{orcid}}"
+  "ORCID": "{{orcid}}"
 }
 
 ### V1 API: Web of Science ResearcherID ile veri topla
@@ -37,7 +37,7 @@ POST {{api}}/Collect
 Content-Type: application/json
 
 {
-  "WebOfScienceResearcherId": "{{researcherId}}"
+  "ResearcherID": "{{researcherId}}"
 }
 
 ### V1 API: Google Scholar ID ile profil, metrik ve yayınları topla
@@ -46,7 +46,7 @@ POST {{api}}/Collect
 Content-Type: application/json
 
 {
-  "GoogleScholarId": "{{googleScholarId}}"
+  "ScholarID": "{{googleScholarId}}"
 }
 
 ### V1 API: ORCID, Scholar ID ve ResearcherID değerlerini aynı akademisyene bağla
@@ -55,9 +55,10 @@ POST {{api}}/Collect
 Content-Type: application/json
 
 {
-  "Orcid": "{{orcid}}",
-  "GoogleScholarId": "{{googleScholarId}}",
-  "WebOfScienceResearcherId": "{{researcherId}}"
+  "PersonelID": "employee-001",
+  "ORCID": "{{orcid}}",
+  "ScholarID": "{{googleScholarId}}",
+  "ResearcherID": "{{researcherId}}"
 }
 
 ### V1 API: Karışık sağlayıcı değerlerini temizleyip geçerli alanlarla topla
@@ -67,9 +68,9 @@ POST {{api}}/Collect
 Content-Type: application/json
 
 {
-  "Orcid": " (https://orcid.org/{{orcid}}) ,",
-  "GoogleScholarId": "#NAME?",
-  "ScopusId": "SCOPUS_DESTEKLENMIYOR"
+  "ORCID": " (https://orcid.org/{{orcid}}) ,",
+  "ScholarID": "#NAME?",
+  "ScopusID": "SCOPUS_DESTEKLENMIYOR"
 }
 
 ### V1 API: Kayıtlı akademisyen özetini getir
@@ -79,7 +80,15 @@ POST {{api}}/GetResearcher
 Content-Type: application/json
 
 {
-  "Orcid": "{{orcid}}"
+  "ORCID": "{{orcid}}"
+}
+
+### V1 API: PersonelID ile kayıtlı akademisyen özetini getir
+POST {{api}}/GetResearcher
+Content-Type: application/json
+
+{
+  "PersonelID": "employee-001"
 }
 
 ### V1 API: Akademisyenin yayınlarını sayfalı getir
@@ -88,7 +97,7 @@ POST {{api}}/ListPublications
 Content-Type: application/json
 
 {
-  "Orcid": "{{orcid}}",
+  "ORCID": "{{orcid}}",
   "ApprovedOnly": false,
   "Skip": 0,
   "Take": 100
@@ -101,7 +110,7 @@ POST {{api}}/GetResearcher
 Content-Type: application/json
 
 {
-  "ResearcherId": {{databaseResearcherId}}
+  "Id": {{databaseResearcherId}}
 }
 
 ### V1 API: Veritabanı ID'si ile akademisyenin yayınlarını getir
@@ -112,7 +121,7 @@ POST {{api}}/ListPublications
 Content-Type: application/json
 
 {
-  "ResearcherId": {{databaseResearcherId}},
+  "Id": {{databaseResearcherId}},
   "ApprovedOnly": false,
   "Skip": 0,
   "Take": 100
@@ -181,9 +190,9 @@ Content-Type: application/json
 #     "LastName": "Örnek",
 #     "AcademicTitle": null,
 #     "Department": null,
-#     "Orcid": "0000-0003-2812-9917",
-#     "GoogleScholarId": null,
-#     "WebOfScienceResearcherId": null,
+#     "ORCID": "0000-0003-2812-9917",
+#     "ScholarID": null,
+#     "ResearcherID": null,
 #     "YoksisResearcherId": null,
 #     "LastUpdatedAt": "2026-09-01T10:30:00Z",
 #     "OrcidProfile": {

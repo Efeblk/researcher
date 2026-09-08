@@ -23,8 +23,8 @@ public sealed class BulkCollectionService(
             request.Researchers.Count > options.Value.MaximumBatchSize)
             throw new ArgumentException($"Supply between 1 and {options.Value.MaximumBatchSize} researchers.");
         if (request.Researchers.Any(row => row is null ||
-            string.IsNullOrWhiteSpace(row.SourceResearcherId) || row.SourceResearcherId.Length > 200))
-            throw new ArgumentException("Rows require a source researcher ID of at most 200 characters.");
+            string.IsNullOrWhiteSpace(row.PersonelId) || row.PersonelId.Length > 200))
+            throw new ArgumentException("Rows require PersonelID of at most 200 characters.");
 
         string hash = Convert.ToHexString(SHA256.HashData(
             Encoding.UTF8.GetBytes(JsonSerializer.Serialize(request.Researchers))));
@@ -58,7 +58,7 @@ public sealed class BulkCollectionService(
             BulkCollectionJob job = new()
             {
                 BatchId = request.BatchId,
-                SourceResearcherId = input.SourceResearcherId.Trim(),
+                PersonelId = input.PersonelId.Trim(),
                 InputJson = JsonSerializer.Serialize(new PersistedBulkResearcherInput
                 {
                     OriginalInput = request.Researchers[index], Input = input, Warnings = result.Warnings
@@ -104,10 +104,10 @@ public sealed class BulkCollectionService(
                 .Take(Math.Clamp(request.Take, 1, 500)).ToListAsync(cancellationToken)).Select(job => new BulkCollectionJobDto
                 {
                     Id = job.Id,
-                    SourceResearcherId = job.SourceResearcherId,
+                    PersonelId = job.PersonelId,
                     Status = job.Status,
                     Attempts = job.Attempts,
-                    ResearcherId = job.ResearcherId,
+                    CollectorResearcherId = job.CollectorResearcherId,
                     NextAttemptAt = job.NextAttemptAt,
                     Message = job.ResultMessage,
                     Warnings = ReadPersisted(job.InputJson).Warnings
@@ -130,7 +130,7 @@ public sealed class BulkCollectionService(
         for (int index = 0; index < rows.Count; index++)
         {
             BulkResearcherInput row = rows[index].Input;
-            Add("source:" + row.SourceResearcherId, index);
+            Add("personel:" + row.PersonelId, index);
             if (row.Orcid is not null) Add("orcid:" + row.Orcid, index);
             if (row.GoogleScholarId is not null) Add("scholar:" + row.GoogleScholarId, index);
             if (row.WebOfScienceId is not null) Add("wos:" + row.WebOfScienceId, index);

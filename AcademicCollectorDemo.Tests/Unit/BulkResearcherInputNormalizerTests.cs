@@ -82,7 +82,7 @@ public sealed class BulkResearcherInputNormalizerTests
         var input = Input();
         input.ScopusId = "raw-scopus-value";
         var result = _normalizer.Normalize(input);
-        Assert.Null(result.Input.ScopusId);
+        Assert.Equal("raw-scopus-value", result.Input.ScopusId);
         Assert.NotNull(result.RejectionReason);
         Assert.Contains(result.Warnings, warning => warning.StartsWith("Scopus ID:"));
         Assert.Equal("raw-scopus-value", input.ScopusId);
@@ -90,7 +90,7 @@ public sealed class BulkResearcherInputNormalizerTests
 
     private static BulkResearcherInput Input(string? orcid = null, string? scholar = null, string? wos = null) => new()
     {
-        SourceResearcherId = "synthetic-person", Orcid = orcid,
+        PersonelId = "synthetic-person", Orcid = orcid,
         GoogleScholarId = scholar, WebOfScienceId = wos
     };
 }

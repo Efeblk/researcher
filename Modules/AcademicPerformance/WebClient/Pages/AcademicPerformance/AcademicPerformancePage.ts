@@ -171,9 +171,9 @@ form?.addEventListener("submit", async event => {
                 const response = await serviceRequest<ResearcherCollectResponse>(
                     "AcademicPerformance/V1/Collect",
                     {
-                        Orcid: valueOf("Orcid") || undefined,
-                        GoogleScholarId: valueOf("GoogleScholarId") || undefined,
-                        WebOfScienceResearcherId:
+                        ORCID: valueOf("Orcid") || undefined,
+                        ScholarID: valueOf("GoogleScholarId") || undefined,
+                        ResearcherID:
                             valueOf("WebOfScienceResearcherId") || undefined
                     });
                 const researcherId = response.Researcher?.Id ?? 0;
