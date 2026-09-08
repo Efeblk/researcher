@@ -8,4 +8,3 @@ public sealed class ProviderStatusResponse : ServiceResponse
     public DateTime ExpiresAt { get; set; }
     public List<ProviderStatusDto> Providers { get; set; } = [];
 }
-

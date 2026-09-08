@@ -1,7 +1,7 @@
 # Provider status API
 
 `GET /Services/AcademicPerformance/V1/ProviderStatus` checks the configured ORCID,
-SearchApi (Google Scholar), OpenAlex, Web of Science, Y?KS?S and researcher analysis service.
+SearchApi (Google Scholar), OpenAlex, Web of Science, YOKSIS and researcher analysis service.
 The endpoint returns HTTP 200 with individual results even when a dependency fails.
 The collector must be running; it is not a replacement for host liveness monitoring.
 
@@ -29,7 +29,7 @@ checks, count toward the SQL budget. No researcher data is saved by this endpoin
 | Yoksis | Existing service URL plus `?wsdl`, using configured Basic credentials | Recognized response headers when present |
 | AnalysisService | Configured base URL plus `/health` | Unknown; no quota endpoint is assumed |
 
-Y?KS?S `Reachable` verifies a WSDL document only. It does not establish that SOAP
+YOKSIS `Reachable` verifies a WSDL document only. It does not establish that SOAP
 operations or account permissions work. AnalysisService checks the analysis host;
 it does not call its underlying OpenAI/Ollama model or verify that model's quota.
 No API keys, credential values, request URLs, upstream bodies or exception details

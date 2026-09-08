@@ -10,4 +10,3 @@ public sealed class LocalProviderBudgetDto
     public DateTime? NextAllowedAt { get; set; } = null;
     public DateTime ResetsAt { get; set; }
 }
-

@@ -13,4 +13,3 @@ public sealed class ProviderStatusDto
     public LocalProviderBudgetDto? LocalBudget { get; set; } = null;
     public List<ProviderQuotaDto> ProviderQuotas { get; set; } = [];
 }
-
