@@ -1,40 +1,51 @@
-# Proje özet raporu — 8 Eylül 2026
+# Proje Özet Raporu
 
-Bu .NET 10/Serenity entegrasyon prototipi, akademisyen profilleri ve yayınlarını
-toplar, tekilleştirir ve okul sitesindeki yayın seçimlerini yönetir. Production'a
-hazır değildir.
+**Proje durumu:** 8 Eylül 2026 · Çalışan entegrasyon prototipi; production'a hazır değil.
 
-## Tamamlananlar
+## Mevcut Bileşenler
 
-- [x] ORCID, Google Scholar/SearchApi, OpenAlex, Web of Science ve YÖKSİS verileri
-  sağlayıcıya özgü ham kayıtlar halinde SQL Server'da saklanıyor.
-- [x] Yayınlar ortak modele çevriliyor, DOI ve başlık kurallarıyla tekilleştiriliyor;
-  özetler ve kullanıcının gösterim seçimleri kaydedilip yeniden yükleniyor.
-- [x] V1 API, toplama, getirme, listeleme ve seçimleri sunuyor.
-- [x] Web arayüzü profil karşılaştırmasını, yayınları ve seçimleri gösteriyor.
-- [x] Toplu toplama, kalıcı SQL kuyruğu ve yapılandırılabilir SQL kaynağı üzerinden
-  arka planda çalışabiliyor. Sağlayıcı bazlı merkezi hız, kota, bekleme ve yeniden
-  deneme yönetimi var; worker ve SQL içe aktarma varsayılan olarak kapalı.
-- [x] Provider Status, erişilebilirlik ile yerel SQL bütçesini ayrı gösteriyor.
-  Yerel sayaç sağlayıcının gerçek kotası değildir.
-- [x] Araştırmacı ID'siyle kaydedilmiş veriden Qwen/Ollama raporu üretme, saklama ve
-  son raporu getirme hazır. Analiz yeniden veri toplamaz; snapshot zamanı rapora
-  giren mevcut kayıtları etiketler, geçmişe dönük veri sorgulamaz.
+- [x] **Raw data:** Sağlayıcıların ham yanıt ve kayıtları SQL Server'da saklanıyor.
+- [x] **Summary data:** Tekilleştirilmiş yayınlar `PublicationSummaries` tablosunda.
+- [x] **Service / V1 API:** Client bağımsız, Serenity uyumlu toplama ve yayın API'si.
+- [x] **SQL Server:** FluentMigrator migration'ları ve kalıcı veri katmanı.
+- [x] **Web client:** Profil, yayın listesi ve okulda gösterilecek yayın seçimi.
+- [x] **ORCID:** Profil ve eser toplama.
+- [x] **Google Scholar / SearchApi:** Profil, metrik ve yayın toplama.
+- [x] **OpenAlex:** ORCID üzerinden karşılaştırma verisi; ortak yayınlardan ayrı tutulur.
+- [x] **Web of Science:** Profil ve yayın toplama; WOS/WOK sonuçlarını tekilleştirme.
+- [x] **YÖKSİS:** SOAP entegrasyonu ve desteklenen kategorilerden veri toplama.
+- [x] **Toplu iş kuyruğu:** Kalıcı SQL kuyruğu ve yapılandırılabilir SQL içe aktarma;
+  arka plan işleyicisi ve içe aktarma varsayılan olarak kapalı.
+- [x] **Merkezi hız/kota yönetimi:** Sağlayıcı bazlı sınırlar, bekleme ve yeniden deneme.
+- [x] **Provider Status:** Erişilebilirlik, yerel bütçe ve bildirilen sağlayıcı kotası ayrı.
+  Yerel sayaç gerçek sağlayıcı kotası değildir.
+- [x] **AI raporu üretme:** Araştırmacı ID'siyle kayıtlı veriden Qwen/Ollama raporu üretme ve saklama.
+- [x] **Kayıtlı raporu getirme:** Son raporu sağlayıcıya veya modele yeniden çağrı yapmadan döndürme.
+  Analiz veri toplamaz; snapshot zamanı rapora giren mevcut kaydı etiketler.
 
-## Öncelikli yol haritası
+## API Planları, Fiyat ve Hız
 
-- [ ] Diğer geliştirme bilgisayarında görülen, taşınmış sözleşme dosyalarına eski
-  referanslardan kaynaklanan `CS2001` hatasını çözmek; yerel temiz derlemede oluşmadı.
-- [ ] Qwen'in Türkçe rapor kalitesini gerçek örneklerle iyileştirmek.
-- [ ] Gerçek sağlayıcı hesaplarını, production kimlik bilgilerini ve bütçeleri;
-  kurumsal SQL kolon eşlemeleriyle birlikte doğrulamak.
-- [ ] Production öncesi açık izin servisini BYS oturum, yetki ve kayıt sahipliği
-  denetimleriyle değiştirmek.
-- [ ] İsteğe bağlı olarak kayıtlı AI raporlarını gösteren web ekranını eklemek.
+*API tablosu: 3 Eylül 2026 kaynak notları; güncel plan ve kotalar hesap bazında teyit edilmeli.*
 
-PR CI kontrolleri, sentetik akışlar ve Qwen smoke testi geçti.
-Gerçek sağlayıcı hesaplarıyla uçtan uca test henüz yapılmadı.
+| API | Plan / erişim | Fiyat | Hız ve kota |
+| --- | --- | --- | --- |
+| [ORCID](https://info.orcid.org/ufaqs/what-are-the-api-limits/) | Public v3; anonim veya token | Ücretsiz, kullanım koşullu | 12 istek/sn; anonim 25.000/gün/IP, kayıtlı 100.000/gün/Client ID |
+| [OpenAlex](https://help.openalex.org/access/example-costs/) | Anahtarsız / ücretsiz anahtar | Ücretsiz bütçe; ek kullanım ücretli | [100 istek/sn](https://help.openalex.org/api/authentication/); sırasıyla $0,10 / $1 günlük bütçe |
+| [SearchApi — Scholar](https://www.searchapi.io/pricing) | Hesap planı teyitsiz | Pakete bağlı | Pakete bağlı |
+| [Web of Science](https://developer.clarivate.com/apis/wos-starter) | Free Institutional Member — bildirilen plan | API ücretsiz; kurum aboneliği ayrıca | 5 istek/sn; 5.000 istek/gün |
+| [YÖKSİS](docs/YOKSIS/YOKSIS_API_RAPORU.md) | Kurumsal Özgeçmiş V2 erişimi | Kurum/YÖK teyidi gerekli | Kamuya açık limit doğrulanamadı |
 
-Ayrıntılar: [API planları ve limit kaynakları](docs/API_OZET_RAPORU.md),
-[toplu toplama](docs/BULK_COLLECTION.md), [araştırmacı analizi](docs/RESEARCHER_ANALYSIS.md)
-ve [sağlayıcı durumu](docs/PROVIDER_STATUS.md).
+SearchApi fiyat örneği: **Developer $40/ay → 10.000 arama/ay, 2.000 arama/saat**;
+satın alınmış planı doğrulamaz. Ayrıntılar: [API raporu](docs/API_OZET_RAPORU.md).
+
+## Öncelikli Yol Haritası
+
+- [ ] **CS2001:** Diğer geliştirme bilgisayarında collector'ın eski sözleşme dosyalarına referansını düzeltmek.
+- [ ] **Türkçe AI:** Qwen rapor kalitesini gerçek örneklerle iyileştirmek.
+- [ ] **Production ayarları:** Gerçek sağlayıcı hesaplarını, bütçeleri ve SQL kolon eşlemelerini doğrulamak.
+- [ ] **BYS yetkisi:** Production öncesi oturum, yetki ve kayıt sahipliği denetimlerini eklemek.
+- [ ] **Rapor UI:** Kayıtlı AI raporlarını gösteren ekranı isteğe bağlı olarak eklemek.
+
+PR CI, sentetik akışlar ve yerel Qwen smoke testi geçti; gerçek sağlayıcı hesaplarıyla
+tam uçtan uca doğrulama yapılmadı. Teknik ayrıntılar: [bulk](docs/BULK_COLLECTION.md),
+[analiz](docs/RESEARCHER_ANALYSIS.md), [durum](docs/PROVIDER_STATUS.md).
