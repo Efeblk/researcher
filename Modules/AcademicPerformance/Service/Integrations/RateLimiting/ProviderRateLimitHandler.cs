@@ -116,6 +116,7 @@ public sealed class ProviderRateLimitHandler(
         {
             Content = new StringContent("Provider request budget is temporarily unavailable.")
         };
+        response.Headers.Add("X-Academic-Local-Deferral", "true");
         response.Headers.RetryAfter = new(new DateTimeOffset(retryAt, TimeSpan.Zero));
         return response;
     }

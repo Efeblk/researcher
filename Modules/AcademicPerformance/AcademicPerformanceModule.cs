@@ -26,6 +26,9 @@ public static class AcademicPerformanceModule
         IConfiguration configuration)
     {
         services.AddSingleton(_ => CreateHttpClient(configuration));
+        services.AddSingleton<Integrations.Status.ProviderStatusService>();
+        services.AddHttpClient("ProviderStatus", client => client.Timeout = TimeSpan.FromSeconds(15))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
         services.AddOptions<BulkCollectionOptions>().Bind(configuration.GetSection("BulkCollection"))
             .Validate(value => value.MaximumBatchSize is >= 1 and <= 10000 &&
                 value.MaximumAttempts is >= 1 and <= 10 && value.PollSeconds is >= 1 and <= 60 &&

@@ -1,4 +1,4 @@
-# Academic Performance V1 API için çalıştırılabilir örnekler.
+﻿# Academic Performance V1 API için çalıştırılabilir örnekler.
 # Önce uygulamayı başlatın, değişkenleri düzenleyin ve istediğiniz isteğin
 # üzerindeki "Send Request" bağlantısını kullanın.
 # Sağlayıcı toplama çağrıları 20 saniyeyi aşabilir. Visual Studio'da:
@@ -267,3 +267,8 @@ Content-Type: application/json
 #     "Details": "..."
 #   }
 # }
+
+
+### Provider health and current local/provider budgets (60-second snapshot)
+GET {{api}}/ProviderStatus
+Accept: application/json
