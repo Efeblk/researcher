@@ -9,7 +9,7 @@ reports with their exact input snapshots. The AI service itself remains stateles
 There is no page report button, analysis queue, embedding index, web crawling,
 full-text retrieval, or PDF upload in this version.
 
-## Generate/save and retrieve by researcher ID
+## Generate/save and retrieve by personnel ID
 
 Use the requests in [AcademicPerformance.http](../Requests/AcademicPerformance.http):
 
@@ -18,8 +18,15 @@ Use the requests in [AcademicPerformance.http](../Requests/AcademicPerformance.h
 | `POST /Services/AcademicPerformance/V1/AnalyzeResearcher` | Load saved data, create a snapshot, call the AI service, and save a new report. |
 | `POST /Services/AcademicPerformance/V1/GetResearcherAnalysis` | Return the latest saved report without calling the AI service or providers. |
 
-Generation accepts `{ "researcherId": 42, "snapshotAt": "2026-09-08T00:00:00Z" }`.
-Retrieval accepts `{ "researcherId": 42 }`, where 42 is the collector database ID.
+Generation accepts `{ "PersonelID": "000042", "snapshotAt": "2026-09-08T00:00:00Z" }`.
+Retrieval accepts `{ "PersonelID": "000042" }`. `PersonelID` is a string: leading
+zeros are preserved and surrounding whitespace is ignored. The provider-facing Web of
+Science `ResearcherID` field is unrelated to these analysis requests.
+The former numeric `{ "researcherId": 42 }` form remains supported for compatibility.
+If both identifiers resolve to saved researchers, they must identify the same collector
+researcher; conflicting values return 400. Unknown identifiers return 404. Internally,
+snapshots and saved report foreign keys continue to use the collector's numeric
+researcher ID, and `PersonelID` is not sent to the model.
 The concise requests are in [ResearcherAnalysis.http](../Requests/ResearcherAnalysis.http).
 `snapshotAt` is optional (defaults to capture time); supplied dates must be non-default
 and no more than five minutes in the future. It labels the current saved-data snapshot,
@@ -35,8 +42,9 @@ prompt version, generation time and coverage. Latest means highest saved report 
 Snapshot time is the supplied date or the saved-data capture time; provider metric collection
 timestamps remain separate. Failed generation never replaces a saved report.
 
-Missing researchers/reports return 404; invalid IDs return 400; no usable publications
-returns 422. Upstream failure returns 502 (with `AnalysisServiceStatus`), unavailable
+Missing researchers/reports return 404; absent, empty, oversized, nonpositive, or
+mismatched IDs return 400; no usable publications returns 422. Upstream failure returns
+502 (with `AnalysisServiceStatus`), unavailable
 service 503, and timeout 504. No automatic retries generate duplicate reports.
 
 Collector settings are under `AnalysisService` in `academicsettings.json`:
