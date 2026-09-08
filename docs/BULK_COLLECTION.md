@@ -3,7 +3,7 @@
 The bulk module accepts researcher rows, saves them in a SQL Server queue, and collects their data in the background. The web request returns a batch ID and progress instead of waiting for every provider call.
 
 ```text
-JSON rows or configured SQL query
+JSON rows from an external caller, or an optional configured SQL query
     -> validate and save batch/jobs
     -> background worker
     -> existing collection service
@@ -39,15 +39,25 @@ Scopus collection is unsupported. `ScopusID` is retained in the original queued 
 
 ## API
 
-Use the requests in [BulkCollection.http](../Requests/BulkCollection.http).
+In production, the external caller queries its own source database and posts the generated JSON to `Submit` programmatically. This service does not query that source database.
+
+For a local manual verification:
+
+1. Run the read-only [BulkSubmitPayload.sql](../Requests/BulkSubmitPayload.sql) query against the caller-owned source database in SSMS.
+2. Copy its single JSON result into the `Submit` request body in [BulkCollection.http](../Requests/BulkCollection.http).
+3. Call `Status` with the same `BatchId` returned in that payload.
+
+The query reads the five export columns from `dbo.PersonelTest`, orders rows by `PersonelID`, and casts `PersonelID` to a JSON string even when the source column is an integer. It preserves raw whitespace and emits SQL `NULL` values as JSON `null`. `JSON_QUERY` keeps `Researchers` as an array instead of an escaped JSON string. The checked-in query uses `TOP (10)` for a safe first run; remove it to submit all 2,980 rows. The API accepts at most 10,000 rows per batch. For the full batch, make sure SSMS displays and copies the complete `nvarchar(max)` cell; a truncated result is not a valid request payload.
+
+Generate the payload once and keep that exact payload and `BatchId` for a retry. Running the SQL again calls `NEWID()` and creates a different batch. Reusing a batch ID with identical JSON rows returns the existing batch; different input under that ID is rejected. Input ordering is part of this comparison.
+
+The service does not need a connection string, account, or user-secret for the caller's source database when using `Submit`. Source access and extraction remain entirely the caller's responsibility. The service still needs its own application database configuration and any provider credentials required for collection.
 
 | POST endpoint under `/Services/AcademicPerformance/V1/Bulk/` | Purpose |
 | --- | --- |
 | `Submit` | Accept JSON rows and persist a batch. |
 | `ImportSql` | Run the operator-configured source query and submit its rows. Body: `{ "BatchId": "..." }`. |
 | `Status` | Return aggregate counts and a page of job results. Body: `{ "BatchId": "...", "Skip": 0, "Take": 100 }`. |
-
-Generate one new `BatchId` for each new batch. Reusing a batch ID with identical JSON rows returns the existing batch; different input under that ID is rejected. Input ordering is part of this comparison. SQL imports should use a stable `ORDER BY` and a stable source snapshot if they need to be resubmitted.
 
 The default maximum is 10,000 rows per batch and 500 job results per status page. Oversized SQL query results are rejected before any jobs are saved. A row is `Rejected` when cleanup leaves no usable provider identifier. Duplicate `PersonelID` values are also rejected. If any normalized ORCID, Scholar ID, or Web of Science ID is shared by different personnel in one batch, every involved row is rejected for manual review. Other valid rows continue. Different batches may intentionally collect the same researcher again, using the existing provider cache.
 
@@ -76,9 +86,9 @@ Example initial status (job IDs and timestamps vary):
 
 All queue timestamps are UTC. Status messages deliberately omit raw provider responses and credentials.
 
-## Configure the SQL source
+## Optional: configure server-side SQL import
 
-The importer supports SQL Server. Store a separate source connection string with a database account granted only the required `SELECT` permissions:
+`ImportSql` is an alternative for deployments where this service is intentionally allowed to connect to the source SQL Server. It is not required for the primary external-caller `Submit` flow. Store a separate source connection string with a database account granted only the required `SELECT` permissions:
 
 ```powershell
 dotnet user-secrets set "ConnectionStrings:BulkSource" "<read-only source connection string>"
@@ -114,13 +124,15 @@ Importing is explicit: call `ImportSql` to create a batch. The worker polls the 
 
 ## Enable processing and configure provider speeds
 
-Both the worker and SQL importer are disabled in committed defaults. Start with synthetic data, then enable the worker in deployment configuration:
+Both the worker and SQL importer are disabled in committed defaults. To perform actual local collection, set `BulkCollection.WorkerEnabled` to `true` in `academicsettings.json`, then restart the host:
 
-```powershell
-dotnet user-secrets set "BulkCollection:WorkerEnabled" "true"
+```json
+"BulkCollection": {
+  "WorkerEnabled": true
+}
 ```
 
-Restart the host after changing worker or provider-limit settings. `Status.WorkerEnabled` shows the worker setting for the host answering the request.
+An existing `BulkCollection:WorkerEnabled` user-secret or another later configuration source can override the file value; update or remove that override if `Status.WorkerEnabled` remains `false`. Restart the host after changing worker or provider-limit settings. `Status.WorkerEnabled` shows the worker setting for the host answering the request. Enabling the worker does not add any source-database configuration requirement to `Submit`.
 
 Each provider has settings under `ProviderRequestLimits`: `Orcid`, `SearchApi`, `OpenAlex`, `WebOfScience`, and `Yoksis`.
 

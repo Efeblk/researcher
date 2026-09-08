@@ -3,6 +3,12 @@
 @bulk = http://localhost:5001/Services/AcademicPerformance/V1/Bulk
 @batchId = a3700086-8ad7-4871-becf-0fbd2ce586e3
 
+# Gercek kaynak akisi:
+# 1. BulkSubmitPayload.sql sorgusunu kaynak SQL Server'da calistirin.
+# 2. Asagidaki Submit isteginin govdesini uretilen JSON nesnesiyle degistirin.
+# 3. Yanittaki BatchId ile Status istegini cagirin.
+# Servisin kaynak SQL baglantisina veya kaynak veritabani secret'ina ihtiyaci yoktur.
+
 ### Save a batch of researcher identifiers
 POST {{bulk}}/Submit
 Content-Type: application/json
@@ -38,7 +44,7 @@ Content-Type: application/json
   "Take": 100
 }
 
-### Import the configured SQL query. The committed column profile maps
+### Optional alternative: import the configured SQL query. The committed column profile maps
 # PersonelID, ORCID, ResearcherID (Web of Science), and ScholarID.
 POST {{bulk}}/ImportSql
 Content-Type: application/json
