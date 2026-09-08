@@ -16,10 +16,17 @@ Content-Type: application/json
     },
     {
       "SourceResearcherId": "employee-002",
-      "Orcid": "0000-0000-0000-0001"
+      "Orcid": "(https://orcid.org/0000-0002-1825-009X) ,",
+      "GoogleScholarId": "https://scholar.google.com.tr/citations?user=AbCdEfGhIjKl&hl=tr&utm_source=synthetic",
+      "WebOfScienceId": "invalid optional value",
+      "ScopusId": "unsupported-source-id"
     }
   ]
 }
+
+# The second row is queued with canonical ORCID and Scholar IDs. Its
+# Status response entry reports Jobs[].Warnings without echoing raw values. The
+# durable job keeps the original row separately; Scopus is retained but not collected.
 
 ### Read aggregate progress and the first page of results
 POST {{bulk}}/Status
@@ -31,10 +38,21 @@ Content-Type: application/json
   "Take": 100
 }
 
-### Import the configured SQL query (configure BulkSqlSource and use a new BatchId)
+### Import the configured SQL query. The committed column profile maps
+# PersonelID, ORCID, ResearcherID (Web of Science), and ScholarID.
 POST {{bulk}}/ImportSql
 Content-Type: application/json
 
 {
-  "BatchId": "55e75e5c-dad5-40eb-97af-717f5c865da8"
+  "BatchId": "c70427c5-063e-4107-a100-f50b05f423bd"
+}
+
+### Read SQL-import batch status (use the same SQL BatchId)
+POST {{bulk}}/Status
+Content-Type: application/json
+
+{
+  "BatchId": "c70427c5-063e-4107-a100-f50b05f423bd",
+  "Skip": 0,
+  "Take": 100
 }

@@ -60,6 +60,18 @@ Content-Type: application/json
   "WebOfScienceResearcherId": "{{researcherId}}"
 }
 
+### V1 API: Karışık sağlayıcı değerlerini temizleyip geçerli alanlarla topla
+# Dışa aktarımdan gelen karışık değerlerde geçerli alanlarla devam edilir;
+# atlanan alanlar AcademicDataResponse.Warnings içinde bildirilir.
+POST {{api}}/Collect
+Content-Type: application/json
+
+{
+  "Orcid": " (https://orcid.org/{{orcid}}) ,",
+  "GoogleScholarId": "#NAME?",
+  "ScopusId": "SCOPUS_DESTEKLENMIYOR"
+}
+
 ### V1 API: Kayıtlı akademisyen özetini getir
 #başka unique ID kullanılabilir
 # Response: AcademicDataResponse (örnek 1)
@@ -229,7 +241,8 @@ Content-Type: application/json
 #   "PublicationCount": 46,
 #   "DatabaseProvider": "Microsoft.EntityFrameworkCore.SqlServer",
 #   "CollectedAt": "2026-09-01T10:30:01Z",
-#   "Messages": ["ORCID verileri alındı.", "Yayın özeti güncellendi."]
+#   "Messages": ["ORCID verileri alındı.", "Yayın özeti güncellendi.", "[UYARI] Scopus ID: collection is unsupported and the value was not used."],
+#   "Warnings": ["Scopus ID: collection is unsupported and the value was not used."]
 # }
 #
 # 2) AcademicPublicationListResponse - ListPublications

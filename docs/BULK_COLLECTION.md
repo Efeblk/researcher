@@ -29,6 +29,12 @@ Each row has a source identifier and any combination of the supported provider i
 
 `Orcid` and `GoogleScholarId` are optional. `WebOfScienceId` maps to the existing application's `WebOfScienceResearcherId`. ORCID collection also requests OpenAlex comparison data. This input does not include T.C. identity numbers or YÖKSİS bulk collection.
 
+Bulk cleanup and the single V1 `Collect` API use the same normalizer. It accepts canonical identifiers and narrowly recognized export forms: ORCID URLs on `orcid.org`, four space-separated ORCID groups, Web of Science author-record URLs, and Google Scholar profile URLs on `scholar.google.com`, `scholar.google.com.tr`, or `scholar.google.co.za`. Safe surrounding punctuation and Scholar tracking query parameters are removed. Final IDs must still pass the strict application parser. Cleanup never pads, truncates, guesses, moves a value between provider fields, or mines arbitrary text for an ID.
+
+`NULL`, `0`, `.`, `-`, spreadsheet errors, malformed IDs, foreign URLs, ambiguous URLs with multiple provider candidates, and optional provider values over 4,096 characters are not used for collection. Other valid fields continue. The queue stores both the untouched original row and a separate canonical worker input, so cleanup never changes the imported source values. A row with no usable supported provider is `Rejected`. Field-specific `Warnings` remain available through `Status` after worker updates without echoing the original values. Google Scholar identifier case is preserved.
+
+Scopus collection is unsupported. `ScopusID` is retained in the original queued row and produces a warning, but it creates no provider call.
+
 `SourceResearcherId` is an opaque identifier from the source system, not a name or national identity number. It lets callers match each result back to an input row. Provider identifiers still determine which local researcher is updated.
 
 ## API
@@ -43,7 +49,7 @@ Use the requests in [BulkCollection.http](../Requests/BulkCollection.http).
 
 Generate one new `BatchId` for each new batch. Reusing a batch ID with identical JSON rows returns the existing batch; different input under that ID is rejected. Input ordering is part of this comparison. SQL imports should use a stable `ORDER BY` and a stable source snapshot if they need to be resubmitted.
 
-The default maximum is 10,000 rows per batch and 500 job results per status page. Oversized SQL query results are rejected before any jobs are saved. Invalid provider identifiers and duplicate source IDs or identical normalized provider tuples within a batch become `Rejected` rows; valid rows continue. Different batches may intentionally collect the same researcher again, using the existing provider cache.
+The default maximum is 10,000 rows per batch and 500 job results per status page. Oversized SQL query results are rejected before any jobs are saved. A row is `Rejected` when cleanup leaves no usable provider identifier. Duplicate source IDs are also rejected. If any normalized ORCID, Scholar ID, or Web of Science ID is shared by different personnel in one batch, every involved row is rejected for manual review. Other valid rows continue. Different batches may intentionally collect the same researcher again, using the existing provider cache.
 
 Example initial status (job IDs and timestamps vary):
 
@@ -61,7 +67,8 @@ Example initial status (job IDs and timestamps vary):
       "Attempts": 0,
       "ResearcherId": null,
       "NextAttemptAt": "2026-09-06T00:00:00",
-      "Message": null
+      "Message": null,
+      "Warnings": []
     }
   ]
 }
@@ -80,25 +87,28 @@ dotnet user-secrets set "ConnectionStrings:BulkSource" "<read-only source connec
 The HTTP API never accepts SQL text. An operator configures `BulkSqlSource:Query`, for example:
 
 ```sql
-SELECT EmployeeNumber, webofscienceID
-FROM dbo.ResearcherExport
-ORDER BY EmployeeNumber;
+SELECT PersonelID, ORCID, ResearcherID, ScopusID, ScholarID
+FROM <operator-owned personnel table>
+ORDER BY PersonelID;
 ```
 
-For that example, configure:
+The committed host profile is ready for the supplied personnel-export schema while remaining disabled until its query and connection are configured:
 
 ```json
 {
   "BulkSqlSource": {
-    "Enabled": true,
-    "Query": "SELECT EmployeeNumber, webofscienceID FROM dbo.ResearcherExport ORDER BY EmployeeNumber",
-    "SourceResearcherIdColumn": "EmployeeNumber",
-    "WebOfScienceIdColumn": "webofscienceID"
+    "Enabled": false,
+    "Query": "",
+    "SourceResearcherIdColumn": "PersonelID",
+    "OrcidColumn": "ORCID",
+    "WebOfScienceIdColumn": "ResearcherID",
+    "GoogleScholarIdColumn": "ScholarID",
+    "ScopusIdColumn": "ScopusID"
   }
 }
 ```
 
-Column matching is case-insensitive. Missing ORCID or Google Scholar columns are allowed. At least one configured provider column must exist. If the source ID column is absent or null, the importer assigns `row-1`, `row-2`, and so on. Change the column settings when the production schema is known; no code change is required.
+Here `ResearcherID` means the Web of Science identifier. `ScopusID` is preserved for audit but is not collected. Set `Query` to an operator-owned `SELECT` with a stable `ORDER BY`; SQL is never accepted from the HTTP request. Column matching is case-insensitive. Missing ORCID or Google Scholar columns are allowed. At least one configured supported-provider column must exist. If the source ID column is absent or null, the importer assigns `row-1`, `row-2`, and so on. `BulkSqlSourceOptions` retains its earlier generic defaults for library consumers; these committed configuration values override them for the host.
 
 Importing is explicit: call `ImportSql` to create a batch. The worker polls the saved queue, not the source query. This avoids repeatedly importing the entire source table.
 

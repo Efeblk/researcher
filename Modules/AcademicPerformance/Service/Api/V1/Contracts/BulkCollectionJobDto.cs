@@ -9,4 +9,5 @@ public sealed class BulkCollectionJobDto
     public int? ResearcherId { get; set; } = null;
     public DateTime NextAttemptAt { get; set; }
     public string? Message { get; set; } = null;
+    public List<string> Warnings { get; set; } = [];
 }

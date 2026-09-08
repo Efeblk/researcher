@@ -9,4 +9,5 @@ public sealed class BulkSqlSourceOptions
     public string OrcidColumn { get; set; } = "Orcid";
     public string GoogleScholarIdColumn { get; set; } = "GoogleScholarId";
     public string WebOfScienceIdColumn { get; set; } = "WebOfScienceID";
+    public string ScopusIdColumn { get; set; } = "ScopusID";
 }

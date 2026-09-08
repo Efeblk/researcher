@@ -46,13 +46,14 @@ public sealed class BulkSqlImporter(
         IDataRecord row, IReadOnlyDictionary<string, int> columns, BulkSqlSourceOptions source, int rowNumber)
     {
         string? Read(string column) => columns.TryGetValue(column, out int ordinal) && !row.IsDBNull(ordinal)
-            ? Convert.ToString(row.GetValue(ordinal), CultureInfo.InvariantCulture)?.Trim() : null;
+            ? Convert.ToString(row.GetValue(ordinal), CultureInfo.InvariantCulture) : null;
         return new()
         {
             SourceResearcherId = Read(source.SourceResearcherIdColumn) ?? $"row-{rowNumber}",
             Orcid = Read(source.OrcidColumn),
             GoogleScholarId = Read(source.GoogleScholarIdColumn),
-            WebOfScienceId = Read(source.WebOfScienceIdColumn)
+            WebOfScienceId = Read(source.WebOfScienceIdColumn),
+            ScopusId = Read(source.ScopusIdColumn)
         };
     }
 }

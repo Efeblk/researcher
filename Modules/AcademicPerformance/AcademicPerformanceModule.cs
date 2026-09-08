@@ -50,12 +50,14 @@ public static class AcademicPerformanceModule
         services.AddOptions<BulkSqlSourceOptions>().Bind(configuration.GetSection("BulkSqlSource"))
             .Validate(value => value.CommandTimeoutSeconds is >= 1 and <= 300, "Invalid SQL query timeout.");
         services.AddScoped<BulkCollectionService>();
+        services.AddSingleton<BulkResearcherInputNormalizer>();
         services.AddScoped<BulkSqlImporter>();
         services.AddScoped<BulkJobProcessor>();
         services.AddHostedService<BulkCollectionWorker>();
         services.AddAcademicDatabase(configuration);
 
         services.AddSingleton<ResearcherIdentifierParser>();
+        services.AddSingleton<ResearcherProviderInputNormalizer>();
         services.AddSingleton<AcademicWorkCategorizer>();
         services.AddSingleton<ResearcherCollectionFeedback>();
         services.AddTransient<OrcidClient>();

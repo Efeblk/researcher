@@ -47,7 +47,7 @@ public sealed class BulkJobProcessor(
         bool retryable = false;
         try
         {
-            BulkResearcherInput input = JsonSerializer.Deserialize<BulkResearcherInput>(job.InputJson)!;
+            BulkResearcherInput input = BulkCollectionService.ReadPersisted(job.InputJson).Input;
             // A separate EF scope keeps a failed collection transaction out of queue bookkeeping.
             using IServiceScope collectionScope = scopes.CreateScope();
             var service = collectionScope.ServiceProvider.GetRequiredService<IAcademicPerformanceApplicationService>();
