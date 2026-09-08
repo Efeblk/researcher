@@ -14,6 +14,8 @@
 @googleScholarId = hIyYz_IAAAAJ
 @researcherId = A-1009-2008
 @databaseResearcherId = 1
+@personelId = employee-001
+@analysisSnapshotAt = 2026-09-08T00:00:00Z
 @publicationId = 1
 @tcKimlikNo = TC_KIMLIK_NUMARASINI_BURAYA_YAZ
 
@@ -55,7 +57,7 @@ POST {{api}}/Collect
 Content-Type: application/json
 
 {
-  "PersonelID": "employee-001",
+  "PersonelID": "{{personelId}}",
   "ORCID": "{{orcid}}",
   "ScholarID": "{{googleScholarId}}",
   "ResearcherID": "{{researcherId}}"
@@ -88,7 +90,7 @@ POST {{api}}/GetResearcher
 Content-Type: application/json
 
 {
-  "PersonelID": "employee-001"
+  "PersonelID": "{{personelId}}"
 }
 
 ### V1 API: Akademisyenin yayınlarını sayfalı getir
@@ -136,7 +138,8 @@ POST {{api}}/AnalyzeResearcher
 Content-Type: application/json
 
 {
-  "ResearcherId": {{databaseResearcherId}}
+  "PersonelID": "{{personelId}}",
+  "SnapshotAt": "{{analysisSnapshotAt}}"
 }
 
 ### V1 API: Retrieve the latest saved analysis
@@ -146,7 +149,7 @@ POST {{api}}/GetResearcherAnalysis
 Content-Type: application/json
 
 {
-  "ResearcherId": {{databaseResearcherId}}
+  "PersonelID": "{{personelId}}"
 }
 
 ### V1 API: Okulda gösterilecek yayınları kaydet

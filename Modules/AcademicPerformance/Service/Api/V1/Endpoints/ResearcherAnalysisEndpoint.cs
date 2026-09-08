@@ -14,12 +14,17 @@ public sealed class ResearcherAnalysisEndpoint : ServiceEndpoint
         [FromBody] ResearcherAnalysisIdRequest? request,
         [FromServices] ResearcherAnalysisWorkflow workflow, CancellationToken cancellationToken)
     {
-        if (!ModelState.IsValid || request is null || request.ResearcherId <= 0)
-            return BadRequest(new { Message = "ResearcherId must be a positive database ID." });
+        if (!ModelState.IsValid || request is null)
+            return BadRequest(new { Message = "Supply a valid PersonelID or positive ResearcherId." });
         try
         {
-            SavedResearcherAnalysisResponse? result = await workflow.AnalyzeAsync(request.ResearcherId, request.SnapshotAt, cancellationToken);
+            SavedResearcherAnalysisResponse? result = await workflow.AnalyzeAsync(
+                request.PersonelId, request.ResearcherId, request.SnapshotAt, cancellationToken);
             return result is null ? NotFound(new { Message = "Researcher not found." }) : Ok(result);
+        }
+        catch (ResearcherIdentityMismatchException exception)
+        {
+            return BadRequest(new { Message = exception.Message });
         }
         catch (AnalysisInputUnavailableException exception)
         {
@@ -46,9 +51,17 @@ public sealed class ResearcherAnalysisEndpoint : ServiceEndpoint
         [FromBody] ResearcherAnalysisIdRequest? request,
         [FromServices] ResearcherAnalysisWorkflow workflow, CancellationToken cancellationToken)
     {
-        if (!ModelState.IsValid || request is null || request.ResearcherId <= 0)
-            return BadRequest(new { Message = "ResearcherId must be a positive database ID." });
-        SavedResearcherAnalysisResponse? result = await workflow.GetLatestAsync(request.ResearcherId, cancellationToken);
-        return result is null ? NotFound(new { Message = "No saved analysis exists for this researcher." }) : Ok(result);
+        if (!ModelState.IsValid || request is null)
+            return BadRequest(new { Message = "Supply a valid PersonelID or positive ResearcherId." });
+        try
+        {
+            SavedResearcherAnalysisResponse? result = await workflow.GetLatestAsync(
+                request.PersonelId, request.ResearcherId, cancellationToken);
+            return result is null ? NotFound(new { Message = "No saved analysis exists for this researcher." }) : Ok(result);
+        }
+        catch (ResearcherIdentityMismatchException exception)
+        {
+            return BadRequest(new { Message = exception.Message });
+        }
     }
 }

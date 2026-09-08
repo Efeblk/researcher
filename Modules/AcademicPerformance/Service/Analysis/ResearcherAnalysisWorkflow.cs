@@ -2,6 +2,7 @@ using System.Data;
 using System.Text.Json;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using AcademicCollector.Analysis.Contracts;
@@ -13,22 +14,24 @@ public sealed class ResearcherAnalysisWorkflow(
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public async Task<SavedResearcherAnalysisResponse?> AnalyzeAsync(int researcherId, DateTimeOffset? snapshotAt, CancellationToken cancellationToken)
+    public async Task<SavedResearcherAnalysisResponse?> AnalyzeAsync(string? personelId, int? researcherId,
+        DateTimeOffset? snapshotAt, CancellationToken cancellationToken)
     {
         AnalyzeResearcherRequest snapshot;
         // Capture a consistent input, then release SQL locks before waiting for the model.
         await using (var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken))
         {
-            var researcher = await database.Researchers.AsNoTracking()
+            Researcher? researcher = await ResolveResearcherAsync(personelId, researcherId,
+                database.Researchers.AsNoTracking()
                 .Include(value => value.GoogleScholarProfile).Include(value => value.WebOfScienceProfile)
-                .Include(value => value.OpenAlexProfile)
-                .SingleOrDefaultAsync(value => value.Id == researcherId, cancellationToken);
+                .Include(value => value.OpenAlexProfile), cancellationToken);
             if (researcher is null)
                 return null;
+            int collectorResearcherId = researcher.Id;
             var summaries = await database.PublicationSummaries.AsNoTracking()
-                .Where(value => value.ResearcherId == researcherId).ToListAsync(cancellationToken);
+                .Where(value => value.ResearcherId == collectorResearcherId).ToListAsync(cancellationToken);
             var works = await database.AcademicWorks.AsNoTracking()
-                .Where(value => value.ResearcherId == researcherId)
+                .Where(value => value.ResearcherId == collectorResearcherId)
                 .Select(value => new Works.Models.AcademicWork
                 {
                     Id = value.Id, Title = value.Title, Doi = value.Doi,
@@ -44,7 +47,7 @@ public sealed class ResearcherAnalysisWorkflow(
         ResearcherAnalysisReport report = await client.AnalyzeAsync(snapshot, cancellationToken);
         SavedResearcherAnalysis saved = new()
         {
-            ResearcherId = researcherId,
+            ResearcherId = snapshot.ResearcherId,
             SavedAt = DateTimeOffset.UtcNow,
             SnapshotJson = JsonSerializer.Serialize(snapshot, JsonOptions),
             ReportJson = JsonSerializer.Serialize(report, JsonOptions)
@@ -54,12 +57,40 @@ public sealed class ResearcherAnalysisWorkflow(
         return new(saved.Id, saved.SavedAt, report);
     }
 
-    public async Task<SavedResearcherAnalysisResponse?> GetLatestAsync(int researcherId, CancellationToken cancellationToken)
+    public async Task<SavedResearcherAnalysisResponse?> GetLatestAsync(string? personelId, int? researcherId,
+        CancellationToken cancellationToken)
     {
+        Researcher? researcher = await ResolveResearcherAsync(personelId, researcherId,
+            database.Researchers.AsNoTracking(), cancellationToken);
+        if (researcher is null)
+            return null;
         SavedResearcherAnalysis? saved = await database.ResearcherAnalyses.AsNoTracking()
-            .Where(value => value.ResearcherId == researcherId)
+            .Where(value => value.ResearcherId == researcher.Id)
             .OrderByDescending(value => value.Id).FirstOrDefaultAsync(cancellationToken);
         return saved is null ? null : new(saved.Id, saved.SavedAt,
             JsonSerializer.Deserialize<ResearcherAnalysisReport>(saved.ReportJson, JsonOptions)!);
+    }
+
+    private static async Task<Researcher?> ResolveResearcherAsync(string? personelId, int? researcherId,
+        IQueryable<Researcher> researchers, CancellationToken cancellationToken)
+    {
+        if (personelId is not null)
+        {
+            string normalizedPersonelId = personelId.Trim();
+            Researcher? researcher = await researchers.SingleOrDefaultAsync(
+                value => value.PersonelId == normalizedPersonelId, cancellationToken);
+            if (researcherId is not null)
+            {
+                Researcher? researcherById = await researchers.SingleOrDefaultAsync(
+                    value => value.Id == researcherId, cancellationToken);
+                if (researcher is null || researcherById is null)
+                    return null;
+                if (researcher.Id != researcherById.Id)
+                    throw new ResearcherIdentityMismatchException();
+            }
+            return researcher;
+        }
+
+        return await researchers.SingleOrDefaultAsync(value => value.Id == researcherId, cancellationToken);
     }
 }
