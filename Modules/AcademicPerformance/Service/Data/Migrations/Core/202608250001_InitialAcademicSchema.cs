@@ -39,13 +39,14 @@ public sealed class InitialAcademicSchema : Migration
     {
         Create.Table("Researchers")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
-            .WithColumn("UniversityPersonnelId").AsString(int.MaxValue).Nullable()
+            .WithColumn("PersonelID").AsString(200).Nullable()
             .WithColumn("FirstName").AsString(int.MaxValue).Nullable()
             .WithColumn("LastName").AsString(int.MaxValue).Nullable()
             .WithColumn("AcademicTitle").AsString(int.MaxValue).Nullable()
             .WithColumn("Department").AsString(int.MaxValue).Nullable()
-            .WithColumn("Orcid").AsString(19).Nullable()
-            .WithColumn("WebOfScienceResearcherId").AsString(20).Nullable()
+            .WithColumn("ORCID").AsString(19).Nullable()
+            .WithColumn("ResearcherID").AsString(20).Nullable()
+            .WithColumn("ScopusID").AsString(int.MaxValue).Nullable()
             .WithColumn("YoksisResearcherId").AsString(50).Nullable()
             .WithColumn("LastUpdatedAt").AsDateTime().Nullable();
     }
@@ -312,10 +313,11 @@ public sealed class InitialAcademicSchema : Migration
 
     private void CreateIndexes()
     {
-        CreateResearcherIdentifierIndex("IX_Researchers_Orcid", "Orcid");
+        CreateResearcherIdentifierIndex("IX_Researchers_PersonelID", "PersonelID");
+        CreateResearcherIdentifierIndex("IX_Researchers_ORCID", "ORCID");
         CreateResearcherIdentifierIndex(
-            "IX_Researchers_WebOfScienceResearcherId",
-            "WebOfScienceResearcherId");
+            "IX_Researchers_ResearcherID",
+            "ResearcherID");
         CreateResearcherIdentifierIndex(
             "IX_Researchers_YoksisResearcherId",
             "YoksisResearcherId");

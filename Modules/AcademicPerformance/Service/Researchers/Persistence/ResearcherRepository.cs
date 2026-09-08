@@ -20,6 +20,7 @@ public sealed class ResearcherRepository
     {
         List<int> matchingIds = await _dbContext.Researchers
             .Where(item =>
+                (identifiers.PersonelId != null && item.PersonelId == identifiers.PersonelId) ||
                 (identifiers.Orcid != null && item.Orcid == identifiers.Orcid) ||
                 (identifiers.GoogleScholarId != null && item.GoogleScholarId == identifiers.GoogleScholarId) ||
                 (identifiers.WebOfScienceResearcherId != null && item.WebOfScienceResearcherId == identifiers.WebOfScienceResearcherId) ||
@@ -42,13 +43,15 @@ public sealed class ResearcherRepository
 
     public void ApplyRequestValues(Researcher target, Researcher source)
     {
-        target.UniversityPersonnelId = source.UniversityPersonnelId ?? target.UniversityPersonnelId;
+        target.PersonelId = GetIdentifierValue(target.PersonelId, source.PersonelId, "PersonelID");
         target.FirstName = source.FirstName ?? target.FirstName;
         target.LastName = source.LastName ?? target.LastName;
         target.AcademicTitle = source.AcademicTitle ?? target.AcademicTitle;
         target.Department = source.Department ?? target.Department;
 
         target.Orcid = GetIdentifierValue(target.Orcid, source.Orcid, "ORCID");
+        // Scopus is stored as source metadata only; it is not used for matching or collection.
+        target.ScopusId ??= source.ScopusId;
         target.GoogleScholarId = GetIdentifierValue(
             target.GoogleScholarId,
             source.GoogleScholarId,
@@ -65,8 +68,6 @@ public sealed class ResearcherRepository
 
     public async Task SaveAsync(Researcher researcher)
     {
-        Researcher? existingResearcher = null;
-
         if (researcher.Id > 0)
         {
             researcher.LastUpdatedAt = DateTime.UtcNow;
@@ -74,36 +75,7 @@ public sealed class ResearcherRepository
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(researcher.Orcid))
-        {
-            existingResearcher = await CreateResearcherQuery()
-                .FirstOrDefaultAsync(item => item.Orcid == researcher.Orcid);
-        }
-
-        if (existingResearcher is null &&
-            !string.IsNullOrWhiteSpace(researcher.GoogleScholarId))
-        {
-            existingResearcher = await CreateResearcherQuery()
-                .FirstOrDefaultAsync(item =>
-                    item.GoogleScholarId == researcher.GoogleScholarId);
-        }
-
-        if (existingResearcher is null &&
-            !string.IsNullOrWhiteSpace(researcher.WebOfScienceResearcherId))
-        {
-            existingResearcher = await CreateResearcherQuery()
-                .FirstOrDefaultAsync(item =>
-                    item.WebOfScienceResearcherId ==
-                    researcher.WebOfScienceResearcherId);
-        }
-
-        if (existingResearcher is null &&
-            !string.IsNullOrWhiteSpace(researcher.YoksisResearcherId))
-        {
-            existingResearcher = await CreateResearcherQuery()
-                .FirstOrDefaultAsync(item =>
-                    item.YoksisResearcherId == researcher.YoksisResearcherId);
-        }
+        Researcher? existingResearcher = await FindByIdentifiersAsync(researcher);
 
         if (existingResearcher is null)
         {

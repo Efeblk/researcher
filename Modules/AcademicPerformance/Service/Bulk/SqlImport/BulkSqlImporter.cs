@@ -28,6 +28,8 @@ public sealed class BulkSqlImporter(
         await using SqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
         Dictionary<string, int> columns = Enumerable.Range(0, reader.FieldCount)
             .ToDictionary(reader.GetName, index => index, StringComparer.OrdinalIgnoreCase);
+        if (!columns.ContainsKey(source.PersonelIdColumn))
+            throw new InvalidOperationException("The query must return the configured PersonelID column.");
         if (!columns.ContainsKey(source.OrcidColumn) && !columns.ContainsKey(source.GoogleScholarIdColumn) &&
             !columns.ContainsKey(source.WebOfScienceIdColumn))
             throw new InvalidOperationException("The query must return at least one configured provider ID column.");
@@ -46,13 +48,14 @@ public sealed class BulkSqlImporter(
         IDataRecord row, IReadOnlyDictionary<string, int> columns, BulkSqlSourceOptions source, int rowNumber)
     {
         string? Read(string column) => columns.TryGetValue(column, out int ordinal) && !row.IsDBNull(ordinal)
-            ? Convert.ToString(row.GetValue(ordinal), CultureInfo.InvariantCulture)?.Trim() : null;
+            ? Convert.ToString(row.GetValue(ordinal), CultureInfo.InvariantCulture) : null;
         return new()
         {
-            SourceResearcherId = Read(source.SourceResearcherIdColumn) ?? $"row-{rowNumber}",
+            PersonelId = Read(source.PersonelIdColumn) ?? string.Empty,
             Orcid = Read(source.OrcidColumn),
             GoogleScholarId = Read(source.GoogleScholarIdColumn),
-            WebOfScienceId = Read(source.WebOfScienceIdColumn)
+            WebOfScienceId = Read(source.WebOfScienceIdColumn),
+            ScopusId = Read(source.ScopusIdColumn)
         };
     }
 }

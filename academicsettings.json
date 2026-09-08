@@ -41,10 +41,11 @@
     "Enabled": false,
     "Query": "",
     "CommandTimeoutSeconds": 30,
-    "SourceResearcherIdColumn": "ResearcherId",
-    "OrcidColumn": "Orcid",
-    "GoogleScholarIdColumn": "GoogleScholarId",
-    "WebOfScienceIdColumn": "WebOfScienceID"
+    "PersonelIdColumn": "PersonelID",
+    "OrcidColumn": "ORCID",
+    "GoogleScholarIdColumn": "ScholarID",
+    "WebOfScienceIdColumn": "ResearcherID",
+    "ScopusIdColumn": "ScopusID"
   },
   "ProviderRequestLimits": {
     "Orcid": {

@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Bulk;
 
 public sealed class BulkCollectionService(
-    AcademicDbContext database, ResearcherIdentifierParser parser,
+    AcademicDbContext database, BulkResearcherInputNormalizer normalizer,
     IOptions<BulkCollectionOptions> options)
 {
     public async Task<BulkCollectionStatusResponse> SubmitAsync(
@@ -23,9 +23,8 @@ public sealed class BulkCollectionService(
             request.Researchers.Count > options.Value.MaximumBatchSize)
             throw new ArgumentException($"Supply between 1 and {options.Value.MaximumBatchSize} researchers.");
         if (request.Researchers.Any(row => row is null ||
-            string.IsNullOrWhiteSpace(row.SourceResearcherId) || row.SourceResearcherId.Length > 200 ||
-            row.Orcid?.Length > 200 || row.GoogleScholarId?.Length > 200 || row.WebOfScienceId?.Length > 200))
-            throw new ArgumentException("Rows require a source researcher ID; input fields must be at most 200 characters.");
+            string.IsNullOrWhiteSpace(row.PersonelId) || row.PersonelId.Length > 200))
+            throw new ArgumentException("Rows require PersonelID of at most 200 characters.");
 
         string hash = Convert.ToHexString(SHA256.HashData(
             Encoding.UTF8.GetBytes(JsonSerializer.Serialize(request.Researchers))));
@@ -43,6 +42,8 @@ public sealed class BulkCollectionService(
             return await GetStatusAsync(new() { BatchId = request.BatchId }, cancellationToken);
         }
 
+        List<BulkNormalizationResult> prepared = request.Researchers.Select(normalizer.Normalize).ToList();
+        HashSet<int> conflicts = FindConflicts(prepared);
         DateTime now = DateTime.UtcNow;
         database.BulkCollectionBatches.Add(new()
         {
@@ -50,31 +51,30 @@ public sealed class BulkCollectionService(
             CreatedAt = now,
             InputHash = hash
         });
-        HashSet<string> sourceIds = new(StringComparer.Ordinal);
-        HashSet<string> identities = new(StringComparer.Ordinal);
-        foreach (BulkResearcherInput input in request.Researchers)
+        for (int index = 0; index < prepared.Count; index++)
         {
+            BulkNormalizationResult result = prepared[index];
+            BulkResearcherInput input = result.Input;
             BulkCollectionJob job = new()
             {
                 BatchId = request.BatchId,
-                SourceResearcherId = input.SourceResearcherId.Trim(),
-                InputJson = JsonSerializer.Serialize(input),
+                PersonelId = input.PersonelId.Trim(),
+                InputJson = JsonSerializer.Serialize(new PersistedBulkResearcherInput
+                {
+                    OriginalInput = request.Researchers[index], Input = input, Warnings = result.Warnings
+                }),
                 NextAttemptAt = now
             };
-            try
-            {
-                var normalized = parser.Create(ToCollectionRequest(input));
-                string identity = JsonSerializer.Serialize(new[]
-                {
-                    normalized.Orcid, normalized.GoogleScholarId, normalized.WebOfScienceResearcherId
-                });
-                if (!sourceIds.Add(job.SourceResearcherId) || !identities.Add(identity))
-                    throw new ArgumentException("Duplicate row.");
-            }
-            catch (ArgumentException)
+            if (result.RejectionReason is not null)
             {
                 job.Status = BulkJobStatus.Rejected;
-                job.ResultMessage = "Invalid provider identifier or duplicate researcher in this batch.";
+                job.ResultMessage = result.RejectionReason;
+                job.CompletedAt = now;
+            }
+            else if (conflicts.Contains(index))
+            {
+                job.Status = BulkJobStatus.Rejected;
+                job.ResultMessage = "Conflicting source or provider identifier in this batch; manual review required.";
                 job.CompletedAt = now;
             }
             database.BulkCollectionJobs.Add(job);
@@ -100,21 +100,53 @@ public sealed class BulkCollectionService(
             WorkerEnabled = options.Value.WorkerEnabled,
             IsComplete = !counts.Keys.Any(status => status is BulkJobStatus.Pending or
                 BulkJobStatus.Running or BulkJobStatus.RetryWaiting),
-            Jobs = await jobs.OrderBy(job => job.Id).Skip(Math.Max(0, request.Skip))
-                .Take(Math.Clamp(request.Take, 1, 500)).Select(job => new BulkCollectionJobDto
+            Jobs = (await jobs.OrderBy(job => job.Id).Skip(Math.Max(0, request.Skip))
+                .Take(Math.Clamp(request.Take, 1, 500)).ToListAsync(cancellationToken)).Select(job => new BulkCollectionJobDto
                 {
                     Id = job.Id,
-                    SourceResearcherId = job.SourceResearcherId,
+                    PersonelId = job.PersonelId,
                     Status = job.Status,
                     Attempts = job.Attempts,
-                    ResearcherId = job.ResearcherId,
+                    CollectorResearcherId = job.CollectorResearcherId,
                     NextAttemptAt = job.NextAttemptAt,
-                    Message = job.ResultMessage
-                }).ToListAsync(cancellationToken)
+                    Message = job.ResultMessage,
+                    Warnings = ReadPersisted(job.InputJson).Warnings
+                }).ToList()
         };
     }
 
-    private static ResearcherCollectRequest ToCollectionRequest(BulkResearcherInput input)
+    internal static PersistedBulkResearcherInput ReadPersisted(string json)
+    {
+        using JsonDocument document = JsonDocument.Parse(json);
+        if (document.RootElement.TryGetProperty(nameof(PersistedBulkResearcherInput.Input), out _))
+            return JsonSerializer.Deserialize<PersistedBulkResearcherInput>(json)!;
+        return new() { Input = JsonSerializer.Deserialize<BulkResearcherInput>(json)! };
+    }
+
+    private static HashSet<int> FindConflicts(IReadOnlyList<BulkNormalizationResult> rows)
+    {
+        HashSet<int> conflicts = [];
+        Dictionary<string, List<int>> keys = new(StringComparer.Ordinal);
+        for (int index = 0; index < rows.Count; index++)
+        {
+            BulkResearcherInput row = rows[index].Input;
+            Add("personel:" + row.PersonelId, index);
+            if (row.Orcid is not null) Add("orcid:" + row.Orcid, index);
+            if (row.GoogleScholarId is not null) Add("scholar:" + row.GoogleScholarId, index);
+            if (row.WebOfScienceId is not null) Add("wos:" + row.WebOfScienceId, index);
+        }
+        foreach (List<int> indexes in keys.Values.Where(value => value.Count > 1))
+            foreach (int index in indexes) conflicts.Add(index);
+        return conflicts;
+
+        void Add(string key, int index)
+        {
+            if (!keys.TryGetValue(key, out List<int>? indexes)) keys[key] = indexes = [];
+            indexes.Add(index);
+        }
+    }
+
+    internal static ResearcherCollectRequest ToCollectionRequest(BulkResearcherInput input)
     {
         List<string> identifiers = [];
         if (!string.IsNullOrWhiteSpace(input.Orcid)) identifiers.AddRange(["--orcid", input.Orcid]);

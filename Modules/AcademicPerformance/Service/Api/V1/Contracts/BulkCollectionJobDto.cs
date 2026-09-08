@@ -1,12 +1,15 @@
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
+using System.Text.Json.Serialization;
 
 public sealed class BulkCollectionJobDto
 {
     public long Id { get; set; }
-    public string SourceResearcherId { get; set; } = string.Empty;
+    [JsonPropertyName("PersonelID"), Newtonsoft.Json.JsonProperty("PersonelID")]
+    public string PersonelId { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public int Attempts { get; set; }
-    public int? ResearcherId { get; set; } = null;
+    public int? CollectorResearcherId { get; set; } = null;
     public DateTime NextAttemptAt { get; set; }
     public string? Message { get; set; } = null;
+    public List<string> Warnings { get; set; } = [];
 }

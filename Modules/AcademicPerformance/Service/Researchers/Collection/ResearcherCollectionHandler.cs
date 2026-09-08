@@ -36,6 +36,8 @@ public sealed class ResearcherCollectionHandler
     {
         ResearcherCollectResponse response = new();
         Researcher requestedResearcher = _identifierParser.Create(request);
+        requestedResearcher.PersonelId = NormalizeOptional(request.PersonelId);
+        requestedResearcher.ScopusId = NormalizeOptional(request.ScopusId);
         Researcher researcher = requestedResearcher;
 
         Researcher? existingResearcher = await _researcherRepository.FindByIdentifiersAsync(
@@ -96,5 +98,10 @@ public sealed class ResearcherCollectionHandler
         }
 
         return response;
+    }
+
+    private static string? NormalizeOptional(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 }
