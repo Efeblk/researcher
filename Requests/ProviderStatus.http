@@ -16,54 +16,5 @@
 # her Providers öğesinin Status alanını ayrı kontrol edin.
 # Sonuç 60 saniye önbellekte kalır. Yenilemek için ExpiresAt sonrasında tekrar gönderin;
 # zorla yenileme parametresi yoktur. Kontroller yerel bütçe/sağlayıcı kredisi tüketebilir.
-GET {{host}}/Services/AcademicPerformance/V1/ProviderStatus
+GET http://localhost:5001/Services/AcademicPerformance/V1/ProviderStatus
 Accept: application/json
-
-# Yanıt okuma rehberi:
-# CheckedAt / ExpiresAt: UTC olarak önbellekteki anlık görüntünün zamanı ve bitişi.
-# Healthy: API yanıtı beklenen biçimde. Reachable: yalnızca YÖKSİS WSDL erişimi doğrulandı.
-# NotConfigured: gerekli kimlik bilgisi eksik veya sağlayıcı adresi geçersiz.
-# Unauthorized: sağlayıcı kimlik doğrulamasını reddetti.
-# RateLimited: sağlayıcı sınırı; LocallyLimited: collector bütçesi/bekleme süresi.
-# RetryAt: bildirildiyse yeniden deneme zamanı.
-# Unavailable / Timeout / UnexpectedResponse: erişim, süre veya yanıt biçimi sorunu.
-# LocalBudgetUnavailable: kontrol sırasında yerel SQL bütçesine erişilemedi.
-# LocalBudget: collector'ın SQL sayaçları; sağlayıcı aboneliğinin kotası değildir.
-# ProviderQuotas: sağlayıcının bildirdiği kotalar; [] bilinmiyor demektir, sınırsız değil.
-# AnalysisService yalnızca analiz sunucusunu kontrol eder; AI modelini/kotasını doğrulamaz.
-# Ayrıntılar: ../docs/PROVIDER_STATUS.md
-#
-# Kısaltılmış, sentetik örnek (gerçek yanıtta altı sağlayıcı vardır;
-# null alanlar serializer tarafından atlanabilir):
-# {
-#   "CheckedAt": "2026-09-08T09:00:00Z",
-#   "ExpiresAt": "2026-09-08T09:01:00Z",
-#   "Providers": [
-#     {
-#       "Provider": "SearchApi",
-#       "Status": "Healthy",
-#       "CheckKind": "AccountUsage",
-#       "CheckedAt": "2026-09-08T09:00:00Z",
-#       "HttpStatusCode": 200,
-#       "LatencyMilliseconds": 120,
-#       "LocalBudget": {
-#         "Status": "Available",
-#         "DailyRequestLimit": 100,
-#         "RequestsToday": 12,
-#         "RemainingToday": 88,
-#         "MinimumIntervalMilliseconds": 1000,
-#         "ResetsAt": "2026-09-09T00:00:00Z"
-#       },
-#       "ProviderQuotas": [
-#         {
-#           "Source": "AccountApi",
-#           "Window": "month",
-#           "Unit": "searches",
-#           "Limit": 100,
-#           "Used": 30,
-#           "Remaining": 70
-#         }
-#       ]
-#     }
-#   ]
-# }
