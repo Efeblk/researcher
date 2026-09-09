@@ -88,6 +88,19 @@ public sealed class ProviderStatusSummaryMapperTests
         Assert.Equal("Reachable", result.Providers[1].Health);
     }
 
+    [Fact]
+    public void Map_DisabledProvider_PreservesDisabledWithoutTransportObservation()
+    {
+        ProviderStatusDto provider = new()
+        {
+            Provider = "SearchApi",
+            Status = "Disabled",
+            Transport = new() { Status = "Disabled" }
+        };
+
+        Assert.Equal("Disabled", Map(provider).Health);
+    }
+
     private static ProviderStatusSummaryDto Map(ProviderStatusDto provider) =>
         Assert.Single(ProviderStatusSummaryMapper.Map(new() { Providers = [provider] }, Now).Providers);
 
