@@ -8,5 +8,6 @@ public sealed class ResearcherCollectResponse : ServiceResponse
     public Researcher? Researcher { get; set; } = null;
     public string? DatabaseProvider { get; set; } = null;
     public bool IsSaved { get; set; }
+    public string? FailureCode { get; set; } = null;
     public List<string> Messages { get; set; } = [];
 }

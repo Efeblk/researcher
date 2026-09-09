@@ -79,4 +79,22 @@ public sealed class PersonnelKeySchemaTests(SqlServerFixture fixture)
             Assert.Equal(1, Convert.ToInt32(await command.ExecuteScalarAsync()));
         }
     }
+
+    [Fact]
+    public async Task Schema_PublicationAuthorColumnsAreUnboundedUnicodeText()
+    {
+        await using SqlConnection connection = new(fixture.ConnectionString);
+        await connection.OpenAsync();
+        foreach (string table in new[] { "OrcidWorks", "AcademicWorks", "PublicationSummaries" })
+        {
+            await using SqlCommand command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT COUNT(*) FROM sys.columns
+                WHERE object_id = OBJECT_ID(@table) AND name = 'Authors'
+                    AND TYPE_NAME(user_type_id) = 'nvarchar' AND max_length = -1;
+                """;
+            command.Parameters.AddWithValue("@table", table);
+            Assert.Equal(1, Convert.ToInt32(await command.ExecuteScalarAsync()));
+        }
+    }
 }

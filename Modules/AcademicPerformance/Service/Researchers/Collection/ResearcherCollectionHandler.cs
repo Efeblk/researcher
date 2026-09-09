@@ -3,6 +3,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Persistence;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Data.SqlClient;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 
@@ -98,11 +99,25 @@ public sealed class ResearcherCollectionHandler
         }
         catch (Exception exception)
         {
-            response.Messages.Add($"[HATA] Veritabanı: {exception.Message}");
+            if (FindSqlException(exception) is { Number: 2628 or 8152 })
+            {
+                response.FailureCode = "PersistenceDataTooLong";
+                response.Messages.Add("[HATA] Veritabanı: Sağlayıcı metaverisi veritabanı alanına sığmadı.");
+            }
+            else
+                response.Messages.Add($"[HATA] Veritabanı: {exception.Message}");
             response.Messages.Add(string.Empty);
         }
 
         return response;
+    }
+
+    private static SqlException? FindSqlException(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+            if (current is SqlException sqlException)
+                return sqlException;
+        return null;
     }
 
     private static string? NormalizeOptional(string? value)

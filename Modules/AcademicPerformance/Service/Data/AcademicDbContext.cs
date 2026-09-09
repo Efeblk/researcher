@@ -186,7 +186,7 @@ public sealed class AcademicDbContext : DbContext
             entity.Property(work => work.JournalTitle).HasMaxLength(2000);
             entity.Property(work => work.Doi).HasMaxLength(500);
             entity.Property(work => work.Url).HasMaxLength(2000);
-            entity.Property(work => work.Authors).HasMaxLength(4000);
+            entity.Property(work => work.Authors);
             entity.Property(work => work.LanguageCode).HasMaxLength(20);
             entity.Property(work => work.CountryCode).HasMaxLength(20);
             entity.Property(work => work.SourceName).HasMaxLength(500);
@@ -346,7 +346,7 @@ public sealed class AcademicDbContext : DbContext
             entity.Property(work => work.CategorySource)
                 .HasConversion<string>()
                 .HasMaxLength(50);
-            entity.Property(work => work.Authors).HasMaxLength(4000);
+            entity.Property(work => work.Authors);
             entity.Property(work => work.Institutions).HasMaxLength(4000);
             entity.Property(work => work.Keywords).HasMaxLength(4000);
             entity.Property(work => work.Topics).HasMaxLength(4000);
@@ -383,7 +383,7 @@ public sealed class AcademicDbContext : DbContext
             entity.Property(summary => summary.Category)
                 .HasConversion<string>()
                 .HasMaxLength(50);
-            entity.Property(summary => summary.Authors).HasMaxLength(4000);
+            entity.Property(summary => summary.Authors);
             entity.Property(summary => summary.Publication).HasMaxLength(2000);
             entity.Property(summary => summary.PublicationUrl).HasMaxLength(2000);
             entity.Property(summary => summary.Sources).HasMaxLength(200);

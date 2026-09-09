@@ -176,11 +176,17 @@ The HTTP handler approach follows [Microsoft's client-side rate-limiting guidanc
 
 The first version processes one researcher at a time across bulk workers, reusing the existing multi-provider collection workflow. It does not yet run independent parallel provider queues. This limits concurrent writes to the same researcher and is a straightforward starting point; throughput is also constrained by each researcher's collection time.
 
+Each status row includes UTC `StartedAt` and `CompletedAt` timestamps. A researcher with many provider pages can remain `Running` for several minutes; bulk-only logs report the job attempt and elapsed time plus safe provider names, request ordinals, HTTP status codes, and cooldown durations without logging identifiers or request URLs. `Pending` and `RetryWaiting` jobs resume when a worker is available. Terminal `Failed` jobs do not resume automatically.
+
 A SQL session lock owns bulk processing. After a crash, another worker can acquire the lock and resume abandoned `Running` jobs, subject to the retry limit. Delivery is **at least once**: a crash after saving provider results but before recording job completion may repeat collection. Existing caches and synchronization reduce repeated calls and reconcile saved data; there is no exactly-once guarantee for external API requests.
 
 The initial migrations now make the required institution `PersonelID` the sole `Researchers` primary key; there is no internal integer `Researchers.Id`. The nine direct researcher relationships (the four provider profiles, YÖKSİS records, academic works, publication summaries, publication approvals, and saved analyses) reference that same `PersonelID`. Provider profile, work, summary, approval, and analysis row IDs remain unchanged. Single-provider and YÖKSİS collection requests also require `PersonelID` before any provider call. The remaining personnel-export columns are `ORCID`, Web of Science `ResearcherID`, `ScopusID`, and `ScholarID`.
 
 The migrations also create `BulkCollectionBatches`, `BulkCollectionJobs`, and `ProviderRequestBudgets`. Because these initial migrations were edited during the test phase, use a fresh application database when adopting this schema; do not delete an existing database or source personnel table as part of import. Jobs remain available for auditing; automatic retention/deletion and a bulk management UI are not part of this version.
+
+Migration `202609090002` widens author metadata in `OrcidWorks`, `AcademicWorks`, and `PublicationSummaries` to lossless Unicode text. Apply migrations normally at application startup; this migration alters the application database in place and does not require deleting or resetting it.
+
+If another bounded provider field exceeds its schema, single `Collect` returns `FailureCode: "PersistenceDataTooLong"`; the bulk job becomes terminal `Failed` and is not automatically retried.
 
 Production must apply the application's BYS authorization to these operational endpoints, as with the existing collection endpoints. The standalone host still uses its development permission service.
 

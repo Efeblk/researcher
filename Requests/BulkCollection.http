@@ -35,6 +35,8 @@ Content-Type: application/json
 # durable job keeps the original row separately; Scopus is retained but not collected.
 
 ### Read aggregate progress and the first page of results
+# Jobs[].StartedAt and Jobs[].CompletedAt are UTC timestamps. CompletedAt stays
+# null for Pending, Running, and RetryWaiting rows.
 POST {{bulk}}/Status
 Content-Type: application/json
 

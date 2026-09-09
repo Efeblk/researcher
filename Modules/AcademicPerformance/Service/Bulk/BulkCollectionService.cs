@@ -108,6 +108,8 @@ public sealed class BulkCollectionService(
                     Status = job.Status,
                     Attempts = job.Attempts,
                     NextAttemptAt = job.NextAttemptAt,
+                    StartedAt = job.StartedAt,
+                    CompletedAt = job.CompletedAt,
                     Message = job.ResultMessage,
                     Warnings = ReadPersisted(job.InputJson).Warnings
                 }).ToList()
