@@ -296,6 +296,125 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
     }
 
     [Fact]
+    public async Task ProcessNextAsync_OnlyLocalDeferral_DoesNotConsumeAttempt()
+    {
+        await using var services = BuildServices(new FakeApplicationService(true, localDeferral: true), new()
+        {
+            ["BulkCollection:MaximumAttempts"] = "1"
+        });
+        using var scope = services.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<BulkCollectionService>();
+        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        await db.BulkCollectionJobs.Where(job => job.Status == BulkJobStatus.Pending ||
+                job.Status == BulkJobStatus.RetryWaiting)
+            .ExecuteUpdateAsync(update => update.SetProperty(job => job.NextAttemptAt,
+                DateTime.UtcNow.AddDays(5)));
+        var input = Input();
+        await service.SubmitAsync(input);
+        var processor = scope.ServiceProvider.GetRequiredService<BulkJobProcessor>();
+        await processor.ProcessNextAsync();
+
+        var result = await service.GetStatusAsync(new() { BatchId = input.BatchId });
+        Assert.Equal(BulkJobStatus.RetryWaiting, result.Jobs.Single().Status);
+        Assert.Equal(0, result.Jobs.Single().Attempts);
+
+        await db.BulkCollectionJobs.Where(job => job.BatchId == input.BatchId)
+            .ExecuteUpdateAsync(update => update.SetProperty(job => job.NextAttemptAt, DateTime.UtcNow));
+        db.ChangeTracker.Clear();
+        await processor.ProcessNextAsync();
+        result = await service.GetStatusAsync(new() { BatchId = input.BatchId });
+        Assert.Equal(BulkJobStatus.RetryWaiting, result.Jobs.Single().Status);
+        Assert.Equal(0, result.Jobs.Single().Attempts);
+    }
+
+    [Fact]
+    public async Task ProcessNextAsync_ExceptionAfterLocalDeferral_ConsumesAttempt()
+    {
+        await using var services = BuildServices(
+            new FakeApplicationService(true, localDeferral: true, throwAfterFailure: true), new()
+            {
+                ["BulkCollection:MaximumAttempts"] = "1"
+            });
+        using var scope = services.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<BulkCollectionService>();
+        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        await db.BulkCollectionJobs.Where(job => job.Status == BulkJobStatus.Pending ||
+                job.Status == BulkJobStatus.RetryWaiting)
+            .ExecuteUpdateAsync(update => update.SetProperty(job => job.NextAttemptAt,
+                DateTime.UtcNow.AddDays(5)));
+        var input = Input();
+        await service.SubmitAsync(input);
+        await scope.ServiceProvider.GetRequiredService<BulkJobProcessor>().ProcessNextAsync();
+
+        var result = await service.GetStatusAsync(new() { BatchId = input.BatchId });
+        Assert.Equal(BulkJobStatus.Failed, result.Jobs.Single().Status);
+        Assert.Equal(1, result.Jobs.Single().Attempts);
+    }
+
+    [Fact]
+    public async Task ProcessNextAsync_LocalAndDisabledFailures_DoNotConsumeAttempt()
+    {
+        await using var services = BuildServices(
+            new FakeApplicationService(true, localDeferral: true, nonretryableFailure: true), new()
+            {
+                ["BulkCollection:MaximumAttempts"] = "1"
+            });
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        await DeferExistingJobsAsync(db);
+        var service = scope.ServiceProvider.GetRequiredService<BulkCollectionService>();
+        var input = Input();
+        await service.SubmitAsync(input);
+        await scope.ServiceProvider.GetRequiredService<BulkJobProcessor>().ProcessNextAsync();
+
+        var result = await service.GetStatusAsync(new() { BatchId = input.BatchId });
+        Assert.Equal(BulkJobStatus.RetryWaiting, result.Jobs.Single().Status);
+        Assert.Equal(0, result.Jobs.Single().Attempts);
+    }
+
+    [Fact]
+    public async Task ProcessNextAsync_LocalAndActualRetryableFailures_ConsumeAttempt()
+    {
+        await using var services = BuildServices(
+            new FakeApplicationService(true, localDeferral: true, actualFailure: true), new()
+            {
+                ["BulkCollection:MaximumAttempts"] = "1"
+            });
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        await DeferExistingJobsAsync(db);
+        var service = scope.ServiceProvider.GetRequiredService<BulkCollectionService>();
+        var input = Input();
+        await service.SubmitAsync(input);
+        await scope.ServiceProvider.GetRequiredService<BulkJobProcessor>().ProcessNextAsync();
+
+        var result = await service.GetStatusAsync(new() { BatchId = input.BatchId });
+        Assert.Equal(BulkJobStatus.Partial, result.Jobs.Single().Status);
+        Assert.Equal(1, result.Jobs.Single().Attempts);
+    }
+
+    [Fact]
+    public async Task ProcessNextAsync_PersistenceFailureAfterLocalDeferral_ConsumesAttempt()
+    {
+        await using var services = BuildServices(
+            new FakeApplicationService(true, "PersistenceFailure", localDeferral: true), new()
+            {
+                ["BulkCollection:MaximumAttempts"] = "1"
+            });
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        await DeferExistingJobsAsync(db);
+        var service = scope.ServiceProvider.GetRequiredService<BulkCollectionService>();
+        var input = Input();
+        await service.SubmitAsync(input);
+        await scope.ServiceProvider.GetRequiredService<BulkJobProcessor>().ProcessNextAsync();
+
+        var result = await service.GetStatusAsync(new() { BatchId = input.BatchId });
+        Assert.Equal(BulkJobStatus.Failed, result.Jobs.Single().Status);
+        Assert.Equal(1, result.Jobs.Single().Attempts);
+    }
+
+    [Fact]
     public async Task Api_SubmitAndStatus_ReturnsDurableBatchWithoutRunningProviders()
     {
         using var host = new HostProcess(fixture.ConnectionString);
@@ -319,7 +438,7 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
     {
         var settings = extra ?? [];
         settings["ConnectionStrings:AcademicDatabase"] = fixture.ConnectionString;
-        settings["BulkCollection:MaximumAttempts"] = "2";
+        settings.TryAdd("BulkCollection:MaximumAttempts", "2");
         IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
         ServiceCollection services = new();
         services.AddLogging();
@@ -329,14 +448,25 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
         return services.BuildServiceProvider();
     }
 
-    private sealed class FakeApplicationService(bool fail, string? failureCode = null) : IAcademicPerformanceApplicationService
+    private static Task DeferExistingJobsAsync(AcademicDbContext database) =>
+        database.BulkCollectionJobs.Where(job => job.Status == BulkJobStatus.Pending ||
+                job.Status == BulkJobStatus.RetryWaiting)
+            .ExecuteUpdateAsync(update => update.SetProperty(job => job.NextAttemptAt,
+                DateTime.UtcNow.AddDays(5)));
+
+    private sealed class FakeApplicationService(bool fail, string? failureCode = null,
+        bool localDeferral = false, bool throwAfterFailure = false, bool actualFailure = false,
+        bool nonretryableFailure = false) : IAcademicPerformanceApplicationService
     {
         public AcademicDataCollectRequest? LastRequest { get; private set; }
 
         public Task<AcademicDataResponse> CollectAsync(AcademicDataCollectRequest request)
         {
             LastRequest = request;
-            if (fail) ProviderCallScope.Record("WebOfScience", true, DateTime.UtcNow.AddHours(1));
+            if (fail) ProviderCallScope.Record("WebOfScience", true, DateTime.UtcNow.AddHours(1), localDeferral);
+            if (actualFailure) ProviderCallScope.Record("Orcid", true, DateTime.UtcNow.AddMinutes(1));
+            if (nonretryableFailure) ProviderCallScope.Record("SearchApi", false);
+            if (throwAfterFailure) throw new HttpRequestException("Synthetic collection failure.");
             return Task.FromResult(new AcademicDataResponse
             {
                 IsSaved = failureCode is null, FailureCode = failureCode, Researcher = new()

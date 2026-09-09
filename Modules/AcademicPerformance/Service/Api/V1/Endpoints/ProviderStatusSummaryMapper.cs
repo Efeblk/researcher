@@ -22,6 +22,9 @@ public static class ProviderStatusSummaryMapper
 
     private static string MapHealth(ProviderStatusDto provider, DateTime now)
     {
+        if (provider.Status == "Disabled")
+            return "Disabled";
+
         if (provider.Provider == "Orcid" && provider.ReportedHealth is { } reported)
         {
             if (reported.ObservedAt <= now && reported.ExpiresAt > now)

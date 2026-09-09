@@ -53,6 +53,7 @@
       "DailyRequestLimit": 25000
     },
     "SearchApi": {
+      "Enabled": false,
       "MinimumIntervalMilliseconds": 2000,
       "DailyRequestLimit": 0
     },

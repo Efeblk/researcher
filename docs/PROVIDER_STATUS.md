@@ -26,7 +26,7 @@ collector produced a snapshot; each provider has its own health result.
 
 `health` is ORCID's current official reported health when available. For other providers,
 `Reachable` means a current successful transport with the expected response shape. Failures
-are reported as `Unavailable`, `Unauthorized`, `RateLimited`, or `Unknown`.
+are reported as `Unavailable`, `Unauthorized`, `RateLimited`, `Disabled`, or `Unknown`.
 
 `quotas` contains only provider-reported account or API-key windows with verified scope,
 unit, and period. An empty list means the quota is unknown. It never means unlimited.

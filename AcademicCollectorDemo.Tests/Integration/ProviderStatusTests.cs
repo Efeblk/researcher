@@ -4,6 +4,7 @@ using System.Text.Json;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Endpoints;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Status;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
 using AcademicCollectorDemo.Tests.Infrastructure;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -64,6 +65,51 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
             provider => Assert.Equal("Unavailable", provider.RemainingUsage.Status));
         Assert.All(response.Providers.Where(provider => provider.Status != "NotConfigured"),
             provider => Assert.Equal("UnexpectedResponse", provider.Status));
+    }
+
+    [Fact]
+    public async Task GetAsync_DisabledSearchApi_OverridesMissingCredentialsAndMakesNoRequest()
+    {
+        List<string> requestedHosts = [];
+        using StubHttpHandler handler = new(request =>
+        {
+            lock (requestedHosts)
+                requestedHosts.Add(request.RequestUri!.Host);
+            return StubHttpHandler.Json("{}");
+        });
+        using HttpClient client = new(handler);
+        ProviderStatusResponse response = await CreateService(client, false, searchApiEnabled: false)
+            .GetAsync(default);
+
+        Assert.Equal("Disabled", response.Providers.Single(provider => provider.Provider == "SearchApi").Status);
+        Assert.DoesNotContain("search.test", requestedHosts);
+    }
+
+    [Fact]
+    public async Task GetAsync_ProviderRequestsCarryOneMegabyteBufferLimit()
+    {
+        using StubHttpHandler handler = new(request =>
+        {
+            if (request.RequestUri!.Host == "search.test")
+            {
+                Assert.True(request.Options.TryGetValue(ProviderRateLimitHandler.ResponseBufferLimit,
+                    out long bufferLimit));
+                Assert.Equal(1024 * 1024, bufferLimit);
+            }
+            return request.RequestUri.Host switch
+            {
+                "orcid.test" => StubHttpHandler.Json(
+                    """{"tomcatUp":true,"dbConnectionOk":true,"readOnlyDbConnectionOk":true,"overallOk":true}"""),
+                "search.test" => Account(request),
+                "openalex.test" => StubHttpHandler.Json("""{"results":[]}"""),
+                "wos.test" => StubHttpHandler.Json("""{"metadata":{}}"""),
+                "yoksis.test" => new(HttpStatusCode.OK) { Content = new StringContent(
+                    "<definitions xmlns='http://schemas.xmlsoap.org/wsdl/'/>") },
+                _ => StubHttpHandler.Json("""{"status":"Running"}""")
+            };
+        });
+        using HttpClient client = new(handler);
+        await CreateService(client).GetAsync(default);
     }
 
     [Fact]
@@ -223,7 +269,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
     }
 
     private ProviderStatusService CreateService(HttpClient client, bool credentials = true,
-        bool openAlexKey = false)
+        bool openAlexKey = false, bool searchApiEnabled = true)
     {
         Dictionary<string, string?> settings = new()
         {
@@ -236,6 +282,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
             ["AnalysisService:BaseUrl"] = "https://analysis.test",
             ["ProviderRequestLimits:Orcid:DailyRequestLimit"] = "2"
         };
+        settings["ProviderRequestLimits:SearchApi:Enabled"] = searchApiEnabled.ToString();
         if (credentials)
             foreach (string key in new[] { "SearchApi:ApiKey", "WebOfScience:ApiKey", "Yoksis:Username", "Yoksis:Password" })
                 settings[key] = "synthetic";

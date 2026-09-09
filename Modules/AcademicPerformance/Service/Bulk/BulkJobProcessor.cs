@@ -50,6 +50,8 @@ public sealed class BulkJobProcessor(
         using ProviderCallScope providerCalls = new(cancellationToken);
         bool saved = false;
         bool retryable = false;
+        bool collectionReturnedNormally = false;
+        bool collectionHasFailureCode = false;
         try
         {
             BulkResearcherInput input = BulkCollectionService.ReadPersisted(job.InputJson).Input;
@@ -64,6 +66,8 @@ public sealed class BulkJobProcessor(
                 WebOfScienceResearcherId = input.WebOfScienceId,
                 ScopusId = input.ScopusId
             });
+            collectionReturnedNormally = true;
+            collectionHasFailureCode = response.FailureCode is not null;
             saved = response.IsSaved;
             bool persistenceDataTooLong = response.FailureCode == "PersistenceDataTooLong";
             bool hasErrors = providerCalls.Failures.Count > 0 ||
@@ -99,6 +103,12 @@ public sealed class BulkJobProcessor(
             job.ResultMessage = "Collection failed; a retry may be scheduled.";
         }
 
+        bool onlyLocalDeferrals = retryable && collectionReturnedNormally && !collectionHasFailureCode &&
+            providerCalls.Failures.Any(failure => failure.Retryable) &&
+            providerCalls.Failures.Where(failure => failure.Retryable)
+                .All(failure => failure.IsLocalDeferral);
+        if (onlyLocalDeferrals)
+            job.Attempts--;
         if (retryable && job.Attempts < options.Value.MaximumAttempts)
         {
             job.Status = BulkJobStatus.RetryWaiting;

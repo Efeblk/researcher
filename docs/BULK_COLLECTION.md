@@ -139,6 +139,18 @@ Each provider has settings under `ProviderRequestLimits`: `Orcid`, `SearchApi`, 
 | --- | --- |
 | `MinimumIntervalMilliseconds` | Minimum spacing between HTTP requests for that provider. |
 | `DailyRequestLimit` | Application-side request cap per UTC day; `0` means no daily cap enforced by this application. |
+| `Enabled` | Whether this deployment may call the provider. Disabled providers make no HTTP request and do not trigger automatic retries on their own. |
+
+Pacing, daily caps, and provider cooldowns are shared by application instances that use the same
+SQL database. Transport failures and response-body failures establish a one-minute shared cooldown;
+a longer provider `Retry-After` value remains authoritative even when reading the body later fails.
+The next request is spaced from completion of the prior response, which is deliberately conservative.
+Local cap and cooldown deferrals return to the durable queue without exhausting the job's retry
+attempts. Coordination cannot account for other applications that share the same provider key or IP.
+
+SearchApi collection is disabled by default because the available account quota is exhausted. Set
+`ProviderRequestLimits:SearchApi:Enabled` to `true` only after verifying the active plan and setting
+limits that fit its quota.
 
 Defaults now follow the [repository provider reports](API_OZET_RAPORU.md), with spacing below the published ceilings. Official sources were rechecked on 6 September 2026.
 
