@@ -14,8 +14,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  classify-changes:
+    uses: ./.github/workflows/classify-changes.yml
+
   windows-build:
     name: Windows build
+    needs: classify-changes
+    if: always() && needs.classify-changes.outputs.run_ci != 'false'
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
@@ -58,6 +63,8 @@ jobs:
 
   build:
     name: Build
+    needs: classify-changes
+    if: always() && needs.classify-changes.outputs.run_ci != 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
