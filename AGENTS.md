@@ -20,6 +20,8 @@ See `docs/CODEBASE_GUIDE.md` for the request flow and folder map. Tests are grou
 
 Run `dotnet test AcademicCollectorDemo.Tests/AcademicCollectorDemo.Tests.csproj`, `npm run typecheck`, and `npm test`. Also verify affected endpoints. SQL tests use LocalDB on Windows or `ACADEMIC_TEST_SQLSERVER`; they never read the application's database configuration.
 
+Changes limited to `.md`, `.txt`, and `.rst` documentation text or common ignore files (`.gitignore`, `.dockerignore`, `.npmignore`, `.ignore`, `.prettierignore`, and `.eslintignore`) do not require application builds or tests. Changes to code, other configuration, request examples, SQL, JSON, YAML, or other file types require the relevant checks.
+
 ## Coding Style & Naming Conventions
 
 Use four-space indentation. Use PascalCase for types, methods, and public properties; camelCase for parameters and locals; `_camelCase` for private fields. Keep fields and properties at the top of each class. Initialize nullable reference members with `null` when no value exists. Keep provider DTOs and clients in their integration folder, exposing normalized data through shared researcher/work models. Run `dotnet format` before broad formatting changes.
