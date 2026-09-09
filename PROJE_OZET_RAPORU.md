@@ -8,6 +8,7 @@
 - [x] **Summary data:** Tekilleştirilmiş yayınlar `PublicationSummaries` tablosunda.
 - [x] **Service / V1 API:** Client bağımsız, Serenity uyumlu toplama ve yayın API'si.
 - [x] **SQL Server:** FluentMigrator migration'ları ve kalıcı veri katmanı.
+- [x] **Sağlayıcı metrikleri:** WoS, OpenAlex ve Scholar metrikleri `Researchers` tablosunda `PersonelID` bazında sorgulanabilir.
 - [x] **Web client:** Profil, yayın listesi ve okulda gösterilecek yayın seçimi.
 - [x] **ORCID:** Profil ve eser toplama.
 - [x] **Google Scholar / SearchApi:** Profil, metrik ve yayın toplama.

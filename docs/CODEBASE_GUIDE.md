@@ -82,6 +82,16 @@ YÖKSİS has its own collection handler and SOAP operation catalog under `Integr
 
 OpenAlex provider profile and raw works remain stored separately, while normalized OpenAlex works enter the shared publication list and DOI/title-year deduplication. Public V1 DTOs are separate from EF entities and UI-only contracts.
 
+Provider metrics are also materialized as nullable columns on `Researchers` for simple reporting by `PersonelID`. The provider profile tables remain the source of truth. For example:
+
+```sql
+SELECT PersonelID, WosCitationCount, WosHIndex,
+       OpenAlexCitationCount, OpenAlexHIndex, OpenAlexI10Index,
+       ScholarCitationCount, ScholarHIndex, ScholarI10Index
+FROM Researchers
+WHERE PersonelID = @PersonelID;
+```
+
 ## Find the right file for a change
 
 | What you want to change | Start here |
