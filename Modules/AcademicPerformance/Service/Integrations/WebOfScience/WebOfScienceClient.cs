@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 
@@ -16,13 +17,16 @@ public sealed class WebOfScienceClient
 
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
+    private readonly ILogger<WebOfScienceClient>? _logger;
 
     public WebOfScienceClient(
         HttpClient httpClient,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        ILogger<WebOfScienceClient>? logger = null)
     {
         _httpClient = httpClient;
         _configuration = configuration;
+        _logger = logger;
     }
 
     public async Task FillResearcherAsync(
@@ -70,11 +74,29 @@ public sealed class WebOfScienceClient
 
         do
         {
+            _logger?.LogInformation(
+                "Web of Science {DatabaseId} page {Page} request started; configured maximum is {MaximumPages} pages.",
+                databaseId,
+                page,
+                maximumPages);
+
             responseJson = await GetJsonAsync(
                 $"documents?q={query}&db={Uri.EscapeDataString(databaseId)}" +
                 $"&page={page}&limit={DocumentsPageSize}&sortField=PY%2BD");
             pages.Add(responseJson);
             (total, limit) = ReadPagination(responseJson, DocumentsPageSize);
+            long computedPageCount = total <= 0
+                ? 0
+                : ((long)total + limit - 1) / limit;
+
+            _logger?.LogInformation(
+                "Web of Science {DatabaseId} page {Page} response received and parsed; provider total is {ProviderTotal}, computed page count is {ComputedPageCount}, and configured maximum is {MaximumPages}.",
+                databaseId,
+                page,
+                total,
+                computedPageCount,
+                maximumPages);
+
             if ((long)page * limit < total && page >= maximumPages)
                 throw new HttpRequestException("Web of Science sayfa sınırı aşıldı; eksik veri kaydedilmedi.");
             page++;
