@@ -9,6 +9,10 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Endpoints;
 public sealed class ProviderStatusEndpoint : ServiceEndpoint
 {
     [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-    public Task<ProviderStatusResponse> ProviderStatus([FromServices] ProviderStatusService service,
-        CancellationToken cancellationToken) => service.GetAsync(cancellationToken);
+    public async Task<ProviderStatusSummaryResponse> ProviderStatus(
+        [FromServices] ProviderStatusService service, CancellationToken cancellationToken)
+    {
+        ProviderStatusResponse response = await service.GetAsync(cancellationToken);
+        return ProviderStatusSummaryMapper.Map(response, DateTime.UtcNow);
+    }
 }

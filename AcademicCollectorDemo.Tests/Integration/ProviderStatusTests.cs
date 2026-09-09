@@ -103,11 +103,12 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
     [Fact]
     public async Task ProviderStatus_HttpGet_ReturnsSixProvidersAndNoStore()
     {
-        using HttpClient upstream = new(new StubHttpHandler(_ => StubHttpHandler.Json("{}")));
+        using HttpClient upstream = new(new StubHttpHandler(request =>
+            request.RequestUri!.Host == "search.test" ? Account(request) : StubHttpHandler.Json("{}")));
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Logging.ClearProviders();
-        builder.Services.AddSingleton(CreateService(upstream, false));
+        builder.Services.AddSingleton(CreateService(upstream));
         builder.Services.AddControllers().AddApplicationPart(typeof(ProviderStatusEndpoint).Assembly);
         await using var app = builder.Build();
         app.MapControllers();
@@ -117,13 +118,25 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.True(response.Headers.CacheControl?.NoStore);
         string json = await response.Content.ReadAsStringAsync();
-        Assert.Contains("\"remainingUsage\"", json);
-        Assert.Contains("\"reason\"", json);
-        var body = JsonSerializer.Deserialize<ProviderStatusResponse>(json,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-        Assert.Equal(6, body!.Providers.Count);
-        Assert.True(body.ExpiresAt > body.CheckedAt);
-        Assert.All(body.Providers, provider => Assert.NotNull(provider.RemainingUsage));
+        using JsonDocument document = JsonDocument.Parse(json);
+        JsonElement root = document.RootElement;
+        Assert.Equal(["providers"], root.EnumerateObject().Select(property => property.Name));
+        JsonElement[] providers = root.GetProperty("providers").EnumerateArray().ToArray();
+        Assert.Equal(6, providers.Length);
+        Assert.All(providers, provider => Assert.Equal(
+            ["provider", "health", "quotas"],
+            provider.EnumerateObject().Select(property => property.Name)));
+        JsonElement quota = providers.Single(provider =>
+            provider.GetProperty("provider").GetString() == "SearchApi")
+            .GetProperty("quotas").EnumerateArray().First();
+        Assert.Equal(
+            ["limit", "remaining", "unit", "period", "resetsAt"],
+            quota.EnumerateObject().Select(property => property.Name));
+        Assert.DoesNotContain("message", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("reason", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("remainingUsage", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("localBudget", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("checkedAt", json, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
