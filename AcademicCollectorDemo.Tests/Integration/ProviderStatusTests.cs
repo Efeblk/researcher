@@ -22,7 +22,8 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
     {
         using StubHttpHandler handler = new(request => request.RequestUri!.Host switch
         {
-            "orcid.test" => StubHttpHandler.Json("{\"num-found\":0}"),
+            "orcid.test" => StubHttpHandler.Json(
+                """{"tomcatUp":true,"dbConnectionOk":true,"readOnlyDbConnectionOk":true,"overallOk":true}"""),
             "search.test" => Account(request),
             "openalex.test" => Limited(),
             "wos.test" => new(HttpStatusCode.Unauthorized),
@@ -143,7 +144,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         Dictionary<string, string?> settings = new()
         {
             ["ConnectionStrings:AcademicDatabase"] = fixture.ConnectionString,
-            ["Orcid:ApiBaseUrl"] = "https://orcid.test/v3.0",
+            ["Orcid:ApiBaseUrl"] = "https://orcid.test/v3.0/" + Guid.NewGuid().ToString("N"),
             ["SearchApi:ApiBaseUrl"] = "https://search.test/api/v1/search",
             ["OpenAlex:ApiBaseUrl"] = "https://openalex.test",
             ["WebOfScience:ApiBaseUrl"] = "https://wos.test/v1",
