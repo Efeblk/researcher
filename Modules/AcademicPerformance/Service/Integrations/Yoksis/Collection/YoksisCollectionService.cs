@@ -12,7 +12,7 @@ public sealed class YoksisCollectionService
     public async Task<YoksisCollectResponse> CollectAsync(
         YoksisCollectRequest request)
     {
-        string? tcKimlikNo = ValidateTcKimlikNo(request.TcKimlikNo);
+        string tcKimlikNo = ValidateTcKimlikNo(request.TcKimlikNo);
         YoksisCollectResponse? response = new YoksisCollectResponse();
         response.CollectedAt = DateTime.UtcNow;
 
@@ -187,7 +187,7 @@ public sealed class YoksisCollectionService
             $"{result.Errors.FirstOrDefault() ?? result.ResultMessage ?? "Veri alınamadı."}");
     }
 
-    private static string ValidateTcKimlikNo(string? value)
+    internal static string ValidateTcKimlikNo(string? value)
     {
         string? tcKimlikNo = value?.Trim();
 

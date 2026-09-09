@@ -48,6 +48,8 @@ public sealed class YoksisCollectionHandler
         if (request.PersonelId.Trim().Length > 200)
             throw new ArgumentException("PersonelID must be at most 200 characters.");
         string personelId = request.PersonelId.Trim();
+        string tcKimlikNo = YoksisCollectionService.ValidateTcKimlikNo(
+            request.TcKimlikNo);
 
         YoksisCollectResponse? response = await _collectionService.CollectAsync(request);
 
@@ -58,6 +60,7 @@ public sealed class YoksisCollectionHandler
 
             Researcher? requestedResearcher = CreateResearcher(response);
             requestedResearcher.PersonelId = personelId;
+            requestedResearcher.TcKimlikNo = tcKimlikNo;
             Researcher? researcher = await ResolveResearcherAsync(
                 requestedResearcher);
             await _researcherRepository.SaveAsync(researcher);
@@ -127,7 +130,6 @@ public sealed class YoksisCollectionHandler
             return researcher;
         }
 
-        researcher.YoksisResearcherId = Get(identityRecord, "ARASTIRMACI_ID");
         researcher.Orcid = NormalizeOrcid(Get(identityRecord, "ORCID"));
         researcher.WebOfScienceResearcherId = NormalizeResearcherId(
             Get(identityRecord, "RESEARCHER_ID"));

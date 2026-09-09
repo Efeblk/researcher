@@ -25,7 +25,7 @@ olduğu anlamına gelmez.
 - `POST /Services/AcademicPerformance/V1/Yoksis/Collect`: 21 kategori ve makale/bildiri/kitap/proje/patent detaylarını toplar.
 - **21 kategori + 30 detay = 51 SOAP çağrısı**. Çağrılar tek toplama içinde sıralıdır.
 - Kayıtlar `YoksisRecords`'a, yayınlar `AcademicWorks` ve `PublicationSummaries`'e işlenir.
-- Ham kayıt/XML varsayılan yanıtta yoktur. T.C. kimlik numarası saklanmaz veya loglanmaz; kurumsal yetki kontrolü zorunludur.
+- Ham kayıt/XML varsayılan yanıtta yoktur. Sorgulanan T.C. kimlik numarası yalnızca akademisyen kaydındaki `TcKimlikNo` alanında saklanır ve loglanmaz; kurumsal yetki kontrolü zorunludur.
 
 Kaynak: [Resmî WSDL](https://servisler.yok.gov.tr/ws/OzgecmisV2?wsdl)
 (son incelemede canlı okunamadı).
