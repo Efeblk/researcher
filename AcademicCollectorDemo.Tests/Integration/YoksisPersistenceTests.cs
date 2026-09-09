@@ -23,7 +23,7 @@ public sealed class YoksisPersistenceTests(SqlServerFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
         var researcher = new Researcher
         {
-            PersonelId = "test-" + Guid.NewGuid().ToString("N"), YoksisResearcherId = "synthetic-" + Guid.NewGuid().ToString("N") };
+            PersonelId = "test-" + Guid.NewGuid().ToString("N") };
         db.Researchers.Add(researcher);
         await db.SaveChangesAsync();
         db.YoksisRecords.Add(new() { PersonelId = researcher.PersonelId, CategoryName = "Makaleler", OperationName = "getMakaleBilgisiDetayV1", ExternalRecordId = "old", RecordJson = "{}", CollectedAt = DateTime.UtcNow });
@@ -46,13 +46,70 @@ public sealed class YoksisPersistenceTests(SqlServerFixture fixture)
             new(db), new(db), new ResearcherRepository(db), summaries, db);
         var response = await handler.CollectAsync(new()
         {
-            PersonelId = researcher.PersonelId, TcKimlikNo = new string('1', 11), UpdatedAfter = DateTime.UtcNow.AddDays(-1)
+            PersonelId = researcher.PersonelId, TcKimlikNo = "  " + new string('1', 11) + "  ", UpdatedAfter = DateTime.UtcNow.AddDays(-1)
         });
 
         Assert.True(response.IsSaved, string.Join("\n", response.Messages));
+        Assert.Equal(new string('1', 11),
+            (await db.Researchers.FindAsync(researcher.PersonelId))!.TcKimlikNo);
         Assert.True(await db.YoksisRecords.AnyAsync(x => x.PersonelId == researcher.PersonelId));
         Assert.True(await db.AcademicWorks.AnyAsync(x => x.PersonelId == researcher.PersonelId));
         Assert.True(await db.PublicationDisplayApprovals.AnyAsync(x => x.PublicationSummaryId == summary.Id));
+    }
+
+    [Fact]
+    public async Task CollectAsync_IdentityResponseHasDifferentResearcherId_PersistsRequestedTcKimlikNo()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        string personelId = "test-" + Guid.NewGuid().ToString("N");
+        string tcKimlikNo = new string('2', 11);
+        var http = new HttpClient(new StubHttpHandler(_ => StubHttpHandler.Json(
+            "<Envelope><Body><Response><Sonuc><SonucKod>1</SonucKod></Sonuc>" +
+            "<Record><ARASTIRMACI_ID>provider-researcher-id</ARASTIRMACI_ID></Record>" +
+            "</Response></Body></Envelope>")));
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Yoksis:Username"] = Guid.NewGuid().ToString("N"),
+            ["Yoksis:Password"] = Guid.NewGuid().ToString("N")
+        }).Build();
+        var summaries = new PublicationSummarySynchronizer(db);
+        var handler = new YoksisCollectionHandler(new YoksisCollectionService(new(http, config)),
+            new(db), new(db), new ResearcherRepository(db), summaries, db);
+
+        var response = await handler.CollectAsync(new()
+        {
+            PersonelId = personelId,
+            TcKimlikNo = tcKimlikNo
+        });
+
+        Assert.True(response.IsSaved, string.Join("\n", response.Messages));
+        Researcher saved = (await db.Researchers.FindAsync(personelId))!;
+        Assert.Equal(tcKimlikNo, saved.TcKimlikNo);
+        Assert.NotEqual("provider-researcher-id", saved.TcKimlikNo);
+    }
+
+    [Fact]
+    public async Task SaveAsync_DuplicateTcKimlikNo_RejectsDifferentPersonnel()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        string tcKimlikNo = new string('3', 11);
+        db.Researchers.Add(new Researcher
+        {
+            PersonelId = "test-" + Guid.NewGuid().ToString("N"),
+            TcKimlikNo = tcKimlikNo
+        });
+        await db.SaveChangesAsync();
+        var repository = new ResearcherRepository(db);
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() => repository.SaveAsync(new Researcher
+        {
+            PersonelId = "test-" + Guid.NewGuid().ToString("N"),
+            TcKimlikNo = tcKimlikNo
+        }));
+
+        Assert.Contains("PersonelID", exception.Message);
     }
 
     [Fact]

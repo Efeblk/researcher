@@ -28,7 +28,7 @@ internal static class AcademicPerformanceDtoMapper
             ScopusId = researcher.ScopusId,
             GoogleScholarId = researcher.GoogleScholarId,
             WebOfScienceResearcherId = researcher.WebOfScienceResearcherId,
-            YoksisResearcherId = researcher.YoksisResearcherId,
+            TcKimlikNo = researcher.TcKimlikNo,
             LastUpdatedAt = researcher.LastUpdatedAt,
             OrcidProfile = MapOrcidProfile(researcher.OrcidProfile),
             GoogleScholarProfile = MapGoogleScholarProfile(
