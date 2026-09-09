@@ -161,6 +161,12 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
                 name == "SearchApi" ? "AccountUsage" : name == "OpenAlex" &&
                 !string.IsNullOrWhiteSpace(configuration["OpenAlex:ApiKey"]) ? "AccountQuota" :
                 name == "AnalysisService" ? "ServiceHealth" : "ApiRequest" };
+        if (name != "AnalysisService" &&
+            !configuration.GetValue($"ProviderRequestLimits:{name}:Enabled", true))
+        {
+            result.Status = result.Transport.Status = "Disabled";
+            return result;
+        }
         if ((name is "SearchApi" or "WebOfScience") && string.IsNullOrWhiteSpace(configuration[name + ":ApiKey"]) ||
             name == "Yoksis" && (string.IsNullOrWhiteSpace(configuration["Yoksis:Username"]) ||
                 string.IsNullOrWhiteSpace(configuration["Yoksis:Password"])))
@@ -174,6 +180,7 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
         try
         {
             using HttpRequestMessage request = CreateRequest(name, baseUrl);
+            request.Options.Set(ProviderRateLimitHandler.ResponseBufferLimit, 1024L * 1024);
             using HttpClient? healthClient = name == "AnalysisService" ? clientFactory.CreateClient("ProviderStatus") : null;
             using HttpResponseMessage response = await (healthClient ?? httpClient).SendAsync(
                 request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
@@ -181,6 +188,7 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
             result.CheckedAt = DateTime.UtcNow;
             result.Status = (int)response.StatusCode switch
             {
+                _ when response.Headers.Contains("X-Academic-Provider-Disabled") => "Disabled",
                 >= 200 and < 300 => name == "Yoksis" ? "Reachable" : "Healthy",
                 401 or 403 => "Unauthorized",
                 429 => response.Headers.Contains("X-Academic-Local-Deferral") ? "LocallyLimited" : "RateLimited",

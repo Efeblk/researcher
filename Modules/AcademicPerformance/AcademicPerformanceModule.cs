@@ -100,6 +100,7 @@ public static class AcademicPerformanceModule
                 throw new InvalidOperationException($"Invalid request limits for {name}.");
             policies.Add(new()
             {
+                Enabled = configuration.GetValue($"ProviderRequestLimits:{name}:Enabled", true),
                 Name = name,
                 Host = new Uri(configuration[key] ?? defaultUrl).Host,
                 MinimumIntervalMilliseconds = interval,

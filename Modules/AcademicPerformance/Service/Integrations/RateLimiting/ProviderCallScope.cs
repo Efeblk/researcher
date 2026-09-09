@@ -8,6 +8,7 @@ public sealed class ProviderCallScope : IDisposable
     private readonly ProviderCallScope? _previous = Current.Value;
     private int _requestOrdinal;
     public List<ProviderCallFailure> Failures { get; } = [];
+    public int RequestsStarted => _requestOrdinal;
     public static CancellationToken Cancellation => Current.Value?._cancellationToken ?? CancellationToken.None;
     public static bool IsActive => Current.Value is not null;
     private readonly CancellationToken _cancellationToken;
@@ -18,8 +19,9 @@ public sealed class ProviderCallScope : IDisposable
         Current.Value = this;
     }
 
-    public static void Record(string provider, bool retryable, DateTime? retryAt = null)
-        => Current.Value?.Failures.Add(new(provider, retryable, retryAt));
+    public static void Record(string provider, bool retryable, DateTime? retryAt = null,
+        bool isLocalDeferral = false)
+        => Current.Value?.Failures.Add(new(provider, retryable, retryAt, isLocalDeferral));
 
     public static int NextRequestOrdinal() => Current.Value is null ? 0 : ++Current.Value._requestOrdinal;
 

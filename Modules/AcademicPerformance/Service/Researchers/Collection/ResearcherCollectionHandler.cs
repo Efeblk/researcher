@@ -105,7 +105,10 @@ public sealed class ResearcherCollectionHandler
                 response.Messages.Add("[HATA] Veritabanı: Sağlayıcı metaverisi veritabanı alanına sığmadı.");
             }
             else
+            {
+                response.FailureCode = "PersistenceFailure";
                 response.Messages.Add($"[HATA] Veritabanı: {exception.Message}");
+            }
             response.Messages.Add(string.Empty);
         }
 

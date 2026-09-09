@@ -10,6 +10,9 @@ public sealed class ProviderRateLimitHandler(
     string connectionString, IReadOnlyList<ProviderRequestPolicy> policies,
     ILogger<ProviderRateLimitHandler>? logger = null) : DelegatingHandler
 {
+    public static readonly HttpRequestOptionsKey<long> ResponseBufferLimit =
+        new("AcademicCollector.ProviderResponseBufferLimit");
+
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
@@ -20,11 +23,16 @@ public sealed class ProviderRateLimitHandler(
             string.Equals(policy.Host, request.RequestUri?.Host, StringComparison.OrdinalIgnoreCase));
         if (policy is null)
             throw new InvalidOperationException("No request policy is configured for this provider host.");
+        if (!policy.Enabled)
+            return Disabled(policy.Name);
 
         HttpResponseMessage? response = null;
+        DateTime? responseRetryAt = null;
+        SqlApplicationLock? gate = null;
+        bool dispatchStarted = false;
         try
         {
-            await using SqlApplicationLock? gate = await SqlApplicationLock.TryAcquireAsync(
+            gate = await SqlApplicationLock.TryAcquireAsync(
                 connectionString, "AcademicCollector.Provider." + policy.Name, 30000, cancellationToken);
             if (gate is null)
             {
@@ -81,42 +89,82 @@ public sealed class ProviderRateLimitHandler(
             reserve.Parameters.AddWithValue("@next", now.AddMilliseconds(policy.MinimumIntervalMilliseconds));
             await reserve.ExecuteNonQueryAsync(cancellationToken);
 
+            cancellationToken.ThrowIfCancellationRequested();
             int requestOrdinal = ProviderCallScope.NextRequestOrdinal();
             if (requestOrdinal > 0)
                 logger?.LogInformation("Bulk provider request {RequestOrdinal} to {Provider} started.",
                     requestOrdinal, policy.Name);
+            dispatchStarted = true;
             response = await base.SendAsync(request, cancellationToken);
+            bool retryableResponse = response.StatusCode is HttpStatusCode.TooManyRequests or
+                HttpStatusCode.RequestTimeout || (int)response.StatusCode >= 500;
+            if (retryableResponse)
+            {
+                responseRetryAt = GetRetryAt(response, DateTime.UtcNow);
+                await PersistCooldownAsync(gate, policy.Name, responseRetryAt.Value, cancellationToken);
+            }
+            // HttpClient normally buffers content after delegating handlers return. Buffer here so a
+            // provider that sends headers and then stalls or drops the body also receives a cooldown.
+            if (request.Options.TryGetValue(ResponseBufferLimit, out long bufferLimit))
+                await response.Content.LoadIntoBufferAsync(bufferLimit, cancellationToken);
+            else
+                await response.Content.LoadIntoBufferAsync(cancellationToken);
             if (requestOrdinal > 0)
                 logger?.LogInformation("Bulk provider request {RequestOrdinal} to {Provider} returned HTTP {StatusCode}.",
                     requestOrdinal, policy.Name, (int)response.StatusCode);
             if (!response.IsSuccessStatusCode)
             {
-                bool retryable = response.StatusCode is HttpStatusCode.TooManyRequests or
-                    HttpStatusCode.RequestTimeout || (int)response.StatusCode >= 500;
-                DateTime? retryAt = null;
-                if (retryable)
-                {
-                    retryAt = GetRetryAt(response, DateTime.UtcNow);
-                    await using SqlCommand cooldown = gate.Connection.CreateCommand();
-                    cooldown.CommandText = """
-                        UPDATE ProviderRequestBudgets SET NextAllowedAt =
-                            CASE WHEN NextAllowedAt > @retry THEN NextAllowedAt ELSE @retry END
-                        WHERE Provider = @provider;
-                        """;
-                    cooldown.Parameters.AddWithValue("@provider", policy.Name);
-                    cooldown.Parameters.AddWithValue("@retry", retryAt.Value);
-                    await cooldown.ExecuteNonQueryAsync(cancellationToken);
-                }
-                ProviderCallScope.Record(policy.Name, retryable, retryAt);
+                ProviderCallScope.Record(policy.Name, retryableResponse, responseRetryAt);
             }
+            await PersistCooldownAsync(gate, policy.Name,
+                DateTime.UtcNow.AddMilliseconds(policy.MinimumIntervalMilliseconds), cancellationToken);
             return response;
         }
-        catch
+        catch (Exception exception)
         {
             response?.Dispose();
-            ProviderCallScope.Record(policy.Name, true, DateTime.UtcNow.AddMinutes(1));
+            if (dispatchStarted)
+            {
+                DateTime retryAt = DateTime.UtcNow.AddMinutes(1);
+                if (responseRetryAt is { } headerRetryAt && headerRetryAt > retryAt)
+                    retryAt = headerRetryAt;
+                ProviderCallScope.Record(policy.Name, true, retryAt);
+                if (gate is not null)
+                {
+                    using CancellationTokenSource cleanup = new(TimeSpan.FromSeconds(5));
+                    try
+                    {
+                        await PersistCooldownAsync(gate, policy.Name, retryAt, cleanup.Token);
+                    }
+                    catch (Exception cooldownException)
+                    {
+                        logger?.LogWarning(
+                            "Could not persist the {Provider} transport-failure cooldown after {ErrorType}; cleanup failed with {CleanupErrorType}.",
+                            policy.Name, exception.GetType().Name, cooldownException.GetType().Name);
+                    }
+                }
+            }
             throw;
         }
+        finally
+        {
+            if (gate is not null)
+                await gate.DisposeAsync();
+        }
+    }
+
+    private static async Task PersistCooldownAsync(SqlApplicationLock gate, string provider,
+        DateTime retryAt, CancellationToken cancellationToken)
+    {
+        await using SqlCommand cooldown = gate.Connection.CreateCommand();
+        cooldown.CommandText = """
+            UPDATE ProviderRequestBudgets SET NextAllowedAt =
+                CASE WHEN NextAllowedAt > @retry THEN NextAllowedAt ELSE @retry END
+            WHERE Provider = @provider;
+            """;
+        cooldown.Parameters.AddWithValue("@provider", provider);
+        cooldown.Parameters.AddWithValue("@retry", retryAt);
+        await cooldown.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public static DateTime GetRetryAt(HttpResponseMessage response, DateTime now)
@@ -128,13 +176,24 @@ public sealed class ProviderRateLimitHandler(
 
     private static HttpResponseMessage Deferred(string provider, DateTime retryAt)
     {
-        ProviderCallScope.Record(provider, true, retryAt);
+        ProviderCallScope.Record(provider, true, retryAt, true);
         HttpResponseMessage response = new(HttpStatusCode.TooManyRequests)
         {
             Content = new StringContent("Provider request budget is temporarily unavailable.")
         };
         response.Headers.Add("X-Academic-Local-Deferral", "true");
         response.Headers.RetryAfter = new(new DateTimeOffset(retryAt, TimeSpan.Zero));
+        return response;
+    }
+
+    private static HttpResponseMessage Disabled(string provider)
+    {
+        ProviderCallScope.Record(provider, false);
+        HttpResponseMessage response = new(HttpStatusCode.ServiceUnavailable)
+        {
+            Content = new StringContent("Provider requests are disabled by local configuration.")
+        };
+        response.Headers.Add("X-Academic-Provider-Disabled", "true");
         return response;
     }
 
