@@ -35,6 +35,27 @@ public sealed class PersonnelKeySchemaTests(SqlServerFixture fixture)
             Assert.Equal("PersonelID", (string?)await primaryKey.ExecuteScalarAsync());
         }
 
+        await using (SqlCommand tcKimlikNo = connection.CreateCommand())
+        {
+            tcKimlikNo.CommandText = """
+                SELECT COUNT(*)
+                FROM sys.columns c
+                WHERE c.object_id = OBJECT_ID('Researchers')
+                    AND c.name = 'TcKimlikNo'
+                    AND TYPE_NAME(c.user_type_id) = 'nvarchar'
+                    AND c.max_length = 22
+                    AND c.is_nullable = 1
+                    AND EXISTS (
+                        SELECT 1
+                        FROM sys.indexes i
+                        WHERE i.object_id = c.object_id
+                            AND i.name = 'IX_Researchers_TcKimlikNo'
+                            AND i.is_unique = 1
+                            AND i.filter_definition LIKE '%[[]TcKimlikNo]%IS NOT NULL%');
+                """;
+            Assert.Equal(1, Convert.ToInt32(await tcKimlikNo.ExecuteScalarAsync()));
+        }
+
         foreach (string table in directTables)
         {
             await using SqlCommand command = connection.CreateCommand();

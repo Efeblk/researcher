@@ -46,7 +46,7 @@ public sealed class InitialAcademicSchema : Migration
             .WithColumn("ORCID").AsString(19).Nullable()
             .WithColumn("ResearcherID").AsString(20).Nullable()
             .WithColumn("ScopusID").AsString(int.MaxValue).Nullable()
-            .WithColumn("YoksisResearcherId").AsString(50).Nullable()
+            .WithColumn("TcKimlikNo").AsString(11).Nullable()
             .WithColumn("LastUpdatedAt").AsDateTime().Nullable();
     }
 
@@ -317,8 +317,8 @@ public sealed class InitialAcademicSchema : Migration
             "IX_Researchers_ResearcherID",
             "ResearcherID");
         CreateResearcherIdentifierIndex(
-            "IX_Researchers_YoksisResearcherId",
-            "YoksisResearcherId");
+            "IX_Researchers_TcKimlikNo",
+            "TcKimlikNo");
 
         CreateUniqueIndex(
             "IX_OrcidProfiles_PersonelID",
