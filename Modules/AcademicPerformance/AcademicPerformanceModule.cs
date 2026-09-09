@@ -39,7 +39,8 @@ public static class AcademicPerformanceModule
             client.MaxResponseContentBufferSize = 1024 * 1024;
         }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
         services.AddScoped<ResearcherAnalysisWorkflow>();
-        services.AddSingleton(_ => CreateHttpClient(configuration));
+        services.AddSingleton(provider => CreateHttpClient(configuration,
+            provider.GetRequiredService<ILogger<ProviderRateLimitHandler>>()));
         services.AddSingleton<Integrations.Status.ProviderStatusService>();
         services.AddHttpClient("ProviderStatus", client => client.Timeout = TimeSpan.FromSeconds(15))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
@@ -80,7 +81,8 @@ public static class AcademicPerformanceModule
         return services;
     }
 
-    private static HttpClient CreateHttpClient(IConfiguration configuration)
+    private static HttpClient CreateHttpClient(IConfiguration configuration,
+        ILogger<ProviderRateLimitHandler> logger)
     {
         List<ProviderRequestPolicy> policies = [];
         foreach (var (name, key, defaultUrl) in new[]
@@ -105,7 +107,7 @@ public static class AcademicPerformanceModule
             });
         }
         ProviderRateLimitHandler handler = new(
-            configuration.GetConnectionString("AcademicDatabase")!, policies)
+            configuration.GetConnectionString("AcademicDatabase")!, policies, logger)
         {
             InnerHandler = new HttpClientHandler { AllowAutoRedirect = false }
         };

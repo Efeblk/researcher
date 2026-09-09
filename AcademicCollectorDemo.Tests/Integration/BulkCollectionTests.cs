@@ -96,6 +96,8 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
         Assert.True(await scope.ServiceProvider.GetRequiredService<BulkJobProcessor>().ProcessNextAsync());
         var status = await service.GetStatusAsync(new() { BatchId = input.BatchId });
         Assert.Equal(BulkJobStatus.Succeeded, status.Jobs.Single().Status);
+        Assert.NotNull(status.Jobs.Single().StartedAt);
+        Assert.NotNull(status.Jobs.Single().CompletedAt);
         Assert.Equal(2, status.Jobs.Single().Warnings.Count);
         var fake = (FakeApplicationService)scope.ServiceProvider.GetRequiredService<IAcademicPerformanceApplicationService>();
         Assert.Equal("0000-0002-1825-009X", fake.LastRequest!.Orcid);
@@ -185,6 +187,28 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
         status = await service.GetStatusAsync(new() { BatchId = input.BatchId });
         Assert.Equal(BulkJobStatus.Partial, status.Jobs.Single().Status);
         Assert.True(status.IsComplete);
+    }
+
+    [Fact]
+    public async Task ProcessNextAsync_PersistenceDataTooLong_DoesNotRetryProviderFailure()
+    {
+        await using var services = BuildServices(new FakeApplicationService(true, "PersistenceDataTooLong"));
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        await db.BulkCollectionJobs.Where(job => job.Status == BulkJobStatus.Pending ||
+                job.Status == BulkJobStatus.RetryWaiting)
+            .ExecuteUpdateAsync(update => update.SetProperty(job => job.NextAttemptAt, DateTime.UtcNow.AddDays(5)));
+        var service = scope.ServiceProvider.GetRequiredService<BulkCollectionService>();
+        var input = Input();
+        await service.SubmitAsync(input);
+
+        Assert.True(await scope.ServiceProvider.GetRequiredService<BulkJobProcessor>().ProcessNextAsync());
+
+        var status = await service.GetStatusAsync(new() { BatchId = input.BatchId });
+        Assert.Equal(BulkJobStatus.Failed, status.Jobs.Single().Status);
+        Assert.Equal(1, status.Jobs.Single().Attempts);
+        Assert.NotNull(status.Jobs.Single().CompletedAt);
+        Assert.Contains("metadata exceeds", status.Jobs.Single().Message);
     }
 
     [Fact]
@@ -305,7 +329,7 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
         return services.BuildServiceProvider();
     }
 
-    private sealed class FakeApplicationService(bool fail) : IAcademicPerformanceApplicationService
+    private sealed class FakeApplicationService(bool fail, string? failureCode = null) : IAcademicPerformanceApplicationService
     {
         public AcademicDataCollectRequest? LastRequest { get; private set; }
 
@@ -315,7 +339,7 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
             if (fail) ProviderCallScope.Record("WebOfScience", true, DateTime.UtcNow.AddHours(1));
             return Task.FromResult(new AcademicDataResponse
             {
-                IsSaved = true, Researcher = new()
+                IsSaved = failureCode is null, FailureCode = failureCode, Researcher = new()
                 {
                     PersonelId = request.PersonelId,
                     OrcidProfile = request.Orcid is null ? null : new(),

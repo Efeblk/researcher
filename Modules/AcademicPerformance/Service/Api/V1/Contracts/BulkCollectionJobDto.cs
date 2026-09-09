@@ -9,6 +9,8 @@ public sealed class BulkCollectionJobDto
     public string Status { get; set; } = string.Empty;
     public int Attempts { get; set; }
     public DateTime NextAttemptAt { get; set; }
+    public DateTime? StartedAt { get; set; } = null;
+    public DateTime? CompletedAt { get; set; } = null;
     public string? Message { get; set; } = null;
     public List<string> Warnings { get; set; } = [];
 }

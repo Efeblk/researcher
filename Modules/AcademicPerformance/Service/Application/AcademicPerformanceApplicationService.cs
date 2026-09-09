@@ -73,6 +73,7 @@ public sealed class AcademicPerformanceApplicationService :
         {
             Researcher = AcademicPerformanceDtoMapper.MapResearcher(collectionResponse.Researcher),
             IsSaved = collectionResponse.IsSaved,
+            FailureCode = collectionResponse.FailureCode,
             PublicationCount = publicationCount,
             DatabaseProvider = collectionResponse.DatabaseProvider,
             CollectedAt = DateTime.UtcNow,

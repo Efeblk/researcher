@@ -7,7 +7,8 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLim
 // Applied at HTTP level so profile, detail, and pagination calls all consume budget.
 // SQL coordinates pacing, cooldowns, and UTC daily budgets across application hosts.
 public sealed class ProviderRateLimitHandler(
-    string connectionString, IReadOnlyList<ProviderRequestPolicy> policies) : DelegatingHandler
+    string connectionString, IReadOnlyList<ProviderRequestPolicy> policies,
+    ILogger<ProviderRateLimitHandler>? logger = null) : DelegatingHandler
 {
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
@@ -26,7 +27,10 @@ public sealed class ProviderRateLimitHandler(
             await using SqlApplicationLock? gate = await SqlApplicationLock.TryAcquireAsync(
                 connectionString, "AcademicCollector.Provider." + policy.Name, 30000, cancellationToken);
             if (gate is null)
+            {
+                LogDeferral(policy.Name, 30);
                 return Deferred(policy.Name, DateTime.UtcNow.AddSeconds(30));
+            }
 
             DateTime now = DateTime.UtcNow;
             await using SqlCommand budget = gate.Connection.CreateCommand();
@@ -51,10 +55,16 @@ public sealed class ProviderRateLimitHandler(
 
             if (policy.DailyRequestLimit > 0 && budgetDate.Date == now.Date &&
                 requestsToday >= policy.DailyRequestLimit)
+            {
+                LogDeferral(policy.Name, (int)Math.Ceiling((now.Date.AddDays(1) - now).TotalSeconds));
                 return Deferred(policy.Name, now.Date.AddDays(1));
+            }
             // Long cooldowns go back to the durable queue instead of occupying a worker.
             if (nextAllowed - now > TimeSpan.FromSeconds(10))
+            {
+                LogDeferral(policy.Name, (int)Math.Ceiling((nextAllowed - now).TotalSeconds));
                 return Deferred(policy.Name, nextAllowed);
+            }
             if (nextAllowed > now)
                 await Task.Delay(nextAllowed - now, cancellationToken);
 
@@ -71,7 +81,14 @@ public sealed class ProviderRateLimitHandler(
             reserve.Parameters.AddWithValue("@next", now.AddMilliseconds(policy.MinimumIntervalMilliseconds));
             await reserve.ExecuteNonQueryAsync(cancellationToken);
 
+            int requestOrdinal = ProviderCallScope.NextRequestOrdinal();
+            if (requestOrdinal > 0)
+                logger?.LogInformation("Bulk provider request {RequestOrdinal} to {Provider} started.",
+                    requestOrdinal, policy.Name);
             response = await base.SendAsync(request, cancellationToken);
+            if (requestOrdinal > 0)
+                logger?.LogInformation("Bulk provider request {RequestOrdinal} to {Provider} returned HTTP {StatusCode}.",
+                    requestOrdinal, policy.Name, (int)response.StatusCode);
             if (!response.IsSuccessStatusCode)
             {
                 bool retryable = response.StatusCode is HttpStatusCode.TooManyRequests or
@@ -119,5 +136,12 @@ public sealed class ProviderRateLimitHandler(
         response.Headers.Add("X-Academic-Local-Deferral", "true");
         response.Headers.RetryAfter = new(new DateTimeOffset(retryAt, TimeSpan.Zero));
         return response;
+    }
+
+    private void LogDeferral(string provider, int retrySeconds)
+    {
+        if (ProviderCallScope.IsActive)
+            logger?.LogInformation("Bulk provider request to {Provider} deferred for {RetrySeconds} seconds.",
+                provider, Math.Max(1, retrySeconds));
     }
 }
