@@ -8,3 +8,4 @@ wwwroot/esm/
 TestResults/
 coverage/
 .DS_Store
+/Requests/personel-test-data.sql
