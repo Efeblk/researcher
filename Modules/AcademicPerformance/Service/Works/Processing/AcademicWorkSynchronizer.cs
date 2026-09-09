@@ -25,24 +25,24 @@ public sealed class AcademicWorkSynchronizer
         int index = 0;
 
         List<AcademicWork>? existingWorks = await _dbContext.AcademicWorks
-            .Where(work => work.ResearcherId == researcher.Id)
+            .Where(work => work.PersonelId == researcher.PersonelId)
             .ToListAsync();
         List<AcademicWork>? synchronizedWorks = [];
         HashSet<int>? matchedExistingIds = [];
 
         AddOrcidWorks(
             synchronizedWorks,
-            researcher.Id,
+            researcher.PersonelId,
             researcher.OrcidProfile?.Works,
             synchronizedAt);
         AddGoogleScholarWorks(
             synchronizedWorks,
-            researcher.Id,
+            researcher.PersonelId,
             researcher.GoogleScholarProfile?.Works,
             synchronizedAt);
         AddWebOfScienceWorks(
             synchronizedWorks,
-            researcher.Id,
+            researcher.PersonelId,
             researcher.WebOfScienceProfile?.Works,
             synchronizedAt);
 
@@ -80,7 +80,7 @@ public sealed class AcademicWorkSynchronizer
 
     private static void AddGoogleScholarWorks(
         List<AcademicWork> target,
-        int researcherId,
+        string personelId,
         List<GoogleScholarWork>? source,
         DateTime synchronizedAt)
     {
@@ -93,7 +93,7 @@ public sealed class AcademicWorkSynchronizer
         {
             target.Add(new AcademicWork
             {
-                ResearcherId = researcherId,
+                PersonelId = personelId,
                 Provider = AcademicWorkProvider.GoogleScholar,
                 ProviderWorkId = sourceWork.CitationId,
                 Title = sourceWork.Title,
@@ -158,7 +158,7 @@ public sealed class AcademicWorkSynchronizer
 
     private static void CopyValues(AcademicWork source, AcademicWork target)
     {
-        target.ResearcherId = source.ResearcherId;
+        target.PersonelId = source.PersonelId;
         target.Provider = source.Provider;
         target.ProviderWorkId = source.ProviderWorkId;
         target.Title = source.Title;
@@ -200,7 +200,7 @@ public sealed class AcademicWorkSynchronizer
 
     private static void AddOrcidWorks(
         List<AcademicWork> target,
-        int researcherId,
+        string personelId,
         List<OrcidWork>? source,
         DateTime synchronizedAt)
     {
@@ -217,7 +217,7 @@ public sealed class AcademicWorkSynchronizer
         {
             sourceWork = source[index];
             academicWork = new AcademicWork();
-            academicWork.ResearcherId = researcherId;
+            academicWork.PersonelId = personelId;
             academicWork.Provider = AcademicWorkProvider.Orcid;
             academicWork.ProviderWorkId = sourceWork.PutCode.ToString();
             academicWork.Title = sourceWork.Title;
@@ -246,7 +246,7 @@ public sealed class AcademicWorkSynchronizer
 
     private static void AddWebOfScienceWorks(
         List<AcademicWork> target,
-        int researcherId,
+        string personelId,
         List<WebOfScienceWork>? source,
         DateTime synchronizedAt)
     {
@@ -263,7 +263,7 @@ public sealed class AcademicWorkSynchronizer
         {
             sourceWork = source[index];
             academicWork = new AcademicWork();
-            academicWork.ResearcherId = researcherId;
+            academicWork.PersonelId = personelId;
             academicWork.Provider = AcademicWorkProvider.WebOfScience;
             academicWork.ProviderWorkId = sourceWork.Uid;
             academicWork.Title = sourceWork.Title;

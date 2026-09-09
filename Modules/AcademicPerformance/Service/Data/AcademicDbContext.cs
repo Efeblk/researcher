@@ -41,8 +41,9 @@ public sealed class AcademicDbContext : DbContext
         {
             entity.ToTable("ResearcherAnalyses");
             entity.HasKey(value => value.Id);
-            entity.HasIndex(value => new { value.ResearcherId, value.Id }).IsDescending(false, true);
-            entity.HasOne<Researcher>().WithMany().HasForeignKey(value => value.ResearcherId)
+            entity.Property(value => value.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
+            entity.HasIndex(value => new { value.PersonelId, value.Id }).IsDescending(false, true);
+            entity.HasOne<Researcher>().WithMany().HasForeignKey(value => value.PersonelId)
                 .OnDelete(DeleteBehavior.NoAction);
         });
         modelBuilder.Entity<BulkCollectionBatch>(entity =>
@@ -56,7 +57,6 @@ public sealed class AcademicDbContext : DbContext
             entity.ToTable("BulkCollectionJobs");
             entity.HasKey(job => job.Id);
             entity.Property(job => job.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
-            entity.Property(job => job.CollectorResearcherId).HasColumnName("CollectorResearcherId");
             entity.Property(job => job.Status).HasMaxLength(20);
             entity.Property(job => job.ResultMessage).HasMaxLength(1000);
             entity.HasOne<BulkCollectionBatch>().WithMany().HasForeignKey(job => job.BatchId)
@@ -66,8 +66,8 @@ public sealed class AcademicDbContext : DbContext
         modelBuilder.Entity<Researcher>(entity =>
         {
             entity.ToTable("Researchers");
-            entity.HasKey(researcher => researcher.Id);
-            entity.Property(researcher => researcher.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
+            entity.HasKey(researcher => researcher.PersonelId);
+            entity.Property(researcher => researcher.PersonelId).HasColumnName("PersonelID").HasMaxLength(200).ValueGeneratedNever();
             entity.Property(researcher => researcher.Orcid).HasColumnName("ORCID").HasMaxLength(19);
             entity.Property(researcher => researcher.ScopusId).HasColumnName("ScopusID");
             entity.Property(researcher => researcher.GoogleScholarId)
@@ -78,10 +78,6 @@ public sealed class AcademicDbContext : DbContext
                 .HasMaxLength(20);
             entity.Property(researcher => researcher.YoksisResearcherId)
                 .HasMaxLength(50);
-
-            entity.HasIndex(researcher => researcher.PersonelId)
-                .IsUnique()
-                .HasFilter("[PersonelID] IS NOT NULL");
 
             entity.HasIndex(researcher => researcher.Orcid)
                 .IsUnique()
@@ -101,42 +97,42 @@ public sealed class AcademicDbContext : DbContext
 
             entity.HasMany(researcher => researcher.AcademicWorks)
                 .WithOne(work => work.Researcher)
-                .HasForeignKey(work => work.ResearcherId)
+                .HasForeignKey(work => work.PersonelId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(researcher => researcher.OrcidProfile)
                 .WithOne(profile => profile.Researcher)
-                .HasForeignKey<OrcidProfile>(profile => profile.ResearcherId)
+                .HasForeignKey<OrcidProfile>(profile => profile.PersonelId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(researcher => researcher.GoogleScholarProfile)
                 .WithOne(profile => profile.Researcher)
-                .HasForeignKey<GoogleScholarProfile>(profile => profile.ResearcherId)
+                .HasForeignKey<GoogleScholarProfile>(profile => profile.PersonelId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(researcher => researcher.OpenAlexProfile)
                 .WithOne(profile => profile.Researcher)
-                .HasForeignKey<OpenAlexProfile>(profile => profile.ResearcherId)
+                .HasForeignKey<OpenAlexProfile>(profile => profile.PersonelId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(researcher => researcher.WebOfScienceProfile)
                 .WithOne(profile => profile.Researcher)
-                .HasForeignKey<WebOfScienceProfile>(profile => profile.ResearcherId)
+                .HasForeignKey<WebOfScienceProfile>(profile => profile.PersonelId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasMany(researcher => researcher.PublicationSummaries)
                 .WithOne(summary => summary.Researcher)
-                .HasForeignKey(summary => summary.ResearcherId)
+                .HasForeignKey(summary => summary.PersonelId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasMany(researcher => researcher.PublicationDisplayApprovals)
                 .WithOne(approval => approval.Researcher)
-                .HasForeignKey(approval => approval.ResearcherId)
+                .HasForeignKey(approval => approval.PersonelId)
                 .OnDelete(DeleteBehavior.NoAction);
 
             entity.HasMany(researcher => researcher.YoksisRecords)
                 .WithOne(record => record.Researcher)
-                .HasForeignKey(record => record.ResearcherId)
+                .HasForeignKey(record => record.PersonelId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -148,10 +144,11 @@ public sealed class AcademicDbContext : DbContext
             entity.Property(record => record.OperationName).HasMaxLength(250);
             entity.Property(record => record.ExternalRecordId).HasMaxLength(500);
             entity.Property(record => record.RecordJson);
-            entity.HasIndex(record => record.ResearcherId);
+            entity.Property(record => record.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
+            entity.HasIndex(record => record.PersonelId);
             entity.HasIndex(record => new
             {
-                record.ResearcherId,
+                record.PersonelId,
                 record.OperationName
             });
         });
@@ -169,7 +166,8 @@ public sealed class AcademicDbContext : DbContext
             entity.Property(profile => profile.CurrentOrganization).HasMaxLength(1000);
             entity.Property(profile => profile.CurrentDepartment).HasMaxLength(1000);
             entity.Property(profile => profile.CurrentRoleTitle).HasMaxLength(500);
-            entity.HasIndex(profile => profile.ResearcherId).IsUnique();
+            entity.Property(profile => profile.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
+            entity.HasIndex(profile => profile.PersonelId).IsUnique();
 
             entity.HasMany(profile => profile.Works)
                 .WithOne(work => work.OrcidProfile)
@@ -207,7 +205,8 @@ public sealed class AcademicDbContext : DbContext
             entity.Property(profile => profile.University).HasMaxLength(1000);
             entity.Property(profile => profile.VerifiedEmail).HasMaxLength(500);
             entity.Property(profile => profile.ProfileUrl).HasMaxLength(2000);
-            entity.HasIndex(profile => profile.ResearcherId).IsUnique();
+            entity.Property(profile => profile.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
+            entity.HasIndex(profile => profile.PersonelId).IsUnique();
 
             entity.HasMany(profile => profile.Works)
                 .WithOne(work => work.GoogleScholarProfile)
@@ -240,7 +239,8 @@ public sealed class AcademicDbContext : DbContext
             entity.Property(profile => profile.LastKnownInstitution).HasMaxLength(1000);
             entity.Property(profile => profile.TwoYearMeanCitedness)
                 .HasPrecision(18, 4);
-            entity.HasIndex(profile => profile.ResearcherId).IsUnique();
+            entity.Property(profile => profile.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
+            entity.HasIndex(profile => profile.PersonelId).IsUnique();
             entity.HasIndex(profile => profile.OpenAlexAuthorId).IsUnique();
 
             entity.HasMany(profile => profile.Works)
@@ -280,7 +280,8 @@ public sealed class AcademicDbContext : DbContext
             entity.Property(profile => profile.PrimaryAddress).HasMaxLength(2000);
             entity.Property(profile => profile.PrimaryCountry).HasMaxLength(250);
             entity.Property(profile => profile.Departments).HasMaxLength(2000);
-            entity.HasIndex(profile => profile.ResearcherId).IsUnique();
+            entity.Property(profile => profile.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
+            entity.HasIndex(profile => profile.PersonelId).IsUnique();
 
             entity.HasMany(profile => profile.Works)
                 .WithOne(work => work.WebOfScienceProfile)
@@ -366,8 +367,9 @@ public sealed class AcademicDbContext : DbContext
             entity.Property(work => work.License).HasMaxLength(100);
             entity.Property(work => work.Version).HasMaxLength(100);
 
-            entity.HasIndex(work => work.ResearcherId);
-            entity.HasIndex(work => new { work.ResearcherId, work.Provider });
+            entity.Property(work => work.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
+            entity.HasIndex(work => work.PersonelId);
+            entity.HasIndex(work => new { work.PersonelId, work.Provider });
 
         });
 
@@ -386,10 +388,11 @@ public sealed class AcademicDbContext : DbContext
             entity.Property(summary => summary.PublicationUrl).HasMaxLength(2000);
             entity.Property(summary => summary.Sources).HasMaxLength(200);
 
-            entity.HasIndex(summary => summary.ResearcherId);
+            entity.Property(summary => summary.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
+            entity.HasIndex(summary => summary.PersonelId);
             entity.HasIndex(summary => new
             {
-                summary.ResearcherId,
+                summary.PersonelId,
                 summary.Fingerprint
             })
                 .IsUnique();
@@ -405,7 +408,8 @@ public sealed class AcademicDbContext : DbContext
         {
             entity.ToTable("PublicationDisplayApprovals");
             entity.HasKey(approval => approval.Id);
-            entity.HasIndex(approval => approval.ResearcherId);
+            entity.Property(approval => approval.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
+            entity.HasIndex(approval => approval.PersonelId);
             entity.HasIndex(approval => approval.PublicationSummaryId).IsUnique();
         });
     }

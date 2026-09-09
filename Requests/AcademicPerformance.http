@@ -13,9 +13,7 @@
 @orcid = 0000-0003-2812-9917
 @googleScholarId = hIyYz_IAAAAJ
 @researcherId = A-1009-2008
-@databaseResearcherId = 1
-@personelId = employee-001
-@analysisSnapshotAt = 2026-09-08T00:00:00Z
+@personelId = 00123-A
 @publicationId = 1
 @tcKimlikNo = TC_KIMLIK_NUMARASINI_BURAYA_YAZ
 
@@ -30,6 +28,7 @@ POST {{api}}/Collect
 Content-Type: application/json
 
 {
+  "PersonelID": "{{personelId}}",
   "ORCID": "{{orcid}}"
 }
 
@@ -39,6 +38,7 @@ POST {{api}}/Collect
 Content-Type: application/json
 
 {
+  "PersonelID": "{{personelId}}",
   "ResearcherID": "{{researcherId}}"
 }
 
@@ -48,6 +48,7 @@ POST {{api}}/Collect
 Content-Type: application/json
 
 {
+  "PersonelID": "{{personelId}}",
   "ScholarID": "{{googleScholarId}}"
 }
 
@@ -57,7 +58,7 @@ POST {{api}}/Collect
 Content-Type: application/json
 
 {
-  "PersonelID": "{{personelId}}",
+  "PersonelID": "employee-001",
   "ORCID": "{{orcid}}",
   "ScholarID": "{{googleScholarId}}",
   "ResearcherID": "{{researcherId}}"
@@ -70,6 +71,7 @@ POST {{api}}/Collect
 Content-Type: application/json
 
 {
+  "PersonelID": "{{personelId}}",
   "ORCID": " (https://orcid.org/{{orcid}}) ,",
   "ScholarID": "#NAME?",
   "ScopusID": "SCOPUS_DESTEKLENMIYOR"
@@ -90,7 +92,7 @@ POST {{api}}/GetResearcher
 Content-Type: application/json
 
 {
-  "PersonelID": "{{personelId}}"
+  "PersonelID": "employee-001"
 }
 
 ### V1 API: Akademisyenin yayınlarını sayfalı getir
@@ -105,17 +107,16 @@ Content-Type: application/json
   "Take": 100
 }
 
-### V1 API: Veritabanı ID'si ile kayıtlı akademisyeni getir
-# Toplama çağrısının Researcher.Id değerini databaseResearcherId değişkenine yazın.
+### V1 API: PersonelID ile kayıtlı akademisyeni getir
 # Bu istek yalnız kaydedilmiş veriyi okur; sağlayıcılardan yeni veri toplamaz.
 POST {{api}}/GetResearcher
 Content-Type: application/json
 
 {
-  "Id": {{databaseResearcherId}}
+  "PersonelID": "{{personelId}}"
 }
 
-### V1 API: Veritabanı ID'si ile akademisyenin yayınlarını getir
+### V1 API: PersonelID ile akademisyenin yayınlarını getir
 # Sonraki sayfa için Skip değerini artırın; TotalCount toplam yayın sayısını verir.
 # This list omits abstracts/keywords. AnalyzeResearcher builds the AI snapshot automatically.
 # AI endpoint testleri: Requests/ResearcherAnalysis.http
@@ -123,7 +124,7 @@ POST {{api}}/ListPublications
 Content-Type: application/json
 
 {
-  "Id": {{databaseResearcherId}},
+  "PersonelID": "{{personelId}}",
   "ApprovedOnly": false,
   "Skip": 0,
   "Take": 100
@@ -138,8 +139,7 @@ POST {{api}}/AnalyzeResearcher
 Content-Type: application/json
 
 {
-  "PersonelID": "{{personelId}}",
-  "SnapshotAt": "{{analysisSnapshotAt}}"
+  "PersonelID": "{{personelId}}"
 }
 
 ### V1 API: Retrieve the latest saved analysis
@@ -158,7 +158,7 @@ POST {{api}}/SavePublicationSelections
 Content-Type: application/json
 
 {
-  "ResearcherId": {{databaseResearcherId}},
+  "PersonelID": "{{personelId}}",
   "PublicationIds": [
     {{publicationId}}
   ]
@@ -171,6 +171,7 @@ POST {{api}}/Yoksis/Collect
 Content-Type: application/json
 
 {
+  "PersonelID": "{{personelId}}",
   "TcKimlikNo": "{{tcKimlikNo}}"
 }
 
@@ -259,7 +260,7 @@ Content-Type: application/json
 #
 # 2) AcademicPublicationListResponse - ListPublications
 # {
-#   "ResearcherId": 1,
+#   "PersonelID": "00123-A",
 #   "Entities": [
 #     {
 #       "Id": 101,
@@ -283,14 +284,14 @@ Content-Type: application/json
 # PublicationIds gönderilen listenin tamamını temsil eder. Boş liste göndermek
 # akademisyenin okulda gösterilmek üzere seçilmiş tüm yayınlarını kaldırır.
 # {
-#   "ResearcherId": 1,
+#   "PersonelID": "00123-A",
 #   "PublicationIds": [101, 102],
 #   "ApprovedCount": 2
 # }
 #
 # 4) YoksisCollectResponse - YÖKSİS Collect
 # {
-#   "ResearcherId": 1,
+#   "PersonelID": "00123-A",
 #   "ResearcherDisplayName": "Ada Örnek",
 #   "IsSaved": true,
 #   "YoksisRecordCount": 25,

@@ -10,11 +10,11 @@ public sealed class AddOpenAlexComparison : Migration
     {
         Create.Table("OpenAlexProfiles")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
-            .WithColumn("ResearcherId").AsInt32().NotNullable()
+            .WithColumn("PersonelID").AsString(200).NotNullable()
                 .ForeignKey(
-                    "FK_OpenAlexProfiles_Researchers_ResearcherId",
+                    "FK_OpenAlexProfiles_Researchers_PersonelID",
                     "Researchers",
-                    "Id")
+                    "PersonelID")
                 .OnDelete(Rule.Cascade)
             .WithColumn("OpenAlexAuthorId").AsString(100).NotNullable()
             .WithColumn("DisplayName").AsString(500).Nullable()
@@ -50,9 +50,9 @@ public sealed class AddOpenAlexComparison : Migration
             .WithColumn("OpenAccessUrl").AsString(2000).Nullable()
             .WithColumn("RawDataJson").AsString(int.MaxValue).Nullable();
 
-        Create.Index("IX_OpenAlexProfiles_ResearcherId")
+        Create.Index("IX_OpenAlexProfiles_PersonelID")
             .OnTable("OpenAlexProfiles")
-            .OnColumn("ResearcherId")
+            .OnColumn("PersonelID")
             .Ascending()
             .WithOptions()
             .Unique();

@@ -8,7 +8,7 @@ help:
 	@echo "  make build                Projeyi derler"
 	@echo "  make clean                .NET build çıktılarını temizler"
 	@echo "  make health               Sunucunun çalıştığını kontrol eder"
-	@echo "  make collect ID=...       ORCID, Scholar ID ve/veya ResearcherID ile veri toplar"
+	@echo "  make collect PERSONEL_ID=... ID=...  PersonelID ile akademik veri toplar"
 	@echo "  make health HOST=...      Farklı bir sunucu adresi kullanır"
 
 run:
@@ -26,8 +26,8 @@ health:
 	@echo
 
 collect:
-	@if [ -z "$(strip $(ID))" ]; then \
-		echo 'Kullanım: make collect ID="0000-0001-8560-7482 A-1009-2008"'; \
+	@if [ -z "$(strip $(PERSONEL_ID))" ] || [ -z "$(strip $(ID))" ]; then \
+		echo 'Kullanım: make collect PERSONEL_ID="00123-A" ID="0000-0001-8560-7482 A-1009-2008"'; \
 		exit 1; \
 	fi
 	@response_file="$$(mktemp -t academic-collect.XXXXXX)"; \
@@ -39,15 +39,15 @@ collect:
 			*) scholar_id="$$identifier" ;; \
 		esac; \
 	done; \
-	request_body='{'; separator=''; \
+	request_body='{"PersonelID":"$(strip $(PERSONEL_ID))"'; separator=','; \
 	if [ -n "$$orcid" ]; then \
-		request_body="$${request_body}$${separator}\"Orcid\":\"$${orcid}\""; separator=','; \
+		request_body="$${request_body}$${separator}\"ORCID\":\"$${orcid}\""; separator=','; \
 	fi; \
 	if [ -n "$$scholar_id" ]; then \
-		request_body="$${request_body}$${separator}\"GoogleScholarId\":\"$${scholar_id}\""; separator=','; \
+		request_body="$${request_body}$${separator}\"ScholarID\":\"$${scholar_id}\""; separator=','; \
 	fi; \
 	if [ -n "$$researcher_id" ]; then \
-		request_body="$${request_body}$${separator}\"WebOfScienceResearcherId\":\"$${researcher_id}\""; \
+		request_body="$${request_body}$${separator}\"ResearcherID\":\"$${researcher_id}\""; \
 	fi; \
 	request_body="$${request_body}}"; \
 	start_time="$$(date +%s)"; \

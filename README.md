@@ -51,8 +51,8 @@ Web / mobil / BYS / başvuru client'ları
 
 | İşlem | Serenity endpoint | Amaç |
 | --- | --- | --- |
-| Topla/güncelle | `V1/Collect` | ORCID ve/veya ResearcherID ile veriyi toplar |
-| Akademisyen getir | `V1/GetResearcher` | ID, ORCID veya ResearcherID ile sade profil döndürür |
+| Topla/güncelle | `V1/Collect` | PersonelID ile ORCID ve/veya ResearcherID verisini toplar |
+| Akademisyen getir | `V1/GetResearcher` | PersonelID veya sağlayıcı kimliği ile sade profil döndürür |
 | Yayınları listele | `V1/ListPublications` | Sayfalama, arama ve yalnız onaylı yayın filtresi sunar |
 | Onayları kaydet | `V1/SavePublicationSelections` | Okulda gösterilecek yayın listesini değiştirir |
 | YÖKSİS topla | `V1/Yoksis/Collect` | Hassas ve yetkili YÖKSİS akışını ayrı tutar |
@@ -66,8 +66,9 @@ POST http://localhost:5001/Services/AcademicPerformance/V1/Collect
 Content-Type: application/json
 
 {
-  "Orcid": "0000-0001-8560-7482",
-  "WebOfScienceResearcherId": "A-1009-2008"
+  "PersonelID": "00123-A",
+  "ORCID": "0000-0001-8560-7482",
+  "ResearcherID": "A-1009-2008"
 }
 ```
 
@@ -148,6 +149,10 @@ takip tablosunu da siler ve web sunucusunu başlatmadan çıkar. Sonraki normal
 `dotnet run`, `MigrateUp()` ile takip tablosunu ve uygulama şemasını tamamen
 sıfırdan kurar. Komut yalnız `Development` ortamında çalışır ve bütün geliştirme
 verilerini kalıcı olarak siler.
+
+`Researchers` anahtarı artık kurumun `PersonelID` değeridir. Eski tamsayı
+araştırmacı anahtarıyla oluşturulmuş geliştirme veritabanını yeni kodla açmadan
+önce eski kodla temizleyin veya yeni, boş bir veritabanı kullanın.
 
 Build sırasında `npm install` ve TypeScript derlemesi gerektiğinde otomatik
 çalışır. Arayüz `http://localhost:5001/AcademicPerformance`, sağlık yanıtı ise

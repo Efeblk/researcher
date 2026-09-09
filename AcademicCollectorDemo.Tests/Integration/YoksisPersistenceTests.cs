@@ -21,16 +21,18 @@ public sealed class YoksisPersistenceTests(SqlServerFixture fixture)
     {
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
-        var researcher = new Researcher { YoksisResearcherId = "synthetic-" + Guid.NewGuid().ToString("N") };
+        var researcher = new Researcher
+        {
+            PersonelId = "test-" + Guid.NewGuid().ToString("N"), YoksisResearcherId = "synthetic-" + Guid.NewGuid().ToString("N") };
         db.Researchers.Add(researcher);
         await db.SaveChangesAsync();
-        db.YoksisRecords.Add(new() { ResearcherId = researcher.Id, CategoryName = "Makaleler", OperationName = "getMakaleBilgisiDetayV1", ExternalRecordId = "old", RecordJson = "{}", CollectedAt = DateTime.UtcNow });
-        db.AcademicWorks.Add(new() { ResearcherId = researcher.Id, Provider = AcademicWorkProvider.Yoksis, ProviderWorkId = "Makale:old", SourceType = "Makale", Title = "Existing publication", SyncedAt = DateTime.UtcNow });
+        db.YoksisRecords.Add(new() { PersonelId = researcher.PersonelId, CategoryName = "Makaleler", OperationName = "getMakaleBilgisiDetayV1", ExternalRecordId = "old", RecordJson = "{}", CollectedAt = DateTime.UtcNow });
+        db.AcademicWorks.Add(new() { PersonelId = researcher.PersonelId, Provider = AcademicWorkProvider.Yoksis, ProviderWorkId = "Makale:old", SourceType = "Makale", Title = "Existing publication", SyncedAt = DateTime.UtcNow });
         await db.SaveChangesAsync();
         var summaries = new PublicationSummarySynchronizer(db);
-        await summaries.SyncAsync(researcher.Id);
-        var summary = await db.PublicationSummaries.SingleAsync(x => x.ResearcherId == researcher.Id);
-        db.PublicationDisplayApprovals.Add(new() { ResearcherId = researcher.Id, PublicationSummaryId = summary.Id, ApprovedAt = DateTime.UtcNow });
+        await summaries.SyncAsync(researcher.PersonelId);
+        var summary = await db.PublicationSummaries.SingleAsync(x => x.PersonelId == researcher.PersonelId);
+        db.PublicationDisplayApprovals.Add(new() { PersonelId = researcher.PersonelId, PublicationSummaryId = summary.Id, ApprovedAt = DateTime.UtcNow });
         await db.SaveChangesAsync();
 
         var http = new HttpClient(new StubHttpHandler(_ => StubHttpHandler.Json(
@@ -44,12 +46,12 @@ public sealed class YoksisPersistenceTests(SqlServerFixture fixture)
             new(db), new(db), new ResearcherRepository(db), summaries, db);
         var response = await handler.CollectAsync(new()
         {
-            ResearcherId = researcher.Id, TcKimlikNo = new string('1', 11), UpdatedAfter = DateTime.UtcNow.AddDays(-1)
+            PersonelId = researcher.PersonelId, TcKimlikNo = new string('1', 11), UpdatedAfter = DateTime.UtcNow.AddDays(-1)
         });
 
         Assert.True(response.IsSaved, string.Join("\n", response.Messages));
-        Assert.True(await db.YoksisRecords.AnyAsync(x => x.ResearcherId == researcher.Id));
-        Assert.True(await db.AcademicWorks.AnyAsync(x => x.ResearcherId == researcher.Id));
+        Assert.True(await db.YoksisRecords.AnyAsync(x => x.PersonelId == researcher.PersonelId));
+        Assert.True(await db.AcademicWorks.AnyAsync(x => x.PersonelId == researcher.PersonelId));
         Assert.True(await db.PublicationDisplayApprovals.AnyAsync(x => x.PublicationSummaryId == summary.Id));
     }
 
@@ -58,7 +60,7 @@ public sealed class YoksisPersistenceTests(SqlServerFixture fixture)
     {
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
-        var researcher = new Researcher();
+        var researcher = new Researcher { PersonelId = "test-" + Guid.NewGuid().ToString("N") };
         db.Researchers.Add(researcher);
         await db.SaveChangesAsync();
         var response = new YoksisCollectResponse
@@ -67,8 +69,8 @@ public sealed class YoksisPersistenceTests(SqlServerFixture fixture)
                 Records = [new() { ["MAKALE_ADI"] = "First work" }, new() { ["MAKALE_ADI"] = "Second work" }] }]
         };
         var sync = new YoksisAcademicWorkSynchronizer(db);
-        Assert.Equal(2, await sync.SyncAsync(researcher.Id, response));
-        Assert.Equal(2, await sync.SyncAsync(researcher.Id, response));
+        Assert.Equal(2, await sync.SyncAsync(researcher.PersonelId, response));
+        Assert.Equal(2, await sync.SyncAsync(researcher.PersonelId, response));
     }
 
     [Theory]
@@ -79,7 +81,7 @@ public sealed class YoksisPersistenceTests(SqlServerFixture fixture)
     {
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
-        var researcher = new Researcher();
+        var researcher = new Researcher { PersonelId = "test-" + Guid.NewGuid().ToString("N") };
         db.Researchers.Add(researcher);
         await db.SaveChangesAsync();
         var first = new Dictionary<string, string?> { ["MAKALE_ADI"] = "Shared title", ["YIL"] = "2026", [field] = "First value" };
@@ -89,12 +91,12 @@ public sealed class YoksisPersistenceTests(SqlServerFixture fixture)
             Categories = [new() { OperationName = "getMakaleBilgisiDetayV1", IsSuccess = true, Records = [first, second] }]
         };
         var sync = new YoksisAcademicWorkSynchronizer(db);
-        Assert.Equal(2, await sync.SyncAsync(researcher.Id, response));
-        var ids = await db.AcademicWorks.Where(x => x.ResearcherId == researcher.Id).OrderBy(x => x.Id).Select(x => x.Id).ToListAsync();
+        Assert.Equal(2, await sync.SyncAsync(researcher.PersonelId, response));
+        var ids = await db.AcademicWorks.Where(x => x.PersonelId == researcher.PersonelId).OrderBy(x => x.Id).Select(x => x.Id).ToListAsync();
 
         response.Categories[0].Records = response.Categories[0].Records
             .Select(record => record.Reverse().ToDictionary(pair => pair.Key, pair => pair.Value)).Reverse().ToList();
-        Assert.Equal(2, await sync.SyncAsync(researcher.Id, response, isIncremental: true));
-        Assert.Equal(ids, await db.AcademicWorks.Where(x => x.ResearcherId == researcher.Id).OrderBy(x => x.Id).Select(x => x.Id).ToListAsync());
+        Assert.Equal(2, await sync.SyncAsync(researcher.PersonelId, response, isIncremental: true));
+        Assert.Equal(ids, await db.AcademicWorks.Where(x => x.PersonelId == researcher.PersonelId).OrderBy(x => x.Id).Select(x => x.Id).ToListAsync());
     }
 }

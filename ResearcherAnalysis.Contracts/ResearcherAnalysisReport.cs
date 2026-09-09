@@ -1,9 +1,11 @@
 namespace AcademicCollector.Analysis.Contracts;
+using System.Text.Json.Serialization;
 
 public sealed class ResearcherAnalysisReport
 {
     public string SchemaVersion { get; init; } = "1";
-    public int ResearcherId { get; init; }
+    [JsonPropertyName("PersonelID")]
+    public string PersonelId { get; init; } = string.Empty;
     public DateTimeOffset GeneratedAt { get; init; }
     public string Model { get; init; } = string.Empty;
     public string PromptVersion { get; init; } = string.Empty;

@@ -25,7 +25,7 @@ public sealed class ResearcherAnalysis(IResearcherReportGenerator generator)
 
         return new ResearcherAnalysisReport
         {
-            ResearcherId = request.ResearcherId,
+            PersonelId = request.PersonelId,
             GeneratedAt = DateTimeOffset.UtcNow,
             Model = generated.Model,
             PromptVersion = generated.PromptVersion,

@@ -18,32 +18,35 @@ public sealed class ResearcherRepository
 
     public async Task<Researcher?> FindByIdentifiersAsync(Researcher identifiers)
     {
-        List<int> matchingIds = await _dbContext.Researchers
+        List<string> matchingPersonelIds = await _dbContext.Researchers
             .Where(item =>
                 (identifiers.PersonelId != null && item.PersonelId == identifiers.PersonelId) ||
                 (identifiers.Orcid != null && item.Orcid == identifiers.Orcid) ||
                 (identifiers.GoogleScholarId != null && item.GoogleScholarId == identifiers.GoogleScholarId) ||
                 (identifiers.WebOfScienceResearcherId != null && item.WebOfScienceResearcherId == identifiers.WebOfScienceResearcherId) ||
                 (identifiers.YoksisResearcherId != null && item.YoksisResearcherId == identifiers.YoksisResearcherId))
-            .Select(item => item.Id)
+            .Select(item => item.PersonelId)
             .Take(2)
             .ToListAsync();
 
-        if (matchingIds.Count > 1)
+        if (matchingPersonelIds.Count > 1)
             throw new ArgumentException("Sağlayıcı kimlikleri farklı akademisyen kayıtlarına ait.");
 
-        return matchingIds.Count == 0 ? null : await FindByIdAsync(matchingIds[0]);
+        return matchingPersonelIds.Count == 0
+            ? null
+            : await FindByPersonelIdAsync(matchingPersonelIds[0]);
     }
 
-    public Task<Researcher?> FindByIdAsync(int researcherId)
+    public Task<Researcher?> FindByPersonelIdAsync(string personelId)
     {
         return CreateResearcherQuery()
-            .FirstOrDefaultAsync(researcher => researcher.Id == researcherId);
+            .FirstOrDefaultAsync(researcher => researcher.PersonelId == personelId);
     }
 
     public void ApplyRequestValues(Researcher target, Researcher source)
     {
-        target.PersonelId = GetIdentifierValue(target.PersonelId, source.PersonelId, "PersonelID");
+        if (!target.PersonelId.Equals(source.PersonelId, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("PersonelID mevcut akademisyen kaydıyla eşleşmiyor.");
         target.FirstName = source.FirstName ?? target.FirstName;
         target.LastName = source.LastName ?? target.LastName;
         target.AcademicTitle = source.AcademicTitle ?? target.AcademicTitle;
@@ -68,7 +71,7 @@ public sealed class ResearcherRepository
 
     public async Task SaveAsync(Researcher researcher)
     {
-        if (researcher.Id > 0)
+        if (_dbContext.Entry(researcher).State != EntityState.Detached)
         {
             researcher.LastUpdatedAt = DateTime.UtcNow;
             await _dbContext.SaveChangesAsync();
@@ -88,7 +91,6 @@ public sealed class ResearcherRepository
         }
 
         await _dbContext.SaveChangesAsync();
-        researcher.Id = existingResearcher?.Id ?? researcher.Id;
     }
 
     private IQueryable<Researcher> CreateResearcherQuery()

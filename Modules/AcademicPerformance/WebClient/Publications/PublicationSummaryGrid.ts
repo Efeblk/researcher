@@ -9,7 +9,7 @@ interface PublicationSelectionCallbacks {
 }
 
 export class PublicationSummaryGrid extends EntityGrid<PublicationSummaryRow> {
-    private researcherId = 0;
+    private personelId = "";
     private approvedPublicationIds = new Set<number>();
     private selectionsLoaded = false;
 
@@ -23,7 +23,7 @@ export class PublicationSummaryGrid extends EntityGrid<PublicationSummaryRow> {
     protected override getService() { return "AcademicPerformance/PublicationSummary"; }
     protected override getInitialTitle() { return "Yayınlar"; }
     protected override getButtons() { return []; }
-    protected override getGridCanLoad() { return this.researcherId > 0; }
+    protected override getGridCanLoad() { return this.personelId.length > 0; }
 
     protected override createColumns(): Column<PublicationSummaryRow>[] {
         return [
@@ -76,13 +76,13 @@ export class PublicationSummaryGrid extends EntityGrid<PublicationSummaryRow> {
         const request = this.view.params as ListRequest;
         request.EqualityFilter = {
             ...(request.EqualityFilter ?? {}),
-            ResearcherId: this.researcherId
+            PersonelID: this.personelId
         };
         return true;
     }
 
-    async setResearcher(researcherId: number, displayName?: string) {
-        this.researcherId = researcherId;
+    async setResearcher(personelId: string, displayName?: string) {
+        this.personelId = personelId;
         this.selectionsLoaded = false;
         this.approvedPublicationIds.clear();
         this.view.setItems([]);
@@ -90,15 +90,15 @@ export class PublicationSummaryGrid extends EntityGrid<PublicationSummaryRow> {
         this.callbacks.onControlsEnabled(false);
         this.callbacks.onCountChanged(0);
 
-        if (researcherId <= 0)
+        if (!personelId)
             return;
 
         try {
             const response = await serviceRequest<PublicationDisplayApprovalResponse>(
                 "AcademicPerformance/PublicationDisplayApproval/Get",
-                { ResearcherId: researcherId, PublicationSummaryIds: [] });
+                { PersonelID: personelId, PublicationSummaryIds: [] });
 
-            if (this.researcherId !== researcherId)
+            if (this.personelId !== personelId)
                 return;
 
             this.approvedPublicationIds = new Set(response.PublicationSummaryIds ?? []);
@@ -111,19 +111,19 @@ export class PublicationSummaryGrid extends EntityGrid<PublicationSummaryRow> {
             this.callbacks.onError(`Kayıtlı yayın seçimleri okunamadı: ${message}`);
         }
         finally {
-            if (this.researcherId === researcherId)
+            if (this.personelId === personelId)
                 this.refresh();
         }
     }
 
     async saveApprovals() {
-        if (this.researcherId <= 0 || !this.selectionsLoaded)
+        if (!this.personelId || !this.selectionsLoaded)
             throw new Error("Önce bir akademisyen araştırın.");
 
         return serviceRequest<PublicationDisplayApprovalResponse>(
             "AcademicPerformance/PublicationDisplayApproval/Save",
             {
-                ResearcherId: this.researcherId,
+                PersonelID: this.personelId,
                 PublicationSummaryIds: [...this.approvedPublicationIds]
             });
     }

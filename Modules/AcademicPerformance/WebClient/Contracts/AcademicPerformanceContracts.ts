@@ -2,7 +2,7 @@ import type { ServiceResponse } from "@serenity-is/corelib";
 
 export interface PublicationSummaryRow {
     Id?: number;
-    ResearcherId?: number;
+    PersonelID?: string;
     Title?: string;
     PublicationYear?: number;
     Category?: string;
@@ -15,14 +15,14 @@ export interface PublicationSummaryRow {
 }
 
 export interface PublicationDisplayApprovalResponse extends ServiceResponse {
-    ResearcherId?: number;
+    PersonelID?: string;
     PublicationSummaryIds?: number[];
     ApprovedCount?: number;
 }
 
 export interface ResearcherCollectResponse extends ServiceResponse {
     Researcher?: {
-        Id?: number;
+        PersonelID?: string;
         FirstName?: string;
         LastName?: string;
         OrcidProfile?: {
@@ -86,7 +86,7 @@ export interface YoksisOperationResult {
 }
 
 export interface YoksisCollectResponse extends ServiceResponse {
-    ResearcherId?: number;
+    PersonelID?: string;
     ResearcherDisplayName?: string;
     IsSaved?: boolean;
     YoksisRecordCount?: number;

@@ -33,7 +33,9 @@ public sealed class ProviderResponseTests
     {
         using var http = new HttpClient(new StubHttpHandler(_ => StubHttpHandler.Json(
             """{"orcid-identifier":{"path":"0000-0001-8560-7482"},"person":{},"activities-summary":{"works":{"group":[]}}}""")));
-        var researcher = new Researcher { Orcid = "0000-0001-8560-7482" };
+        var researcher = new Researcher
+        {
+            PersonelId = "test-" + Guid.NewGuid().ToString("N"), Orcid = "0000-0001-8560-7482" };
         await new OrcidClient(http, Config([])).FillResearcherAsync(researcher);
         Assert.NotNull(researcher.OrcidProfile);
         Assert.Empty(researcher.OrcidProfile.Works!);
@@ -43,7 +45,9 @@ public sealed class ProviderResponseTests
     public async Task FillResearcherAsync_ScholarPageFails_PreservesPreviousProfile()
     {
         var previous = new GoogleScholarProfile { DisplayName = "Saved profile", DocumentsCount = 10 };
-        var researcher = new Researcher { GoogleScholarId = "AbCdEfGhIjKl", GoogleScholarProfile = previous };
+        var researcher = new Researcher
+        {
+            PersonelId = "test-" + Guid.NewGuid().ToString("N"), GoogleScholarId = "AbCdEfGhIjKl", GoogleScholarProfile = previous };
         int requests = 0;
         using var http = new HttpClient(new StubHttpHandler(_ => ++requests == 1
             ? StubHttpHandler.Json("""{"author":{"name":"New profile"},"articles":[],"pagination":{"next":"page2"}}""")

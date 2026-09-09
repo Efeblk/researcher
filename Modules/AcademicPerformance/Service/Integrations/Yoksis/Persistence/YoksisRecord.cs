@@ -6,7 +6,7 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.
 public sealed class YoksisRecord
 {
     public int Id { get; set; }
-    public int ResearcherId { get; set; }
+    public string PersonelId { get; set; } = string.Empty;
     public string CategoryName { get; set; } = string.Empty;
     public string OperationName { get; set; } = string.Empty;
     public int RecordIndex { get; set; }

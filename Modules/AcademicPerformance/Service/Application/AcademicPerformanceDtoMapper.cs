@@ -19,7 +19,6 @@ internal static class AcademicPerformanceDtoMapper
 
         return new AcademicResearcherDto
         {
-            Id = researcher.Id,
             PersonelId = researcher.PersonelId,
             FirstName = researcher.FirstName,
             LastName = researcher.LastName,

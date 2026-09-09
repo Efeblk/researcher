@@ -4,6 +4,8 @@ using System.Text.Json;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AcademicCollectorDemo.Tests.Integration;
@@ -16,9 +18,20 @@ public sealed class EndpointTests(SqlServerFixture fixture)
     {
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
-        var researcher = new Researcher { FirstName = "Synthetic", LastName = "Researcher" };
+        var researcher = new Researcher
+        {
+            PersonelId = "00123-A", FirstName = "Synthetic", LastName = "Researcher" };
         db.Researchers.Add(researcher);
+        db.AcademicWorks.Add(new AcademicWork
+        {
+            PersonelId = researcher.PersonelId,
+            Provider = AcademicWorkProvider.Orcid,
+            ProviderWorkId = "endpoint-work",
+            Title = "Endpoint publication",
+            SyncedAt = DateTime.UtcNow
+        });
         await db.SaveChangesAsync();
+        await new PublicationSummarySynchronizer(db).SyncAsync(researcher.PersonelId);
 
         using var host = new HostProcess(fixture.ConnectionString);
         await host.WaitUntilReadyAsync();
@@ -26,18 +39,38 @@ public sealed class EndpointTests(SqlServerFixture fixture)
         page.EnsureSuccessStatusCode();
         using var coreScript = await host.Client.GetAsync("/Serenity.Corelib/index.global.js");
         coreScript.EnsureSuccessStatusCode();
-        using var profile = await host.Client.PostAsJsonAsync("/Services/AcademicPerformance/V1/GetResearcher", new { Id = researcher.Id });
+        using var profile = await host.Client.PostAsJsonAsync("/Services/AcademicPerformance/V1/GetResearcher", new { PersonelID = researcher.PersonelId });
         profile.EnsureSuccessStatusCode();
         var body = await profile.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(researcher.Id, body.GetProperty("Researcher").GetProperty("Id").GetInt32());
+        Assert.Equal(researcher.PersonelId, body.GetProperty("Researcher").GetProperty("PersonelID").GetString());
 
-        using var invalid = await host.Client.PostAsJsonAsync("/Services/AcademicPerformance/V1/Collect", new { ORCID = "invalid" });
+        using var summaryList = await host.Client.PostAsJsonAsync(
+            "/Services/AcademicPerformance/PublicationSummary/List",
+            new { EqualityFilter = new Dictionary<string, object> { ["PersonelID"] = "00123-A" } });
+        summaryList.EnsureSuccessStatusCode();
+        JsonElement summaryBody = await summaryList.Content.ReadFromJsonAsync<JsonElement>();
+        JsonElement summary = summaryBody.GetProperty("Entities")[0];
+        Assert.Equal("Endpoint publication", summary.GetProperty("Title").GetString());
+
+        using var approval = await host.Client.PostAsJsonAsync(
+            "/Services/AcademicPerformance/PublicationDisplayApproval/Save",
+            new { PersonelID = "00123-A", PublicationSummaryIds = new[] { summary.GetProperty("Id").GetInt32() } });
+        approval.EnsureSuccessStatusCode();
+        Assert.Equal("00123-A", (await approval.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("PersonelID").GetString());
+
+        using var invalid = await host.Client.PostAsJsonAsync("/Services/AcademicPerformance/V1/Collect", new
+        {
+            PersonelID = "invalid-provider-person",
+            ORCID = "invalid"
+        });
         var error = await invalid.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(error.TryGetProperty("Error", out _));
 
         const string researcherId = "B-2345-2021";
         db.Researchers.Add(new Researcher
         {
+            PersonelId = "endpoint-person",
             WebOfScienceResearcherId = researcherId,
             WebOfScienceProfile = new WebOfScienceProfile
             {
@@ -70,11 +103,11 @@ public sealed class EndpointTests(SqlServerFixture fixture)
             new { PersonelID = "endpoint-person" });
         byPersonnel.EnsureSuccessStatusCode();
         JsonElement personnelBody = await byPersonnel.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(collectedBody.GetProperty("Researcher").GetProperty("Id").GetInt32(),
-            personnelBody.GetProperty("Researcher").GetProperty("Id").GetInt32());
+        Assert.Equal(collectedBody.GetProperty("Researcher").GetProperty("PersonelID").GetString(),
+            personnelBody.GetProperty("Researcher").GetProperty("PersonelID").GetString());
 
-        using var publications = await host.Client.PostAsJsonAsync("/Services/AcademicPerformance/V1/ListPublications", new { Id = researcher.Id });
+        using var publications = await host.Client.PostAsJsonAsync("/Services/AcademicPerformance/V1/ListPublications", new { PersonelID = researcher.PersonelId });
         publications.EnsureSuccessStatusCode();
-        Assert.Equal(0, (await publications.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("TotalCount").GetInt32());
+        Assert.Equal(1, (await publications.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("TotalCount").GetInt32());
     }
 }

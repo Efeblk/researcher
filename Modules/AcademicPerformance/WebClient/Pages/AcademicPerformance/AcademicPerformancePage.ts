@@ -136,6 +136,12 @@ form?.addEventListener("submit", async event => {
         valueOf("WebOfScienceResearcherId")
     ].filter(Boolean);
     const tcKimlikNo = valueOf("TcKimlikNo");
+    const personelId = valueOf("PersonelId");
+
+    if (!personelId) {
+        showStatus("error", "PersonelID girin.");
+        return;
+    }
 
     if (!identifiers.length && !tcKimlikNo) {
         showStatus(
@@ -151,7 +157,7 @@ form?.addEventListener("submit", async event => {
     }
 
     setResearchButtonsEnabled(false);
-    await grid.setResearcher(0);
+    await grid.setResearcher("");
     showProfileSummary(undefined);
     showGoogleScholarSummary(undefined);
     showOpenAlexSummary(undefined);
@@ -164,22 +170,23 @@ form?.addEventListener("submit", async event => {
         const statusMessages: string[] = [];
         const errors: string[] = [];
         let hasSuccessfulResult = false;
-        let linkedResearcherId = 0;
+        let linkedPersonelId = "";
 
         if (identifiers.length) {
             try {
                 const response = await serviceRequest<ResearcherCollectResponse>(
                     "AcademicPerformance/V1/Collect",
                     {
+                        PersonelID: personelId,
                         ORCID: valueOf("Orcid") || undefined,
                         ScholarID: valueOf("GoogleScholarId") || undefined,
                         ResearcherID:
                             valueOf("WebOfScienceResearcherId") || undefined
                     });
-                const researcherId = response.Researcher?.Id ?? 0;
+                const savedPersonelId = response.Researcher?.PersonelID ?? "";
                 const messages = (response.Messages ?? []).filter(Boolean).join("\n");
 
-                if (response.IsSaved && researcherId) {
+                if (response.IsSaved && savedPersonelId) {
                     const displayName = [
                         response.Researcher?.FirstName,
                         response.Researcher?.LastName
@@ -189,7 +196,7 @@ form?.addEventListener("submit", async event => {
                         response.Researcher?.OpenAlexProfile?.DisplayName ||
                         response.Researcher?.WebOfScienceProfile?.DisplayName;
 
-                    linkedResearcherId = researcherId;
+                    linkedPersonelId = savedPersonelId;
                     hasSuccessfulResult = true;
                     statusMessages.push(messages || "Yayın araştırması tamamlandı.");
                     rememberProviderIdentifiers();
@@ -198,7 +205,7 @@ form?.addEventListener("submit", async event => {
                     showOpenAlexSummary(response.Researcher);
                     showWebOfScienceSummary(response.Researcher);
                     showProviderComparison(response.Researcher);
-                    await grid.setResearcher(researcherId, displayName);
+                    await grid.setResearcher(savedPersonelId, displayName);
                 }
                 else {
                     errors.push(
@@ -217,19 +224,19 @@ form?.addEventListener("submit", async event => {
                 const response = await serviceRequest<YoksisCollectResponse>(
                     "AcademicPerformance/V1/Yoksis/Collect",
                     {
-                        ResearcherId: linkedResearcherId || undefined,
+                        PersonelID: linkedPersonelId || personelId,
                         TcKimlikNo: tcKimlikNo,
                         IncludeRecords: false,
                         IncludeRawResponses: false
                     });
                 const successfulCount = response.SuccessfulCategoryCount ?? 0;
                 const failedCount = response.FailedCategoryCount ?? 0;
-                const researcherId = response.ResearcherId ?? 0;
+                const savedPersonelId = response.PersonelID ?? "";
 
                 showYoksisSummary(response);
 
-                if (response.IsSaved && researcherId) {
-                    linkedResearcherId = researcherId;
+                if (response.IsSaved && savedPersonelId) {
+                    linkedPersonelId = savedPersonelId;
                     hasSuccessfulResult = true;
                     statusMessages.push(
                         `YÖKSİS: ${(response.YoksisRecordCount ?? 0)
@@ -239,7 +246,7 @@ form?.addEventListener("submit", async event => {
                         `${(response.PublicationSummaryCount ?? 0)
                             .toLocaleString("tr-TR")} ortak yayın özeti hazırlandı.`);
                     await grid.setResearcher(
-                        researcherId,
+                        savedPersonelId,
                         response.ResearcherDisplayName);
                 }
                 else if (successfulCount > 0) {

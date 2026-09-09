@@ -11,6 +11,5 @@ public sealed class BulkCollectionJob
     public DateTime NextAttemptAt { get; set; }
     public DateTime? StartedAt { get; set; } = null;
     public DateTime? CompletedAt { get; set; } = null;
-    public int? CollectorResearcherId { get; set; } = null;
     public string? ResultMessage { get; set; } = null;
 }

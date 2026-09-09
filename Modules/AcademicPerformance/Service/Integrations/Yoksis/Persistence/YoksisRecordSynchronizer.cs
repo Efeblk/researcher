@@ -24,12 +24,12 @@ public sealed class YoksisRecordSynchronizer
     }
 
     public async Task<int> SyncAsync(
-        int researcherId,
+        string personelId,
         YoksisCollectResponse response,
         bool isIncremental = false)
     {
         List<YoksisRecord>? existingRecords = await _dbContext.YoksisRecords
-            .Where(record => record.ResearcherId == researcherId)
+            .Where(record => record.PersonelId == personelId)
             .ToListAsync();
         List<YoksisOperationResult>? categoriesToSynchronize = response.Categories
             .Where(category =>
@@ -79,7 +79,7 @@ public sealed class YoksisRecordSynchronizer
                 }
 
                 YoksisRecord? record = new YoksisRecord();
-                record.ResearcherId = researcherId;
+                record.PersonelId = personelId;
                 record.CategoryName = category.CategoryName ??
                     "YÖKSİS kategorisi";
                 record.OperationName = category.OperationName!;
@@ -94,7 +94,7 @@ public sealed class YoksisRecordSynchronizer
 
         await _dbContext.SaveChangesAsync();
         return await _dbContext.YoksisRecords.CountAsync(record =>
-            record.ResearcherId == researcherId);
+            record.PersonelId == personelId);
     }
 
     private static YoksisRecord? FindExistingRecord(

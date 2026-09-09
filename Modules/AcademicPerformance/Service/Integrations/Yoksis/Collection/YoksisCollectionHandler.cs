@@ -43,6 +43,12 @@ public sealed class YoksisCollectionHandler
     public async Task<YoksisCollectResponse> CollectAsync(
         YoksisCollectRequest request)
     {
+        if (string.IsNullOrWhiteSpace(request.PersonelId))
+            throw new ArgumentException("PersonelID is required.");
+        if (request.PersonelId.Trim().Length > 200)
+            throw new ArgumentException("PersonelID must be at most 200 characters.");
+        string personelId = request.PersonelId.Trim();
+
         YoksisCollectResponse? response = await _collectionService.CollectAsync(request);
 
         try
@@ -51,24 +57,24 @@ public sealed class YoksisCollectionHandler
                 await _dbContext.Database.BeginTransactionAsync();
 
             Researcher? requestedResearcher = CreateResearcher(response);
+            requestedResearcher.PersonelId = personelId;
             Researcher? researcher = await ResolveResearcherAsync(
-                request.ResearcherId,
                 requestedResearcher);
             await _researcherRepository.SaveAsync(researcher);
             response.YoksisRecordCount = await _recordSynchronizer.SyncAsync(
-                researcher.Id,
+                researcher.PersonelId,
                 response,
                 isIncremental: request.UpdatedAfter.HasValue);
             int publicationCount = await _workSynchronizer.SyncAsync(
-                researcher.Id,
+                researcher.PersonelId,
                 response,
                 isIncremental: request.UpdatedAfter.HasValue);
 
-            response.ResearcherId = researcher.Id;
+            response.PersonelId = researcher.PersonelId;
             response.ResearcherDisplayName = CreateDisplayName(researcher);
             response.YoksisPublicationCount = publicationCount;
             response.PublicationSummaryCount =
-                await _summarySynchronizer.SyncAsync(researcher.Id);
+                await _summarySynchronizer.SyncAsync(researcher.PersonelId);
             await transaction.CommitAsync();
             response.IsSaved = true;
             response.Messages.Add(
@@ -96,45 +102,13 @@ public sealed class YoksisCollectionHandler
     }
 
     private async Task<Researcher> ResolveResearcherAsync(
-        int? requestedResearcherId,
         Researcher requestedResearcher)
     {
-        Researcher? researcher = null;
-
-        if (requestedResearcherId.HasValue && requestedResearcherId.Value > 0)
-        {
-            researcher = await _researcherRepository.FindByIdAsync(
-                requestedResearcherId.Value);
-
-            if (researcher is null)
-            {
-                throw new ArgumentException(
-                    "YÖKSİS verisinin bağlanacağı akademisyen bulunamadı.");
-            }
-
-            _researcherRepository.ApplyRequestValues(
-                researcher,
-                requestedResearcher);
-            return researcher;
-        }
-
-        if (string.IsNullOrWhiteSpace(requestedResearcher.YoksisResearcherId) &&
-            string.IsNullOrWhiteSpace(requestedResearcher.Orcid) &&
-            string.IsNullOrWhiteSpace(
-                requestedResearcher.WebOfScienceResearcherId))
-        {
-            throw new InvalidOperationException(
-                "YÖKSİS personel yanıtında akademisyeni güvenle " +
-                "eşleştirecek Araştırmacı ID, ORCID veya ResearcherID gelmedi.");
-        }
-
-        researcher = await _researcherRepository.FindByIdentifiersAsync(
+        Researcher? researcher = await _researcherRepository.FindByIdentifiersAsync(
             requestedResearcher);
 
         if (researcher is null)
-        {
             return requestedResearcher;
-        }
 
         _researcherRepository.ApplyRequestValues(researcher, requestedResearcher);
         return researcher;

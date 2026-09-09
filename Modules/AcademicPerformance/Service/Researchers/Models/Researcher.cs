@@ -10,9 +10,7 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 
 public sealed class Researcher
 {
-    public int Id { get; set; }
-
-    public string? PersonelId { get; set; } = null;
+    public string PersonelId { get; set; } = string.Empty;
     public string? FirstName { get; set; } = null;
     public string? LastName { get; set; } = null;
     public string? AcademicTitle { get; set; } = null;

@@ -2,6 +2,8 @@
     [Parameter(Position = 0)]
     [string[]] $Id,
 
+    [string] $PersonelId,
+
     [ValidateNotNullOrEmpty()]
     [string] $BaseUrl = "http://localhost:5001",
 
@@ -40,8 +42,8 @@ if ($Clean -or $isCleanCommand) {
     }
 }
 
-if ($null -eq $Id -or $Id.Count -eq 0) {
-    Write-Host "Kullanım: .\collect.ps1 -Id <ORCID, Google Scholar ID veya ResearcherID> veya .\collect.ps1 clean" -ForegroundColor Yellow
+if ([string]::IsNullOrWhiteSpace($PersonelId) -or $null -eq $Id -or $Id.Count -eq 0) {
+    Write-Host "Kullanım: .\collect.ps1 -PersonelId <PersonelID> -Id <ORCID, Google Scholar ID veya ResearcherID> veya .\collect.ps1 clean" -ForegroundColor Yellow
     exit 1
 }
 
@@ -51,29 +53,29 @@ try {
             ForEach-Object { $_ -split '\s+' } |
             Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     )
-    $request = @{}
+    $request = @{ PersonelID = $PersonelId.Trim() }
 
     foreach ($identifier in $identifiers) {
         if ($identifier -match '^\d{4}-\d{4}-\d{4}-\d{3}[\dXx]$') {
-            if ($request.ContainsKey("Orcid")) {
+            if ($request.ContainsKey("ORCID")) {
                 throw "Birden fazla ORCID verildi."
             }
 
-            $request.Orcid = $identifier.ToUpperInvariant()
+            $request.ORCID = $identifier.ToUpperInvariant()
         }
         elseif ($identifier -match '^[A-Za-z]{1,3}-\d{4}-\d{4}$') {
-            if ($request.ContainsKey("WebOfScienceResearcherId")) {
+            if ($request.ContainsKey("ResearcherID")) {
                 throw "Birden fazla Web of Science ResearcherID verildi."
             }
 
-            $request.WebOfScienceResearcherId = $identifier.ToUpperInvariant()
+            $request.ResearcherID = $identifier.ToUpperInvariant()
         }
         elseif ($identifier -match '^[A-Za-z0-9_-]{12}$') {
-            if ($request.ContainsKey("GoogleScholarId")) {
+            if ($request.ContainsKey("ScholarID")) {
                 throw "Birden fazla Google Scholar ID verildi."
             }
 
-            $request.GoogleScholarId = $identifier
+            $request.ScholarID = $identifier
         }
         else {
             throw "Bilinmeyen kimlik biçimi: $identifier"

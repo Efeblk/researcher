@@ -14,8 +14,8 @@ public sealed class PublicationSummaryRow : Row<PublicationSummaryRow.RowFields>
     [DisplayName("ID"), Identity, IdProperty]
     public int? Id { get => fields.Id[this]; set => fields.Id[this] = value; }
 
-    [DisplayName("Akademisyen ID"), NotNull]
-    public int? ResearcherId { get => fields.ResearcherId[this]; set => fields.ResearcherId[this] = value; }
+    [DisplayName("PersonelID"), NotNull, Column("PersonelID")]
+    public string? PersonelId { get => fields.PersonelId[this]; set => fields.PersonelId[this] = value; }
 
     [DisplayName("Başlık"), NotNull, QuickSearch, NameProperty]
     public string? Title { get => fields.Title[this]; set => fields.Title[this] = value; }
@@ -47,7 +47,7 @@ public sealed class PublicationSummaryRow : Row<PublicationSummaryRow.RowFields>
     public sealed class RowFields : RowFieldsBase
     {
         public Int32Field Id = null!;
-        public Int32Field ResearcherId = null!;
+        public StringField PersonelId = null!;
         public StringField Title = null!;
         public Int32Field PublicationYear = null!;
         public EnumField<AcademicWorkCategory> Category = null!;

@@ -5,7 +5,6 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
 
 public sealed class AcademicResearcherRequest : ServiceRequest
 {
-    public int? Id { get; set; } = null;
     [JsonPropertyName("PersonelID"), Newtonsoft.Json.JsonProperty("PersonelID")]
     public string? PersonelId { get; set; } = null;
     [JsonPropertyName("ORCID"), Newtonsoft.Json.JsonProperty("ORCID")]

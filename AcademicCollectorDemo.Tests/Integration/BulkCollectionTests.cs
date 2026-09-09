@@ -160,7 +160,6 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
         var status = await service.GetStatusAsync(new() { BatchId = input.BatchId });
         Assert.True(status.IsComplete);
         Assert.Equal(BulkJobStatus.Succeeded, status.Jobs.Single().Status);
-        Assert.Equal(42, status.Jobs.Single().CollectorResearcherId);
     }
 
     [Fact]
@@ -318,7 +317,7 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
             {
                 IsSaved = true, Researcher = new()
                 {
-                    Id = 42,
+                    PersonelId = request.PersonelId,
                     OrcidProfile = request.Orcid is null ? null : new(),
                     OpenAlexProfile = request.Orcid is null ? null : new(),
                     GoogleScholarProfile = request.GoogleScholarId is null ? null : new(),

@@ -38,8 +38,7 @@ public sealed class InitialAcademicSchema : Migration
     private void CreateResearchers()
     {
         Create.Table("Researchers")
-            .WithColumn("Id").AsInt32().PrimaryKey().Identity()
-            .WithColumn("PersonelID").AsString(200).Nullable()
+            .WithColumn("PersonelID").AsString(200).PrimaryKey()
             .WithColumn("FirstName").AsString(int.MaxValue).Nullable()
             .WithColumn("LastName").AsString(int.MaxValue).Nullable()
             .WithColumn("AcademicTitle").AsString(int.MaxValue).Nullable()
@@ -55,11 +54,11 @@ public sealed class InitialAcademicSchema : Migration
     {
         Create.Table("OrcidProfiles")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
-            .WithColumn("ResearcherId").AsInt32().NotNullable()
+            .WithColumn("PersonelID").AsString(200).NotNullable()
                 .ForeignKey(
-                    "FK_OrcidProfiles_Researchers_ResearcherId",
+                    "FK_OrcidProfiles_Researchers_PersonelID",
                     "Researchers",
-                    "Id")
+                    "PersonelID")
                 .OnDelete(Rule.Cascade)
             .WithColumn("DisplayName").AsString(500).Nullable()
             .WithColumn("GivenNames").AsString(250).Nullable()
@@ -125,11 +124,11 @@ public sealed class InitialAcademicSchema : Migration
     {
         Create.Table("WebOfScienceProfiles")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
-            .WithColumn("ResearcherId").AsInt32().NotNullable()
+            .WithColumn("PersonelID").AsString(200).NotNullable()
                 .ForeignKey(
-                    "FK_WebOfScienceProfiles_Researchers_ResearcherId",
+                    "FK_WebOfScienceProfiles_Researchers_PersonelID",
                     "Researchers",
-                    "Id")
+                    "PersonelID")
                 .OnDelete(Rule.Cascade)
             .WithColumn("DisplayName").AsString(500).Nullable()
             .WithColumn("FirstName").AsString(250).Nullable()
@@ -208,11 +207,11 @@ public sealed class InitialAcademicSchema : Migration
     {
         Create.Table("YoksisRecords")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
-            .WithColumn("ResearcherId").AsInt32().NotNullable()
+            .WithColumn("PersonelID").AsString(200).NotNullable()
                 .ForeignKey(
-                    "FK_YoksisRecords_Researchers_ResearcherId",
+                    "FK_YoksisRecords_Researchers_PersonelID",
                     "Researchers",
-                    "Id")
+                    "PersonelID")
                 .OnDelete(Rule.Cascade)
             .WithColumn("CategoryName").AsString(250).NotNullable()
             .WithColumn("OperationName").AsString(250).NotNullable()
@@ -226,11 +225,11 @@ public sealed class InitialAcademicSchema : Migration
     {
         Create.Table("AcademicWorks")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
-            .WithColumn("ResearcherId").AsInt32().NotNullable()
+            .WithColumn("PersonelID").AsString(200).NotNullable()
                 .ForeignKey(
-                    "FK_AcademicWorks_Researchers_ResearcherId",
+                    "FK_AcademicWorks_Researchers_PersonelID",
                     "Researchers",
-                    "Id")
+                    "PersonelID")
                 .OnDelete(Rule.Cascade)
             .WithColumn("Provider").AsString(50).NotNullable()
             .WithColumn("ProviderWorkId").AsString(500).Nullable()
@@ -275,11 +274,11 @@ public sealed class InitialAcademicSchema : Migration
     {
         Create.Table("PublicationSummaries")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
-            .WithColumn("ResearcherId").AsInt32().NotNullable()
+            .WithColumn("PersonelID").AsString(200).NotNullable()
                 .ForeignKey(
-                    "FK_PublicationSummaries_Researchers_ResearcherId",
+                    "FK_PublicationSummaries_Researchers_PersonelID",
                     "Researchers",
-                    "Id")
+                    "PersonelID")
                 .OnDelete(Rule.Cascade)
             .WithColumn("Fingerprint").AsString(64).NotNullable()
             .WithColumn("Title").AsString(2000).NotNullable()
@@ -297,11 +296,11 @@ public sealed class InitialAcademicSchema : Migration
     {
         Create.Table("PublicationDisplayApprovals")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
-            .WithColumn("ResearcherId").AsInt32().NotNullable()
+            .WithColumn("PersonelID").AsString(200).NotNullable()
                 .ForeignKey(
-                    "FK_PublicationDisplayApprovals_Researchers_ResearcherId",
+                    "FK_PublicationDisplayApprovals_Researchers_PersonelID",
                     "Researchers",
-                    "Id")
+                    "PersonelID")
             .WithColumn("PublicationSummaryId").AsInt32().NotNullable()
                 .ForeignKey(
                     "FK_PublicationDisplayApprovals_PublicationSummaries_PublicationSummaryId",
@@ -313,7 +312,6 @@ public sealed class InitialAcademicSchema : Migration
 
     private void CreateIndexes()
     {
-        CreateResearcherIdentifierIndex("IX_Researchers_PersonelID", "PersonelID");
         CreateResearcherIdentifierIndex("IX_Researchers_ORCID", "ORCID");
         CreateResearcherIdentifierIndex(
             "IX_Researchers_ResearcherID",
@@ -323,18 +321,18 @@ public sealed class InitialAcademicSchema : Migration
             "YoksisResearcherId");
 
         CreateUniqueIndex(
-            "IX_OrcidProfiles_ResearcherId",
+            "IX_OrcidProfiles_PersonelID",
             "OrcidProfiles",
-            "ResearcherId");
+            "PersonelID");
         CreateUniqueIndex(
             "IX_OrcidWorks_OrcidProfileId_PutCode",
             "OrcidWorks",
             "OrcidProfileId",
             "PutCode");
         CreateUniqueIndex(
-            "IX_WebOfScienceProfiles_ResearcherId",
+            "IX_WebOfScienceProfiles_PersonelID",
             "WebOfScienceProfiles",
-            "ResearcherId");
+            "PersonelID");
         CreateUniqueIndex(
             "IX_WebOfScienceWorks_WebOfScienceProfileId_Uid",
             "WebOfScienceWorks",
@@ -345,36 +343,36 @@ public sealed class InitialAcademicSchema : Migration
             "WebOfSciencePeerReviews",
             "WebOfScienceProfileId");
         CreateIndex(
-            "IX_YoksisRecords_ResearcherId",
+            "IX_YoksisRecords_PersonelID",
             "YoksisRecords",
-            "ResearcherId");
+            "PersonelID");
         CreateIndex(
-            "IX_YoksisRecords_ResearcherId_OperationName",
+            "IX_YoksisRecords_PersonelID_OperationName",
             "YoksisRecords",
-            "ResearcherId",
+            "PersonelID",
             "OperationName");
         CreateIndex(
-            "IX_AcademicWorks_ResearcherId",
+            "IX_AcademicWorks_PersonelID",
             "AcademicWorks",
-            "ResearcherId");
+            "PersonelID");
         CreateIndex(
-            "IX_AcademicWorks_ResearcherId_Provider",
+            "IX_AcademicWorks_PersonelID_Provider",
             "AcademicWorks",
-            "ResearcherId",
+            "PersonelID",
             "Provider");
         CreateIndex(
-            "IX_PublicationSummaries_ResearcherId",
+            "IX_PublicationSummaries_PersonelID",
             "PublicationSummaries",
-            "ResearcherId");
+            "PersonelID");
         CreateUniqueIndex(
-            "IX_PublicationSummaries_ResearcherId_Fingerprint",
+            "IX_PublicationSummaries_PersonelID_Fingerprint",
             "PublicationSummaries",
-            "ResearcherId",
+            "PersonelID",
             "Fingerprint");
         CreateIndex(
-            "IX_PublicationDisplayApprovals_ResearcherId",
+            "IX_PublicationDisplayApprovals_PersonelID",
             "PublicationDisplayApprovals",
-            "ResearcherId");
+            "PersonelID");
         CreateUniqueIndex(
             "IX_PublicationDisplayApprovals_PublicationSummaryId",
             "PublicationDisplayApprovals",

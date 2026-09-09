@@ -19,7 +19,7 @@ public sealed class AnalysisServiceClient(HttpClient client, IOptions<AnalysisSe
             throw new HttpRequestException("The analysis service could not generate a report.", null, response.StatusCode);
         ResearcherAnalysisReport report = await response.Content.ReadFromJsonAsync<ResearcherAnalysisReport>(cancellationToken)
             ?? throw new System.Text.Json.JsonException("The analysis service returned an empty report.");
-        if (report.ResearcherId != snapshot.ResearcherId || report.Coverage is null ||
+        if (!report.PersonelId.Equals(snapshot.PersonelId, StringComparison.Ordinal) || report.Coverage is null ||
             report.Coverage.SnapshotAt != snapshot.SnapshotAt || report.Findings is null ||
             report.Activity is null || report.CitationMetrics is null ||
             string.IsNullOrWhiteSpace(report.Model) || string.IsNullOrWhiteSpace(report.PromptVersion))

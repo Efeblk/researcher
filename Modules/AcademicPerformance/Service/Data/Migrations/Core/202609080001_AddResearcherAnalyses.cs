@@ -9,12 +9,12 @@ public sealed class AddResearcherAnalyses : Migration
     {
         Create.Table("ResearcherAnalyses")
             .WithColumn("Id").AsInt64().PrimaryKey().Identity()
-            .WithColumn("ResearcherId").AsInt32().NotNullable().ForeignKey("Researchers", "Id")
+            .WithColumn("PersonelID").AsString(200).NotNullable().ForeignKey("Researchers", "PersonelID")
             .WithColumn("SavedAt").AsDateTimeOffset().NotNullable()
             .WithColumn("SnapshotJson").AsString(int.MaxValue).NotNullable()
             .WithColumn("ReportJson").AsString(int.MaxValue).NotNullable();
-        Create.Index("IX_ResearcherAnalyses_ResearcherId_Id").OnTable("ResearcherAnalyses")
-            .OnColumn("ResearcherId").Ascending().OnColumn("Id").Descending();
+        Create.Index("IX_ResearcherAnalyses_PersonelID_Id").OnTable("ResearcherAnalyses")
+            .OnColumn("PersonelID").Ascending().OnColumn("Id").Descending();
     }
 
     public override void Down() => Delete.Table("ResearcherAnalyses");

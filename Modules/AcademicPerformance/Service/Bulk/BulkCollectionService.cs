@@ -107,7 +107,6 @@ public sealed class BulkCollectionService(
                     PersonelId = job.PersonelId,
                     Status = job.Status,
                     Attempts = job.Attempts,
-                    CollectorResearcherId = job.CollectorResearcherId,
                     NextAttemptAt = job.NextAttemptAt,
                     Message = job.ResultMessage,
                     Warnings = ReadPersisted(job.InputJson).Warnings

@@ -7,7 +7,7 @@ internal static class AnalysisSamples
 {
     public static AnalyzeResearcherRequest Request() => new()
     {
-        ResearcherId = 42,
+        PersonelId = "00123-A",
         ResearcherName = "Synthetic Researcher",
         SnapshotAt = DateTimeOffset.Parse("2026-01-01T00:00:00Z"),
         TotalPublicationCount = 4,

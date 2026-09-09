@@ -1,9 +1,9 @@
 # Collector (5001), ResearcherAnalysisService (5011), SQL Server ve Ollama calisir durumda olmali.
-# PersonelID: akademisyenin personel kaydindaki metin kimligi. Bastaki sifirlar korunur.
+# personelId: kurumun PersonelID degeri. Yayinlar otomatik alinir.
 # snapshotAt: rapora yazilan veri tarihi; gecmise yonelik kayit secmez.
 
 @host = http://localhost:5001
-@personelId = 000000987654
+@personelId = 00123-A
 @snapshotAt = 2026-09-08T00:00:00Z
 
 ### Analiz olustur ve kaydet

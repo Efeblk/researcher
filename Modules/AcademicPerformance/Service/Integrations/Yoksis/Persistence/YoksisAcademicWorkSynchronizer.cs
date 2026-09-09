@@ -24,16 +24,16 @@ public sealed class YoksisAcademicWorkSynchronizer
     }
 
     public async Task<int> SyncAsync(
-        int researcherId,
+        string personelId,
         YoksisCollectResponse response,
         bool isIncremental = false)
     {
         List<AcademicWork>? existingWorks = await _dbContext.AcademicWorks
             .Where(work =>
-                work.ResearcherId == researcherId &&
+                work.PersonelId == personelId &&
                 work.Provider == AcademicWorkProvider.Yoksis)
             .ToListAsync();
-        List<AcademicWork>? incomingWorks = CreateWorks(researcherId, response);
+        List<AcademicWork>? incomingWorks = CreateWorks(personelId, response);
         HashSet<int>? matchedExistingIds = [];
         HashSet<string>? completedSourceTypes = isIncremental ? [] : GetCompletedSourceTypes(response);
 
@@ -68,7 +68,7 @@ public sealed class YoksisAcademicWorkSynchronizer
     }
 
     private static List<AcademicWork> CreateWorks(
-        int researcherId,
+        string personelId,
         YoksisCollectResponse response)
     {
         List<AcademicWork>? works = [];
@@ -78,7 +78,7 @@ public sealed class YoksisAcademicWorkSynchronizer
             foreach (Dictionary<string, string?> record in category.Records)
             {
                 AcademicWork? work = CreateWork(
-                    researcherId,
+                    personelId,
                     category.OperationName,
                     record);
 
@@ -96,18 +96,18 @@ public sealed class YoksisAcademicWorkSynchronizer
     }
 
     private static AcademicWork? CreateWork(
-        int researcherId,
+        string personelId,
         string? operationName,
         Dictionary<string, string?> record)
     {
         AcademicWork? work = operationName switch
         {
-            "getMakaleBilgisiDetayV1" => CreateArticle(researcherId, record),
+            "getMakaleBilgisiDetayV1" => CreateArticle(personelId, record),
             "getBildiriBilgisiDetayV1" => CreateConferencePaper(
-                researcherId,
+                personelId,
                 record),
-            "getKitapBilgisiDetayV1" => CreateBook(researcherId, record),
-            "getPatentBilgisiDetayV1" => CreatePatent(researcherId, record),
+            "getKitapBilgisiDetayV1" => CreateBook(personelId, record),
+            "getPatentBilgisiDetayV1" => CreatePatent(personelId, record),
             _ => null
         };
 
@@ -136,11 +136,11 @@ public sealed class YoksisAcademicWorkSynchronizer
     }
 
     private static AcademicWork CreateArticle(
-        int researcherId,
+        string personelId,
         Dictionary<string, string?> record)
     {
         AcademicWork? work = CreateBaseWork(
-            researcherId,
+            personelId,
             "Makale",
             Get(record, "YAYIN_ID"),
             Get(record, "MAKALE_ADI"),
@@ -165,13 +165,13 @@ public sealed class YoksisAcademicWorkSynchronizer
     }
 
     private static AcademicWork CreateConferencePaper(
-        int researcherId,
+        string personelId,
         Dictionary<string, string?> record)
     {
         string? dateText = Get(record, "BASIM_TARIHI") ??
             Get(record, "ETKINLIK_BAS_TARIHI");
         AcademicWork? work = CreateBaseWork(
-            researcherId,
+            personelId,
             "Bildiri",
             Get(record, "YAYIN_ID"),
             Get(record, "BILDIRI_ADI"),
@@ -196,13 +196,13 @@ public sealed class YoksisAcademicWorkSynchronizer
     }
 
     private static AcademicWork CreateBook(
-        int researcherId,
+        string personelId,
         Dictionary<string, string?> record)
     {
         string? bookTitle = Get(record, "KITAP_ADI");
         string? chapterTitle = Get(record, "BOLUM_ADI");
         AcademicWork? work = CreateBaseWork(
-            researcherId,
+            personelId,
             "Kitap",
             Get(record, "YAYIN_ID"),
             chapterTitle ?? bookTitle,
@@ -261,11 +261,11 @@ public sealed class YoksisAcademicWorkSynchronizer
     }
 
     private static AcademicWork CreatePatent(
-        int researcherId,
+        string personelId,
         Dictionary<string, string?> record)
     {
         AcademicWork? work = CreateBaseWork(
-            researcherId,
+            personelId,
             "Patent",
             Get(record, "PATENT_ID"),
             Get(record, "PATENT_ADI"),
@@ -281,7 +281,7 @@ public sealed class YoksisAcademicWorkSynchronizer
     }
 
     private static AcademicWork CreateBaseWork(
-        int researcherId,
+        string personelId,
         string sourceType,
         string? sourceId,
         string? title,
@@ -291,7 +291,7 @@ public sealed class YoksisAcademicWorkSynchronizer
         string? link)
     {
         AcademicWork? work = new AcademicWork();
-        work.ResearcherId = researcherId;
+        work.PersonelId = personelId;
         work.ProviderWorkId = string.IsNullOrWhiteSpace(sourceId)
             ? string.Empty
             : $"{sourceType}:{sourceId}";
@@ -391,7 +391,7 @@ public sealed class YoksisAcademicWorkSynchronizer
 
     private static void CopyValues(AcademicWork source, AcademicWork target)
     {
-        target.ResearcherId = source.ResearcherId;
+        target.PersonelId = source.PersonelId;
         target.Provider = source.Provider;
         target.ProviderWorkId = source.ProviderWorkId;
         target.Title = source.Title;
