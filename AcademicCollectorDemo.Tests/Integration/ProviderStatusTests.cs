@@ -39,10 +39,14 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         var providers = responses[0].Providers.ToDictionary(provider => provider.Provider);
         Assert.Equal("Healthy", providers["Orcid"].Status);
         Assert.Equal(70, providers["SearchApi"].ProviderQuotas[0].Remaining);
+        Assert.Equal("ProviderReported", providers["SearchApi"].RemainingUsage.Status);
+        Assert.Equal(70, providers["SearchApi"].RemainingUsage.Items[0].Value);
+        Assert.Equal("Derived", providers["SearchApi"].RemainingUsage.Items[1].Status);
         Assert.Equal("RateLimited", providers["OpenAlex"].Status);
         Assert.NotNull(providers["OpenAlex"].RetryAt);
         Assert.Equal("credits", providers["OpenAlex"].ProviderQuotas[0].Unit);
         Assert.Equal("Unauthorized", providers["WebOfScience"].Status);
+        Assert.Equal("Unavailable", providers["WebOfScience"].RemainingUsage.Status);
         Assert.Equal("Reachable", providers["Yoksis"].Status);
         Assert.Equal("Unavailable", providers["AnalysisService"].Status);
         Assert.DoesNotContain("synthetic secret", JsonSerializer.Serialize(responses[0]));
@@ -56,6 +60,8 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         ProviderStatusResponse response = await CreateService(client, false).GetAsync(default);
         Assert.Equal(3, handler.RequestCount);
         Assert.Equal(3, response.Providers.Count(provider => provider.Status == "NotConfigured"));
+        Assert.All(response.Providers.Where(provider => provider.Status == "NotConfigured"),
+            provider => Assert.Equal("Unavailable", provider.RemainingUsage.Status));
         Assert.All(response.Providers.Where(provider => provider.Status != "NotConfigured"),
             provider => Assert.Equal("UnexpectedResponse", provider.Status));
     }
@@ -110,9 +116,73 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         using var response = await client.GetAsync("/Services/AcademicPerformance/V1/ProviderStatus");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.True(response.Headers.CacheControl?.NoStore);
-        var body = await response.Content.ReadFromJsonAsync<ProviderStatusResponse>();
+        string json = await response.Content.ReadAsStringAsync();
+        Assert.Contains("\"remainingUsage\"", json);
+        Assert.Contains("\"reason\"", json);
+        var body = JsonSerializer.Deserialize<ProviderStatusResponse>(json,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         Assert.Equal(6, body!.Providers.Count);
         Assert.True(body.ExpiresAt > body.CheckedAt);
+        Assert.All(body.Providers, provider => Assert.NotNull(provider.RemainingUsage));
+    }
+
+    [Fact]
+    public async Task GetAsync_CacheHitAfterQuotaExpiry_RebuildsRemainingUsageWithoutNewRequests()
+    {
+        using StubHttpHandler handler = new(request => request.RequestUri!.Host switch
+        {
+            "orcid.test" => StubHttpHandler.Json(
+                """{"tomcatUp":true,"dbConnectionOk":true,"readOnlyDbConnectionOk":true,"overallOk":true}"""),
+            "search.test" => Account(request),
+            "openalex.test" => StubHttpHandler.Json("""{"results":[]}"""),
+            "wos.test" => StubHttpHandler.Json("""{"metadata":{}}"""),
+            "yoksis.test" => new(HttpStatusCode.OK) { Content = new StringContent(
+                "<definitions xmlns='http://schemas.xmlsoap.org/wsdl/'/>") },
+            _ => StubHttpHandler.Json("""{"status":"Running"}""")
+        });
+        using HttpClient client = new(handler);
+        ProviderStatusService service = CreateService(client);
+        ProviderStatusResponse first = await service.GetAsync(default);
+        ProviderStatusDto search = first.Providers.Single(provider => provider.Provider == "SearchApi");
+        Assert.Equal(70, search.RemainingUsage.Items[0].Value);
+        foreach (ProviderQuotaDto quota in search.ProviderQuotas)
+            quota.ExpiresAt = DateTime.UtcNow.AddSeconds(-1);
+        int requestsAfterFirst = handler.RequestCount;
+
+        ProviderStatusResponse second = await service.GetAsync(default);
+
+        Assert.Same(first, second);
+        Assert.Equal(requestsAfterFirst, handler.RequestCount);
+        Assert.Equal("Stale", search.RemainingUsage.Status);
+        Assert.Null(search.RemainingUsage.Items[0].Value);
+        Assert.Equal(70, search.ProviderQuotas[0].Remaining);
+    }
+
+    [Fact]
+    public async Task GetAsync_OpenAlexSuffixedHeader_DoesNotPresentDailyAccountBalance()
+    {
+        using StubHttpHandler handler = new(request =>
+        {
+            if (request.RequestUri!.Host == "openalex.test")
+            {
+                HttpResponseMessage response = new(HttpStatusCode.TooManyRequests);
+                response.Headers.Add("X-RateLimit-Limit-Second", "10");
+                response.Headers.Add("X-RateLimit-Remaining-Second", "9");
+                return response;
+            }
+            return StubHttpHandler.Json("{}");
+        });
+        using HttpClient client = new(handler);
+
+        ProviderStatusResponse response = await CreateService(client, openAlexKey: true).GetAsync(default);
+        ProviderStatusDto openAlex = response.Providers.Single(provider => provider.Provider == "OpenAlex");
+
+        ProviderQuotaDto quota = Assert.Single(openAlex.ProviderQuotas);
+        Assert.Equal("second", quota.Window);
+        Assert.Equal("unknown", quota.Unit);
+        Assert.Null(quota.Scope);
+        Assert.Equal("Unknown", openAlex.RemainingUsage.Status);
+        Assert.Null(openAlex.RemainingUsage.Items[0].Value);
     }
 
     [Theory]
@@ -139,7 +209,8 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => CreateService(client).GetAsync(cancellation.Token));
     }
 
-    private ProviderStatusService CreateService(HttpClient client, bool credentials = true)
+    private ProviderStatusService CreateService(HttpClient client, bool credentials = true,
+        bool openAlexKey = false)
     {
         Dictionary<string, string?> settings = new()
         {
@@ -155,6 +226,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         if (credentials)
             foreach (string key in new[] { "SearchApi:ApiKey", "WebOfScience:ApiKey", "Yoksis:Username", "Yoksis:Password" })
                 settings[key] = "synthetic";
+        if (openAlexKey) settings["OpenAlex:ApiKey"] = "synthetic";
         return new(client, new ClientFactory(client), new ConfigurationBuilder().AddInMemoryCollection(settings).Build());
     }
 

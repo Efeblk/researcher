@@ -16,6 +16,10 @@ meaning explicit:
   booleans. It is currently populated only by ORCID.
 - `QuotaAvailability` and `QuotaSource` state whether usable numeric quota evidence was
   returned and where it came from.
+- `RemainingUsage` is the consumer-ready view. Its summary and per-window items distinguish
+  `ProviderReported`, `Derived`, `Unknown`, `Unavailable`, and `Stale` values. Each item
+  includes the unit, window, source, scope, observation/expiry/reset times, and a neutral
+  explanation.
 - quota observations include source fields, scope, value provenance, observation/reset/
   expiry times, and SearchApi subscription period end where supplied.
 - `LocalBudget` remains the collector's SQL pacing and daily limit. It is never presented
@@ -23,6 +27,19 @@ meaning explicit:
 
 An empty provider quota list means unknown, never unlimited. Missing, negative, or
 wrong-type numeric fields are ignored. A zero is retained as a known exhausted value.
+`RemainingUsage.Items[].Value` is null unless the value has a recognized provider source,
+account or API-key scope, known unit and window, and a current observation. A present zero
+means the window is exhausted; null means no verified current value. Partial numeric quota
+data without a remaining value stays unknown. Generic Web of Science or YÖKSİS headers and
+keyless OpenAlex observations do not become account balances. `LocalBudget` is never used
+to populate this view.
+
+The summary describes whether at least one item is usable; consumers must inspect every
+item because one provider can expose several windows with different states. `Derived` is
+currently used for SearchApi's hourly limit minus hourly usage. SearchApi subscription end
+is retained only in the raw quota observation and is not a reset time. `Current` means the
+observation is within its stated lifetime; another client sharing the account may consume
+usage after `ObservedAt`.
 
 ## Provider checks
 
@@ -30,7 +47,7 @@ wrong-type numeric fields are ignored. A zero is retained as a known exhausted v
 | --- | --- | --- |
 | ORCID | Public `/v3.0/pubStatus`, or Member `/v3.0/apiStatus` for `api.orcid.org` | `overallOk` and all three documented component booleans are required. `overallOk:false` is `Unhealthy`; missing/wrong-type fields are `UnexpectedResponse`. This is official service health, not account quota or token validation. |
 | SearchApi | Bearer-authenticated `/api/v1/me` | Numeric account and hourly fields are official account data. Hourly remaining is marked derived when calculated from limit minus usage. `subscription.period_end` is retained separately and is not treated as every quota reset. Empty/invalid account data is unknown and unexpected. |
-| OpenAlex | Bearer-authenticated `/rate-limit` when a key is configured | Only published `rate_limit.credits_limit`, `credits_used`, `credits_remaining`, and `resets_at` fields are selected. The response's top-level `api_key` is never exposed. Missing/malformed numeric quota data is unknown and unexpected. |
+| OpenAlex | Bearer-authenticated `/rate-limit` when a key is configured | Only published `rate_limit.credits_limit`, `credits_used`, `credits_remaining`, and `resets_at` fields are selected. On header observations, the documented `X-RateLimit-Reset` seconds are converted relative to `ObservedAt`; invalid or overflowing values are ignored. The response's top-level `api_key` is never exposed. Missing/malformed numeric quota data is unknown and unexpected. |
 | OpenAlex without key | `/works?per_page=1&select=id` | Reachability fallback only. Observed headers are not claimed as authenticated account quota. |
 | Web of Science | Starter document request | Transport/reachability check. Generic rate-limit headers, if present, remain observed headers with unknown scope/unit unless their contract is established. |
 | YÖKSİS | `?wsdl` | WSDL reachability only; SOAP authorization, operations, and account quota remain unverified. |
@@ -42,6 +59,9 @@ The complete response has a 60-second process cache. ORCID has a separate SQL-ba
 deployment cache because ORCID asks clients not to check status more than once every
 five minutes. Its cache key is derived from the configured status origin and case-
 preserved path, so Public, Member, and custom test endpoints do not collide.
+The service recomputes `RemainingUsage` against the current UTC time on every process-cache
+read. A value becomes `Stale` with a null `Value` as soon as its observation expires or its
+reset time elapses, even if the aggregate response remains cached.
 
 The service obtains a SQL application lock and writes a five-minute `LocalCoordinationPending`
 reservation using SQL Server UTC before sending the ORCID request. A cancelled or crashed
@@ -89,9 +109,30 @@ An abbreviated synthetic result shows the separation (nullable fields may be omi
     "ReadOnlyDbConnectionOk": true
   },
   "QuotaAvailability": "Unknown",
+  "RemainingUsage": {
+    "Status": "Unknown",
+    "Reason": "No verified current provider remaining balance is available.",
+    "Items": []
+  },
   "CacheScope": "SqlDeployment",
   "ProviderQuotas": [],
   "LocalBudget": { "Status": "Available", "RequestsToday": 12 }
+}
+```
+
+A SearchApi result with synthetic values illustrates a reported exhausted monthly window
+alongside a derived hourly window:
+
+```json
+{
+  "Provider": "SearchApi",
+  "RemainingUsage": {
+    "Status": "ProviderReported",
+    "Items": [
+      { "Status": "ProviderReported", "Value": 0, "Unit": "searches", "Window": "month", "Source": "AccountApi", "Scope": "account" },
+      { "Status": "Derived", "Value": 6, "Unit": "searches", "Window": "hour", "Source": "AccountApi", "Scope": "account" }
+    ]
+  }
 }
 ```
 

@@ -17,4 +17,5 @@ public sealed class ProviderStatusDto
     public string CacheScope { get; set; } = "Process";
     public LocalProviderBudgetDto? LocalBudget { get; set; } = null;
     public List<ProviderQuotaDto> ProviderQuotas { get; set; } = [];
+    public ProviderRemainingUsageDto RemainingUsage { get; set; } = new();
 }

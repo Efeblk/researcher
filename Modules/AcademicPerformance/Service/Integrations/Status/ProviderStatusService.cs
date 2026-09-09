@@ -35,13 +35,19 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
         try
         {
             if (_cached is not null && _cached.ExpiresAt > DateTime.UtcNow)
+            {
+                RefreshRemainingUsage(_cached, DateTime.UtcNow);
                 return _cached;
+            }
             ProviderStatusDto[] results = await Task.WhenAll(Providers.Select(provider => provider.Name == "Orcid"
                 ? CheckOrcidAsync(configuration[provider.Key] ?? provider.Url, cancellationToken)
                 : CheckAsync(provider.Name, configuration[provider.Key] ?? provider.Url, cancellationToken)));
-            DateTime now = DateTime.UtcNow;
+            DateTime budgetAt = DateTime.UtcNow;
             await Task.WhenAll(results.Where(result => result.Provider != "AnalysisService").Select(async result =>
-                result.LocalBudget = await ReadBudgetAsync(result.Provider, now, cancellationToken)));
+                result.LocalBudget = await ReadBudgetAsync(result.Provider, budgetAt, cancellationToken)));
+            DateTime now = DateTime.UtcNow;
+            foreach (ProviderStatusDto result in results)
+                result.RemainingUsage = BuildRemainingUsage(result, now);
             _cached = new() { CheckedAt = now, ExpiresAt = now.AddSeconds(60), Providers = [.. results] };
             return _cached;
         }
@@ -231,10 +237,24 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
             if (name == "OpenAlex")
                 foreach (ProviderQuotaDto quota in result.ProviderQuotas)
                 {
-                    quota.Unit = "credits";
-                    quota.Window = "day";
-                    quota.Scope = string.IsNullOrWhiteSpace(configuration["OpenAlex:ApiKey"])
-                        ? "anonymous-or-unknown-account" : "api-key";
+                    if (quota.Source == "AccountApi")
+                    {
+                        quota.Unit = "credits";
+                        quota.Window = "day";
+                        quota.Scope = "api-key";
+                    }
+                    else if (quota.SourceFields == "X-RateLimit-Limit,X-RateLimit-Remaining")
+                    {
+                        quota.Unit = "credits";
+                        quota.Window = "day";
+                        quota.Scope = string.IsNullOrWhiteSpace(configuration["OpenAlex:ApiKey"])
+                            ? "anonymous-or-unknown-account" : "api-key";
+                        if (result.CheckedAt.HasValue)
+                        {
+                            quota.ResetsAt = ParseOpenAlexResetAt(response, result.CheckedAt.Value);
+                            if (quota.ResetsAt.HasValue) quota.SourceFields += ",X-RateLimit-Reset";
+                        }
+                    }
                 }
             DateTime expiresAt = (result.CheckedAt ?? DateTime.UtcNow).AddSeconds(60);
             result.Transport.ExpiresAt = expiresAt;
@@ -390,6 +410,100 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
     private static decimal? Header(HttpResponseMessage response, string name) =>
         response.Headers.TryGetValues(name, out var values) && decimal.TryParse(values.FirstOrDefault(),
             NumberStyles.Number, CultureInfo.InvariantCulture, out decimal number) && number >= 0 ? number : null;
+
+    public static DateTime? ParseOpenAlexResetAt(HttpResponseMessage response, DateTime observedAt)
+    {
+        decimal? seconds = Header(response, "X-RateLimit-Reset");
+        if (!seconds.HasValue) return null;
+        try { return observedAt.AddSeconds((double)seconds.Value); }
+        catch (ArgumentOutOfRangeException) { return null; }
+        catch (OverflowException) { return null; }
+    }
+
+    public static ProviderRemainingUsageDto BuildRemainingUsage(ProviderStatusDto provider, DateTime now)
+    {
+        List<ProviderRemainingUsageItemDto> items = provider.ProviderQuotas.Select(quota =>
+            BuildRemainingUsageItem(provider.Provider, quota, now)).ToList();
+        if (provider.Status is "NotConfigured" or "Unavailable" or "Timeout" or "Unauthorized" or
+            "LocallyLimited" or "LocalBudgetUnavailable" or "LocalCoordinationUnavailable" or
+            "LocalCoordinationPending")
+        {
+            foreach (ProviderRemainingUsageItemDto item in items)
+            {
+                item.Status = "Unavailable";
+                item.Value = null;
+                item.Reason = "The provider check did not produce a usable current observation.";
+            }
+            return new() { Status = "Unavailable", Reason = "A current provider remaining balance could not be obtained.", Items = items };
+        }
+        if (items.Any(item => item.Status == "ProviderReported"))
+            return new() { Status = "ProviderReported", Reason = "At least one current usage window was reported by the provider; inspect each item.", Items = items };
+        if (items.Any(item => item.Status == "Derived"))
+            return new() { Status = "Derived", Reason = "At least one current usage window was calculated from provider-reported values; inspect each item.", Items = items };
+        if (items.Any(item => item.Status == "Stale"))
+            return new() { Status = "Stale", Reason = "The provider observation is no longer current.", Items = items };
+        return new() { Items = items };
+    }
+
+    private static ProviderRemainingUsageItemDto BuildRemainingUsageItem(string providerName,
+        ProviderQuotaDto quota, DateTime now)
+    {
+        ProviderRemainingUsageItemDto item = new()
+        {
+            Unit = quota.Unit, Window = quota.Window, Source = quota.Source, Scope = quota.Scope,
+            ObservedAt = quota.ObservedAt, ExpiresAt = quota.ExpiresAt, ResetsAt = quota.ResetsAt
+        };
+        if (!quota.ObservedAt.HasValue || !quota.ExpiresAt.HasValue || quota.ObservedAt > now)
+        {
+            item.Reason = "The observation does not have a valid current time range.";
+            return item;
+        }
+        bool stale = quota.ExpiresAt <= now || quota.ResetsAt.HasValue && quota.ResetsAt <= now;
+        if (stale)
+        {
+            item.Status = "Stale";
+            item.Reason = "The observation expired or its quota reset time elapsed.";
+            return item;
+        }
+        if (quota.Scope is not ("account" or "api-key"))
+        {
+            item.Reason = "The observation is not verified for an account or API key.";
+            return item;
+        }
+        bool standardOpenAlexHeaders = quota.SourceFields is
+            "X-RateLimit-Limit,X-RateLimit-Remaining" or
+            "X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset";
+        bool recognizedSource = quota.Source == "AccountApi" || providerName == "OpenAlex" &&
+            quota.Source == "ResponseHeaders" && quota.Scope == "api-key" && standardOpenAlexHeaders;
+        if (!recognizedSource || quota.ValueKind is not ("ProviderReported" or "DerivedFromProviderValues"))
+        {
+            item.Reason = "The remaining value does not have recognized provider provenance.";
+            return item;
+        }
+        if (string.IsNullOrWhiteSpace(quota.Unit) || quota.Unit == "unknown" ||
+            string.IsNullOrWhiteSpace(quota.Window) || quota.Window == "unspecified")
+        {
+            item.Reason = "The provider did not establish the usage unit and window.";
+            return item;
+        }
+        if (!quota.Remaining.HasValue)
+        {
+            item.Reason = "The provider observation did not include enough data for remaining usage.";
+            return item;
+        }
+        item.Value = quota.Remaining;
+        item.Status = quota.ValueKind == "DerivedFromProviderValues" ? "Derived" : "ProviderReported";
+        item.Reason = item.Status == "Derived"
+            ? "Calculated from provider-reported limit and usage values."
+            : "Reported directly by the provider.";
+        return item;
+    }
+
+    internal static void RefreshRemainingUsage(ProviderStatusResponse response, DateTime now)
+    {
+        foreach (ProviderStatusDto provider in response.Providers)
+            provider.RemainingUsage = BuildRemainingUsage(provider, now);
+    }
 
     private async Task<LocalProviderBudgetDto> ReadBudgetAsync(string name, DateTime now, CancellationToken cancellationToken)
     {
