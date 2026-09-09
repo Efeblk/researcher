@@ -42,23 +42,22 @@ public sealed class ResearcherCollectionFeedback
     {
         if (profile is null)
         {
-            messages.Add("[EKSİK] OpenAlex karşılaştırma verisi alınamadı.");
+            messages.Add("[EKSİK] OpenAlex verisi alınamadı.");
             return;
         }
 
         int collectedWorksCount = profile.Works?.Count ?? 0;
         messages.Add(
-            $"[OK] OpenAlex karşılaştırması: {profile.DisplayName ?? "Ad bilinmiyor"}.");
+            $"[OK] OpenAlex profili: {profile.DisplayName ?? "Ad bilinmiyor"}.");
         messages.Add(
             $"[BİLGİ] OpenAlex metrikleri: {profile.WorksCount} yayın, " +
             $"{profile.CitedByCount} atıf, h-index " +
             $"{profile.HIndex?.ToString() ?? "—"}, i10-index " +
             $"{profile.I10Index?.ToString() ?? "—"}.");
         messages.Add(
-            $"[OK] OpenAlex ayrı yayın tablosu: {collectedWorksCount} kayıt alındı.");
+            $"[OK] OpenAlex sağlayıcı yayın tablosu: {collectedWorksCount} kayıt alındı.");
         messages.Add(
-            "[BİLGİ] OpenAlex verileri ortak yayın listesine eklenmedi; " +
-            "yalnız karşılaştırma için ayrı tutuldu.");
+            "[BİLGİ] OpenAlex yayınları kaynak bilgisi korunarak ortak yayın listesine katıldı.");
     }
 
     private static void AddGoogleScholarFeedback(

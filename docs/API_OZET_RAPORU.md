@@ -29,6 +29,6 @@ ve toplu iş kuyruğu için [toplu toplama rehberine](BULK_COLLECTION.md) bakın
 
 ## Proje Kararları
 
-- Sağlayıcı metrikleri birbirinin yerine kullanılmaz; OpenAlex karşılaştırma verisi ayrı tutulur.
+- Sağlayıcı metrikleri birbirinin yerine kullanılmaz; OpenAlex metrikleri kendi kaynağıyla gösterilir ve yayınları ortak listede tekilleştirilir.
 - Tüm yayınlar saklanır; okulda yalnız akademisyenin onayladıkları gösterilir.
 - Canlıya geçmeden kurumsal kullanım hakları, BYS yetkilendirmesi ve hesaplara özgü bütçe ayarları tamamlanmalıdır.
