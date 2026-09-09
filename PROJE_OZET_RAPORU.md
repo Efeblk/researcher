@@ -11,7 +11,7 @@
 - [x] **Web client:** Profil, yayın listesi ve okulda gösterilecek yayın seçimi.
 - [x] **ORCID:** Profil ve eser toplama.
 - [x] **Google Scholar / SearchApi:** Profil, metrik ve yayın toplama.
-- [x] **OpenAlex:** ORCID üzerinden karşılaştırma verisi; ortak yayınlardan ayrı tutulur.
+- [x] **OpenAlex:** ORCID üzerinden profil, metrik ve yayın verisi; ham kayıtlar korunur, yayınlar ortak listede kaynak bilgisiyle tekilleştirilir.
 - [x] **Web of Science:** Profil ve yayın toplama; WOS/WOK sonuçlarını tekilleştirme.
 - [x] **YÖKSİS:** SOAP entegrasyonu ve desteklenen kategorilerden veri toplama.
 - [x] **Toplu iş kuyruğu:** Kalıcı SQL kuyruğu ve yapılandırılabilir SQL içe aktarma;
@@ -45,8 +45,8 @@ Bir araştırmacıyı toplamak, aşağıdaki dış çağrıların birden fazlas�
 | [ ] | [ORCID](https://info.orcid.org/documentation/integration-guide/registering-a-public-api-client/) | Hesap açılacak; e-posta doğrulanıp Public API istemcisi ve erişim tokenı yapılandırılacak. Anonim okuma da mümkündür. |
 | [ ] | [Google Scholar / SearchApi](https://www.searchapi.io/google-scholar) | Yöntem ve plan kararlaştırılacak; Scholar'ın resmî API'si olmadığı için şu an üçüncü taraf scraping servisi kullanılıyor. |
 | [ ] | [OpenAlex](https://help.openalex.org/api/authentication/) | Ücretsiz hesap açılıp API anahtarı kullanılacak. [Günlük bütçe](https://help.openalex.org/access/example-costs/) $0,10 → $1 (10 kat); kart gerekmez, 100 istek/sn değişmez. |
-| [ ] | Web of Science | Kurumsal API anahtarı, erişilen plan ve veritabanları doğrulanacak. |
-| [ ] | YÖKSİS | Kurumsal kullanıcı bilgileri ve servis yetkisi sağlanacak. |
+| [x] | Web of Science | Kurumsal API anahtarı, erişilen plan ve veritabanları doğrulanacak. |
+| [x] | YÖKSİS | Kurumsal kullanıcı bilgileri ve servis yetkisi sağlanacak. |
 | [x] | Yerel Ollama | Kurulu; Qwen modeliyle smoke testi yapıldı. |
 
 ## API Planları, Fiyat ve Hız
@@ -66,7 +66,6 @@ satın alınmış planı doğrulamaz. Ayrıntılar: [API raporu](docs/API_OZET_R
 
 ## Öncelikli Yol Haritası
 
-- [ ] **CS2001:** Diğer geliştirme bilgisayarında collector'ın eski sözleşme dosyalarına referansını düzeltmek.
 - [ ] **Türkçe AI:** Qwen rapor kalitesini gerçek örneklerle iyileştirmek.
 - [ ] **Production ayarları:** Gerçek sağlayıcı hesaplarını, bütçeleri ve SQL kolon eşlemelerini doğrulamak.
 - [ ] **BYS yetkisi:** Production öncesi oturum, yetki ve kayıt sahipliği denetimlerini eklemek.

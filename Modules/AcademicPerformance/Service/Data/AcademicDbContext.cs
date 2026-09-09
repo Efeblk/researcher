@@ -76,8 +76,8 @@ public sealed class AcademicDbContext : DbContext
             entity.Property(researcher => researcher.WebOfScienceResearcherId)
                 .HasColumnName("ResearcherID")
                 .HasMaxLength(20);
-            entity.Property(researcher => researcher.YoksisResearcherId)
-                .HasMaxLength(50);
+            entity.Property(researcher => researcher.TcKimlikNo)
+                .HasMaxLength(11);
 
             entity.HasIndex(researcher => researcher.Orcid)
                 .IsUnique()
@@ -91,9 +91,9 @@ public sealed class AcademicDbContext : DbContext
                 .IsUnique()
                 .HasFilter("[ResearcherID] IS NOT NULL");
 
-            entity.HasIndex(researcher => researcher.YoksisResearcherId)
+            entity.HasIndex(researcher => researcher.TcKimlikNo)
                 .IsUnique()
-                .HasFilter("[YoksisResearcherId] IS NOT NULL");
+                .HasFilter("[TcKimlikNo] IS NOT NULL");
 
             entity.HasMany(researcher => researcher.AcademicWorks)
                 .WithOne(work => work.Researcher)

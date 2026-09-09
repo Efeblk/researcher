@@ -1,6 +1,7 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
@@ -39,6 +40,11 @@ public sealed class AcademicWorkSynchronizer
             synchronizedWorks,
             researcher.PersonelId,
             researcher.GoogleScholarProfile?.Works,
+            synchronizedAt);
+        AddOpenAlexWorks(
+            synchronizedWorks,
+            researcher.PersonelId,
+            researcher.OpenAlexProfile?.Works,
             synchronizedAt);
         AddWebOfScienceWorks(
             synchronizedWorks,
@@ -108,6 +114,47 @@ public sealed class AcademicWorkSynchronizer
                 SourceName = "Google Scholar",
                 SourceType = "Google Scholar",
                 SourceUrl = sourceWork.Url,
+                ProviderPayload = sourceWork.RawDataJson,
+                SyncedAt = synchronizedAt
+            });
+        }
+    }
+
+    private static void AddOpenAlexWorks(
+        List<AcademicWork> target,
+        string personelId,
+        List<OpenAlexWork>? source,
+        DateTime synchronizedAt)
+    {
+        if (source is null)
+        {
+            return;
+        }
+
+        foreach (OpenAlexWork sourceWork in source)
+        {
+            target.Add(new AcademicWork
+            {
+                PersonelId = personelId,
+                Provider = AcademicWorkProvider.OpenAlex,
+                ProviderWorkId = sourceWork.OpenAlexWorkId,
+                Title = sourceWork.Title,
+                PublicationYear = sourceWork.PublicationYear,
+                PublicationDate = sourceWork.PublicationDate,
+                Doi = sourceWork.Doi,
+                RawType = sourceWork.WorkType,
+                Category = sourceWork.Category,
+                CategorySource = sourceWork.CategorySource,
+                CitedByCount = sourceWork.CitedByCount,
+                Authors = sourceWork.Authors,
+                Publication = sourceWork.SourceName,
+                Link = sourceWork.Url,
+                SourceId = sourceWork.OpenAlexWorkId,
+                SourceName = sourceWork.SourceName,
+                SourceType = "OpenAlex",
+                SourceUrl = sourceWork.Url,
+                IsOpenAccess = !string.IsNullOrWhiteSpace(sourceWork.OpenAccessUrl),
+                OpenAccessUrl = sourceWork.OpenAccessUrl,
                 ProviderPayload = sourceWork.RawDataJson,
                 SyncedAt = synchronizedAt
             });

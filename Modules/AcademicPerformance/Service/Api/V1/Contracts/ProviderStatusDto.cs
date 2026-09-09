@@ -10,6 +10,12 @@ public sealed class ProviderStatusDto
     public long? LatencyMilliseconds { get; set; } = null;
     public string? Message { get; set; } = null;
     public DateTime? RetryAt { get; set; } = null;
+    public ProviderTransportDto Transport { get; set; } = new();
+    public ProviderReportedHealthDto? ReportedHealth { get; set; } = null;
+    public string QuotaAvailability { get; set; } = "Unknown";
+    public string? QuotaSource { get; set; } = null;
+    public string CacheScope { get; set; } = "Process";
     public LocalProviderBudgetDto? LocalBudget { get; set; } = null;
     public List<ProviderQuotaDto> ProviderQuotas { get; set; } = [];
+    public ProviderRemainingUsageDto RemainingUsage { get; set; } = new();
 }

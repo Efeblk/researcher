@@ -14,7 +14,7 @@ gösterilmesine izin verdiği yayınları ayrıca seçer.
 
 1. Akademisyen ORCID, Google Scholar ID, Web of Science ResearcherID ve/veya
    YÖKSİS sorgusu için T.C. kimlik numarasını girer.
-2. ORCID profil/faaliyetleri, ORCID ile eşleşen ayrı OpenAlex karşılaştırması,
+2. ORCID profil/faaliyetleri, ORCID ile eşleşen OpenAlex profil ve yayınları,
    Google Scholar profil/metrik/yayınları ve Web of Science yayın/atıf verileri
    bağımsız olarak alınır.
 3. Eserler DOI'ye; DOI yoksa normalize başlık ve yıla göre tekilleştirilir.
@@ -22,8 +22,8 @@ gösterilmesine izin verdiği yayınları ayrıca seçer.
 5. **Okulda Göster** seçimleri `PublicationDisplayApprovals` tablosuna kaydedilir.
 
 PDF indirilmez; sağlayıcıların sunduğu DOI ve yayın bağlantıları saklanır.
-OpenAlex verileri yalnız karşılaştırma amacıyla ayrı tablolarda tutulur ve ortak
-yayın listesine eklenmez. Web arayüzündeki sağlayıcı karşılaştırma tablosu ORCID,
+OpenAlex profil ve ham yayın verileri sağlayıcı tablolarında korunur; yayınlar ayrıca
+ortak yayın listesine katılır. Web arayüzündeki sağlayıcı karşılaştırma tablosu ORCID,
 Google Scholar, OpenAlex ve Web of Science yayın/atıf metriklerini yan yana gösterir.
 Bir ORCID birden fazla OpenAlex yazar kümesine bağlıysa en çok yayına, eşitlikte
 en çok atıfa sahip küme seçilir; adayların tamamının ham arama yanıtı saklanır.
@@ -90,7 +90,7 @@ istekteki kayıt arasında sunucu tarafında sahiplik doğrulaması yapmalıdır
 | Kimlik veya sistem | Hedef servis | Erişim beklentisi | Proje durumu |
 | --- | --- | --- | --- |
 | ORCID | Resmî ORCID Public API 3.0 | Herkese açık kayıtlar; isteğe bağlı erişim belirteci | **Aktif**; profil, faaliyet ve eserler alınıyor |
-| OpenAlex | Resmî OpenAlex API | Anahtarsız düşük kota; ücretsiz anahtarla günlük kullanım bütçesi | **Aktif, ayrı**; ORCID ile profil/metrik/yayınlar alınır, ortak yayın listesine katılmaz |
+| OpenAlex | Resmî OpenAlex API | Anahtarsız düşük kota; ücretsiz anahtarla günlük kullanım bütçesi | **Aktif**; ORCID ile profil/metrik/yayınlar alınır ve yayınlar ortak listeye katılır |
 | Google Scholar ID | SearchApi Google Scholar Author API | API anahtarı ve aylık istek kotası | **Aktif**; profil, h-index, i10-index, atıf metrikleri ve yayınlar alınıyor |
 | Scopus Author ID | Resmî Elsevier Scopus API | Kurumsal abonelik ve API yetkisi gerekebilir | **Hedef**; entegrasyon henüz yok |
 | Web of Science ResearcherID | Resmî Clarivate Starter API v1 | API anahtarı gerekli; ücretsiz ve kurumsal planlar var | **Aktif**; `AI` sorgusuyla erişilebilen tüm WoS veri tabanlarındaki yayınlar ve plan izin verirse atıf sayıları alınıyor |
@@ -118,8 +118,9 @@ ORCID ve Web of Science ortak yayın toplama akışında çağrılır. YÖKSİS 
 veri içerdiği için UI içinden ayrı bir endpoint üzerinden çalışır. T.C. kimlik
 numarası tarayıcıda hatırlanmaz ve istek tamamlanınca formdan temizlenir. Yeni
 bir servis, erişim sözleşmesi ve veri sahipliği netleşmeden mevcut toplama
-akışına eklenmez. T.C. kimlik numarası veritabanına yazılmaz; YÖKSİS'in döndürdüğü
-Araştırmacı ID akademisyen eşleştirmesinde kullanılır.
+akışına eklenmez. Sorgulanan T.C. kimlik numarası akademisyen kaydındaki
+`TcKimlikNo` alanına yazılır ve akademisyen eşleştirmesinde kullanılır. YÖKSİS'in
+döndürdüğü Araştırmacı ID bu alanın yerine kaydedilmez.
 
 ## Gereksinimler ve çalıştırma
 
@@ -289,7 +290,7 @@ manuel `table exists` kontrolleri kullanılmaz.
 | `Researchers` | Akademisyen, ORCID, Web of Science ResearcherID ve YÖKSİS Araştırmacı ID eşleşmesi |
 | `OrcidProfiles` / `OrcidWorks` | ORCID profil, faaliyet, eser ve ham JSON verisi |
 | `GoogleScholarProfiles` / `GoogleScholarWorks` | Scholar profil metrikleri, yayınlar ve SearchApi ham JSON verisi |
-| `OpenAlexProfiles` / `OpenAlexWorks` | ORCID ile bulunan ayrı karşılaştırma metrikleri, yayınlar ve ham JSON |
+| `OpenAlexProfiles` / `OpenAlexWorks` | ORCID ile bulunan sağlayıcı metrikleri, yayınlar ve ham JSON |
 | `WebOfScienceProfiles` | Starter API sorgu özeti ve ham yayın sayfası yanıtları |
 | `WebOfScienceWorks` | Web of Science yayınları ve varsa atıf sayıları |
 | `YoksisRecords` | YÖKSİS kategorilerinden gelen tüm kayıtların eksiksiz JSON içeriği |
@@ -301,12 +302,13 @@ YÖKSİS'in başarılı kategorilerde döndürdüğü bütün kayıtlar `YoksisR
 tablosuna yazılır. Farklı kategorilerin alanları değiştiği için özgün alanlar
 `RecordJson` içinde kayıpsız tutulur. Makale, bildiri, kitap ve patent ayrıntıları
 ayrıca `AcademicWorks` tablosuna; grid'de kullanılacak tekilleştirilmiş halleri
-`PublicationSummaries` tablosuna yazılır. T.C. kimlik numarası saklanmaz.
+`PublicationSummaries` tablosuna yazılır. Sorgulanan T.C. kimlik numarası,
+akademisyen kaydındaki `TcKimlikNo` alanında saklanır.
 
 ORCID atıf sayısı, h-index ve i10-index sağlamaz. Google Scholar metrikleri
 SearchApi üzerinden, OpenAlex metrikleri ise ORCID eşleşmesi üzerinden alınır ve
-iki kaynak ayrı tutulur. OpenAlex yayınları karşılaştırma aşamasında
-`AcademicWorks` ile `PublicationSummaries` tablolarına eklenmez. Starter API v1
+sağlayıcı metrikleri ayrı tutulur. OpenAlex yayınları `AcademicWorks` ile
+`PublicationSummaries` tablolarına kaynak bilgisi korunarak eklenir. Starter API v1
 hazır profil metrikleri sunmaz; bütün Web of Science yayınlarında atıf sayısı
 gelirse h-index ve toplam atıf uygulama içinde hesaplanır.
 

@@ -37,7 +37,7 @@ Modules/AcademicPerformance/
     Integrations/
       Orcid/                       ORCID client, profile, and work types
       GoogleScholar/               Google Scholar integration
-      OpenAlex/                    Separate comparison data
+      OpenAlex/                    Provider profile and raw works
       WebOfScience/                Web of Science integration
       Yoksis/
         Collection/                SOAP operation catalog and collection workflow
@@ -80,7 +80,7 @@ YÖKSİS has its own collection handler and SOAP operation catalog under `Integr
 | `PublicationSummary` | Present one publication after deduplication, using DOI or normalized title and year. |
 | `PublicationDisplayApproval` | Store the researcher's choice to display a summary on the school website. |
 
-OpenAlex is collected for comparison and stored separately; its works do not enter the shared publication list. Public V1 DTOs are separate from EF entities and UI-only contracts.
+OpenAlex provider profile and raw works remain stored separately, while normalized OpenAlex works enter the shared publication list and DOI/title-year deduplication. Public V1 DTOs are separate from EF entities and UI-only contracts.
 
 ## Find the right file for a change
 

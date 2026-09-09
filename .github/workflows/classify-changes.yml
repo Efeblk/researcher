@@ -1,0 +1,49 @@
+name: Classify changes
+
+on:
+  workflow_call:
+    outputs:
+      run_ci:
+        description: Whether the change requires application CI
+        value: ${{ jobs.classify.outputs.run_ci }}
+
+permissions:
+  contents: read
+
+jobs:
+  classify:
+    name: Classify changes
+    runs-on: ubuntu-latest
+    outputs:
+      run_ci: ${{ steps.result.outputs.run_ci }}
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Classify pull request changes
+        if: github.event_name == 'pull_request'
+        id: pull-request
+        run: python3 .github/scripts/classify-ci-changes.py --merge-base --base "${{ github.event.pull_request.base.sha }}" --head "${{ github.event.pull_request.head.sha }}"
+
+      - name: Classify push changes
+        if: github.event_name == 'push'
+        id: push
+        run: python3 .github/scripts/classify-ci-changes.py --base "${{ github.event.before }}" --head "${{ github.event.after }}"
+
+      - name: Select classification result
+        if: always()
+        id: result
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PULL_REQUEST_RESULT: ${{ steps.pull-request.outputs.run_ci }}
+          PUSH_RESULT: ${{ steps.push.outputs.run_ci }}
+        run: |
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            echo "run_ci=${PULL_REQUEST_RESULT:-true}" >> "$GITHUB_OUTPUT"
+          elif [[ "$EVENT_NAME" == "push" ]]; then
+            echo "run_ci=${PUSH_RESULT:-true}" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_ci=true" >> "$GITHUB_OUTPUT"
+          fi
