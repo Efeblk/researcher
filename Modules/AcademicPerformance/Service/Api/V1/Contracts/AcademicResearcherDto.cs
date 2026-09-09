@@ -19,7 +19,7 @@ public sealed class AcademicResearcherDto
     public string? WebOfScienceResearcherId { get; set; } = null;
     [JsonPropertyName("ScopusID"), Newtonsoft.Json.JsonProperty("ScopusID")]
     public string? ScopusId { get; set; } = null;
-    public string? YoksisResearcherId { get; set; } = null;
+    public string? TcKimlikNo { get; set; } = null;
     public DateTime? LastUpdatedAt { get; set; } = null;
     public OrcidProfileSummaryDto? OrcidProfile { get; set; } = null;
     public GoogleScholarProfileSummaryDto? GoogleScholarProfile { get; set; } = null;

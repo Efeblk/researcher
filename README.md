@@ -118,8 +118,9 @@ ORCID ve Web of Science ortak yayın toplama akışında çağrılır. YÖKSİS 
 veri içerdiği için UI içinden ayrı bir endpoint üzerinden çalışır. T.C. kimlik
 numarası tarayıcıda hatırlanmaz ve istek tamamlanınca formdan temizlenir. Yeni
 bir servis, erişim sözleşmesi ve veri sahipliği netleşmeden mevcut toplama
-akışına eklenmez. T.C. kimlik numarası veritabanına yazılmaz; YÖKSİS'in döndürdüğü
-Araştırmacı ID akademisyen eşleştirmesinde kullanılır.
+akışına eklenmez. Sorgulanan T.C. kimlik numarası akademisyen kaydındaki
+`TcKimlikNo` alanına yazılır ve akademisyen eşleştirmesinde kullanılır. YÖKSİS'in
+döndürdüğü Araştırmacı ID bu alanın yerine kaydedilmez.
 
 ## Gereksinimler ve çalıştırma
 
@@ -301,7 +302,8 @@ YÖKSİS'in başarılı kategorilerde döndürdüğü bütün kayıtlar `YoksisR
 tablosuna yazılır. Farklı kategorilerin alanları değiştiği için özgün alanlar
 `RecordJson` içinde kayıpsız tutulur. Makale, bildiri, kitap ve patent ayrıntıları
 ayrıca `AcademicWorks` tablosuna; grid'de kullanılacak tekilleştirilmiş halleri
-`PublicationSummaries` tablosuna yazılır. T.C. kimlik numarası saklanmaz.
+`PublicationSummaries` tablosuna yazılır. Sorgulanan T.C. kimlik numarası,
+akademisyen kaydındaki `TcKimlikNo` alanında saklanır.
 
 ORCID atıf sayısı, h-index ve i10-index sağlamaz. Google Scholar metrikleri
 SearchApi üzerinden, OpenAlex metrikleri ise ORCID eşleşmesi üzerinden alınır ve

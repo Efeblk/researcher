@@ -24,7 +24,7 @@ public sealed class ResearcherRepository
                 (identifiers.Orcid != null && item.Orcid == identifiers.Orcid) ||
                 (identifiers.GoogleScholarId != null && item.GoogleScholarId == identifiers.GoogleScholarId) ||
                 (identifiers.WebOfScienceResearcherId != null && item.WebOfScienceResearcherId == identifiers.WebOfScienceResearcherId) ||
-                (identifiers.YoksisResearcherId != null && item.YoksisResearcherId == identifiers.YoksisResearcherId))
+                (identifiers.TcKimlikNo != null && item.TcKimlikNo == identifiers.TcKimlikNo))
             .Select(item => item.PersonelId)
             .Take(2)
             .ToListAsync();
@@ -63,10 +63,10 @@ public sealed class ResearcherRepository
             target.WebOfScienceResearcherId,
             source.WebOfScienceResearcherId,
             "Web of Science ResearcherID");
-        target.YoksisResearcherId = GetIdentifierValue(
-            target.YoksisResearcherId,
-            source.YoksisResearcherId,
-            "YÖKSİS Araştırmacı ID");
+        target.TcKimlikNo = GetIdentifierValue(
+            target.TcKimlikNo,
+            source.TcKimlikNo,
+            "T.C. Kimlik No");
     }
 
     public async Task SaveAsync(Researcher researcher)

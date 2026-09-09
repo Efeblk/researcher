@@ -197,7 +197,7 @@ Content-Type: application/json
 #     "ORCID": "0000-0003-2812-9917",
 #     "ScholarID": null,
 #     "ResearcherID": null,
-#     "YoksisResearcherId": null,
+#     "TcKimlikNo": null,
 #     "LastUpdatedAt": "2026-09-01T10:30:00Z",
 #     "OrcidProfile": {
 #       "DisplayName": "Ada Örnek",
