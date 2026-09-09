@@ -2,8 +2,9 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 
 public enum AcademicWorkCategorySource
 {
-    Unknown,
-    Orcid,
-    WebOfScience,
-    Yoksis
+    Unknown = 0,
+    Orcid = 1,
+    WebOfScience = 2,
+    Yoksis = 3,
+    OpenAlex = 4
 }

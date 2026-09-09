@@ -166,7 +166,7 @@ Input rules:
 
 The caller owns publication deduplication, researcher identity matching, source dates,
 and sample selection. The service does not independently verify submitted records.
-Keep the collector's separate OpenAlex comparison counts separate from the normalized
+Keep OpenAlex provider-level counts separate from the normalized
 publication sample. Website display approval is not an analysis-permission decision.
 
 The response contains:

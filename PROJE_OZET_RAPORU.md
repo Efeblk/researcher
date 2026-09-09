@@ -11,7 +11,7 @@
 - [x] **Web client:** Profil, yayın listesi ve okulda gösterilecek yayın seçimi.
 - [x] **ORCID:** Profil ve eser toplama.
 - [x] **Google Scholar / SearchApi:** Profil, metrik ve yayın toplama.
-- [x] **OpenAlex:** ORCID üzerinden karşılaştırma verisi; ortak yayınlardan ayrı tutulur.
+- [x] **OpenAlex:** ORCID üzerinden profil, metrik ve yayın verisi; ham kayıtlar korunur, yayınlar ortak listede kaynak bilgisiyle tekilleştirilir.
 - [x] **Web of Science:** Profil ve yayın toplama; WOS/WOK sonuçlarını tekilleştirme.
 - [x] **YÖKSİS:** SOAP entegrasyonu ve desteklenen kategorilerden veri toplama.
 - [x] **Toplu iş kuyruğu:** Kalıcı SQL kuyruğu ve yapılandırılabilir SQL içe aktarma;

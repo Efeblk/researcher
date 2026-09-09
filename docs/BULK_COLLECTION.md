@@ -27,7 +27,7 @@ Each row has a unique personnel identity and any combination of the supported pr
 }
 ```
 
-`ORCID`, `ResearcherID` (Web of Science), `ScopusID`, and `ScholarID` match the personnel export column names. Provider IDs are optional, but at least one supported provider ID is required. ORCID collection also requests OpenAlex comparison data. This input does not include T.C. identity numbers or YÖKSİS bulk collection.
+`ORCID`, `ResearcherID` (Web of Science), `ScopusID`, and `ScholarID` match the personnel export column names. Provider IDs are optional, but at least one supported provider ID is required. ORCID collection also requests OpenAlex data and includes its works in the shared publication list. This input does not include T.C. identity numbers or YÖKSİS bulk collection.
 
 Bulk cleanup and the single V1 `Collect` API use the same normalizer. It accepts canonical identifiers and narrowly recognized export forms: ORCID URLs on `orcid.org`, four space-separated ORCID groups, Web of Science author-record URLs, and Google Scholar profile URLs on `scholar.google.com`, `scholar.google.com.tr`, or `scholar.google.co.za`. Safe surrounding punctuation and Scholar tracking query parameters are removed. Final IDs must still pass the strict application parser. Cleanup never pads, truncates, guesses, moves a value between provider fields, or mines arbitrary text for an ID.
 

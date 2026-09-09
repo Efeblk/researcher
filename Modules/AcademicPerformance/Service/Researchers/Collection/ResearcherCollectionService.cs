@@ -82,7 +82,7 @@ public sealed class ResearcherCollectionService
         {
             AddMessage(
                 messages,
-                "[ATLANDI] OpenAlex karşılaştırması: ORCID verilmedi.");
+                "[ATLANDI] OpenAlex: ORCID verilmedi.");
             return;
         }
 
@@ -92,14 +92,14 @@ public sealed class ResearcherCollectionService
         {
             AddCachedDataMessage(
                 messages,
-                "OpenAlex karşılaştırma",
+                "OpenAlex",
                 researcher.OpenAlexProfile?.LastUpdatedAt);
             return;
         }
 
         AddMessage(
             messages,
-            $"[İŞLEM] OpenAlex karşılaştırma verisi sorgulanıyor: {requestedOrcid}");
+            $"[İŞLEM] OpenAlex verisi sorgulanıyor: {requestedOrcid}");
 
         try
         {

@@ -1,4 +1,5 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
@@ -12,6 +13,7 @@ public sealed class AcademicWorkCategorizer
         List<OrcidWork>? orcidWorks = researcher.OrcidProfile?.Works;
         List<WebOfScienceWork>? webOfScienceWorks =
             researcher.WebOfScienceProfile?.Works;
+        List<OpenAlexWork>? openAlexWorks = researcher.OpenAlexProfile?.Works;
         int index = 0;
 
         if (orcidWorks is not null)
@@ -24,18 +26,54 @@ public sealed class AcademicWorkCategorizer
             }
         }
 
-        if (webOfScienceWorks is null)
+        if (webOfScienceWorks is not null)
+        {
+            for (index = 0; index < webOfScienceWorks.Count; index++)
+            {
+                webOfScienceWorks[index].Category = GetWebOfScienceCategory(
+                    webOfScienceWorks[index].WorkTypes);
+                webOfScienceWorks[index].CategorySource =
+                    AcademicWorkCategorySource.WebOfScience;
+            }
+        }
+
+        if (openAlexWorks is null)
         {
             return;
         }
 
-        for (index = 0; index < webOfScienceWorks.Count; index++)
+        for (index = 0; index < openAlexWorks.Count; index++)
         {
-            webOfScienceWorks[index].Category = GetWebOfScienceCategory(
-                webOfScienceWorks[index].WorkTypes);
-            webOfScienceWorks[index].CategorySource =
-                AcademicWorkCategorySource.WebOfScience;
+            openAlexWorks[index].Category = GetOpenAlexCategory(
+                openAlexWorks[index].WorkType);
+            openAlexWorks[index].CategorySource = AcademicWorkCategorySource.OpenAlex;
         }
+    }
+
+    public AcademicWorkCategory GetOpenAlexCategory(string? type)
+    {
+        return type?.Trim().ToLowerInvariant() switch
+        {
+            "article" => AcademicWorkCategory.Article,
+            "book" => AcademicWorkCategory.Book,
+            "book-chapter" => AcademicWorkCategory.BookChapter,
+            "dataset" => AcademicWorkCategory.Dataset,
+            "dissertation" => AcademicWorkCategory.Dissertation,
+            "editorial" => AcademicWorkCategory.Editorial,
+            "erratum" => AcademicWorkCategory.Erratum,
+            "letter" => AcademicWorkCategory.Letter,
+            "paratext" => AcademicWorkCategory.Paratext,
+            "peer-review" => AcademicWorkCategory.PeerReview,
+            "preprint" => AcademicWorkCategory.Preprint,
+            "reference-entry" => AcademicWorkCategory.ReferenceEntry,
+            "report" => AcademicWorkCategory.Report,
+            "retraction" => AcademicWorkCategory.Retraction,
+            "review" => AcademicWorkCategory.Review,
+            "software" => AcademicWorkCategory.Software,
+            "standard" => AcademicWorkCategory.Standard,
+            "supplementary-materials" => AcademicWorkCategory.SupplementaryMaterials,
+            _ => AcademicWorkCategory.Unknown
+        };
     }
 
     public AcademicWorkCategory GetOrcidCategory(string? type)

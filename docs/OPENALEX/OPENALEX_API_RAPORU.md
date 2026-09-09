@@ -27,8 +27,8 @@ aldığına dair resmî kanıt yoktur; metrikleri Scholar değeri değildir.
 ORCID ile yazar eşleşmesi aranır; birden fazla aday varsa en çok yayını olan,
 eşitlikte en çok atıf alan seçilir. Sonuç ORCID kaydıyla birebir örtüşmeyebilir.
 
-Veri `OpenAlexProfiles` ve `OpenAlexWorks` tablolarında ayrı tutulur; ortak yayın
-listesine katılmaz. Çağrı hesabı: **1 yazar sorgusu + istenen eser sayfaları**
+Profil ve ham yayın verisi `OpenAlexProfiles` ve `OpenAlexWorks` tablolarında korunur.
+Normalize edilen yayınlar kaynak bilgisiyle ortak yayın listesine de katılır. Çağrı hesabı: **1 yazar sorgusu + istenen eser sayfaları**
 (varsa son boş sayfa dahil). Dört filtreleme çağrısı $0,0004 bütçe tüketir.
 
 Kaynaklar: [Veri kaynakları](https://help.openalex.org/data/how-its-built/) · [ORCID eşleştirme](https://help.openalex.org/data/authors/orcid/) · [Ücretler](https://help.openalex.org/access/pricing/) · [Birim maliyetler](https://help.openalex.org/access/example-costs/) · [Limitler](https://help.openalex.org/api/authentication/)
