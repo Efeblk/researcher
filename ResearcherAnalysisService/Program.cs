@@ -4,6 +4,7 @@ using ResearcherAnalysisService.Api;
 using ResearcherAnalysisService.Configuration;
 using ResearcherAnalysisService.Integrations.OpenAi;
 using ResearcherAnalysisService.Integrations.Ollama;
+using ResearcherAnalysisService.Integrations.Gemini;
 
 namespace ResearcherAnalysisService;
 
@@ -24,9 +25,18 @@ public static class Program
         });
         builder.Services.AddControllers();
         builder.Services.AddProblemDetails();
-        builder.Services.AddOptions<AiOptions>().BindConfiguration("Ai").ValidateDataAnnotations().ValidateOnStart();
+        builder.Services.AddOptions<AiOptions>().BindConfiguration("Ai").ValidateDataAnnotations()
+            .Validate(value => value.ArticleMaxOutputTokens + 512 < value.ArticleContextTokens,
+                "Ai:ArticleContextTokens must leave at least 512 tokens beyond Ai:ArticleMaxOutputTokens.")
+            .Validate(value => value.ArticleVerifierMaxOutputTokens + 512 < value.ArticleContextTokens,
+                "Ai:ArticleContextTokens must leave at least 512 tokens beyond Ai:ArticleVerifierMaxOutputTokens.")
+            .Validate(value => value.ArticleFallbackChunkBytes <= value.ArticleContextTokens - value.ArticleMaxOutputTokens - 512,
+                "Ai:ArticleFallbackChunkBytes must fit the conservative article input budget.")
+            .ValidateOnStart();
+        builder.Services.AddOptions<GeminiOptions>().BindConfiguration("Gemini");
         builder.Services.AddScoped<AnalysisAccessFilter>();
         builder.Services.AddScoped<ResearcherAnalysis>();
+        builder.Services.AddScoped<ArticleSummarizer>();
         Action<IServiceProvider, HttpClient> configureClient = (services, client) =>
         {
             client.Timeout = TimeSpan.FromSeconds(services.GetRequiredService<IOptions<AiOptions>>().Value.TimeoutSeconds);
@@ -34,6 +44,19 @@ public static class Program
         };
         builder.Services.AddHttpClient<OpenAiReportGenerator>(configureClient);
         builder.Services.AddHttpClient<OllamaReportGenerator>(configureClient);
+        builder.Services.AddHttpClient<OllamaArticleSummaryGenerator>(configureClient);
+        builder.Services.AddHttpClient<OllamaArticleClaimVerifier>(configureClient);
+        builder.Services.AddHttpClient<GeminiArticleClient>(configureClient);
+        builder.Services.AddScoped<GeminiArticleSummaryGenerator>();
+        builder.Services.AddScoped<GeminiArticleClaimVerifier>();
+        builder.Services.AddScoped<IArticleSummaryGenerator>(services =>
+            services.GetRequiredService<IOptions<AiOptions>>().Value.ArticleProvider == "Ollama"
+                ? services.GetRequiredService<OllamaArticleSummaryGenerator>()
+                : services.GetRequiredService<GeminiArticleSummaryGenerator>());
+        builder.Services.AddScoped<IArticleClaimVerifier>(services =>
+            services.GetRequiredService<IOptions<AiOptions>>().Value.ArticleProvider == "Ollama"
+                ? services.GetRequiredService<OllamaArticleClaimVerifier>()
+                : services.GetRequiredService<GeminiArticleClaimVerifier>());
         builder.Services.AddScoped<IResearcherReportGenerator>(services =>
             services.GetRequiredService<IOptions<AiOptions>>().Value.Provider == "Ollama"
                 ? services.GetRequiredService<OllamaReportGenerator>()

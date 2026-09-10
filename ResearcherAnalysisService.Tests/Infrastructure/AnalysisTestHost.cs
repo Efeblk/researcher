@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using ResearcherAnalysisService.Analysis;
+using ResearcherAnalysisService.Integrations.Gemini;
 
 namespace ResearcherAnalysisService.Tests.Infrastructure;
 
@@ -14,7 +15,7 @@ internal sealed class AnalysisTestHost(WebApplication application, HttpClient cl
     public HttpClient Client { get; } = client;
 
     public static async Task<AnalysisTestHost> StartAsync(IResearcherReportGenerator? generator = null,
-        bool configureAccessKey = true, string environment = "Testing")
+        bool configureAccessKey = true, string environment = "Testing", HttpMessageHandler? geminiHandler = null)
     {
         WebApplication application = Program.CreateApplication(["--environment", environment], builder =>
         {
@@ -23,7 +24,8 @@ internal sealed class AnalysisTestHost(WebApplication application, HttpClient cl
             builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Urls"] = "http://127.0.0.1:0",
-                ["Service:ApiKey"] = configureAccessKey ? "synthetic-service-key" : null
+                ["Service:ApiKey"] = configureAccessKey ? "synthetic-service-key" : null,
+                ["Gemini:ApiKey"] = geminiHandler is null ? null : "synthetic-gemini-key"
             });
             builder.Logging.ClearProviders();
             if (generator is not null)
@@ -31,6 +33,9 @@ internal sealed class AnalysisTestHost(WebApplication application, HttpClient cl
                 builder.Services.RemoveAll<IResearcherReportGenerator>();
                 builder.Services.AddSingleton(generator);
             }
+            if (geminiHandler is not null)
+                builder.Services.AddHttpClient<GeminiArticleClient>()
+                    .ConfigurePrimaryHttpMessageHandler(() => geminiHandler);
         });
         await application.StartAsync();
         string address = application.Services.GetRequiredService<IServer>()

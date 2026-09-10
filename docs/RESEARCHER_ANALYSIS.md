@@ -4,6 +4,8 @@
 It accepts a caller-supplied researcher snapshot and returns a structured research
 profile and abstract writing review. It runs without SQL Server, Serenity, or Node.js.
 
+For per-publication full-text and abstract summaries, see [Article summaries](ARTICLE_SUMMARIES.md).
+
 The collector creates snapshots from saved SQL Server records and stores successful
 reports with their exact input snapshots. The AI service itself remains stateless.
 There is no page report button, analysis queue, embedding index, web crawling,

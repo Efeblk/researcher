@@ -1,0 +1,21 @@
+# Article summaries
+
+Start the collector and the independent analysis service. Researcher reports continue to use the independent `Ai:Provider` and `Ai:Model` settings. Article summaries use `Ai:ArticleProvider` (`Gemini` by default), `Ai:ArticleModel` (`gemini-3.8-flash`), a conservative 131,072-token application budget, and 8,192-token summary and verifier output reservations. Configure the hosted credential outside source control:
+
+```powershell
+dotnet user-secrets set "Gemini:ApiKey" "YOUR_KEY" --project ResearcherAnalysisService
+```
+
+Gemini requests use structured JSON output, temperature zero, and high thinking for both summary generation and claim verification. The API key is sent in the `x-goog-api-key` header and is never included in the request URL. To use local Ollama explicitly, set `Ai:ArticleProvider` to `Ollama`, set `Ai:ArticleModel` (and optionally `Ai:ArticleVerifierModel`) to installed local models, and run Ollama 0.33.3 or newer. This does not change the provider used for researcher reports.
+
+Call `SummarizeArticle` with `PersonelID`, `AcademicWorkId`, and optional language (`tr` by default). The work must belong to that researcher. The collector never accepts a fetch URL from the request. It tries the saved `FullTextUrl`, `OpenAccessUrl`, then `Link`, downloads only public HTTP(S) PDF content, extracts layout-aware page text, and stores that exact source snapshot and its SHA-256 hash with the report. A landing page is followed only when it exposes a bounded citation PDF or obvious `.pdf` link.
+
+When full text cannot be used, a nonempty database abstract is summarized with `sourceKind: abstract`, partial coverage, and an explicit reason. Login/menu pages are not treated as article text. Scanned pages have no OCR; mixed PDFs disclose unread pages, and fully scanned, encrypted, malformed, oversized, or unsupported PDFs fail unless the saved abstract is available. Limits are configured under `ArticleSummary`.
+
+The analysis service first sends the complete extracted source. It reserves `Ai:ArticleMaxOutputTokens` inside `Ai:ArticleContextTokens` and conservatively checks the complete UTF-8 request size before sending. Gemini token-limit responses and Ollama context overflows retry with immutable source-span chunks; a fallback chunk is subdivided again only between spans. `Ai:ArticleFallbackChunkBytes` bounds those chunks by UTF-8 bytes. No source character is silently removed. Safety blocks, empty responses, malformed JSON, and unexpected finish reasons fail closed rather than being accepted.
+
+Each source span has a deterministic ID derived from its canonical page, offsets, and exact text. The summary model returns claims and source IDs only. The service rejects unknown IDs or IDs outside the current chunk, then resolves quotes, page numbers, and offsets from the stored source itself. The model cannot alter quoted evidence.
+
+A separate automatic model pass checks every candidate claim against its cited spans and neighboring context. It checks quantities, conditions, comparisons, negation, causality, and whether language is an author assertion or an established result. Missing, duplicate, or unknown verdicts fail closed. Unsupported and uncertain claims are omitted and counted with reasons. Verification batches split automatically on context or output limits; a singleton that still exhausts its budget is conservatively omitted as budget-unverified rather than accepted. If no supported claims remain, the report status is `insufficient_evidence` and the collector does not persist it as a successful summary. `Ai:ArticleVerifierModel` may select another model compatible with the chosen article provider; when unset it uses `Ai:ArticleModel`. Automatic checking does not guarantee correctness, and using the same model family can produce correlated errors.
+
+`GetArticleSummary` reads the latest persisted report without contacting an AI provider. Failed or timed-out generations do not replace earlier successful reports. See `Requests/ArticleSummary.http` for both calls.

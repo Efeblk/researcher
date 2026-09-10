@@ -6,6 +6,14 @@
     "MaximumTextBytes": 2500,
     "TimeoutSeconds": 240
   },
+  "ArticleSummary": {
+    "MaximumRedirects": 4,
+    "MaximumDownloadBytes": 12582912,
+    "MaximumPages": 40,
+    "MaximumExtractedCharacters": 160000,
+    "FetchTimeoutSeconds": 30,
+    "TotalTimeoutSeconds": 600
+  },
   "Orcid": {
     "ApiBaseUrl": "https://pub.orcid.org/v3.0"
   },
