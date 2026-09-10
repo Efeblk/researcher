@@ -67,6 +67,34 @@ public sealed class SafeArticleFetchPipelineTests
         await Assert.ThrowsAsync<ArticleSourceException>(() => fetcher.FetchPdfAsync(new Uri("https://example.org/paper.pdf"), default));
     }
 
+    [Fact]
+    public async Task FetchPdfAsync_HttpFailure_ReportsStatusWithoutUrl()
+    {
+        Queue<HttpResponseMessage> responses = new([Response(HttpStatusCode.Forbidden, "text/plain", "denied")]);
+        SafeArticleFetcher fetcher = Create(responses, 1024);
+
+        ArticleSourceException exception = await Assert.ThrowsAsync<ArticleSourceException>(() =>
+            fetcher.FetchPdfAsync(new Uri("https://example.org/paper.pdf?private=value"), default));
+
+        Assert.Equal("The source returned HTTP status 403.", exception.Message);
+        Assert.DoesNotContain("example.org", exception.Message);
+        Assert.DoesNotContain("private", exception.Message);
+    }
+
+    [Fact]
+    public async Task FetchPdfAsync_LandingWithoutPdf_ReportsSafeCategory()
+    {
+        Queue<HttpResponseMessage> responses = new([Response(HttpStatusCode.OK, "text/html", "<html><a href='/login?token=secret'>Sign in</a></html>")]);
+        SafeArticleFetcher fetcher = Create(responses, 1024);
+
+        ArticleSourceException exception = await Assert.ThrowsAsync<ArticleSourceException>(() =>
+            fetcher.FetchPdfAsync(new Uri("https://example.org/article?id=private"), default));
+
+        Assert.Equal("The saved URL is a landing page without an accessible PDF link.", exception.Message);
+        Assert.DoesNotContain("secret", exception.Message);
+        Assert.DoesNotContain("private", exception.Message);
+    }
+
     private static SafeArticleFetcher Create(Queue<HttpResponseMessage> responses, int maximumBytes)
     {
         ArticleSummaryOptions settings = new() { MaximumDownloadBytes = maximumBytes };

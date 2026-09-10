@@ -12,7 +12,11 @@ Call `SummarizeArticle` with `PersonelID`, `AcademicWorkId`, and optional langua
 
 When full text cannot be used, a nonempty database abstract is summarized with `sourceKind: abstract`, partial coverage, and an explicit reason. Login/menu pages are not treated as article text. Scanned pages have no OCR; mixed PDFs disclose unread pages, and fully scanned, encrypted, malformed, oversized, or unsupported PDFs fail unless the saved abstract is available. Limits are configured under `ArticleSummary`.
 
+Source failures identify the attempted database column (`FullTextUrl`, `OpenAccessUrl`, or `Link`) and a bounded cause such as an HTTP status, network failure, timeout, missing PDF link, or unreadable PDF. Diagnostics never include the saved URL, its query string, or raw transport exception details. If no valid saved URL exists, the response says so separately from a failed download or extraction.
+
 The analysis service first sends the complete extracted source. It reserves `Ai:ArticleMaxOutputTokens` inside `Ai:ArticleContextTokens` and conservatively checks the complete UTF-8 request size before sending. Gemini token-limit responses and Ollama context overflows retry with immutable source-span chunks; a fallback chunk is subdivided again only between spans. `Ai:ArticleFallbackChunkBytes` bounds those chunks by UTF-8 bytes. No source character is silently removed. Safety blocks, empty responses, malformed JSON, and unexpected finish reasons fail closed rather than being accepted.
+
+Gemini's response schema does not enumerate every source ID because large source-ID enums are rejected by Gemini before generation. The IDs remain in the model input, and the Gemini adapter rejects every returned source ID that is not an exact member of the current source-span set. Ollama continues to receive the enumerated source-ID schema.
 
 Each source span has a deterministic ID derived from its canonical page, offsets, and exact text. The summary model returns claims and source IDs only. The service rejects unknown IDs or IDs outside the current chunk, then resolves quotes, page numbers, and offsets from the stored source itself. The model cannot alter quoted evidence.
 

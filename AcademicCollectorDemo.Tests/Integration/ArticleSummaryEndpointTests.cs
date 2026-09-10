@@ -88,4 +88,31 @@ public sealed class ArticleSummaryEndpointTests(SqlServerFixture fixture)
         await database.SaveChangesAsync();
         Assert.Null((await database.ArticleSummaries.SingleAsync(x => x.PersonelId == owner.PersonelId)).AcademicWorkId);
     }
+
+    [Fact]
+    public async Task SummarizeArticle_UnusableSavedSource_ReportsColumnAndSafeCause()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var database = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        Researcher owner = new() { PersonelId = "test-" + Guid.NewGuid().ToString("N"), FirstName = "Owner" };
+        database.Researchers.Add(owner);
+        AcademicWork work = new()
+        {
+            PersonelId = owner.PersonelId, ProviderWorkId = Guid.NewGuid().ToString("N"),
+            FullTextUrl = "http://127.0.0.1/paper.pdf?token=secret", SyncedAt = DateTime.UtcNow
+        };
+        database.AcademicWorks.Add(work);
+        await database.SaveChangesAsync();
+
+        using var host = new HostProcess(fixture.ConnectionString, "http://127.0.0.1:1/");
+        await host.WaitUntilReadyAsync();
+        using var response = await host.Client.PostAsJsonAsync(Api + "SummarizeArticle",
+            new { PersonelID = owner.PersonelId, AcademicWorkId = work.Id, Language = "tr" });
+        string body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Contains("FullTextUrl: The saved article URL is not a permitted public HTTP(S) URL.", body);
+        Assert.DoesNotContain("127.0.0.1", body);
+        Assert.DoesNotContain("secret", body);
+    }
 }
