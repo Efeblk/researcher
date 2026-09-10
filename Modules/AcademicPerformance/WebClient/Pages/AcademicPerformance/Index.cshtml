@@ -60,7 +60,23 @@
     </form>
 </div>
 
-<div id="ProviderComparison" class="academic-card" hidden>
+<details id="AcademicMetricsOverview" class="academic-card academic-metrics-overview" open hidden>
+    <summary>
+        <span>
+            <strong>Akademik Metrikler</strong>
+            <small>Sağlayıcı kapsamlarına göre profil özeti</small>
+        </span>
+    </summary>
+    <div class="academic-metrics-overview-body">
+        <div id="AcademicMetricsProviderGrid" class="academic-provider-metrics-grid"></div>
+        <button id="AcademicMetricsMoreButton" class="academic-metrics-more" type="button"
+                aria-expanded="false" aria-controls="AcademicMetricsDetails">
+            Daha fazla metrik
+        </button>
+    </div>
+    <div id="AcademicMetricsDetails" class="academic-metrics-details" hidden>
+
+<div id="ProviderComparison" class="academic-metric-detail-panel" hidden>
     <h2>Sağlayıcı Veri Karşılaştırması</h2>
     <p class="academic-help">
         Her satır ilgili sağlayıcının kendi kapsamını gösterir. Aynı metriğin
@@ -89,26 +105,7 @@
     </p>
 </div>
 
-<div id="YoksisSummary" class="academic-card" hidden>
-    <h2>YÖKSİS Toplama Özeti</h2>
-    <div class="academic-metrics-grid">
-        <div class="academic-metric">
-            <span>Toplam kayıt</span>
-            <strong id="YoksisTotalRecordCount">0</strong>
-        </div>
-        <div class="academic-metric">
-            <span>Başarılı kategori</span>
-            <strong id="YoksisSuccessfulCategoryCount">0</strong>
-        </div>
-        <div class="academic-metric">
-            <span>Başarısız kategori</span>
-            <strong id="YoksisFailedCategoryCount">0</strong>
-        </div>
-    </div>
-    <div id="YoksisCategoryList" class="academic-category-list"></div>
-</div>
-
-<div id="GoogleScholarSummary" class="academic-card" hidden>
+<div id="GoogleScholarSummary" class="academic-metric-detail-panel" hidden>
     <h2><span id="GoogleScholarResearcherName">Akademisyen</span> - Google Scholar Özeti</h2>
     <div class="academic-metrics-grid">
         <div class="academic-metric">
@@ -142,7 +139,7 @@
     </p>
 </div>
 
-<div id="OpenAlexSummary" class="academic-card" hidden>
+<div id="OpenAlexSummary" class="academic-metric-detail-panel" hidden>
     <h2><span id="OpenAlexResearcherName">Akademisyen</span> - OpenAlex Özeti</h2>
     <div class="academic-metrics-grid">
         <div class="academic-metric">
@@ -176,7 +173,7 @@
     </p>
 </div>
 
-<div id="WebOfScienceSummary" class="academic-card" hidden>
+<div id="WebOfScienceSummary" class="academic-metric-detail-panel" hidden>
     <h2><span id="WebOfScienceResearcherName">Akademisyen</span> - Web of Science Özeti</h2>
     <div class="academic-metrics-grid">
         <div class="academic-metric">
@@ -198,7 +195,7 @@
     </p>
 </div>
 
-<div id="ResearcherSummary" class="academic-card" hidden>
+<div id="ResearcherSummary" class="academic-metric-detail-panel" hidden>
     <h2><span id="MetricsResearcherName">Akademisyen</span> - ORCID Profil Özeti</h2>
     <div class="academic-metrics-grid">
         <div class="academic-metric">
@@ -230,6 +227,28 @@
             <strong id="MetricsRecordUpdatedAt">—</strong>
         </div>
     </div>
+</div>
+
+    </div>
+</details>
+
+<div id="YoksisSummary" class="academic-card" hidden>
+    <h2>YÖKSİS Toplama Özeti</h2>
+    <div class="academic-metrics-grid">
+        <div class="academic-metric">
+            <span>Toplam kayıt</span>
+            <strong id="YoksisTotalRecordCount">0</strong>
+        </div>
+        <div class="academic-metric">
+            <span>Başarılı kategori</span>
+            <strong id="YoksisSuccessfulCategoryCount">0</strong>
+        </div>
+        <div class="academic-metric">
+            <span>Başarısız kategori</span>
+            <strong id="YoksisFailedCategoryCount">0</strong>
+        </div>
+    </div>
+    <div id="YoksisCategoryList" class="academic-category-list"></div>
 </div>
 
 <div class="academic-card">
