@@ -34,5 +34,13 @@ public sealed class ArticleHtmlExtractorTests
         Assert.Equal(abstractText, result);
     }
 
+    [Fact]
+    public void TryExtractAbstract_GenericSeoDescription_Rejects()
+    {
+        string description = new('a', 120);
+        string? result = Create().TryExtractAbstract(System.Text.Encoding.UTF8.GetBytes($"<meta name='description' content='{description}'><meta property='og:description' content='{description}'>"), new Uri("https://example.org"));
+        Assert.Null(result);
+    }
+
     private static ArticleHtmlExtractor Create() => new(Options.Create(new ArticleSummaryOptions()));
 }

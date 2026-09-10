@@ -1,6 +1,6 @@
 using System.Diagnostics;
-using System.Runtime.Versioning;
 using PDFtoImage;
+using UglyToad.PdfPig;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries;
 
@@ -14,16 +14,25 @@ public interface IArticleOcrEngine
     Task<string> RecognizeAsync(string imagePath, string language, TimeSpan timeout, CancellationToken cancellationToken);
 }
 
-public sealed class PdfToImageArticlePageRenderer : IArticlePageRenderer
+public sealed class PdfToImageArticlePageRenderer(Microsoft.Extensions.Options.IOptions<ArticleSummaryOptions> options) : IArticlePageRenderer
 {
-    [SupportedOSPlatform("windows")]
-    [SupportedOSPlatform("linux")]
-    [SupportedOSPlatform("macos")]
     public async Task RenderAsync(byte[] pdf, int zeroBasedPage, string outputPath, int dpi, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        using (PdfDocument document = PdfDocument.Open(pdf))
+        {
+            var page = document.GetPage(zeroBasedPage + 1);
+            long width = checked((long)Math.Ceiling(page.Width * dpi / 72d));
+            long height = checked((long)Math.Ceiling(page.Height * dpi / 72d));
+            if (width <= 0 || height <= 0 || width > options.Value.MaximumOcrDimensionPixels ||
+                height > options.Value.MaximumOcrDimensionPixels || checked(width * height) > options.Value.MaximumOcrPixels)
+                throw new ArticleSourceException("The PDF page dimensions exceed the configured OCR rendering limit.");
+        }
         await using MemoryStream stream = new(pdf, writable: false);
+#pragma warning disable CA1416 // PDFtoImage supports every runtime targeted by this server application.
         await Task.Run(() => Conversion.SavePng(outputPath, stream, zeroBasedPage, leaveOpen: true,
             options: new RenderOptions(Dpi: dpi, Grayscale: true)), cancellationToken);
+#pragma warning restore CA1416
     }
 }
 

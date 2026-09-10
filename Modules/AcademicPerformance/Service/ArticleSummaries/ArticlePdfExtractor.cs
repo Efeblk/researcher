@@ -65,6 +65,7 @@ public sealed class ArticlePdfExtractor
                         }
                         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                         { limitations.Add($"OCR reached its total time limit at page {pageNumber}."); break; }
+                        catch (OperationCanceledException) { throw; }
                         catch (ArticleSourceException exception) { limitations.Add($"Page {pageNumber}: {exception.Message}"); }
                         catch (Exception) { limitations.Add($"Page {pageNumber}: OCR is unavailable because the page could not be rendered or read."); }
                     }

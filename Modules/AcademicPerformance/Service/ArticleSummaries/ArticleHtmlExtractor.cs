@@ -44,7 +44,7 @@ public sealed class ArticleHtmlExtractor(IOptions<ArticleSummaryOptions> options
     public string? TryExtractAbstract(byte[] html, Uri source)
     {
         IDocument document = Parse(html);
-        string? value = document.QuerySelector("meta[name='citation_abstract'],meta[name='description'],meta[property='og:description']")?.GetAttribute("content");
+        string? value = document.QuerySelector("meta[name='citation_abstract']")?.GetAttribute("content");
         value ??= document.QuerySelector("[itemprop='abstract'],.abstract,#abstract")?.TextContent;
         string normalized = Normalize(value ?? "");
         return normalized.Length is >= 100 and <= 10000 ? normalized : null;

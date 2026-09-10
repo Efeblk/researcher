@@ -92,6 +92,29 @@ public sealed class ArticlePdfExtractorTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => extractor.ExtractAsync(builder.Build(), "en", cancellation.Token));
     }
 
+    [Fact]
+    public async Task ExtractAsync_RendererCancelsForCaller_PropagatesCancellation()
+    {
+        PdfDocumentBuilder builder = new(); builder.AddPage(PageSize.A4);
+        using CancellationTokenSource cancellation = new();
+        ArticlePdfExtractor extractor = new(Options.Create(new ArticleSummaryOptions()), new CancellingRenderer(cancellation), new FakeOcr("unused"));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => extractor.ExtractAsync(builder.Build(), "en", cancellation.Token));
+    }
+
+    [Fact]
+    public async Task Renderer_OversizedPage_RejectsBeforeCreatingImage()
+    {
+        PdfDocumentBuilder builder = new(); builder.AddPage(100000, 100000);
+        string output = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".png");
+        PdfToImageArticlePageRenderer renderer = new(Options.Create(new ArticleSummaryOptions()));
+
+        ArticleSourceException exception = await Assert.ThrowsAsync<ArticleSourceException>(() => renderer.RenderAsync(builder.Build(), 0, output, 200, default));
+
+        Assert.Contains("dimensions", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.False(File.Exists(output));
+    }
+
     private sealed class FakeRenderer : IArticlePageRenderer
     {
         public Task RenderAsync(byte[] pdf, int zeroBasedPage, string outputPath, int dpi, CancellationToken cancellationToken)
@@ -100,6 +123,11 @@ public sealed class ArticlePdfExtractorTests
     private sealed class FakeOcr(string text) : IArticleOcrEngine
     {
         public Task<string> RecognizeAsync(string imagePath, string language, TimeSpan timeout, CancellationToken cancellationToken) => Task.FromResult(text);
+    }
+    private sealed class CancellingRenderer(CancellationTokenSource cancellation) : IArticlePageRenderer
+    {
+        public Task RenderAsync(byte[] pdf, int zeroBasedPage, string outputPath, int dpi, CancellationToken cancellationToken)
+        { cancellation.Cancel(); throw new OperationCanceledException(cancellationToken); }
     }
 
     [Fact]
