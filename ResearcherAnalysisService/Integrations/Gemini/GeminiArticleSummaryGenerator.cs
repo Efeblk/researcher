@@ -1,5 +1,6 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.Unicode;
 using AcademicCollector.Analysis.Contracts;
@@ -25,8 +26,7 @@ public sealed class GeminiArticleSummaryGenerator(GeminiArticleClient client, IO
         string input = JsonSerializer.Serialize(new { language, sourceKind, sources }, JsonOptions);
         GeminiArticleResult result = await client.GenerateAsync(options.Value.ArticleModel,
             ArticleSummaryPrompt.Instructions, input,
-            ArticleSummaryPrompt.CreateSchema(sourceSpans.Where(x => !string.IsNullOrWhiteSpace(x.Text))
-                .Select(x => x.SourceId)), options.Value.ArticleMaxOutputTokens, cancellationToken);
+            (JsonObject)ArticleSummaryPrompt.Schema.DeepClone(), options.Value.ArticleMaxOutputTokens, cancellationToken);
         try
         {
             GeneratedArticleSections sections = JsonSerializer.Deserialize<GeneratedArticleSections>(result.Json, JsonOptions)

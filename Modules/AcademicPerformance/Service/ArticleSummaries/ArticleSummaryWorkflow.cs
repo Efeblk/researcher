@@ -26,25 +26,35 @@ public sealed class ArticleSummaryWorkflow(AcademicDbContext database, SafeArtic
         SummarizeArticleRequest snapshot;
         string? sourceUrl = null;
         SummarizeArticleRequest? acquired = null;
-        foreach (string candidate in ValidUrls(work.FullTextUrl, work.OpenAccessUrl, work.Link))
+        IReadOnlyList<SourceCandidate> candidates = ValidUrls(work);
+        List<string> failures = [];
+        foreach (SourceCandidate candidate in candidates)
         {
             try
             {
-                var fetched = await fetcher.FetchPdfAsync(new Uri(candidate), total.Token);
+                var fetched = await fetcher.FetchPdfAsync(new Uri(candidate.Url), total.Token);
                 acquired = extractor.Extract(fetched.Bytes, language);
                 sourceUrl = fetched.FinalUri.ToString();
                 break;
             }
-            catch (Exception exception) when (exception is ArticleSourceException or HttpRequestException or SocketException) { }
-            catch (OperationCanceledException) when (!total.IsCancellationRequested) { }
+            catch (Exception exception) when (exception is ArticleSourceException or HttpRequestException or SocketException)
+            {
+                failures.Add($"{candidate.Column}: {SafeFailure(exception)}");
+            }
+            catch (OperationCanceledException) when (!total.IsCancellationRequested)
+            {
+                failures.Add($"{candidate.Column}: timed out.");
+            }
         }
         if (acquired is not null) snapshot = acquired;
         else if (!string.IsNullOrWhiteSpace(work.Abstract))
-            snapshot = AbstractSnapshot(work.Abstract!, language, ValidUrls(work.FullTextUrl, work.OpenAccessUrl, work.Link).Any()
-                ? "Saved full-text sources were unavailable or unusable; only the saved database abstract was summarized."
+            snapshot = AbstractSnapshot(work.Abstract!, language, candidates.Count != 0
+                ? $"Saved full-text sources were unavailable or unusable ({string.Join(" ", failures)}); only the saved database abstract was summarized."
                 : "No saved full-text URL exists; only the saved database abstract was summarized.");
+        else if (candidates.Count != 0)
+            throw new ArticleSourceException($"No saved full-text source was usable. Attempts: {string.Join(" ", failures)}");
         else
-            throw new ArticleSourceException("No usable full-text source or abstract is saved for this article.");
+            throw new ArticleSourceException("No saved usable full-text URL or abstract exists for this article.");
 
         string canonical = JsonSerializer.Serialize(snapshot.Pages, JsonOptions);
         snapshot = snapshot with { SourceHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant() };
@@ -85,9 +95,31 @@ public sealed class ArticleSummaryWorkflow(AcademicDbContext database, SafeArtic
             text.Trim().Length > 24000 ? reason + " The abstract was truncated to 24,000 characters." : reason)
             { SourceSpans = ArticleSourceCatalog.Create(pages) };
     }
-    private static IEnumerable<string> ValidUrls(params string?[] values) => values.Where(value =>
-        Uri.TryCreate(value, UriKind.Absolute, out Uri? uri) && uri.Scheme is "http" or "https" && string.IsNullOrEmpty(uri.UserInfo))
-        .Select(value => value!).Distinct(StringComparer.OrdinalIgnoreCase);
+    private static IReadOnlyList<SourceCandidate> ValidUrls(AcademicWork work)
+    {
+        List<SourceCandidate> candidates = [];
+        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+        Add("FullTextUrl", work.FullTextUrl);
+        Add("OpenAccessUrl", work.OpenAccessUrl);
+        Add("Link", work.Link);
+        return candidates;
+
+        void Add(string column, string? value)
+        {
+            if (Uri.TryCreate(value, UriKind.Absolute, out Uri? uri) && uri.Scheme is "http" or "https" &&
+                string.IsNullOrEmpty(uri.UserInfo) && seen.Add(value!))
+                candidates.Add(new(column, value!));
+        }
+    }
+    private static string SafeFailure(Exception exception) => exception switch
+    {
+        ArticleSourceException source => source.Message,
+        HttpRequestException { StatusCode: not null } request => $"HTTP status {(int)request.StatusCode.Value}.",
+        HttpRequestException => "network request failed.",
+        SocketException => "network connection failed.",
+        _ => "source processing failed."
+    };
+    private sealed record SourceCandidate(string Column, string Url);
     private static SavedArticleSummaryResponse Map(SavedArticleSummary value, ArticleSummaryReport report) =>
         new(value.Id, value.OriginalAcademicWorkId, value.PersonelId, value.SavedAt, value.SourceUrl, report);
 }

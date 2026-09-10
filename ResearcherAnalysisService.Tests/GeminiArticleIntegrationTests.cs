@@ -29,7 +29,7 @@ public sealed class GeminiArticleIntegrationTests
             Assert.Equal("high", config.GetProperty("thinkingConfig").GetProperty("thinkingLevel").GetString());
             Assert.False(config.GetProperty("thinkingConfig").GetProperty("includeThoughts").GetBoolean());
             Assert.Equal("application/json", config.GetProperty("responseMimeType").GetString());
-            Assert.Contains("src-1", config.GetProperty("responseJsonSchema").GetRawText());
+            Assert.DoesNotContain("src-1", config.GetProperty("responseJsonSchema").GetRawText());
             Assert.Contains("src-1", body.RootElement.GetProperty("contents")[0].GetProperty("parts")[0]
                 .GetProperty("text").GetString());
             return Response("{\"purpose\":[{\"claimId\":\"c1\",\"text\":\"Supported.\",\"sourceIds\":[\"src-1\"]}],\"methods\":[],\"data\":[],\"findings\":[],\"limitations\":[]}");
@@ -39,6 +39,30 @@ public sealed class GeminiArticleIntegrationTests
 
         Assert.Single(result.Sections.Purpose);
         Assert.Equal("gemini-3.8-flash", result.Model);
+    }
+
+    [Fact]
+    public async Task Generate_ManySources_OmitsSchemaEnumAndRejectsInventedSourceId()
+    {
+        IReadOnlyList<ArticleSourceSpan> spans = Enumerable.Range(1, 153)
+            .Select(index => new ArticleSourceSpan($"src-{index}", index, 0, 7, "Source."))
+            .ToList();
+        using StubHandler handler = new(async (request, cancellationToken) =>
+        {
+            using JsonDocument body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            JsonElement schema = body.RootElement.GetProperty("generationConfig").GetProperty("responseJsonSchema");
+            JsonElement sourceId = schema.GetProperty("$defs").GetProperty("claims").GetProperty("items")
+                .GetProperty("properties").GetProperty("sourceIds").GetProperty("items");
+            Assert.False(sourceId.TryGetProperty("enum", out JsonElement _));
+            Assert.Contains("src-153", body.RootElement.GetProperty("contents")[0].GetProperty("parts")[0]
+                .GetProperty("text").GetString());
+            return Response("{\"purpose\":[{\"claimId\":\"c1\",\"text\":\"Invented.\",\"sourceIds\":[\"src-invented\"]}],\"methods\":[],\"data\":[],\"findings\":[],\"limitations\":[]}");
+        });
+
+        InvalidAnalysisException exception = await Assert.ThrowsAsync<InvalidAnalysisException>(() =>
+            Summary(handler).GenerateAsync("en", "pdf", spans, default));
+
+        Assert.Equal(AnalysisFailure.InvalidEvidence, exception.Reason);
     }
 
     [Fact]

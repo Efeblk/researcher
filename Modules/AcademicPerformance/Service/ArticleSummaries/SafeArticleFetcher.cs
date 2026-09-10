@@ -37,7 +37,7 @@ public sealed partial class SafeArticleFetcher
                 continue;
             }
             if (!response.IsSuccessStatusCode)
-                throw new ArticleSourceException("The saved article source could not be downloaded.");
+                throw new ArticleSourceException($"The source returned HTTP status {(int)response.StatusCode}.");
             byte[] body = await ReadBoundedAsync(response.Content, cancellationToken);
             string mediaType = response.Content.Headers.ContentType?.MediaType ?? "";
             if (mediaType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase) || body.AsSpan().StartsWith("%PDF-"u8))
