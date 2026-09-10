@@ -17,6 +17,15 @@ public sealed class SafeArticleFetcher
 
     public async Task<(byte[] Bytes, Uri FinalUri)> FetchPdfAsync(Uri initialUri, CancellationToken cancellationToken)
     {
+        FetchedArticleSource source = await FetchCoreAsync(initialUri, allowHtmlFallback: false, cancellationToken);
+        return (source.Bytes, source.FinalUri);
+    }
+
+    public Task<FetchedArticleSource> FetchSourceAsync(Uri initialUri, CancellationToken cancellationToken) =>
+        FetchCoreAsync(initialUri, allowHtmlFallback: true, cancellationToken);
+
+    private async Task<FetchedArticleSource> FetchCoreAsync(Uri initialUri, bool allowHtmlFallback, CancellationToken cancellationToken)
+    {
         using CancellationTokenSource fetch = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         fetch.CancelAfter(TimeSpan.FromSeconds(options.Value.FetchTimeoutSeconds));
         Queue<(Uri Uri, int Depth, int Redirects)> pending = new();
@@ -24,6 +33,7 @@ public sealed class SafeArticleFetcher
         HashSet<string> queued = new(StringComparer.Ordinal) { initialUri.AbsoluteUri };
         pending.Enqueue((initialUri, 0, 0));
         ArticleSourceException? lastFailure = null;
+        FetchedArticleSource? htmlFallback = null;
         int requests = 0;
         while (pending.Count != 0 && requests < options.Value.MaximumSourceRequests)
         {
@@ -49,23 +59,28 @@ public sealed class SafeArticleFetcher
                 if (!response.IsSuccessStatusCode) throw new ArticleSourceException($"The source returned HTTP status {(int)response.StatusCode}.");
                 byte[] body = await ReadBoundedAsync(response.Content, fetch.Token);
                 string mediaType = response.Content.Headers.ContentType?.MediaType ?? "";
-                if (mediaType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase) || body.AsSpan().StartsWith("%PDF-"u8)) return (body, current);
+                if (mediaType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase) || body.AsSpan().StartsWith("%PDF-"u8)) return new(body, current, "application/pdf");
                 if (!mediaType.StartsWith("text/html", StringComparison.OrdinalIgnoreCase))
                     throw new ArticleSourceException("The saved URL did not return a PDF.");
+                htmlFallback ??= new(body, current, "text/html");
                 if (depth >= options.Value.MaximumLandingDepth)
+                {
+                    if (allowHtmlFallback) continue;
                     throw new ArticleSourceException("The saved URL is a landing page without an accessible PDF link.");
+                }
                 foreach (Uri candidate in DiscoverPdfLinks(current, System.Text.Encoding.UTF8.GetString(body)))
                     if (queued.Count < options.Value.MaximumSourceRequests && queued.Add(candidate.AbsoluteUri))
                         pending.Enqueue((candidate, depth + 1, 0));
-                if (pending.Count == 0) throw new ArticleSourceException("The saved URL is a landing page without an accessible PDF link.");
+                if (pending.Count == 0 && !allowHtmlFallback) throw new ArticleSourceException("The saved URL is a landing page without an accessible PDF link.");
             }
             catch (ArticleSourceException exception) { lastFailure = exception; }
             catch (HttpRequestException) { lastFailure = new ArticleSourceException("The article source network request failed."); }
             catch (SocketException) { lastFailure = new ArticleSourceException("The article source network connection failed."); }
             catch (IOException) { lastFailure = new ArticleSourceException("The article source response could not be read."); }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && !fetch.IsCancellationRequested)
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             { lastFailure = new ArticleSourceException("The article source request timed out."); }
         }
+        if (allowHtmlFallback && htmlFallback is not null) return htmlFallback;
         throw lastFailure ?? new ArticleSourceException("The article source exceeded the request limit.");
     }
 
@@ -145,3 +160,5 @@ public sealed class SafeArticleFetcher
         return (b[0] & 0xe0) == 0x20 && !(b[0] == 0x20 && b[1] == 0x01 && (b[2] & 0xfe) == 0 || b[0] == 0x20 && b[1] == 0x01 && b[2] == 0x0d && b[3] == 0xb8 || b[0] == 0x20 && b[1] == 0x02 || b[0] == 0x3f && b[1] == 0xff && (b[2] & 0xf0) == 0);
     }
 }
+
+public sealed record FetchedArticleSource(byte[] Bytes, Uri FinalUri, string MediaType);
