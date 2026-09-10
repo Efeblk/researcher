@@ -40,7 +40,7 @@ public sealed class ArticleSummaryWorkflow(AcademicDbContext database, SafeArtic
         using CancellationTokenSource acquisition = CancellationTokenSource.CreateLinkedTokenSource(total.Token);
         acquisition.CancelAfter(TimeSpan.FromSeconds(Math.Max(5, Math.Min(
             options.Value.TotalTimeoutSeconds / 2, options.Value.TotalTimeoutSeconds - 30))));
-        var acquired = await AcquireWithinBudgetAsync(initial, language, failures, acquisition.Token, total.Token);
+        var acquired = await AcquireAsync(initial, language, failures, acquisition.Token, total.Token);
         recoveredAbstract ??= acquired.Abstract;
 
         ArticleMetadataResult? enrichment = null;
@@ -60,7 +60,7 @@ public sealed class ArticleSummaryWorkflow(AcademicDbContext database, SafeArtic
                 .Select(x => new ArticleSourceCandidate(x.Origin, x.Url))
                 .Concat(stored.Skip(initial.Count)).Where(x => attempted.Add(x.Url))
                 .Take(Math.Max(0, options.Value.MaximumSourceRequests - initial.Count)).ToList();
-            var remainingAcquisition = await AcquireWithinBudgetAsync(remaining, language, failures, acquisition.Token, total.Token);
+            var remainingAcquisition = await AcquireAsync(remaining, language, failures, acquisition.Token, total.Token);
             recoveredAbstract ??= remainingAcquisition.Abstract;
             if (remainingAcquisition.Snapshot is not null) acquired = remainingAcquisition;
         }
@@ -117,8 +117,8 @@ public sealed class ArticleSummaryWorkflow(AcademicDbContext database, SafeArtic
         return result;
     }
 
-    private async Task<Acquisition> AcquireAsync(
-        IReadOnlyList<ArticleSourceCandidate> candidates, string language, List<string> failures, CancellationToken cancellationToken)
+    internal async Task<Acquisition> AcquireAsync(IReadOnlyList<ArticleSourceCandidate> candidates,
+        string language, List<string> failures, CancellationToken cancellationToken, CancellationToken totalToken)
     {
         string? discoveredAbstract = null;
         foreach (ArticleSourceCandidate candidate in candidates)
@@ -133,21 +133,13 @@ public sealed class ArticleSummaryWorkflow(AcademicDbContext database, SafeArtic
             }
             catch (Exception exception) when (exception is ArticleSourceException or HttpRequestException or SocketException)
             { failures.Add($"{candidate.Origin}: {SafeFailure(exception)}"); }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            { failures.Add($"{candidate.Origin}: timed out."); }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested && !totalToken.IsCancellationRequested)
+            {
+                failures.Add("Source acquisition budget expired; the recovered abstract remains available as fallback.");
+                return new(null, null, discoveredAbstract);
+            }
         }
         return new(null, null, discoveredAbstract);
-    }
-
-    private async Task<Acquisition> AcquireWithinBudgetAsync(IReadOnlyList<ArticleSourceCandidate> candidates,
-        string language, List<string> failures, CancellationToken acquisitionToken, CancellationToken totalToken)
-    {
-        try { return await AcquireAsync(candidates, language, failures, acquisitionToken); }
-        catch (OperationCanceledException) when (acquisitionToken.IsCancellationRequested && !totalToken.IsCancellationRequested)
-        {
-            failures.Add("Source acquisition budget expired; the saved abstract remains available as fallback.");
-            return new(null, null, null);
-        }
     }
 
     private async Task PersistAsync(int workId, string personelId, string? recoveredAbstract,
@@ -199,5 +191,5 @@ public sealed class ArticleSummaryWorkflow(AcademicDbContext database, SafeArtic
         new(value.Id, value.OriginalAcademicWorkId, value.PersonelId, value.SavedAt, value.SourceUrl,
             report.ExtractionMethod is null ? report with
             { ExtractionMethod = ArticleSummaryServiceClient.GetExtractionMethod(value.SourceKind, value.ExtractionVersion) } : report);
-    private sealed record Acquisition(SummarizeArticleRequest? Snapshot, string? Url, string? Abstract);
+    internal sealed record Acquisition(SummarizeArticleRequest? Snapshot, string? Url, string? Abstract);
 }
