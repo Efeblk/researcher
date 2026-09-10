@@ -6,6 +6,39 @@ namespace AcademicCollectorDemo.Tests.Unit;
 
 public sealed class SafeArticleFetchPipelineTests
 {
+    [Fact]
+    public void DiscoverPdfLinks_ReorderedMetaAndPdfQuery_ReturnsAllSafeLinks()
+    {
+        const string html = """<meta content="/meta.pdf?x=1" NAME="citation_pdf_url"><a href="paper.pdf?download=1">PDF</a><a href="http://127.0.0.1/private.pdf">bad</a>""";
+
+        IReadOnlyList<Uri> result = SafeArticleFetcher.DiscoverPdfLinks(new Uri("https://example.org/articles/page"), html);
+
+        Assert.Equal(["https://example.org/meta.pdf?x=1", "https://example.org/articles/paper.pdf?download=1"], result.Select(x => x.AbsoluteUri));
+    }
+
+    [Fact]
+    public void DiscoverPdfLinks_DergiparkDownloadWithoutExtension_ReturnsLink()
+    {
+        IReadOnlyList<Uri> result = SafeArticleFetcher.DiscoverPdfLinks(new Uri("https://dergipark.org.tr/article"),
+            "<a href='/en/download/article-file/4317678'>download</a>");
+
+        Assert.Equal("https://dergipark.org.tr/en/download/article-file/4317678", Assert.Single(result).AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task FetchPdfAsync_FirstDiscoveredPdfFails_TriesNextCandidate()
+    {
+        Queue<HttpResponseMessage> responses = new([
+            Response(HttpStatusCode.OK, "text/html", "<a href='/first.pdf'>one</a><a href='/second.pdf'>two</a>"),
+            Response(HttpStatusCode.Forbidden, "text/plain", "denied"),
+            Response(HttpStatusCode.OK, "application/pdf", "%PDF-working")]);
+        SafeArticleFetcher fetcher = Create(responses, 1024);
+
+        var result = await fetcher.FetchPdfAsync(new Uri("https://example.org/article"), default);
+
+        Assert.Equal("https://example.org/second.pdf", result.FinalUri.AbsoluteUri);
+    }
+
     [Theory]
     [InlineData("/paper.pdf", "https://example.org/paper.pdf")]
     [InlineData("paper.pdf", "https://example.org/articles/paper.pdf")]

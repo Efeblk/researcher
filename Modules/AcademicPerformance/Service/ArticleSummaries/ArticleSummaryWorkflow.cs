@@ -7,6 +7,7 @@ using AcademicCollector.Analysis.Contracts;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -19,16 +20,30 @@ public sealed class ArticleSummaryWorkflow(AcademicDbContext database, SafeArtic
 
     public async Task<SavedArticleSummaryResponse?> SummarizeAsync(string personelId, int academicWorkId, string language, CancellationToken cancellationToken)
     {
-        AcademicWork? work = await database.AcademicWorks.AsNoTracking().SingleOrDefaultAsync(x => x.Id == academicWorkId && x.PersonelId == personelId, cancellationToken);
+        AcademicWork? work = await database.AcademicWorks.AsNoTracking().Include(x => x.Sources)
+            .SingleOrDefaultAsync(x => x.Id == academicWorkId && x.PersonelId == personelId, cancellationToken);
         if (work is null) return null;
         using CancellationTokenSource total = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         total.CancelAfter(TimeSpan.FromSeconds(options.Value.TotalTimeoutSeconds));
         SummarizeArticleRequest snapshot;
         string? sourceUrl = null;
         SummarizeArticleRequest? acquired = null;
-        IReadOnlyList<SourceCandidate> candidates = ValidUrls(work);
+        List<AcademicWork> sourceWorks = [work];
+        string normalizedDoi = CrossrefClient.NormalizeDoi(work.Doi);
+        if (!string.IsNullOrWhiteSpace(normalizedDoi))
+        {
+            List<int> relatedIds = (await database.AcademicWorks.AsNoTracking()
+                .Where(x => x.PersonelId == personelId && x.Id != work.Id && x.Doi != null)
+                .Select(x => new { x.Id, x.Doi }).ToListAsync(total.Token))
+                .Where(x => CrossrefClient.NormalizeDoi(x.Doi) == normalizedDoi)
+                .Select(x => x.Id).Take(8).ToList();
+            if (relatedIds.Count != 0)
+                sourceWorks.AddRange(await database.AcademicWorks.AsNoTracking().Include(x => x.Sources)
+                    .Where(x => relatedIds.Contains(x.Id)).ToListAsync(total.Token));
+        }
+        IReadOnlyList<ArticleSourceCandidate> candidates = ArticleSourceCandidateCatalog.GetCandidates(sourceWorks);
         List<string> failures = [];
-        foreach (SourceCandidate candidate in candidates)
+        foreach (ArticleSourceCandidate candidate in candidates)
         {
             try
             {
@@ -39,11 +54,11 @@ public sealed class ArticleSummaryWorkflow(AcademicDbContext database, SafeArtic
             }
             catch (Exception exception) when (exception is ArticleSourceException or HttpRequestException or SocketException)
             {
-                failures.Add($"{candidate.Column}: {SafeFailure(exception)}");
+                failures.Add($"{candidate.Origin}: {SafeFailure(exception)}");
             }
             catch (OperationCanceledException) when (!total.IsCancellationRequested)
             {
-                failures.Add($"{candidate.Column}: timed out.");
+                failures.Add($"{candidate.Origin}: timed out.");
             }
         }
         if (acquired is not null) snapshot = acquired;
@@ -70,8 +85,16 @@ public sealed class ArticleSummaryWorkflow(AcademicDbContext database, SafeArtic
         };
         await using (var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.Serializable, total.Token))
         {
-            bool stillOwned = await database.AcademicWorks.AnyAsync(x => x.Id == work.Id && x.PersonelId == personelId, total.Token);
-            if (!stillOwned) throw new ArticleSourceException("The article changed during summarization; no report was saved.");
+            AcademicWork? ownedWork = await database.AcademicWorks.Include(x => x.Sources)
+                .SingleOrDefaultAsync(x => x.Id == work.Id && x.PersonelId == personelId, total.Token);
+            if (ownedWork is null) throw new ArticleSourceException("The article changed during summarization; no report was saved.");
+            if (!string.IsNullOrWhiteSpace(sourceUrl))
+            {
+                ownedWork.FullTextUrl = sourceUrl;
+                if (!ownedWork.Sources.Any(source => source.Origin == "ResolvedPdf" && source.Url == sourceUrl))
+                    ownedWork.Sources.Add(new AcademicWorkSource
+                    { Url = sourceUrl, Kind = "Pdf", Origin = "ResolvedPdf" });
+            }
             database.ArticleSummaries.Add(saved);
             await database.SaveChangesAsync(total.Token);
             await transaction.CommitAsync(total.Token);
@@ -95,22 +118,6 @@ public sealed class ArticleSummaryWorkflow(AcademicDbContext database, SafeArtic
             text.Trim().Length > 24000 ? reason + " The abstract was truncated to 24,000 characters." : reason)
             { SourceSpans = ArticleSourceCatalog.Create(pages) };
     }
-    private static IReadOnlyList<SourceCandidate> ValidUrls(AcademicWork work)
-    {
-        List<SourceCandidate> candidates = [];
-        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
-        Add("FullTextUrl", work.FullTextUrl);
-        Add("OpenAccessUrl", work.OpenAccessUrl);
-        Add("Link", work.Link);
-        return candidates;
-
-        void Add(string column, string? value)
-        {
-            if (Uri.TryCreate(value, UriKind.Absolute, out Uri? uri) && uri.Scheme is "http" or "https" &&
-                string.IsNullOrEmpty(uri.UserInfo) && seen.Add(value!))
-                candidates.Add(new(column, value!));
-        }
-    }
     private static string SafeFailure(Exception exception) => exception switch
     {
         ArticleSourceException source => source.Message,
@@ -119,7 +126,6 @@ public sealed class ArticleSummaryWorkflow(AcademicDbContext database, SafeArtic
         SocketException => "network connection failed.",
         _ => "source processing failed."
     };
-    private sealed record SourceCandidate(string Column, string Url);
     private static SavedArticleSummaryResponse Map(SavedArticleSummary value, ArticleSummaryReport report) =>
         new(value.Id, value.OriginalAcademicWorkId, value.PersonelId, value.SavedAt, value.SourceUrl, report);
 }

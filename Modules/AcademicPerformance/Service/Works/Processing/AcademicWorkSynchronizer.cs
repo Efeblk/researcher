@@ -27,7 +27,7 @@ public sealed class AcademicWorkSynchronizer
         DateTime synchronizedAt = DateTime.UtcNow;
         int index = 0;
 
-        List<AcademicWork>? existingWorks = await _dbContext.AcademicWorks
+        List<AcademicWork>? existingWorks = await _dbContext.AcademicWorks.Include(work => work.Sources)
             .Where(work => work.PersonelId == researcher.PersonelId)
             .ToListAsync();
         List<AcademicWork>? synchronizedWorks = [];
@@ -100,7 +100,7 @@ public sealed class AcademicWorkSynchronizer
             RawType = work.PublicationType, Category = Category(work.PublicationType), CategorySource = AcademicWorkCategorySource.TrDizin,
             Authors = work.Authors, Publication = work.Journal, CitedByCount = work.CitationCount,
             SourceId = work.PublicationId, SourceName = "TR Dizin", SourceType = "TR Dizin",
-            SourceUrl = "https://search.trdizin.gov.tr/tr/yayin/detay/" + work.PublicationId,
+            Link = "https://search.trdizin.gov.tr/tr/yayin/detay/" + work.PublicationId,
             ProviderPayload = work.RawDataJson, SyncedAt = at });
     }
 
@@ -111,7 +111,9 @@ public sealed class AcademicWorkSynchronizer
             Publication = work.ContainerTitle, RawType = work.Type, PublicationYear = work.PublicationYear,
             Category = Category(work.Type), CategorySource = AcademicWorkCategorySource.Crossref,
             PublicationDate = work.PublicationDate, CitedByCount = work.CitedByCount, Link = work.Url,
-            SourceId = work.Doi, SourceName = "Crossref", SourceType = "Crossref", SourceUrl = work.Url,
+            SourceId = work.Doi, SourceName = "Crossref", SourceType = "Crossref",
+            FullTextUrl = PreferredPdf(work.RawDataJson, "Crossref"),
+            Sources = AcademicWorkSourceDiscovery.FromPayload(work.RawDataJson, "Crossref").ToList(),
             ProviderPayload = work.RawDataJson, SyncedAt = at });
     }
 
@@ -157,7 +159,6 @@ public sealed class AcademicWorkSynchronizer
                 SourceId = sourceWork.CitationId,
                 SourceName = "Google Scholar",
                 SourceType = "Google Scholar",
-                SourceUrl = sourceWork.Url,
                 ProviderPayload = sourceWork.RawDataJson,
                 SyncedAt = synchronizedAt
             });
@@ -196,9 +197,10 @@ public sealed class AcademicWorkSynchronizer
                 SourceId = sourceWork.OpenAlexWorkId,
                 SourceName = sourceWork.SourceName,
                 SourceType = "OpenAlex",
-                SourceUrl = sourceWork.Url,
                 IsOpenAccess = !string.IsNullOrWhiteSpace(sourceWork.OpenAccessUrl),
-                OpenAccessUrl = sourceWork.OpenAccessUrl,
+                FullTextUrl = AcademicWorkSourceDiscovery.LooksLikePdf(sourceWork.OpenAccessUrl ?? "")
+                    ? sourceWork.OpenAccessUrl : PreferredPdf(sourceWork.RawDataJson, "OpenAlex"),
+                Sources = OpenAlexSources(sourceWork),
                 ProviderPayload = sourceWork.RawDataJson,
                 SyncedAt = synchronizedAt
             });
@@ -276,12 +278,13 @@ public sealed class AcademicWorkSynchronizer
         target.SourceId = source.SourceId;
         target.SourceName = source.SourceName;
         target.SourceType = source.SourceType;
-        target.SourceUrl = source.SourceUrl;
         target.IsOpenAccess = source.IsOpenAccess;
         target.OpenAccessStatus = source.OpenAccessStatus;
-        target.OpenAccessUrl = source.OpenAccessUrl;
         target.HasFullText = source.HasFullText;
-        target.FullTextUrl = source.FullTextUrl;
+        target.FullTextUrl = source.FullTextUrl ?? target.FullTextUrl;
+        foreach (AcademicWorkSource item in source.Sources)
+            if (!target.Sources.Any(existing => existing.Origin == item.Origin && existing.Url == item.Url))
+                target.Sources.Add(item);
         target.License = source.License;
         target.Version = source.Version;
         target.IsRetracted = source.IsRetracted;
@@ -328,12 +331,25 @@ public sealed class AcademicWorkSynchronizer
             academicWork.SourceId = sourceWork.PutCode.ToString();
             academicWork.SourceName = sourceWork.SourceName;
             academicWork.SourceType = "ORCID";
-            academicWork.SourceUrl = sourceWork.Url;
             academicWork.ProviderPayload = sourceWork.RawDataJson;
             academicWork.SyncedAt = synchronizedAt;
             target.Add(academicWork);
         }
     }
+
+    private static List<AcademicWorkSource> OpenAlexSources(OpenAlexWork work)
+    {
+        List<AcademicWorkSource> sources = AcademicWorkSourceDiscovery
+            .FromPayload(work.RawDataJson, "OpenAlex").ToList();
+        if (!string.IsNullOrWhiteSpace(work.OpenAccessUrl))
+            sources.Add(AcademicWorkSourceDiscovery.Create(work.OpenAccessUrl,
+                AcademicWorkSourceDiscovery.LooksLikePdf(work.OpenAccessUrl) ? "Pdf" : "Landing",
+                "OpenAlex.BestOpenAccess", true));
+        return AcademicWorkSourceDiscovery.Distinct(sources).ToList();
+    }
+
+    private static string? PreferredPdf(string? payload, string origin) => AcademicWorkSourceDiscovery
+        .FromPayload(payload, origin).FirstOrDefault(source => source.Kind == "Pdf")?.Url;
 
     private static void AddWebOfScienceWorks(
         List<AcademicWork> target,

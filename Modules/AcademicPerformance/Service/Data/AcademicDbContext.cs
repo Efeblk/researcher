@@ -33,6 +33,7 @@ public sealed class AcademicDbContext : DbContext
     public DbSet<TrDizinWork> TrDizinWorks { get; set; } = null!;
     public DbSet<CrossrefWork> CrossrefWorks { get; set; } = null!;
     public DbSet<AcademicWork> AcademicWorks { get; set; } = null!;
+    public DbSet<AcademicWorkSource> AcademicWorkSources { get; set; } = null!;
     public DbSet<PublicationSummary> PublicationSummaries { get; set; } = null!;
     public DbSet<PublicationDisplayApproval> PublicationDisplayApprovals { get; set; } = null!;
 
@@ -436,9 +437,7 @@ public sealed class AcademicDbContext : DbContext
             entity.Property(work => work.SourceId).HasMaxLength(500);
             entity.Property(work => work.SourceName).HasMaxLength(2000);
             entity.Property(work => work.SourceType).HasMaxLength(100);
-            entity.Property(work => work.SourceUrl).HasMaxLength(2000);
             entity.Property(work => work.OpenAccessStatus).HasMaxLength(50);
-            entity.Property(work => work.OpenAccessUrl).HasMaxLength(2000);
             entity.Property(work => work.FullTextUrl).HasMaxLength(2000);
             entity.Property(work => work.License).HasMaxLength(100);
             entity.Property(work => work.Version).HasMaxLength(100);
@@ -447,6 +446,21 @@ public sealed class AcademicDbContext : DbContext
             entity.HasIndex(work => work.PersonelId);
             entity.HasIndex(work => new { work.PersonelId, work.Provider });
 
+            entity.HasMany(work => work.Sources)
+                .WithOne(source => source.AcademicWork)
+                .HasForeignKey(source => source.AcademicWorkId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+        });
+
+        modelBuilder.Entity<AcademicWorkSource>(entity =>
+        {
+            entity.ToTable("AcademicWorkSources");
+            entity.HasKey(source => source.Id);
+            entity.Property(source => source.Url).HasMaxLength(2000);
+            entity.Property(source => source.Kind).HasMaxLength(20);
+            entity.Property(source => source.Origin).HasMaxLength(100);
+            entity.HasIndex(source => source.AcademicWorkId);
         });
 
         modelBuilder.Entity<PublicationSummary>(entity =>
