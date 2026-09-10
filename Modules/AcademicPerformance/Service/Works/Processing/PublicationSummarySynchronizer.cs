@@ -179,8 +179,7 @@ public sealed class PublicationSummarySynchronizer
             .FirstOrDefault(category => category != AcademicWorkCategory.Unknown);
         summary.Authors = FirstText(preferredWorks, work => work.Authors);
         summary.Publication = FirstText(preferredWorks, work => work.Publication);
-        summary.PublicationUrl = FirstText(preferredWorks,
-            work => work.Link ?? work.SourceUrl ?? work.OpenAccessUrl);
+        summary.PublicationUrl = FirstText(preferredWorks, work => work.Link);
         summary.Sources = string.Join(",",
             preferredWorks
                 .Select(work => work.Provider.ToString())

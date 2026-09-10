@@ -25,9 +25,14 @@ public sealed class OpenAlexAcademicWorkPersistenceTests(SqlServerFixture fixtur
         var synchronizer = new AcademicWorkSynchronizer(db);
 
         await synchronizer.SyncAsync(researcher);
+        AcademicWork first = await db.AcademicWorks.Include(item => item.Sources).SingleAsync(item =>
+            item.PersonelId == researcher.PersonelId && item.Provider == AcademicWorkProvider.OpenAlex);
+        first.Sources.Add(new AcademicWorkSource
+        { Url = "https://legacy.test/CaseSensitive.pdf", Kind = "Pdf", Origin = "Legacy.OpenAccessUrl" });
+        await db.SaveChangesAsync();
         await synchronizer.SyncAsync(researcher);
 
-        AcademicWork work = await db.AcademicWorks.SingleAsync(item =>
+        AcademicWork work = await db.AcademicWorks.Include(item => item.Sources).SingleAsync(item =>
             item.PersonelId == researcher.PersonelId &&
             item.Provider == AcademicWorkProvider.OpenAlex);
         Assert.StartsWith("https://openalex.org/W", work.ProviderWorkId);
@@ -37,7 +42,9 @@ public sealed class OpenAlexAcademicWorkPersistenceTests(SqlServerFixture fixtur
         Assert.Equal(9, work.CitedByCount);
         Assert.Equal("Synthetic Journal", work.Publication);
         Assert.Equal("Ada Example", work.Authors);
-        Assert.Equal("https://example.test/work.pdf", work.OpenAccessUrl);
+        Assert.Equal("https://example.test/work.pdf", work.FullTextUrl);
+        Assert.Contains(work.Sources, source => source.Url == "https://example.test/work.pdf");
+        Assert.Contains(work.Sources, source => source.Url == "https://legacy.test/CaseSensitive.pdf");
         Assert.Null(work.HasFullText);
         Assert.NotNull(await db.OpenAlexWorks.SingleAsync(item =>
             item.OpenAlexProfileId == researcher.OpenAlexProfile!.Id));

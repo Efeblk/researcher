@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 using Microsoft.EntityFrameworkCore;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Persistence;
@@ -28,7 +29,7 @@ public sealed class YoksisAcademicWorkSynchronizer
         YoksisCollectResponse response,
         bool isIncremental = false)
     {
-        List<AcademicWork>? existingWorks = await _dbContext.AcademicWorks
+        List<AcademicWork>? existingWorks = await _dbContext.AcademicWorks.Include(work => work.Sources)
             .Where(work =>
                 work.PersonelId == personelId &&
                 work.Provider == AcademicWorkProvider.Yoksis)
@@ -304,7 +305,8 @@ public sealed class YoksisAcademicWorkSynchronizer
         work.Link = link;
         work.SourceId = sourceId;
         work.SourceType = sourceType;
-        work.SourceUrl = link;
+        if (!string.IsNullOrWhiteSpace(link))
+            work.Sources.Add(AcademicWorkSourceDiscovery.Create(link, "Unknown", "Yoksis.Link"));
         return work;
     }
 
@@ -318,8 +320,8 @@ public sealed class YoksisAcademicWorkSynchronizer
         work.IsOpenAccess = accessType?.Contains(
             "açık",
             StringComparison.CurrentCultureIgnoreCase);
-        work.HasFullText = !string.IsNullOrWhiteSpace(work.Link);
-        work.FullTextUrl = work.Link;
+        work.HasFullText = AcademicWorkSourceDiscovery.LooksLikePdf(work.Link ?? "");
+        work.FullTextUrl = work.HasFullText == true ? work.Link : null;
     }
 
     private static string? Get(
@@ -414,11 +416,13 @@ public sealed class YoksisAcademicWorkSynchronizer
         target.SourceId = source.SourceId;
         target.SourceName = source.SourceName;
         target.SourceType = source.SourceType;
-        target.SourceUrl = source.SourceUrl;
         target.IsOpenAccess = source.IsOpenAccess;
         target.OpenAccessStatus = source.OpenAccessStatus;
         target.HasFullText = source.HasFullText;
-        target.FullTextUrl = source.FullTextUrl;
+        target.FullTextUrl = source.FullTextUrl ?? target.FullTextUrl;
+        foreach (AcademicWorkSource item in source.Sources)
+            if (!target.Sources.Any(existing => existing.Origin == item.Origin && existing.Url == item.Url))
+                target.Sources.Add(item);
         target.ProviderPayload = source.ProviderPayload;
         target.SyncedAt = source.SyncedAt;
     }

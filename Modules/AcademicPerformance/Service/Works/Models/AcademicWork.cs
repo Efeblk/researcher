@@ -45,12 +45,11 @@ public sealed class AcademicWork
     public string? SourceId { get; set; } = null;
     public string? SourceName { get; set; } = null;
     public string? SourceType { get; set; } = null;
-    public string? SourceUrl { get; set; } = null;
     public bool? IsOpenAccess { get; set; } = null;
     public string? OpenAccessStatus { get; set; } = null;
-    public string? OpenAccessUrl { get; set; } = null;
     public bool? HasFullText { get; set; } = null;
     public string? FullTextUrl { get; set; } = null;
+    public List<AcademicWorkSource> Sources { get; set; } = [];
     public string? License { get; set; } = null;
     public string? Version { get; set; } = null;
     public bool? IsRetracted { get; set; } = null;
