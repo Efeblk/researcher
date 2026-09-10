@@ -156,6 +156,59 @@ public sealed class TrDizinCrossrefProviderTests(SqlServerFixture fixture)
     }
 
     [Fact]
+    public async Task EnrichAsync_SecondRequestCancelled_PropagatesCancellationAndPreservesFirstResult()
+    {
+        using IServiceScope scope = fixture.Services.CreateScope();
+        AcademicDbContext database = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        string personelId = "crossref-cancel-" + Guid.NewGuid().ToString("N");
+        database.Researchers.Add(new Researcher { PersonelId = personelId });
+        database.AcademicWorks.AddRange(
+            new AcademicWork
+            {
+                PersonelId = personelId,
+                Provider = AcademicWorkProvider.Yoksis,
+                ProviderWorkId = "first",
+                Doi = "10.1234/first",
+                SyncedAt = DateTime.UtcNow
+            },
+            new AcademicWork
+            {
+                PersonelId = personelId,
+                Provider = AcademicWorkProvider.Yoksis,
+                ProviderWorkId = "second",
+                Doi = "10.1234/second",
+                SyncedAt = DateTime.UtcNow
+            });
+        await database.SaveChangesAsync();
+
+        using CancellationTokenSource cancellation = new();
+        int requests = 0;
+        using HttpClient http = new(new StubHttpHandler(request =>
+        {
+            requests++;
+            if (requests == 2)
+            {
+                cancellation.Cancel();
+                throw new OperationCanceledException(cancellation.Token);
+            }
+            string doi = Uri.UnescapeDataString(request.RequestUri!.Segments[^1]);
+            return StubHttpHandler.Json(
+                """{"message":{"DOI":"DOI_VALUE","title":["Saved before cancellation"]}}"""
+                    .Replace("DOI_VALUE", doi, StringComparison.Ordinal));
+        }));
+        IConfiguration configuration = Config("Crossref", "https://crossref.example");
+        CrossrefEnrichmentService service = new(database, new CrossrefClient(http, configuration), configuration);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.EnrichAsync(personelId, cancellation.Token));
+
+        Assert.Equal(2, requests);
+        CrossrefWork saved = Assert.Single(await database.CrossrefWorks
+            .Where(x => x.PersonelId == personelId).ToListAsync());
+        Assert.Equal("Saved before cancellation", saved.Title);
+    }
+
+    [Fact]
     public async Task SyncAsync_SourceDoiRemoved_RemovesHistoricalCrossrefPublication()
     {
         using IServiceScope scope = fixture.Services.CreateScope();
