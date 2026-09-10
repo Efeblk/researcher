@@ -4,21 +4,43 @@
 
 ## Mevcut Bileşenler
 
-- [x] **Raw data:** Sağlayıcıların ham yanıt ve kayıtları SQL Server'da saklanıyor.
-- [x] **Summary data:** Tekilleştirilmiş yayınlar `PublicationSummaries` tablosunda.
+### Sağlayıcılar
+
+- [x] **ORCID:** Profil ve eser toplama.
+- [x] **Google Scholar / SearchApi:** Profil, metrik ve yayın toplama uygulanmıştır;
+  sağlayıcı `academicsettings.json` içinde varsayılan olarak kapalıdır.
+- [x] **OpenAlex:** ORCID üzerinden profil, metrik ve yayın toplama.
+- [x] **Web of Science:** Profil ve yayın toplama; WOS/WOK sonuçlarını tekilleştirme.
+- [x] **YÖKSİS:** SOAP entegrasyonu ve desteklenen kategorilerden veri toplama.
+- [x] **TR Dizin:** Yalnızca tam ORCID eşleşmesiyle yazar ve yayın toplama.
+- [x] **Crossref:** Toplanmış eserlerin DOI'leriyle metaveri zenginleştirme ve önbellek.
+
+### Ham Veri
+
+- [x] Sağlayıcıların ham yanıt ve kayıtları SQL Server'da saklanıyor.
+- [x] OpenAlex ve TR Dizin ham kayıtlarında kaynak bilgisi korunuyor.
+- [x] Crossref'te olumlu ve olumsuz sonuçlar zaman damgasıyla önbelleğe alınıyor.
+
+### Özet Veri
+
+- [x] Tekilleştirilmiş yayınlar `PublicationSummaries` tablosunda tutuluyor.
+- [x] OpenAlex ve TR Dizin yayınları ortak listede kaynak bilgisiyle birleştiriliyor.
+- [x] Crossref çağrısı sonraki bir DOI'de başarısız olsa bile daha önce tamamlanan
+  zenginleştirmeler özetlere işleniyor; tekrar denemede önbellek kullanılıyor.
+
+### Uygulama ve İş Akışları
+
 - [x] **Service / V1 API:** Client bağımsız, Serenity uyumlu toplama ve yayın API'si.
 - [x] **SQL Server:** FluentMigrator migration'ları ve kalıcı veri katmanı.
 - [x] **Sağlayıcı metrikleri:** WoS, OpenAlex ve Scholar metrikleri `Researchers` tablosunda `PersonelID` bazında sorgulanabilir.
 - [x] **Web client:** Profil, yayın listesi ve okulda gösterilecek yayın seçimi.
-- [x] **ORCID:** Profil ve eser toplama.
-- [x] **Google Scholar / SearchApi:** Profil, metrik ve yayın toplama.
-- [x] **OpenAlex:** ORCID üzerinden profil, metrik ve yayın verisi; ham kayıtlar korunur, yayınlar ortak listede kaynak bilgisiyle tekilleştirilir.
-- [x] **Web of Science:** Profil ve yayın toplama; WOS/WOK sonuçlarını tekilleştirme.
-- [x] **YÖKSİS:** SOAP entegrasyonu ve desteklenen kategorilerden veri toplama.
-- [x] **TR Dizin:** Yalnızca tam ORCID eşleşmesiyle yazar ve yayın toplama; ham yanıtlar ve kaynak bilgisi saklanır.
-- [x] **Crossref:** Toplanmış eserlerin DOI'leriyle metaveri zenginleştirme; olumlu ve olumsuz sonuçlar önbelleğe alınır.
+- [x] **Akademik metrikler özeti:** Dar ve geniş ekranlarda açılıp kapanabilir görünüm;
+  ORCID yayın sayısını, Scholar, WoS ve OpenAlex yayın/atıf/h-indeksi değerlerini ayrı gösterir.
+  Eksik değer `—`, gerçek sıfır `0` olarak gösterilir; sağlayıcı sayıları birleştirilmez.
 - [x] **Toplu iş kuyruğu:** Kalıcı SQL kuyruğu ve yapılandırılabilir SQL içe aktarma;
   arka plan işleyicisi ve içe aktarma varsayılan olarak kapalı.
+- [x] **Toplu iş dayanıklılığı:** Karışık sağlayıcı hatalarında yeniden deneme sayısı sınırlıdır;
+  iptal edilen Crossref çağrıları iptal olarak iletilir.
 - [x] **Merkezi hız/kota yönetimi:** Sağlayıcı bazlı sınırlar, bekleme ve yeniden deneme.
 - [x] **Provider Status:** Erişilebilirlik, yerel bütçe ve bildirilen sağlayıcı kotası ayrı.
   Yerel sayaç gerçek sağlayıcı kotası değildir.
