@@ -3,6 +3,9 @@ import type { ResearcherCollectResponse, YoksisCollectResponse } from "../../Con
 import { PublicationSummaryGrid } from "../../Publications/PublicationSummaryGrid";
 import { restoreProviderIdentifiers } from "./ProviderIdentifiers";
 import {
+    initializeAcademicMetricsOverview, showAcademicMetricsOverview
+} from "./AcademicMetricsOverview";
+import {
     showProfileSummary, showWebOfScienceSummary, showProviderComparison,
     showGoogleScholarSummary, showOpenAlexSummary, showYoksisSummary
 } from "./ResearcherSummaryPanels";
@@ -18,6 +21,7 @@ const saveSelectionsButton = document.querySelector<HTMLButtonElement>(
     "#SavePublicationSelections");
 const selectionCount = document.querySelector<HTMLElement>("#SelectionCount");
 const selectionStatus = document.querySelector<HTMLElement>("#SelectionStatus");
+initializeAcademicMetricsOverview();
 addLocalText({
     Controls: {
         Pager: {
@@ -162,6 +166,7 @@ form?.addEventListener("submit", async event => {
     showGoogleScholarSummary(undefined);
     showOpenAlexSummary(undefined);
     showWebOfScienceSummary(undefined);
+    showAcademicMetricsOverview(undefined);
     showProviderComparison(undefined);
     showYoksisSummary(undefined);
     showStatus("info", "Akademik sağlayıcılar araştırılıyor. Bu işlem biraz sürebilir...");
@@ -204,6 +209,7 @@ form?.addEventListener("submit", async event => {
                     showGoogleScholarSummary(response.Researcher);
                     showOpenAlexSummary(response.Researcher);
                     showWebOfScienceSummary(response.Researcher);
+                    showAcademicMetricsOverview(response.Researcher);
                     showProviderComparison(response.Researcher);
                     await grid.setResearcher(savedPersonelId, displayName);
                 }

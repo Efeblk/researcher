@@ -160,6 +160,161 @@ body {
     font-size: 20px;
 }
 
+.academic-metrics-overview {
+    padding: 0;
+}
+
+.academic-metrics-overview > summary {
+    align-items: center;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    list-style: none;
+    padding: 17px 20px;
+}
+
+.academic-metrics-overview > summary::-webkit-details-marker {
+    display: none;
+}
+
+.academic-metrics-overview > summary::after {
+    border-bottom: 2px solid #73808c;
+    border-right: 2px solid #73808c;
+    content: "";
+    height: 8px;
+    margin-left: 16px;
+    transform: rotate(45deg);
+    transition: transform .15s ease;
+    width: 8px;
+}
+
+.academic-metrics-overview:not([open]) > summary::after {
+    transform: rotate(-45deg);
+}
+
+.academic-metrics-overview > summary strong,
+.academic-metrics-overview > summary small {
+    display: block;
+}
+
+.academic-metrics-overview > summary strong {
+    color: #24313d;
+    font-size: 18px;
+}
+
+.academic-metrics-overview > summary small {
+    color: #667583;
+    font-size: 12px;
+    font-weight: 400;
+    margin-top: 3px;
+}
+
+.academic-metrics-overview-body {
+    border-top: 1px solid var(--academic-border);
+    padding: 20px;
+}
+
+.academic-provider-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.academic-provider-metric {
+    border-left: 1px solid var(--academic-border);
+    min-width: 0;
+    padding: 3px 20px;
+}
+
+.academic-provider-metric:first-child {
+    border-left: 0;
+    padding-left: 0;
+}
+
+.academic-provider-metric:last-child {
+    padding-right: 0;
+}
+
+.academic-provider-metric h3 {
+    color: var(--academic-primary);
+    font-size: 13px;
+    font-weight: 600;
+    margin: 0 0 14px;
+}
+
+.academic-provider-metric-label {
+    color: #667583;
+    display: block;
+    font-size: 12px;
+}
+
+.academic-provider-metric > strong {
+    color: #24313d;
+    display: block;
+    font-size: 30px;
+    font-weight: 600;
+    line-height: 1.2;
+    margin: 2px 0 13px;
+}
+
+.academic-provider-metric dl {
+    display: flex;
+    gap: 18px;
+    margin: 0;
+}
+
+.academic-provider-metric dl div {
+    min-width: 0;
+}
+
+.academic-provider-metric dt {
+    color: #7b8792;
+    font-size: 11px;
+    font-weight: 400;
+}
+
+.academic-provider-metric dd {
+    color: #435363;
+    font-size: 14px;
+    font-weight: 600;
+    margin: 1px 0 0;
+}
+
+.academic-metrics-more {
+    background: transparent;
+    border: 0;
+    color: var(--academic-primary);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    margin-top: 18px;
+    padding: 0;
+}
+
+.academic-metrics-more:hover,
+.academic-metrics-more:focus-visible {
+    text-decoration: underline;
+}
+
+.academic-metrics-details {
+    border-top: 1px solid var(--academic-border);
+    padding: 0 20px 20px;
+}
+
+.academic-metric-detail-panel {
+    border-bottom: 1px solid var(--academic-border);
+    padding: 20px 0;
+}
+
+.academic-metric-detail-panel:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+.academic-metric-detail-panel h2 {
+    font-size: 16px;
+    margin: 0 0 8px;
+}
+
 .academic-table-scroll {
     overflow-x: auto;
 }
@@ -271,4 +426,18 @@ body {
     .academic-metrics-grid { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
     .academic-publication-selection-header { display: block; }
     .academic-publication-selection-actions { margin-bottom: 14px; }
+    .academic-provider-metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .academic-provider-metric { border-bottom: 1px solid var(--academic-border); padding: 16px; }
+    .academic-provider-metric:first-child { padding: 16px; }
+    .academic-provider-metric:nth-child(odd) { border-left: 0; }
+    .academic-provider-metric:nth-last-child(-n + 2) { border-bottom: 0; }
+}
+
+@media (max-width: 480px) {
+    .academic-provider-metrics-grid { grid-template-columns: 1fr; }
+    .academic-provider-metric,
+    .academic-provider-metric:nth-last-child(-n + 2),
+    .academic-provider-metric:first-child { border-bottom: 1px solid var(--academic-border); border-left: 0; padding: 16px 0; }
+    .academic-provider-metric:first-child { padding-top: 0; }
+    .academic-provider-metric:last-child { border-bottom: 0; padding-bottom: 0; }
 }
