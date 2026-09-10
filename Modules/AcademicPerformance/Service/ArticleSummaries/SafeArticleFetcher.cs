@@ -51,7 +51,7 @@ public sealed partial class SafeArticleFetcher
                 if (match.Success && redirect < options.Value.MaximumRedirects)
                 {
                     string link = WebUtility.HtmlDecode(match.Groups[2].Value);
-                    current = Uri.TryCreate(link, UriKind.Absolute, out Uri? absolute) ? absolute : new Uri(current, link);
+                    current = new Uri(current, link);
                     ValidateUri(current);
                     continue;
                 }
