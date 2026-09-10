@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries.Enrichment;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
 using Microsoft.Extensions.Configuration;
 
@@ -7,9 +8,11 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossre
 
 public sealed class CrossrefClient(HttpClient httpClient, IConfiguration configuration)
 {
+    private const long DefaultMaximumResponseBytes = 4L * 1024 * 1024;
+
     public async Task<CrossrefWork> GetAsync(string personelId, string doi, CancellationToken cancellationToken = default)
     {
-        string root = (configuration["Crossref:ApiBaseUrl"] ?? "https://api.crossref.org").TrimEnd('/');
+        string root = GetApiBaseUrl();
         using HttpRequestMessage request = new(HttpMethod.Get, $"{root}/works/{Uri.EscapeDataString(doi)}");
         request.Headers.Accept.ParseAdd("application/json");
         string? mailto = configuration["Crossref:Mailto"];
@@ -17,10 +20,12 @@ public sealed class CrossrefClient(HttpClient httpClient, IConfiguration configu
             request.RequestUri = new(request.RequestUri + "?mailto=" + Uri.EscapeDataString(mailto.Trim()));
         request.Options.Set(ProviderRateLimitHandler.ExpectedNotFound, true);
         request.Options.Set(ProviderRateLimitHandler.ResponseBufferLimit, 4L * 1024 * 1024);
-        using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
+        using HttpResponseMessage response = await httpClient.SendAsync(
+            request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
             return new() { PersonelId = personelId, Doi = doi, FetchedAt = DateTime.UtcNow, Found = false };
         response.EnsureSuccessStatusCode();
+        await response.Content.LoadIntoBufferAsync(GetMaximumResponseBytes(), cancellationToken);
         string raw = await response.Content.ReadAsStringAsync(cancellationToken);
         using JsonDocument document = JsonDocument.Parse(raw);
         JsonElement message = document.RootElement.GetProperty("message");
@@ -34,7 +39,8 @@ public sealed class CrossrefClient(HttpClient httpClient, IConfiguration configu
             Title = First(message, "title"), Authors = Authors(message), ContainerTitle = First(message, "container-title"),
             Type = Text(message, "type"), PublicationYear = date is { Length: > 0 } ? date[0] : null,
             PublicationDate = ToDate(date), CitedByCount = Int(message, "is-referenced-by-count"),
-            Url = Text(message, "URL"), RawDataJson = raw
+            Url = Text(message, "URL"), Abstract = ArticleAbstractReader.FromPayload(raw, "Crossref"),
+            RawDataJson = raw
         };
     }
 
@@ -74,5 +80,29 @@ public sealed class CrossrefClient(HttpClient httpClient, IConfiguration configu
         {
             return null;
         }
+    }
+
+    private long GetMaximumResponseBytes()
+    {
+        return long.TryParse(
+                configuration["ArticleMetadataEnrichment:MaximumResponseBytes"],
+                out long maximumResponseBytes) &&
+            maximumResponseBytes is >= 1024 and <= 16L * 1024 * 1024
+                ? maximumResponseBytes
+                : DefaultMaximumResponseBytes;
+    }
+
+    private string GetApiBaseUrl()
+    {
+        string value = configuration["Crossref:ApiBaseUrl"] ?? "https://api.crossref.org";
+        if (!Uri.TryCreate(value, UriKind.Absolute, out Uri? uri) ||
+            uri.Scheme != Uri.UriSchemeHttps && !(uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback) ||
+            !string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Query) ||
+            !string.IsNullOrEmpty(uri.Fragment))
+        {
+            throw new InvalidOperationException("Crossref:ApiBaseUrl must use HTTPS or loopback HTTP.");
+        }
+
+        return value.TrimEnd('/');
     }
 }

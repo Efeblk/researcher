@@ -28,6 +28,8 @@ public sealed class OpenAlexWork
     public string? Url { get; set; } = null;
     public string? OpenAccessUrl { get; set; } = null;
     [NotMapped]
+    public string? Abstract { get; set; } = null;
+    [NotMapped]
     public AcademicWorkCategory Category { get; set; } = AcademicWorkCategory.Unknown;
 
     [NotMapped]

@@ -5,6 +5,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref;
+using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries.Enrichment;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using Microsoft.EntityFrameworkCore;
@@ -111,6 +112,7 @@ public sealed class AcademicWorkSynchronizer
             Publication = work.ContainerTitle, RawType = work.Type, PublicationYear = work.PublicationYear,
             Category = Category(work.Type), CategorySource = AcademicWorkCategorySource.Crossref,
             PublicationDate = work.PublicationDate, CitedByCount = work.CitedByCount, Link = work.Url,
+            Abstract = work.Abstract ?? ArticleAbstractReader.FromPayload(work.RawDataJson, "Crossref"),
             SourceId = work.Doi, SourceName = "Crossref", SourceType = "Crossref",
             FullTextUrl = PreferredPdf(work.RawDataJson, "Crossref"),
             Sources = AcademicWorkSourceDiscovery.FromPayload(work.RawDataJson, "Crossref").ToList(),
@@ -192,6 +194,8 @@ public sealed class AcademicWorkSynchronizer
                 CategorySource = sourceWork.CategorySource,
                 CitedByCount = sourceWork.CitedByCount,
                 Authors = sourceWork.Authors,
+                Abstract = sourceWork.Abstract ?? ArticleAbstractReader.FromPayload(
+                    sourceWork.RawDataJson, "OpenAlex"),
                 Publication = sourceWork.SourceName,
                 Link = sourceWork.Url,
                 SourceId = sourceWork.OpenAlexWorkId,
@@ -265,7 +269,10 @@ public sealed class AcademicWorkSynchronizer
         target.ReferencedWorksCount = source.ReferencedWorksCount;
         target.Authors = source.Authors;
         target.Institutions = source.Institutions;
-        target.Abstract = source.Abstract;
+        if (!string.IsNullOrWhiteSpace(source.Abstract))
+        {
+            target.Abstract = source.Abstract;
+        }
         target.Keywords = source.Keywords;
         target.Topics = source.Topics;
         target.Language = source.Language;
