@@ -191,6 +191,13 @@ public sealed class ArticleSummarizer(IArticleSummaryGenerator generator, IArtic
         return new(request.Language, request.SourceKind, request.SourceHash, request.ExtractionVersion, coverage, sections,
             string.Join(",", results.Select(x => x.Generated.Model).Distinct()), results[0].Generated.PromptVersion)
         {
+            ExtractionMethod = request.SourceKind switch
+            {
+                "pdf" when request.ExtractionVersion.Contains("ocr", StringComparison.OrdinalIgnoreCase) => "pdf_ocr",
+                "pdf" => "pdf_text",
+                "html" => "html",
+                _ => "abstract"
+            },
             Verification = new(status, string.Join(",", results.Select(x => x.Verification.Model).Distinct()),
                 results[0].Verification.PromptVersion,
                 results.Select(x => x.Generated.Model).Intersect(results.Select(x => x.Verification.Model),
@@ -209,7 +216,7 @@ public sealed class ArticleSummarizer(IArticleSummaryGenerator generator, IArtic
 
     private static void ValidateRequest(SummarizeArticleRequest request)
     {
-        if (request.Language is not ("tr" or "en") || request.SourceKind is not ("pdf" or "abstract") ||
+        if (request.Language is not ("tr" or "en") || request.SourceKind is not ("pdf" or "html" or "abstract") ||
             request.Pages is null || request.Pages.Count == 0 || request.Pages.Count > 200 ||
             request.Pages.Any(p => p is null || string.IsNullOrWhiteSpace(p.Text) || p.Text.Length > 500000) ||
             request.TotalSourcePages < request.Pages.Count) throw new BadHttpRequestException("Article text is required.");

@@ -29,6 +29,8 @@ public sealed class AnalyzeResearcherRequest : IValidatableObject
     [Required, MaxLength(10)]
     public List<ProviderMetrics> CitationMetrics { get; set; } = [];
 
+    public ResearcherSourceCoverage? SourceCoverage { get; set; }
+
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         if (SnapshotAt == default || SnapshotAt > DateTimeOffset.UtcNow.AddMinutes(5))
@@ -54,5 +56,19 @@ public sealed class AnalyzeResearcherRequest : IValidatableObject
 
         if (CitationMetrics?.Any(metric => metric is null) == true)
             yield return new ValidationResult("Citation metrics cannot contain null entries.", [nameof(CitationMetrics)]);
+
+        if (SourceCoverage is { } coverage && (Publications is null || Publications.Any(publication => publication is null) ||
+            coverage.TotalPublications != TotalPublicationCount || coverage.SubmittedToModel != Publications.Count ||
+            coverage.AbstractsSubmittedToModel != Publications.Count(publication => !string.IsNullOrWhiteSpace(publication.Abstract)) ||
+            coverage.FullTextAvailable != coverage.PdfAvailable + coverage.HtmlAvailable ||
+            coverage.OcrAvailable > coverage.PdfAvailable || coverage.ExcludedFromModelInput !=
+            coverage.TotalPublications - coverage.SubmittedToModel ||
+            coverage.FullTextAvailable + coverage.AbstractOnly + coverage.MetadataOnly != coverage.TotalPublications ||
+            new[] { coverage.TotalPublications, coverage.FullTextAvailable, coverage.PdfAvailable,
+                coverage.OcrAvailable, coverage.HtmlAvailable, coverage.AbstractOnly, coverage.MetadataOnly,
+                coverage.ExcludedFromModelInput, coverage.SubmittedToModel,
+                coverage.AbstractsSubmittedToModel }.Any(value => value < 0)))
+            yield return new ValidationResult("Source coverage does not match the submitted researcher snapshot.",
+                [nameof(SourceCoverage)]);
     }
 }

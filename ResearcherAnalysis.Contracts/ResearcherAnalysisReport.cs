@@ -13,6 +13,7 @@ public sealed class ResearcherAnalysisReport
     public required PublicationActivity Activity { get; init; }
     public required List<ProviderMetrics> CitationMetrics { get; init; }
     public required EvidenceCoverage Coverage { get; init; }
+    public ResearcherSourceCoverage? SourceCoverage { get; set; }
 }
 
 public sealed record PublicationActivity(
@@ -28,3 +29,15 @@ public sealed record EvidenceCoverage(
     int PublicationsWithoutYear,
     bool IsPartial,
     List<string> Limitations);
+
+public sealed record ResearcherSourceCoverage(
+    int TotalPublications,
+    int FullTextAvailable,
+    int PdfAvailable,
+    int OcrAvailable,
+    int HtmlAvailable,
+    int AbstractOnly,
+    int MetadataOnly,
+    int ExcludedFromModelInput,
+    int SubmittedToModel,
+    int AbstractsSubmittedToModel);

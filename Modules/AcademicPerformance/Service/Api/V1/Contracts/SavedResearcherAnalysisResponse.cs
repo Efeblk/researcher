@@ -5,4 +5,5 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
 public sealed record SavedResearcherAnalysisResponse(
     long Id,
     DateTimeOffset SavedAt,
-    ResearcherAnalysisReport Report);
+    ResearcherAnalysisReport Report,
+    ResearcherSourceCoverage? SourceCoverage = null);

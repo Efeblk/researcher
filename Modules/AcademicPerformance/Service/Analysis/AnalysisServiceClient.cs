@@ -22,6 +22,7 @@ public sealed class AnalysisServiceClient(HttpClient client, IOptions<AnalysisSe
         if (!report.PersonelId.Equals(snapshot.PersonelId, StringComparison.Ordinal) || report.Coverage is null ||
             report.Coverage.SnapshotAt != snapshot.SnapshotAt || report.Findings is null ||
             report.Activity is null || report.CitationMetrics is null ||
+            snapshot.SourceCoverage is not null && report.SourceCoverage != snapshot.SourceCoverage ||
             string.IsNullOrWhiteSpace(report.Model) || string.IsNullOrWhiteSpace(report.PromptVersion))
             throw new System.Text.Json.JsonException("The analysis report does not match its snapshot.");
         return report;

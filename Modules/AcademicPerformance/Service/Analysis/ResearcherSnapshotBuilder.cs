@@ -3,13 +3,16 @@ using System.Text;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using AcademicCollector.Analysis.Contracts;
+using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Analysis;
 
 public static class ResearcherSnapshotBuilder
 {
     public static AnalyzeResearcherRequest Build(Researcher researcher,
-        List<PublicationSummary> summaries, List<AcademicWork> works, AnalysisServiceOptions options)
+        List<PublicationSummary> summaries, List<AcademicWork> works, AnalysisServiceOptions options,
+        IReadOnlyList<SavedArticleSummary>? articleSummaries = null)
     {
         AnalyzeResearcherRequest snapshot = new()
         {
@@ -55,7 +58,41 @@ public static class ResearcherSnapshotBuilder
             snapshot.CitationMetrics.Add(Metrics("WebOfScience", wos.TotalTimesCited, wos.HIndex, wos.LastUpdatedAt));
         if (researcher.OpenAlexProfile is { } openAlex)
             snapshot.CitationMetrics.Add(Metrics("OpenAlex", openAlex.CitedByCount, openAlex.HIndex, openAlex.LastUpdatedAt));
+        snapshot.SourceCoverage = BuildCoverage(summaries, works, articleSummaries ?? [], snapshot.Publications);
         return snapshot;
+    }
+
+    public static ResearcherSourceCoverage BuildCoverage(IReadOnlyList<PublicationSummary> summaries,
+        IReadOnlyList<AcademicWork> works, IReadOnlyList<SavedArticleSummary> articleSummaries,
+        IReadOnlyList<AnalysisPublication> submitted)
+    {
+        Dictionary<int, SavedArticleSummary> latestSaved = articleSummaries
+            .GroupBy(value => value.OriginalAcademicWorkId)
+            .ToDictionary(group => group.Key, group => group.OrderByDescending(value => value.Id).First());
+        int pdf = 0, ocr = 0, html = 0, abstractOnly = 0, metadataOnly = 0;
+        foreach (PublicationSummary summary in summaries)
+        {
+            string doi = CrossrefClient.NormalizeDoi(summary.Doi);
+            List<AcademicWork> matches = string.IsNullOrWhiteSpace(doi) ? [] : works
+                .Where(work => CrossrefClient.NormalizeDoi(work.Doi) == doi).ToList();
+            List<SavedArticleSummary> saved = matches.Where(work => latestSaved.ContainsKey(work.Id))
+                .Select(work => latestSaved[work.Id]).ToList();
+            bool hasHtml = saved.Any(value => value.SourceKind.Equals("html", StringComparison.OrdinalIgnoreCase));
+            bool hasPdf = saved.Any(value => value.SourceKind.Equals("pdf", StringComparison.OrdinalIgnoreCase));
+            bool hasOcr = saved.Any(value => value.SourceKind.Equals("pdf", StringComparison.OrdinalIgnoreCase) &&
+                value.ExtractionVersion.Contains("ocr", StringComparison.OrdinalIgnoreCase));
+            if (hasPdf) pdf++;
+            if (hasOcr) ocr++;
+            if (hasHtml) html++;
+            if (!hasPdf && !hasHtml)
+            {
+                if (matches.Any(work => !string.IsNullOrWhiteSpace(work.Abstract))) abstractOnly++;
+                else metadataOnly++;
+            }
+        }
+        return new(summaries.Count, pdf + html, pdf, ocr, html, abstractOnly, metadataOnly,
+            summaries.Count - submitted.Count, submitted.Count,
+            submitted.Count(value => !string.IsNullOrWhiteSpace(value.Abstract)));
     }
 
     private static ProviderMetrics Metrics(string provider, int? citations, int? hIndex, DateTime collectedAt) => new()
