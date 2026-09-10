@@ -26,6 +26,8 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
         ("OpenAlex", "OpenAlex:ApiBaseUrl", "https://api.openalex.org"),
         ("WebOfScience", "WebOfScience:ApiBaseUrl", "https://api.clarivate.com/apis/wos-starter/v1"),
         ("Yoksis", "Yoksis:ServiceUrl", "https://servisler.yok.gov.tr/ws/OzgecmisV2"),
+        ("TrDizin", "TrDizin:ApiBaseUrl", "https://search.trdizin.gov.tr"),
+        ("Crossref", "Crossref:ApiBaseUrl", "https://api.crossref.org"),
         ("AnalysisService", "AnalysisService:BaseUrl", "http://localhost:5011/")
     ];
 
@@ -219,7 +221,7 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
                     JsonElement root = document.RootElement;
                     string expectedProperty = name switch
                     {
-                        "Orcid" => "overallOk", "OpenAlex" => string.IsNullOrWhiteSpace(configuration["OpenAlex:ApiKey"]) ? "results" : "rate_limit", "WebOfScience" => "metadata",
+                        "Orcid" => "overallOk", "OpenAlex" => string.IsNullOrWhiteSpace(configuration["OpenAlex:ApiKey"]) ? "results" : "rate_limit", "WebOfScience" => "metadata", "TrDizin" => "hits", "Crossref" => "message",
                         "AnalysisService" => "status", _ => "account"
                     };
                     if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty(expectedProperty, out _))
@@ -322,6 +324,8 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
             "OpenAlex" => url + (string.IsNullOrWhiteSpace(configuration["OpenAlex:ApiKey"]) ? "/works?per_page=1&select=id" : "/rate-limit"),
             "WebOfScience" => url + "/documents?q=PY%3D1900&db=WOS&limit=1&page=1",
             "Yoksis" => url + "?wsdl",
+            "TrDizin" => url + "/api/defaultSearch/author/?q=status-check&order=relevance-DESC&page=1&limit=10",
+            "Crossref" => url + "/works/10.1038/nphys1170",
             "AnalysisService" => url + "/health",
             _ => throw new InvalidOperationException("Unknown provider.")
         };

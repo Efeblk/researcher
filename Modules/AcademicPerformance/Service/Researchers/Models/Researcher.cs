@@ -3,6 +3,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleSchol
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Persistence;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using System.Text.Json.Serialization;
 
@@ -49,6 +50,7 @@ public sealed class Researcher
     public GoogleScholarProfile? GoogleScholarProfile { get; set; } = null;
     public OpenAlexProfile? OpenAlexProfile { get; set; } = null;
     public WebOfScienceProfile? WebOfScienceProfile { get; set; } = null;
+    public TrDizinProfile? TrDizinProfile { get; set; } = null;
 
     [JsonIgnore]
     public List<YoksisRecord>? YoksisRecords { get; set; } = null;
