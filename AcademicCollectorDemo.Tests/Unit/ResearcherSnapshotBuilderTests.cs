@@ -1,4 +1,6 @@
 using System.Text;
+using System.Text.Json;
+using AcademicCollector.Analysis.Contracts;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Analysis;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
@@ -65,8 +67,9 @@ public sealed class ResearcherSnapshotBuilderTests
         ];
         List<SavedArticleSummary> saved =
         [
-            new() { Id = 1, OriginalAcademicWorkId = 10, SourceKind = "pdf", ExtractionVersion = "pdf-text-ocr-v1" },
-            new() { Id = 2, OriginalAcademicWorkId = 12, SourceKind = "html", ExtractionVersion = "html-v1" }
+            new() { Id = 1, OriginalAcademicWorkId = 10, SourceKind = "pdf", ExtractionVersion = "pdf-text-ocr-v1", SnapshotJson = Snapshot(false) },
+            new() { Id = 2, OriginalAcademicWorkId = 12, SourceKind = "html", ExtractionVersion = "html-v1", SnapshotJson = Snapshot(true) },
+            new() { Id = 3, OriginalAcademicWorkId = 11, SourceKind = "html", ExtractionVersion = "html-v1", SnapshotJson = Snapshot(false) }
         ];
         var submitted = new[] { new AcademicCollector.Analysis.Contracts.AnalysisPublication { Abstract = "Used" } };
 
@@ -79,7 +82,12 @@ public sealed class ResearcherSnapshotBuilderTests
         Assert.Equal(1, coverage.HtmlAvailable);
         Assert.Equal(1, coverage.AbstractOnly);
         Assert.Equal(1, coverage.MetadataOnly);
+        Assert.Equal(1, coverage.PartialFullText);
         Assert.Equal(3, coverage.ExcludedFromModelInput);
         Assert.Equal(1, coverage.AbstractsSubmittedToModel);
+
+        static string Snapshot(bool partial) => JsonSerializer.Serialize(
+            new SummarizeArticleRequest("en", "pdf", "hash", "v1", [new(1, "text")], 1, partial, null),
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
     }
 }

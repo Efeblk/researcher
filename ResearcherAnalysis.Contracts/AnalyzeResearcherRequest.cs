@@ -63,6 +63,7 @@ public sealed class AnalyzeResearcherRequest : IValidatableObject
             coverage.FullTextAvailable != coverage.PdfAvailable + coverage.HtmlAvailable ||
             coverage.OcrAvailable > coverage.PdfAvailable || coverage.ExcludedFromModelInput !=
             coverage.TotalPublications - coverage.SubmittedToModel ||
+            coverage.PartialFullText > coverage.FullTextAvailable ||
             coverage.FullTextAvailable + coverage.AbstractOnly + coverage.MetadataOnly != coverage.TotalPublications ||
             new[] { coverage.TotalPublications, coverage.FullTextAvailable, coverage.PdfAvailable,
                 coverage.OcrAvailable, coverage.HtmlAvailable, coverage.AbstractOnly, coverage.MetadataOnly,

@@ -21,6 +21,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Analysis;
 using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries;
+using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries.Enrichment;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance;
 
@@ -42,9 +43,7 @@ public static class AcademicPerformanceModule
             client.MaxResponseContentBufferSize = 1024 * 1024;
         }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
         services.AddScoped<ResearcherAnalysisWorkflow>();
-        services.AddOptions<ArticleSummaryOptions>().Bind(configuration.GetSection("ArticleSummary")).ValidateDataAnnotations();
-        services.AddScoped<SafeArticleFetcher>();
-        services.AddScoped<ArticlePdfExtractor>();
+        services.AddArticleExtraction(configuration);
         services.AddScoped<ArticleSummaryWorkflow>();
         services.AddHttpClient<ArticleSummaryServiceClient>((provider, client) =>
         {
@@ -56,6 +55,7 @@ public static class AcademicPerformanceModule
         }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
         services.AddSingleton(provider => CreateHttpClient(configuration,
             provider.GetRequiredService<ILogger<ProviderRateLimitHandler>>()));
+        services.AddArticleMetadataEnrichment(configuration);
         services.AddSingleton<Integrations.Status.ProviderStatusService>();
         services.AddHttpClient("ProviderStatus", client => client.Timeout = TimeSpan.FromSeconds(15))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });

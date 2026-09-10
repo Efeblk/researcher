@@ -65,8 +65,9 @@ All values are optional except the Unpaywall email when Unpaywall should be quer
 ```
 
 Successful metadata is cached by normalized DOI for the positive TTL. Definitive misses are
-cached for the shorter negative TTL. Transport failures, timeouts, HTTP 429 responses, malformed
-responses, and DOI mismatches are not cached, so a later request can retry them.
+cached for the shorter negative TTL. Negative results caused only by transport failures, timeouts,
+HTTP 429 responses, malformed responses, or DOI mismatches are not cached, so a later request can
+retry them. A usable partial result is cached for the positive TTL even when another provider fails.
 
 ## Abstract parsing
 

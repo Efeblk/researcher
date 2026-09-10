@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using AcademicCollector.Analysis.Contracts;
@@ -10,6 +11,7 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Analysis;
 
 public static class ResearcherSnapshotBuilder
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     public static AnalyzeResearcherRequest Build(Researcher researcher,
         List<PublicationSummary> summaries, List<AcademicWork> works, AnalysisServiceOptions options,
         IReadOnlyList<SavedArticleSummary>? articleSummaries = null)
@@ -69,7 +71,7 @@ public static class ResearcherSnapshotBuilder
         Dictionary<int, SavedArticleSummary> latestSaved = articleSummaries
             .GroupBy(value => value.OriginalAcademicWorkId)
             .ToDictionary(group => group.Key, group => group.OrderByDescending(value => value.Id).First());
-        int pdf = 0, ocr = 0, html = 0, abstractOnly = 0, metadataOnly = 0;
+        int pdf = 0, ocr = 0, html = 0, partial = 0, abstractOnly = 0, metadataOnly = 0;
         foreach (PublicationSummary summary in summaries)
         {
             string doi = CrossrefClient.NormalizeDoi(summary.Doi);
@@ -77,13 +79,15 @@ public static class ResearcherSnapshotBuilder
                 .Where(work => CrossrefClient.NormalizeDoi(work.Doi) == doi).ToList();
             List<SavedArticleSummary> saved = matches.Where(work => latestSaved.ContainsKey(work.Id))
                 .Select(work => latestSaved[work.Id]).ToList();
-            bool hasHtml = saved.Any(value => value.SourceKind.Equals("html", StringComparison.OrdinalIgnoreCase));
             bool hasPdf = saved.Any(value => value.SourceKind.Equals("pdf", StringComparison.OrdinalIgnoreCase));
+            bool hasHtml = !hasPdf && saved.Any(value => value.SourceKind.Equals("html", StringComparison.OrdinalIgnoreCase));
             bool hasOcr = saved.Any(value => value.SourceKind.Equals("pdf", StringComparison.OrdinalIgnoreCase) &&
                 value.ExtractionVersion.Contains("ocr", StringComparison.OrdinalIgnoreCase));
             if (hasPdf) pdf++;
             if (hasOcr) ocr++;
             if (hasHtml) html++;
+            if ((hasPdf || hasHtml) && saved.Where(value => value.SourceKind.Equals(hasPdf ? "pdf" : "html", StringComparison.OrdinalIgnoreCase))
+                .Any(value => IsPartial(value.SnapshotJson))) partial++;
             if (!hasPdf && !hasHtml)
             {
                 if (matches.Any(work => !string.IsNullOrWhiteSpace(work.Abstract))) abstractOnly++;
@@ -92,7 +96,14 @@ public static class ResearcherSnapshotBuilder
         }
         return new(summaries.Count, pdf + html, pdf, ocr, html, abstractOnly, metadataOnly,
             summaries.Count - submitted.Count, submitted.Count,
-            submitted.Count(value => !string.IsNullOrWhiteSpace(value.Abstract)));
+            submitted.Count(value => !string.IsNullOrWhiteSpace(value.Abstract))) { PartialFullText = partial };
+    }
+
+    private static bool IsPartial(string snapshotJson)
+    {
+        if (string.IsNullOrWhiteSpace(snapshotJson)) return true;
+        try { return JsonSerializer.Deserialize<SummarizeArticleRequest>(snapshotJson, JsonOptions)?.IsPartial != false; }
+        catch (JsonException) { return true; }
     }
 
     private static ProviderMetrics Metrics(string provider, int? citations, int? hIndex, DateTime collectedAt) => new()

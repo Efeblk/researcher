@@ -40,4 +40,7 @@ public sealed record ResearcherSourceCoverage(
     int MetadataOnly,
     int ExcludedFromModelInput,
     int SubmittedToModel,
-    int AbstractsSubmittedToModel);
+    int AbstractsSubmittedToModel)
+{
+    public int PartialFullText { get; init; }
+}

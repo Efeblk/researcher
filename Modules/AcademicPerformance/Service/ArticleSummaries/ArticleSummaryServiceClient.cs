@@ -28,8 +28,16 @@ public sealed class ArticleSummaryServiceClient(HttpClient client, IOptions<Anal
             !ValidVerification(report) || !ValidSections(report.Sections, snapshot) ||
             string.IsNullOrWhiteSpace(report.Model) || string.IsNullOrWhiteSpace(report.PromptVersion))
             throw new JsonException("The article report does not match the source snapshot.");
-        return report;
+        return report with { ExtractionMethod = GetExtractionMethod(snapshot.SourceKind, snapshot.ExtractionVersion) };
     }
+
+    internal static string GetExtractionMethod(string sourceKind, string extractionVersion) => sourceKind switch
+    {
+        "pdf" when extractionVersion.Contains("ocr", StringComparison.OrdinalIgnoreCase) => "pdf_ocr",
+        "pdf" => "pdf_text",
+        "html" => "html",
+        _ => "abstract"
+    };
 
     private static bool ValidSections(ArticleSummarySections sections, SummarizeArticleRequest snapshot)
     {
