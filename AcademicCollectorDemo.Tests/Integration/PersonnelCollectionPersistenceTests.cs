@@ -70,10 +70,11 @@ public sealed class PersonnelCollectionPersistenceTests(SqlServerFixture fixture
         var collectionService = new ResearcherCollectionService(
             new OrcidClient(http, configuration), new GoogleScholarClient(http, configuration),
             new OpenAlexClient(http, configuration), new WebOfScienceClient(http, configuration),
-            new(), new(), configuration);
+            new AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin.TrDizinClient(http, configuration), new(), new(), configuration);
         var handler = new ResearcherCollectionHandler(new ResearcherIdentifierParser(), collectionService,
             new ResearcherRepository(database), new AcademicWorkSynchronizer(database),
-            new PublicationSummarySynchronizer(database), database);
+            new PublicationSummarySynchronizer(database), new AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref.CrossrefEnrichmentService(database,
+                new AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref.CrossrefClient(http, configuration), configuration), database);
 
         ResearcherCollectResponse response = await handler.CollectAsync(new()
         {
@@ -107,12 +108,13 @@ public sealed class PersonnelCollectionPersistenceTests(SqlServerFixture fixture
             new GoogleScholarClient(http, configuration),
             new OpenAlexClient(http, configuration),
             new WebOfScienceClient(http, configuration),
-            new(), new(), configuration);
+            new AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin.TrDizinClient(http, configuration), new(), new(), configuration);
         var works = new AcademicWorkSynchronizer(database);
         var summaries = new PublicationSummarySynchronizer(database);
         var handler = new ResearcherCollectionHandler(
             new ResearcherIdentifierParser(), collectionService,
-            new ResearcherRepository(database), works, summaries, database);
+            new ResearcherRepository(database), works, summaries, new AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref.CrossrefEnrichmentService(database,
+                new AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref.CrossrefClient(http, configuration), configuration), database);
 
         const string personelId = "00123-B";
         var response = await handler.CollectAsync(new()

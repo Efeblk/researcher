@@ -2,6 +2,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
@@ -18,15 +19,18 @@ public sealed class ResearcherCollectionService
     private readonly GoogleScholarClient _googleScholarClient;
     private readonly OpenAlexClient _openAlexClient;
     private readonly WebOfScienceClient _webOfScienceClient;
+    private readonly TrDizinClient _trDizinClient;
     private readonly AcademicWorkCategorizer _academicWorkCategorizer;
     private readonly ResearcherCollectionFeedback _collectionFeedback;
     private readonly TimeSpan _providerCacheMaxAge;
+    private readonly bool _trDizinEnabled;
 
     public ResearcherCollectionService(
         OrcidClient orcidClient,
         GoogleScholarClient googleScholarClient,
         OpenAlexClient openAlexClient,
         WebOfScienceClient webOfScienceClient,
+        TrDizinClient trDizinClient,
         AcademicWorkCategorizer academicWorkCategorizer,
         ResearcherCollectionFeedback collectionFeedback,
         IConfiguration configuration)
@@ -37,8 +41,10 @@ public sealed class ResearcherCollectionService
         _googleScholarClient = googleScholarClient;
         _openAlexClient = openAlexClient;
         _webOfScienceClient = webOfScienceClient;
+        _trDizinClient = trDizinClient;
         _academicWorkCategorizer = academicWorkCategorizer;
         _collectionFeedback = collectionFeedback;
+        _trDizinEnabled = configuration.GetValue("ProviderRequestLimits:TrDizin:Enabled", true);
 
         if (!int.TryParse(
                 configuration["ProviderCache:MaxAgeHours"],
@@ -61,6 +67,7 @@ public sealed class ResearcherCollectionService
             researcher,
             requestedIdentifiers.Orcid,
             messages);
+        await CollectTrDizinAsync(researcher, requestedIdentifiers.Orcid, messages);
         await CollectGoogleScholarAsync(
             researcher,
             requestedIdentifiers.GoogleScholarId,
@@ -71,6 +78,27 @@ public sealed class ResearcherCollectionService
             messages);
         _academicWorkCategorizer.Categorize(researcher);
         _collectionFeedback.Add(researcher, requestedIdentifiers, messages);
+    }
+
+    private async Task CollectTrDizinAsync(Researcher researcher, string? requestedOrcid, List<string> messages)
+    {
+        if (!_trDizinEnabled)
+        {
+            AddMessage(messages, "[ATLANDI] TR Dizin: yerel yapılandırmada devre dışı.");
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(requestedOrcid)) { AddMessage(messages, "[ATLANDI] TR Dizin: ORCID verilmedi."); return; }
+        if (IdentifiersMatch(researcher.TrDizinProfile?.Orcid, requestedOrcid) &&
+            IsProviderDataCurrent(researcher.TrDizinProfile?.LastUpdatedAt))
+        { AddCachedDataMessage(messages, "TR Dizin", researcher.TrDizinProfile?.LastUpdatedAt); return; }
+        try
+        {
+            TrDizinProfile? profile = await _trDizinClient.GetByOrcidAsync(requestedOrcid);
+            if (profile is null) { AddMessage(messages, "[BULUNAMADI] TR Dizin: ORCID ile eşleşen yazar yok."); return; }
+            researcher.TrDizinProfile = profile;
+            AddMessage(messages, $"[OK] TR Dizin: {profile.Works?.Count ?? 0} yayın alındı.");
+        }
+        catch (Exception exception) { AddMessage(messages, $"[HATA] TR Dizin: {exception.Message}"); }
     }
 
     private async Task CollectOpenAlexAsync(

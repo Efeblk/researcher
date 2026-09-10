@@ -53,6 +53,15 @@ internal static class AcademicPerformanceDtoMapper
             GoogleScholarProfile = MapGoogleScholarProfile(
                 researcher.GoogleScholarProfile),
             OpenAlexProfile = MapOpenAlexProfile(researcher.OpenAlexProfile),
+            TrDizinProfile = researcher.TrDizinProfile is null ? null : new()
+            {
+                Orcid = researcher.TrDizinProfile.Orcid,
+                AuthorId = researcher.TrDizinProfile.AuthorId,
+                DisplayName = researcher.TrDizinProfile.DisplayName,
+                PublicationCount = researcher.TrDizinProfile.PublicationCount,
+                CitationCount = researcher.TrDizinProfile.CitationCount,
+                LastUpdatedAt = researcher.TrDizinProfile.LastUpdatedAt
+            },
             WebOfScienceProfile = MapWebOfScienceProfile(
                 researcher.WebOfScienceProfile)
         };

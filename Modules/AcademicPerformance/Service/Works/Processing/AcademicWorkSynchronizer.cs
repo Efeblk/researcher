@@ -3,6 +3,8 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using Microsoft.EntityFrameworkCore;
@@ -51,6 +53,13 @@ public sealed class AcademicWorkSynchronizer
             researcher.PersonelId,
             researcher.WebOfScienceProfile?.Works,
             synchronizedAt);
+        AddTrDizinWorks(synchronizedWorks, researcher.PersonelId, researcher.TrDizinProfile?.Works, synchronizedAt);
+        HashSet<string> currentDois = synchronizedWorks.Concat(existingWorks.Where(x => x.Provider == AcademicWorkProvider.Yoksis))
+            .Select(x => CrossrefClient.NormalizeDoi(x.Doi)).Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        AddCrossrefWorks(synchronizedWorks, researcher.PersonelId,
+            await _dbContext.CrossrefWorks.Where(x => x.PersonelId == researcher.PersonelId && x.Found && currentDois.Contains(x.Doi))
+                .ToListAsync(), synchronizedAt);
 
         for (index = 0; index < synchronizedWorks.Count; index++)
         {
@@ -83,6 +92,41 @@ public sealed class AcademicWorkSynchronizer
 
         await _dbContext.SaveChangesAsync();
     }
+
+    private static void AddTrDizinWorks(List<AcademicWork> target, string personelId, List<TrDizinWork>? source, DateTime at)
+    {
+        foreach (TrDizinWork work in source ?? []) target.Add(new() { PersonelId = personelId, Provider = AcademicWorkProvider.TrDizin,
+            ProviderWorkId = work.PublicationId, Title = work.Title, Doi = work.Doi, PublicationYear = work.PublicationYear,
+            RawType = work.PublicationType, Category = Category(work.PublicationType), CategorySource = AcademicWorkCategorySource.TrDizin,
+            Authors = work.Authors, Publication = work.Journal, CitedByCount = work.CitationCount,
+            SourceId = work.PublicationId, SourceName = "TR Dizin", SourceType = "TR Dizin",
+            SourceUrl = "https://search.trdizin.gov.tr/tr/yayin/detay/" + work.PublicationId,
+            ProviderPayload = work.RawDataJson, SyncedAt = at });
+    }
+
+    private static void AddCrossrefWorks(List<AcademicWork> target, string personelId, List<CrossrefWork> source, DateTime at)
+    {
+        foreach (CrossrefWork work in source) target.Add(new() { PersonelId = personelId, Provider = AcademicWorkProvider.Crossref,
+            ProviderWorkId = work.Doi, Doi = work.Doi, Title = work.Title, Authors = work.Authors,
+            Publication = work.ContainerTitle, RawType = work.Type, PublicationYear = work.PublicationYear,
+            Category = Category(work.Type), CategorySource = AcademicWorkCategorySource.Crossref,
+            PublicationDate = work.PublicationDate, CitedByCount = work.CitedByCount, Link = work.Url,
+            SourceId = work.Doi, SourceName = "Crossref", SourceType = "Crossref", SourceUrl = work.Url,
+            ProviderPayload = work.RawDataJson, SyncedAt = at });
+    }
+
+    private static AcademicWorkCategory Category(string? type) => type?.ToUpperInvariant() switch
+    {
+        "RESEARCH" or "PAPER" or "JOURNAL-ARTICLE" => AcademicWorkCategory.Article,
+        "BOOK" or "MONOGRAPH" => AcademicWorkCategory.Book,
+        "BOOK-CHAPTER" => AcademicWorkCategory.BookChapter,
+        "PROCEEDINGS-ARTICLE" => AcademicWorkCategory.ConferencePaper,
+        "DISSERTATION" => AcademicWorkCategory.Dissertation,
+        "REPORT" => AcademicWorkCategory.Report,
+        "REVIEW" or "COMPILATION" => AcademicWorkCategory.Review,
+        "EDITORIAL" => AcademicWorkCategory.Editorial,
+        _ => AcademicWorkCategory.Unknown
+    };
 
     private static void AddGoogleScholarWorks(
         List<AcademicWork> target,

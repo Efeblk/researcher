@@ -64,7 +64,7 @@ public sealed class ProviderCacheTests
             WebOfScienceProfile = new() { LastUpdatedAt = DateTime.UtcNow, DocumentPagesJson = "{\"WOS\":[{}]}", Works = [] }
         };
         var service = new ResearcherCollectionService(new(http, config), new(http, config), new(http, config),
-            new(http, config), new(), new(), config);
+            new(http, config), new AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin.TrDizinClient(http, config), new(), new(), config);
         List<string> messages = [];
         await service.CollectAsync(researcher, new() { WebOfScienceResearcherId = researcher.WebOfScienceResearcherId }, messages);
         Assert.Equal(0, handler.RequestCount);
