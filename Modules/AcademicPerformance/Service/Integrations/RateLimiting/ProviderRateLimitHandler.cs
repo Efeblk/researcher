@@ -192,7 +192,7 @@ public sealed class ProviderRateLimitHandler(
 
     private static HttpResponseMessage Disabled(string provider)
     {
-        ProviderCallScope.Record(provider, false);
+        ProviderCallScope.Record(provider, false, isDisabled: true);
         HttpResponseMessage response = new(HttpStatusCode.ServiceUnavailable)
         {
             Content = new StringContent("Provider requests are disabled by local configuration.")

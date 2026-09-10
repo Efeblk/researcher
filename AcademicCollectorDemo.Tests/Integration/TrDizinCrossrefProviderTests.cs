@@ -187,10 +187,11 @@ public sealed class TrDizinCrossrefProviderTests(SqlServerFixture fixture)
     }
 
     [Theory]
-    [InlineData(false, "9999-0000-0000-0019")]
-    [InlineData(true, "9999-0000-0000-0027")]
+    [InlineData(false, "9999-0000-0000-0019", 1)]
+    [InlineData(true, "9999-0000-0000-0027", 0)]
+    [InlineData(true, "9999-0000-0000-0035", 1)]
     public async Task CollectAsync_TrDizinDoi_CrossrefSuccessOrOutage_PreservesSavedBaseWorkflow(
-        bool crossrefFails, string orcid)
+        bool crossrefFails, string orcid, int successfulCrossrefRequests)
     {
         using IServiceScope scope = fixture.Services.CreateScope();
         AcademicDbContext database = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
@@ -227,23 +228,32 @@ public sealed class TrDizinCrossrefProviderTests(SqlServerFixture fixture)
             }
             if (host == "trdizin.example" && path == "/api/authorPublicationsById/42")
             {
-                return StubHttpHandler.Json(
-                    """{"hits":{"total":{"value":1},"hits":[{"_id":"7","fields":{"id":["7"]}}]}}""");
+                return StubHttpHandler.Json(successfulCrossrefRequests > 0 && crossrefFails
+                    ? """{"hits":{"total":{"value":2},"hits":[{"_id":"7","fields":{"id":["7"]}},{"_id":"8","fields":{"id":["8"]}}]}}"""
+                    : """{"hits":{"total":{"value":1},"hits":[{"_id":"7","fields":{"id":["7"]}}]}}""");
             }
             if (host == "trdizin.example" && path == "/api/publicationById/7")
             {
                 return StubHttpHandler.Json(
-                    """{"hits":{"hits":[{"_source":{"orderTitle":"Source title","doi":"10.1234/handler","publicationYear":"2024"}}]}}""");
+                        """{"hits":{"hits":[{"_source":{"orderTitle":"Source title","doi":"10.1234/handler","publicationYear":"2024"}}]}}""");
+            }
+            if (host == "trdizin.example" && path == "/api/publicationById/8")
+            {
+                return StubHttpHandler.Json(
+                    """{"hits":{"hits":[{"_source":{"orderTitle":"Second source title","doi":"10.1234/second","publicationYear":"2023"}}]}}""");
             }
             if (host == "crossref.example")
             {
                 crossrefRequests++;
-                if (crossrefFails)
+                if (crossrefFails && crossrefRequests == successfulCrossrefRequests + 1)
                 {
                     throw new HttpRequestException("Synthetic Crossref outage");
                 }
+                string responseDoi = path.Contains("second", StringComparison.Ordinal)
+                    ? "10.1234/second" : "10.1234/handler";
                 return StubHttpHandler.Json(
-                    """{"message":{"DOI":"10.1234/handler","title":["Crossref title"]}}""");
+                    """{"message":{"DOI":"DOI_VALUE","title":["Crossref title"]}}"""
+                        .Replace("DOI_VALUE", responseDoi, StringComparison.Ordinal));
             }
             throw new InvalidOperationException(request.RequestUri.ToString());
         }));
@@ -278,16 +288,19 @@ public sealed class TrDizinCrossrefProviderTests(SqlServerFixture fixture)
 
         Assert.True(response.IsSaved, string.Join(Environment.NewLine, response.Messages));
         Assert.NotNull(response.Researcher!.TrDizinProfile);
-        Assert.Equal(1, response.PublicationCount);
+        int expectedPublications = crossrefFails && successfulCrossrefRequests > 0 ? 2 : 1;
+        Assert.Equal(expectedPublications, response.PublicationCount);
         Assert.Equal(crossrefFails, response.Messages.Any(message => message.StartsWith("[HATA] Crossref")));
 
-        var summary = await database.PublicationSummaries.SingleAsync(x => x.PersonelId == personelId);
+        var summary = await database.PublicationSummaries.SingleAsync(x =>
+            x.PersonelId == personelId && x.Doi == "10.1234/handler");
         Assert.Contains("TrDizin", summary.Sources);
-        Assert.Equal(!crossrefFails, summary.Sources.Contains("Crossref", StringComparison.Ordinal));
+        Assert.Equal(!crossrefFails || successfulCrossrefRequests > 0,
+            summary.Sources.Contains("Crossref", StringComparison.Ordinal));
 
         AcademicDataResponse retrieved = await application.GetResearcherAsync(new() { PersonelId = personelId });
         Assert.Equal(42, retrieved.Researcher!.TrDizinProfile!.AuthorId);
-        Assert.Equal(1, retrieved.PublicationCount);
+        Assert.Equal(expectedPublications, retrieved.PublicationCount);
 
         if (!crossrefFails)
         {
@@ -299,6 +312,19 @@ public sealed class TrDizinCrossrefProviderTests(SqlServerFixture fixture)
             Assert.True(repeated.IsSaved);
             Assert.Equal(1, crossrefRequests);
             Assert.DoesNotContain(repeated.Messages, message => message.StartsWith("[HATA] Crossref"));
+        }
+        else if (successfulCrossrefRequests > 0)
+        {
+            AcademicDataResponse repeated = await application.CollectAsync(new()
+            {
+                PersonelId = personelId,
+                Orcid = orcid
+            });
+            Assert.True(repeated.IsSaved);
+            Assert.Equal(3, crossrefRequests);
+            Assert.DoesNotContain(repeated.Messages, message => message.StartsWith("[HATA] Crossref"));
+            Assert.All(await database.PublicationSummaries.Where(x => x.PersonelId == personelId).ToListAsync(),
+                item => Assert.Contains("Crossref", item.Sources));
         }
     }
 

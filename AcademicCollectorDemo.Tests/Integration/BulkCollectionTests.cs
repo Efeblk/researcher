@@ -394,6 +394,27 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
     }
 
     [Fact]
+    public async Task ProcessNextAsync_LocalAndActualNonretryableFailures_ConsumeAttempt()
+    {
+        await using var services = BuildServices(
+            new FakeApplicationService(true, localDeferral: true, actualNonretryableFailure: true), new()
+            {
+                ["BulkCollection:MaximumAttempts"] = "1"
+            });
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        await DeferExistingJobsAsync(db);
+        var service = scope.ServiceProvider.GetRequiredService<BulkCollectionService>();
+        var input = Input();
+        await service.SubmitAsync(input);
+        await scope.ServiceProvider.GetRequiredService<BulkJobProcessor>().ProcessNextAsync();
+
+        var result = await service.GetStatusAsync(new() { BatchId = input.BatchId });
+        Assert.Equal(BulkJobStatus.Partial, result.Jobs.Single().Status);
+        Assert.Equal(1, result.Jobs.Single().Attempts);
+    }
+
+    [Fact]
     public async Task ProcessNextAsync_PersistenceFailureAfterLocalDeferral_ConsumesAttempt()
     {
         await using var services = BuildServices(
@@ -456,7 +477,7 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
 
     private sealed class FakeApplicationService(bool fail, string? failureCode = null,
         bool localDeferral = false, bool throwAfterFailure = false, bool actualFailure = false,
-        bool nonretryableFailure = false) : IAcademicPerformanceApplicationService
+        bool nonretryableFailure = false, bool actualNonretryableFailure = false) : IAcademicPerformanceApplicationService
     {
         public AcademicDataCollectRequest? LastRequest { get; private set; }
 
@@ -465,7 +486,8 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
             LastRequest = request;
             if (fail) ProviderCallScope.Record("WebOfScience", true, DateTime.UtcNow.AddHours(1), localDeferral);
             if (actualFailure) ProviderCallScope.Record("Orcid", true, DateTime.UtcNow.AddMinutes(1));
-            if (nonretryableFailure) ProviderCallScope.Record("SearchApi", false);
+            if (nonretryableFailure) ProviderCallScope.Record("SearchApi", false, isDisabled: true);
+            if (actualNonretryableFailure) ProviderCallScope.Record("Crossref", false);
             if (throwAfterFailure) throw new HttpRequestException("Synthetic collection failure.");
             return Task.FromResult(new AcademicDataResponse
             {
