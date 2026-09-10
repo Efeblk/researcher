@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Data.SqlClient;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.SemanticScholar;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 
@@ -18,6 +19,7 @@ public sealed class ResearcherCollectionHandler
     private readonly PublicationSummarySynchronizer _publicationSummarySynchronizer;
     private readonly AcademicDbContext _dbContext;
     private readonly CrossrefEnrichmentService _crossrefEnrichmentService;
+    private readonly SemanticScholarEnrichmentService? _semanticScholarEnrichmentService;
 
     public ResearcherCollectionHandler(
         ResearcherIdentifierParser identifierParser,
@@ -26,7 +28,8 @@ public sealed class ResearcherCollectionHandler
         AcademicWorkSynchronizer academicWorkSynchronizer,
         PublicationSummarySynchronizer publicationSummarySynchronizer,
         CrossrefEnrichmentService crossrefEnrichmentService,
-        AcademicDbContext dbContext)
+        AcademicDbContext dbContext,
+        SemanticScholarEnrichmentService? semanticScholarEnrichmentService = null)
     {
         _identifierParser = identifierParser;
         _collectionService = collectionService;
@@ -34,6 +37,7 @@ public sealed class ResearcherCollectionHandler
         _academicWorkSynchronizer = academicWorkSynchronizer;
         _publicationSummarySynchronizer = publicationSummarySynchronizer;
         _crossrefEnrichmentService = crossrefEnrichmentService;
+        _semanticScholarEnrichmentService = semanticScholarEnrichmentService;
         _dbContext = dbContext;
     }
 
@@ -124,6 +128,23 @@ public sealed class ResearcherCollectionHandler
                     ProviderCallScope.Record("Crossref", false);
                 response.Messages.Add($"[HATA] Crossref zenginleştirmesi tamamlanamadı: {exception.Message}");
                 response.Messages.Add(string.Empty);
+            }
+            try
+            {
+                int enriched = _semanticScholarEnrichmentService is null ? 0 :
+                    await _semanticScholarEnrichmentService.EnrichAsync(researcher.PersonelId);
+                response.Messages.Add($"[OK] Semantic Scholar: {enriched} DOI işlendi.");
+            }
+            catch (SemanticScholarPartialEnrichmentException exception)
+            {
+                if (!ProviderCallScope.HasFailure("SemanticScholar")) ProviderCallScope.Record("SemanticScholar", true);
+                response.Messages.Add($"[OK] Semantic Scholar: {exception.CompletedCount} DOI işlendi.");
+                response.Messages.Add($"[HATA] Semantic Scholar zenginleştirmesi tamamlanamadı: {exception.Message}");
+            }
+            catch (Exception exception)
+            {
+                if (!ProviderCallScope.HasFailure("SemanticScholar")) ProviderCallScope.Record("SemanticScholar", false);
+                response.Messages.Add($"[HATA] Semantic Scholar zenginleştirmesi tamamlanamadı: {exception.Message}");
             }
         }
         catch (Exception exception)

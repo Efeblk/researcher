@@ -13,6 +13,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Coll
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Persistence;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.SemanticScholar;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Persistence;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
@@ -84,6 +85,9 @@ public static class AcademicPerformanceModule
         services.AddTransient<TrDizinClient>();
         services.AddTransient<CrossrefClient>();
         services.AddScoped<CrossrefEnrichmentService>();
+        services.AddOptions<SemanticScholarOptions>().Bind(configuration.GetSection("SemanticScholar")).ValidateDataAnnotations();
+        services.AddTransient<SemanticScholarClient>();
+        services.AddScoped<SemanticScholarEnrichmentService>();
         services.AddTransient<YoksisCollectionService>();
         services.AddScoped<YoksisRecordSynchronizer>();
         services.AddScoped<YoksisAcademicWorkSynchronizer>();
@@ -112,6 +116,7 @@ public static class AcademicPerformanceModule
             ("Yoksis", "Yoksis:ServiceUrl", "https://servisler.yok.gov.tr/ws/OzgecmisV2")
             ,("TrDizin", "TrDizin:ApiBaseUrl", "https://search.trdizin.gov.tr")
             ,("Crossref", "Crossref:ApiBaseUrl", "https://api.crossref.org")
+            ,("SemanticScholar", "SemanticScholar:ApiBaseUrl", "https://api.semanticscholar.org/graph/v1")
         })
         {
             int interval = configuration.GetValue($"ProviderRequestLimits:{name}:MinimumIntervalMilliseconds", 1000);

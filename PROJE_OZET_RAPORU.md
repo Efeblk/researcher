@@ -105,3 +105,13 @@ satın alınmış planı doğrulamaz. Ayrıntılar: [API raporu](docs/API_OZET_R
 PR CI, sentetik akışlar ve yerel Qwen smoke testi geçti; gerçek sağlayıcı hesaplarıyla
 tam uçtan uca doğrulama yapılmadı. Teknik ayrıntılar: [bulk](docs/BULK_COLLECTION.md),
 [analiz](docs/RESEARCHER_ANALYSIS.md), [durum](docs/PROVIDER_STATUS.md).
+# Semantic Scholar DOI ve atıf ilişkileri
+
+| Durum | Kapsam |
+|---|---|
+| ✅ | Mevcut, personele ait `AcademicWorks` DOI'lerinden ortak Semantic Scholar makale önbelleği |
+| ✅ | S2 makale kimliği, özet/yazar/yayın alanları, açık erişim PDF, TLDR ve atıf sayaçları |
+| ✅ | Hedef makale → atıf yapan S2 makalesi → bağlam ve bağlama özgü niyet ilişkisi |
+| ✅ | 404 negatif önbellek; 429/hata halinde eski veriyi koruyan atomik yenileme |
+| ✅ | Personel ve mevcut yayın sahipliği doğrulamalı, sınırlı V1 listeleme uçları |
+| ⏳ | Scite ve yapay zekâ ile destekleyici/çelişen sınıflandırması ertelendi |
