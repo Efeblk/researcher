@@ -10,6 +10,13 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Persistence;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Application;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 
 namespace AcademicCollectorDemo.Tests.Integration;
 
@@ -41,6 +48,44 @@ public sealed class TrDizinCrossrefProviderTests(SqlServerFixture fixture)
         Assert.Null(await new TrDizinClient(http, Config("TrDizin", "https://tr.example"))
             .GetByOrcidAsync("0000-0002-1825-0097"));
         Assert.Equal(1, calls);
+    }
+
+    [Fact]
+    public async Task CollectAsync_DisabledTrDizin_MakesNoTrDizinRequest()
+    {
+        int trDizinRequests = 0;
+        IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["TrDizin:ApiBaseUrl"] = "https://trdizin.example",
+                ["ProviderRequestLimits:TrDizin:Enabled"] = "false"
+            }).Build();
+        using HttpClient http = new(new StubHttpHandler(request =>
+        {
+            if (request.RequestUri!.Host == "trdizin.example")
+            {
+                trDizinRequests++;
+            }
+            return new(HttpStatusCode.NotFound);
+        }));
+        ResearcherCollectionService service = new(
+            new OrcidClient(http, configuration),
+            new GoogleScholarClient(http, configuration),
+            new OpenAlexClient(http, configuration),
+            new WebOfScienceClient(http, configuration),
+            new TrDizinClient(http, configuration),
+            new(),
+            new(),
+            configuration);
+        List<string> messages = [];
+
+        await service.CollectAsync(
+            new Researcher { PersonelId = "disabled", Orcid = "0000-0001-8560-7482" },
+            new Researcher { Orcid = "0000-0001-8560-7482" },
+            messages);
+
+        Assert.Equal(0, trDizinRequests);
+        Assert.Contains(messages, message => message.Contains("TR Dizin") && message.StartsWith("[ATLANDI]"));
     }
 
     [Fact]
@@ -141,46 +186,120 @@ public sealed class TrDizinCrossrefProviderTests(SqlServerFixture fixture)
         Assert.False(await database.AcademicWorks.AnyAsync(x => x.PersonelId == personelId));
     }
 
-    [Fact]
-    public async Task PersistAndEnrich_TrDizinDoi_CreatesDeduplicatedMultiSourceSummaryAndCachesRequest()
+    [Theory]
+    [InlineData(false, "9999-0000-0000-0019")]
+    [InlineData(true, "9999-0000-0000-0027")]
+    public async Task CollectAsync_TrDizinDoi_CrossrefSuccessOrOutage_PreservesSavedBaseWorkflow(
+        bool crossrefFails, string orcid)
     {
         using IServiceScope scope = fixture.Services.CreateScope();
         AcademicDbContext database = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
-        string personelId = "trdizin-flow-" + Guid.NewGuid().ToString("N");
-        Researcher researcher = new()
+        string personelId = "trdizin-handler-" + Guid.NewGuid().ToString("N");
+        Dictionary<string, string?> settings = new()
+        {
+            ["Orcid:ApiBaseUrl"] = "https://orcid.example",
+            ["OpenAlex:ApiBaseUrl"] = "https://openalex.example",
+            ["TrDizin:ApiBaseUrl"] = "https://trdizin.example",
+            ["Crossref:ApiBaseUrl"] = "https://crossref.example",
+            ["ProviderCache:MaxAgeHours"] = "24"
+        };
+        IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
+        int crossrefRequests = 0;
+        using HttpClient http = new(new StubHttpHandler(request =>
+        {
+            string host = request.RequestUri!.Host;
+            string path = request.RequestUri.AbsolutePath;
+            if (host == "orcid.example")
+            {
+                return StubHttpHandler.Json(
+                    """{"orcid-identifier":{"path":"ORCID_VALUE"},"person":{},"activities-summary":{"works":{"group":[]}}}"""
+                        .Replace("ORCID_VALUE", orcid, StringComparison.Ordinal));
+            }
+            if (host == "openalex.example")
+            {
+                return new(HttpStatusCode.NotFound);
+            }
+            if (host == "trdizin.example" && path == "/api/public/yazar/orcid")
+            {
+                return StubHttpHandler.Json(
+                    """{"id":42,"orcid":"ORCID_VALUE","fullName":"Ada Test","orderPublicationCount":1}"""
+                        .Replace("ORCID_VALUE", orcid, StringComparison.Ordinal));
+            }
+            if (host == "trdizin.example" && path == "/api/authorPublicationsById/42")
+            {
+                return StubHttpHandler.Json(
+                    """{"hits":{"total":{"value":1},"hits":[{"_id":"7","fields":{"id":["7"]}}]}}""");
+            }
+            if (host == "trdizin.example" && path == "/api/publicationById/7")
+            {
+                return StubHttpHandler.Json(
+                    """{"hits":{"hits":[{"_source":{"orderTitle":"Source title","doi":"10.1234/handler","publicationYear":"2024"}}]}}""");
+            }
+            if (host == "crossref.example")
+            {
+                crossrefRequests++;
+                if (crossrefFails)
+                {
+                    throw new HttpRequestException("Synthetic Crossref outage");
+                }
+                return StubHttpHandler.Json(
+                    """{"message":{"DOI":"10.1234/handler","title":["Crossref title"]}}""");
+            }
+            throw new InvalidOperationException(request.RequestUri.ToString());
+        }));
+
+        AcademicWorkSynchronizer works = new(database);
+        CrossrefEnrichmentService enrichment = new(database, new CrossrefClient(http, configuration), configuration);
+        ResearcherCollectionService collection = new(
+            new OrcidClient(http, configuration),
+            new GoogleScholarClient(http, configuration),
+            new OpenAlexClient(http, configuration),
+            new WebOfScienceClient(http, configuration),
+            new TrDizinClient(http, configuration),
+            new(),
+            new(),
+            configuration);
+        ResearcherCollectionHandler handler = new(
+            new(),
+            collection,
+            new ResearcherRepository(database),
+            works,
+            new PublicationSummarySynchronizer(database),
+            enrichment,
+            database);
+        AcademicPerformanceApplicationService application = new(handler, database,
+            new ResearcherProviderInputNormalizer(new ResearcherIdentifierParser()));
+
+        AcademicDataResponse response = await application.CollectAsync(new()
         {
             PersonelId = personelId,
-            Orcid = "9999-9999-9999-9999",
-            TrDizinProfile = new()
-            {
-                Orcid = "9999-9999-9999-9999",
-                AuthorId = 42,
-                LastUpdatedAt = DateTime.UtcNow,
-                RawAuthorJson = "{}",
-                RawPublicationsJson = "{}",
-                Works = [new() { PublicationId = "7", Title = "Source title", Doi = "10.1234/flow", RawDataJson = "{}" }]
-            }
-        };
-        await new ResearcherRepository(database).SaveAsync(researcher);
-        AcademicWorkSynchronizer works = new(database);
-        await works.SyncAsync(researcher);
-        int requests = 0;
-        using HttpClient http = new(new StubHttpHandler(_ =>
-        {
-            requests++;
-            return StubHttpHandler.Json("""{"message":{"DOI":"10.1234/flow","title":["Crossref title"]}}""");
-        }));
-        IConfiguration configuration = Config("Crossref", "https://crossref.example");
-        CrossrefEnrichmentService enrichment = new(database, new CrossrefClient(http, configuration), configuration);
-        Assert.Equal(1, await enrichment.EnrichAsync(personelId));
-        await works.SyncAsync(researcher);
-        await new PublicationSummarySynchronizer(database).SyncAsync(personelId);
-        Assert.Equal(0, await enrichment.EnrichAsync(personelId));
+            Orcid = orcid
+        });
+
+        Assert.True(response.IsSaved, string.Join(Environment.NewLine, response.Messages));
+        Assert.NotNull(response.Researcher!.TrDizinProfile);
+        Assert.Equal(1, response.PublicationCount);
+        Assert.Equal(crossrefFails, response.Messages.Any(message => message.StartsWith("[HATA] Crossref")));
 
         var summary = await database.PublicationSummaries.SingleAsync(x => x.PersonelId == personelId);
         Assert.Contains("TrDizin", summary.Sources);
-        Assert.Contains("Crossref", summary.Sources);
-        Assert.Equal(1, requests);
+        Assert.Equal(!crossrefFails, summary.Sources.Contains("Crossref", StringComparison.Ordinal));
+
+        AcademicDataResponse retrieved = await application.GetResearcherAsync(new() { PersonelId = personelId });
+        Assert.Equal(42, retrieved.Researcher!.TrDizinProfile!.AuthorId);
+        Assert.Equal(1, retrieved.PublicationCount);
+
+        if (!crossrefFails)
+        {
+            AcademicDataResponse repeated = await application.CollectAsync(new()
+            {
+                PersonelId = personelId,
+                Orcid = orcid
+            });
+            Assert.True(repeated.IsSaved);
+            Assert.Equal(1, crossrefRequests);
+            Assert.DoesNotContain(repeated.Messages, message => message.StartsWith("[HATA] Crossref"));
+        }
     }
 
     private static IConfiguration Config(string provider, string url) => new ConfigurationBuilder()
