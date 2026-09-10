@@ -69,6 +69,43 @@ public sealed class ProviderStatusServiceTests
     }
 
     [Fact]
+    public void BuildRemainingUsage_OpenAlexAnonymousStandardHeaders_ExposesBalance()
+    {
+        DateTime now = new(2026, 9, 9, 12, 0, 0, DateTimeKind.Utc);
+        ProviderStatusDto provider = ProviderWithQuota(now, 0);
+        ProviderQuotaDto quota = provider.ProviderQuotas[0];
+        provider.Provider = "OpenAlex";
+        quota.Source = "ResponseHeaders";
+        quota.SourceFields = "X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset";
+        quota.Scope = "anonymous";
+        quota.Unit = "credits";
+        quota.Window = "day";
+
+        ProviderRemainingUsageDto usage = ProviderStatusService.BuildRemainingUsage(provider, now);
+
+        Assert.Equal("ProviderReported", usage.Status);
+        Assert.Equal(0, usage.Items[0].Value);
+    }
+
+    [Fact]
+    public void BuildRemainingUsage_AnonymousUnknownProviderHeaders_DoesNotExposeBalance()
+    {
+        DateTime now = new(2026, 9, 9, 12, 0, 0, DateTimeKind.Utc);
+        ProviderStatusDto provider = ProviderWithQuota(now, 42);
+        ProviderQuotaDto quota = provider.ProviderQuotas[0];
+        quota.Source = "ResponseHeaders";
+        quota.SourceFields = "X-RateLimit-Limit,X-RateLimit-Remaining";
+        quota.Scope = "anonymous";
+        quota.Unit = "credits";
+        quota.Window = "day";
+
+        ProviderRemainingUsageDto usage = ProviderStatusService.BuildRemainingUsage(provider, now);
+
+        Assert.Equal("Unknown", usage.Status);
+        Assert.Null(usage.Items[0].Value);
+    }
+
+    [Fact]
     public void RefreshRemainingUsage_CachedObservationCrossesExpiryBoundary_NullsValue()
     {
         DateTime observed = new(2026, 9, 9, 12, 0, 0, DateTimeKind.Utc);

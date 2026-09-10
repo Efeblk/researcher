@@ -28,8 +28,13 @@ collector produced a snapshot; each provider has its own health result.
 `Reachable` means a current successful transport with the expected response shape. Failures
 are reported as `Unavailable`, `Unauthorized`, `RateLimited`, `Disabled`, or `Unknown`.
 
-`quotas` contains only provider-reported account or API-key windows with verified scope,
-unit, and period. An empty list means the quota is unknown. It never means unlimited.
+`quotas` contains only provider-reported windows with verified scope, unit, and period.
+This includes [OpenAlex's documented daily credit headers](https://help.openalex.org/api/authentication/)
+for both keyless requests and API keys, and Web of Science's observed per-key daily and
+per-second response headers, whose window semantics match the
+[documented Starter plans](https://developer.clarivate.com/apis/wos-starter). The keyless
+OpenAlex values describe the anonymous request budget, not an authenticated account.
+An empty list means the quota is unknown. It never means unlimited.
 `limit` can be present when a current provider response reports a limit but omits the
 remaining balance. Stale and failed observations do not expose numeric values. The
 collector's local SQL pacing budget is not part of this response.

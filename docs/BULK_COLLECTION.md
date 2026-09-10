@@ -133,7 +133,7 @@ Both the worker and SQL importer are disabled in committed defaults. To perform 
 
 An existing `BulkCollection:WorkerEnabled` user-secret or another later configuration source can override the file value; update or remove that override if `Status.WorkerEnabled` remains `false`. Restart the host after changing worker or provider-limit settings. `Status.WorkerEnabled` shows the worker setting for the host answering the request. Enabling the worker does not add any source-database configuration requirement to `Submit`.
 
-Each provider has settings under `ProviderRequestLimits`: `Orcid`, `SearchApi`, `OpenAlex`, `WebOfScience`, and `Yoksis`.
+Each provider has settings under `ProviderRequestLimits`: `Orcid`, `SearchApi`, `OpenAlex`, `WebOfScience`, `Yoksis`, `TrDizin`, and `Crossref`.
 
 | Setting | Meaning |
 | --- | --- |
@@ -161,6 +161,8 @@ Defaults now follow the [repository provider reports](API_OZET_RAPORU.md), with 
 | Web of Science | 250 ms (up to 4/s) | 5,000 | The project report confirms Free Institutional Member: 5/s and 5,000/day. |
 | SearchApi | 2,000 ms (up to 1,800/hour) | No application daily cap | Conservative spacing below the documented Developer example's 2,000/hour. The purchased plan is still unconfirmed; this is not a claim about the account entitlement. |
 | YÖKSİS | 1,000 ms (up to 1/s) | No application daily cap | Provider limits remain unverified; this is a placeholder. |
+| TR Dizin | 1,000 ms (up to 1/s) | No application daily cap | No public provider ceiling was found; keep this default until the provider confirms a limit. |
+| Crossref | 200 ms (up to 5/s) | No application daily cap | Official public-pool single-DOI ceiling is 5/s with concurrency 1. The shared SQL gate serializes calls. |
 
 Sources: [ORCID limits](https://info.orcid.org/ufaqs/what-are-the-api-limits/), [OpenAlex authentication](https://help.openalex.org/api/authentication/), [OpenAlex costs](https://help.openalex.org/access/example-costs/), [WoS plans](https://developer.clarivate.com/apis/wos-starter), [SearchApi limits](https://www.searchapi.io/pricing).
 

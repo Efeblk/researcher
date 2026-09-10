@@ -30,10 +30,38 @@ internal static class AcademicPerformanceDtoMapper
             WebOfScienceResearcherId = researcher.WebOfScienceResearcherId,
             TcKimlikNo = researcher.TcKimlikNo,
             LastUpdatedAt = researcher.LastUpdatedAt,
+            WosCitationCount = researcher.WosCitationCount,
+            WosHIndex = researcher.WosHIndex,
+            WosDocumentsCount = researcher.WosDocumentsCount,
+            WosMetricsUpdatedAt = researcher.WosMetricsUpdatedAt,
+            OpenAlexCitationCount = researcher.OpenAlexCitationCount,
+            OpenAlexHIndex = researcher.OpenAlexHIndex,
+            OpenAlexI10Index = researcher.OpenAlexI10Index,
+            OpenAlexDocumentsCount = researcher.OpenAlexDocumentsCount,
+            OpenAlexTwoYearMeanCitedness = researcher.OpenAlexTwoYearMeanCitedness,
+            OpenAlexMetricsUpdatedAt = researcher.OpenAlexMetricsUpdatedAt,
+            ScholarCitationCount = researcher.ScholarCitationCount,
+            ScholarHIndex = researcher.ScholarHIndex,
+            ScholarI10Index = researcher.ScholarI10Index,
+            ScholarDocumentsCount = researcher.ScholarDocumentsCount,
+            ScholarCitationCountRecent = researcher.ScholarCitationCountRecent,
+            ScholarHIndexRecent = researcher.ScholarHIndexRecent,
+            ScholarI10IndexRecent = researcher.ScholarI10IndexRecent,
+            ScholarMetricsSinceYear = researcher.ScholarMetricsSinceYear,
+            ScholarMetricsUpdatedAt = researcher.ScholarMetricsUpdatedAt,
             OrcidProfile = MapOrcidProfile(researcher.OrcidProfile),
             GoogleScholarProfile = MapGoogleScholarProfile(
                 researcher.GoogleScholarProfile),
             OpenAlexProfile = MapOpenAlexProfile(researcher.OpenAlexProfile),
+            TrDizinProfile = researcher.TrDizinProfile is null ? null : new()
+            {
+                Orcid = researcher.TrDizinProfile.Orcid,
+                AuthorId = researcher.TrDizinProfile.AuthorId,
+                DisplayName = researcher.TrDizinProfile.DisplayName,
+                PublicationCount = researcher.TrDizinProfile.PublicationCount,
+                CitationCount = researcher.TrDizinProfile.CitationCount,
+                LastUpdatedAt = researcher.TrDizinProfile.LastUpdatedAt
+            },
             WebOfScienceProfile = MapWebOfScienceProfile(
                 researcher.WebOfScienceProfile)
         };

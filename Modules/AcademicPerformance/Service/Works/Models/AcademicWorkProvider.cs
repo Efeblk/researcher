@@ -7,5 +7,7 @@ public enum AcademicWorkProvider
     WebOfScience = 2,
     Yoksis = 3,
     Legacy = 4,
-    OpenAlex = 5
+    OpenAlex = 5,
+    TrDizin = 6,
+    Crossref = 7
 }

@@ -11,6 +11,8 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScienc
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Collection;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Persistence;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Persistence;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
@@ -66,6 +68,9 @@ public static class AcademicPerformanceModule
         services.AddTransient<OpenAlexClient>();
         services.AddTransient<WebOfScienceClient>();
         services.AddTransient<YoksisClient>();
+        services.AddTransient<TrDizinClient>();
+        services.AddTransient<CrossrefClient>();
+        services.AddScoped<CrossrefEnrichmentService>();
         services.AddTransient<YoksisCollectionService>();
         services.AddScoped<YoksisRecordSynchronizer>();
         services.AddScoped<YoksisAcademicWorkSynchronizer>();
@@ -92,6 +97,8 @@ public static class AcademicPerformanceModule
             ("OpenAlex", "OpenAlex:ApiBaseUrl", "https://api.openalex.org"),
             ("WebOfScience", "WebOfScience:ApiBaseUrl", "https://api.clarivate.com/apis/wos-starter/v1"),
             ("Yoksis", "Yoksis:ServiceUrl", "https://servisler.yok.gov.tr/ws/OzgecmisV2")
+            ,("TrDizin", "TrDizin:ApiBaseUrl", "https://search.trdizin.gov.tr")
+            ,("Crossref", "Crossref:ApiBaseUrl", "https://api.crossref.org")
         })
         {
             int interval = configuration.GetValue($"ProviderRequestLimits:{name}:MinimumIntervalMilliseconds", 1000);

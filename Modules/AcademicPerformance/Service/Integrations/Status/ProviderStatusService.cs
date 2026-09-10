@@ -26,6 +26,8 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
         ("OpenAlex", "OpenAlex:ApiBaseUrl", "https://api.openalex.org"),
         ("WebOfScience", "WebOfScience:ApiBaseUrl", "https://api.clarivate.com/apis/wos-starter/v1"),
         ("Yoksis", "Yoksis:ServiceUrl", "https://servisler.yok.gov.tr/ws/OzgecmisV2"),
+        ("TrDizin", "TrDizin:ApiBaseUrl", "https://search.trdizin.gov.tr"),
+        ("Crossref", "Crossref:ApiBaseUrl", "https://api.crossref.org"),
         ("AnalysisService", "AnalysisService:BaseUrl", "http://localhost:5011/")
     ];
 
@@ -219,7 +221,7 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
                     JsonElement root = document.RootElement;
                     string expectedProperty = name switch
                     {
-                        "Orcid" => "overallOk", "OpenAlex" => string.IsNullOrWhiteSpace(configuration["OpenAlex:ApiKey"]) ? "results" : "rate_limit", "WebOfScience" => "metadata",
+                        "Orcid" => "overallOk", "OpenAlex" => string.IsNullOrWhiteSpace(configuration["OpenAlex:ApiKey"]) ? "results" : "rate_limit", "WebOfScience" => "metadata", "TrDizin" => "hits", "Crossref" => "message",
                         "AnalysisService" => "status", _ => "account"
                     };
                     if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty(expectedProperty, out _))
@@ -256,7 +258,7 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
                         quota.Unit = "credits";
                         quota.Window = "day";
                         quota.Scope = string.IsNullOrWhiteSpace(configuration["OpenAlex:ApiKey"])
-                            ? "anonymous-or-unknown-account" : "api-key";
+                            ? "anonymous" : "api-key";
                         if (result.CheckedAt.HasValue)
                         {
                             quota.ResetsAt = ParseOpenAlexResetAt(response, result.CheckedAt.Value);
@@ -264,6 +266,15 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
                         }
                     }
                 }
+            if (name == "WebOfScience")
+                foreach (ProviderQuotaDto quota in result.ProviderQuotas)
+                    if (quota.SourceFields is
+                        "X-RateLimit-Limit-Day,X-RateLimit-Remaining-Day" or
+                        "X-RateLimit-Limit-Second,X-RateLimit-Remaining-Second")
+                    {
+                        quota.Unit = "requests";
+                        quota.Scope = "api-key";
+                    }
             DateTime expiresAt = (result.CheckedAt ?? DateTime.UtcNow).AddSeconds(60);
             result.Transport.ExpiresAt = expiresAt;
             foreach (ProviderQuotaDto quota in result.ProviderQuotas) quota.ExpiresAt = expiresAt;
@@ -313,6 +324,8 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
             "OpenAlex" => url + (string.IsNullOrWhiteSpace(configuration["OpenAlex:ApiKey"]) ? "/works?per_page=1&select=id" : "/rate-limit"),
             "WebOfScience" => url + "/documents?q=PY%3D1900&db=WOS&limit=1&page=1",
             "Yoksis" => url + "?wsdl",
+            "TrDizin" => url + "/api/defaultSearch/author/?q=status-check&order=relevance-DESC&page=1&limit=10",
+            "Crossref" => url + "/works/10.1038/nphys1170",
             "AnalysisService" => url + "/health",
             _ => throw new InvalidOperationException("Unknown provider.")
         };
@@ -473,7 +486,8 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
             item.Reason = "The observation expired or its quota reset time elapsed.";
             return item;
         }
-        if (quota.Scope is not ("account" or "api-key"))
+        bool recognizedAnonymousScope = providerName == "OpenAlex" && quota.Scope == "anonymous";
+        if (quota.Scope is not ("account" or "api-key") && !recognizedAnonymousScope)
         {
             item.Reason = "The observation is not verified for an account or API key.";
             return item;
@@ -481,8 +495,14 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
         bool standardOpenAlexHeaders = quota.SourceFields is
             "X-RateLimit-Limit,X-RateLimit-Remaining" or
             "X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset";
-        bool recognizedSource = quota.Source == "AccountApi" || providerName == "OpenAlex" &&
-            quota.Source == "ResponseHeaders" && quota.Scope == "api-key" && standardOpenAlexHeaders;
+        bool documentedWosHeaders = quota.SourceFields is
+            "X-RateLimit-Limit-Day,X-RateLimit-Remaining-Day" or
+            "X-RateLimit-Limit-Second,X-RateLimit-Remaining-Second";
+        bool recognizedSource = quota.Source == "AccountApi" ||
+            (providerName == "OpenAlex" && quota.Source == "ResponseHeaders" &&
+                quota.Scope is "api-key" or "anonymous" && standardOpenAlexHeaders) ||
+            (providerName == "WebOfScience" && quota.Source == "ResponseHeaders" &&
+                quota.Scope == "api-key" && documentedWosHeaders);
         if (!recognizedSource || quota.ValueKind is not ("ProviderReported" or "DerivedFromProviderValues"))
         {
             item.Reason = "The remaining value does not have recognized provider provenance.";

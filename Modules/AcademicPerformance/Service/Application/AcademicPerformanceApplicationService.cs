@@ -257,7 +257,8 @@ public sealed class AcademicPerformanceApplicationService :
             .Include(researcher => researcher.OrcidProfile)
             .Include(researcher => researcher.GoogleScholarProfile)
             .Include(researcher => researcher.OpenAlexProfile)
-            .Include(researcher => researcher.WebOfScienceProfile);
+            .Include(researcher => researcher.WebOfScienceProfile)
+            .Include(researcher => researcher.TrDizinProfile);
 
         bool hasSelector = !string.IsNullOrWhiteSpace(personelId) ||
             !string.IsNullOrWhiteSpace(orcid) || !string.IsNullOrWhiteSpace(googleScholarId) ||

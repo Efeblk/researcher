@@ -38,6 +38,8 @@ Modules/AcademicPerformance/
       Orcid/                       ORCID client, profile, and work types
       GoogleScholar/               Google Scholar integration
       OpenAlex/                    Provider profile and raw works
+      TrDizin/                     Exact-ORCID author/publication collection
+      Crossref/                    DOI-only enrichment and positive/negative cache
       WebOfScience/                Web of Science integration
       Yoksis/
         Collection/                SOAP operation catalog and collection workflow
@@ -81,6 +83,16 @@ YÖKSİS has its own collection handler and SOAP operation catalog under `Integr
 | `PublicationDisplayApproval` | Store the researcher's choice to display a summary on the school website. |
 
 OpenAlex provider profile and raw works remain stored separately, while normalized OpenAlex works enter the shared publication list and DOI/title-year deduplication. Public V1 DTOs are separate from EF entities and UI-only contracts.
+
+Provider metrics are also materialized as nullable columns on `Researchers` for simple reporting by `PersonelID`. The provider profile tables remain the source of truth. For example:
+
+```sql
+SELECT PersonelID, WosCitationCount, WosHIndex,
+       OpenAlexCitationCount, OpenAlexHIndex, OpenAlexI10Index,
+       ScholarCitationCount, ScholarHIndex, ScholarI10Index
+FROM Researchers
+WHERE PersonelID = @PersonelID;
+```
 
 ## Find the right file for a change
 

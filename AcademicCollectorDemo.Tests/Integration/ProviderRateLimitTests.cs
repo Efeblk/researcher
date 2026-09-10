@@ -9,6 +9,20 @@ namespace AcademicCollectorDemo.Tests.Integration;
 public sealed class ProviderRateLimitTests(SqlServerFixture fixture)
 {
     [Fact]
+    public async Task SendAsync_ExpectedNotFound_DoesNotRecordBulkFailure()
+    {
+        using HttpClient client = Client(Guid.NewGuid().ToString("N"), 1, 0,
+            _ => new(HttpStatusCode.NotFound));
+        using ProviderCallScope scope = new();
+        using HttpRequestMessage request = new(HttpMethod.Get, "https://provider.test/missing");
+        request.Options.Set(ProviderRateLimitHandler.ExpectedNotFound, true);
+        using HttpResponseMessage response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Empty(scope.Failures);
+    }
+
+    [Fact]
     public async Task SendAsync_IndependentClients_SharePacingAndDailyBudget()
     {
         List<long> starts = [];

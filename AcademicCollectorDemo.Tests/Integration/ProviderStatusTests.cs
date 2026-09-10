@@ -35,7 +35,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         using HttpClient client = new(handler);
         ProviderStatusService service = CreateService(client);
         var responses = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => service.GetAsync(default)));
-        Assert.Equal(6, handler.RequestCount);
+        Assert.Equal(8, handler.RequestCount);
         Assert.All(responses, response => Assert.Same(responses[0], response));
         var providers = responses[0].Providers.ToDictionary(provider => provider.Provider);
         Assert.Equal("Healthy", providers["Orcid"].Status);
@@ -59,7 +59,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         using StubHttpHandler handler = new(_ => StubHttpHandler.Json("{}"));
         using HttpClient client = new(handler);
         ProviderStatusResponse response = await CreateService(client, false).GetAsync(default);
-        Assert.Equal(3, handler.RequestCount);
+        Assert.Equal(5, handler.RequestCount);
         Assert.Equal(3, response.Providers.Count(provider => provider.Status == "NotConfigured"));
         Assert.All(response.Providers.Where(provider => provider.Status == "NotConfigured"),
             provider => Assert.Equal("Unavailable", provider.RemainingUsage.Status));
@@ -147,10 +147,15 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
     }
 
     [Fact]
-    public async Task ProviderStatus_HttpGet_ReturnsSixProvidersAndNoStore()
+    public async Task ProviderStatus_HttpGet_ReturnsEightProvidersAndNoStore()
     {
-        using HttpClient upstream = new(new StubHttpHandler(request =>
-            request.RequestUri!.Host == "search.test" ? Account(request) : StubHttpHandler.Json("{}")));
+        using HttpClient upstream = new(new StubHttpHandler(request => request.RequestUri!.Host switch
+        {
+            "search.test" => Account(request),
+            "openalex.test" => OpenAlexWithQuotaHeaders(),
+            "wos.test" => WebOfScienceWithQuotaHeaders(),
+            _ => StubHttpHandler.Json("{}")
+        }));
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Logging.ClearProviders();
@@ -168,7 +173,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         JsonElement root = document.RootElement;
         Assert.Equal(["providers"], root.EnumerateObject().Select(property => property.Name));
         JsonElement[] providers = root.GetProperty("providers").EnumerateArray().ToArray();
-        Assert.Equal(6, providers.Length);
+        Assert.Equal(8, providers.Length);
         Assert.All(providers, provider => Assert.Equal(
             ["provider", "health", "quotas"],
             provider.EnumerateObject().Select(property => property.Name)));
@@ -183,6 +188,29 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         Assert.DoesNotContain("remainingUsage", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("localBudget", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("checkedAt", json, StringComparison.OrdinalIgnoreCase);
+
+        JsonElement openAlexQuota = Assert.Single(providers.Single(provider =>
+            provider.GetProperty("provider").GetString() == "OpenAlex")
+            .GetProperty("quotas").EnumerateArray());
+        Assert.Equal(900, openAlexQuota.GetProperty("limit").GetDecimal());
+        Assert.Equal(321, openAlexQuota.GetProperty("remaining").GetDecimal());
+        Assert.Equal("credits", openAlexQuota.GetProperty("unit").GetString());
+        Assert.Equal("daily", openAlexQuota.GetProperty("period").GetString());
+        Assert.NotEqual(JsonValueKind.Null, openAlexQuota.GetProperty("resetsAt").ValueKind);
+
+        JsonElement[] wosQuotas = providers.Single(provider =>
+            provider.GetProperty("provider").GetString() == "WebOfScience")
+            .GetProperty("quotas").EnumerateArray().ToArray();
+        Assert.Equal(2, wosQuotas.Length);
+        Assert.Equal(["daily", "perSecond"], wosQuotas.Select(quota =>
+            quota.GetProperty("period").GetString()));
+        Assert.Equal([222m, 3m], wosQuotas.Select(quota =>
+            quota.GetProperty("remaining").GetDecimal()));
+        Assert.All(wosQuotas, quota =>
+        {
+            Assert.Equal("requests", quota.GetProperty("unit").GetString());
+            Assert.Equal(JsonValueKind.Null, quota.GetProperty("resetsAt").ValueKind);
+        });
     }
 
     [Fact]
@@ -279,6 +307,8 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
             ["OpenAlex:ApiBaseUrl"] = "https://openalex.test",
             ["WebOfScience:ApiBaseUrl"] = "https://wos.test/v1",
             ["Yoksis:ServiceUrl"] = "https://yoksis.test/ws",
+            ["TrDizin:ApiBaseUrl"] = "https://trdizin.test",
+            ["Crossref:ApiBaseUrl"] = "https://crossref.test",
             ["AnalysisService:BaseUrl"] = "https://analysis.test",
             ["ProviderRequestLimits:Orcid:DailyRequestLimit"] = "2"
         };
@@ -298,6 +328,28 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
             {"account":{"monthly_allowance":100,"current_month_usage":30,"remaining_credits":70},
              "api_usage":{"hourly_rate_limit":10,"searches_this_hour":4}}
             """);
+    }
+
+    private static HttpResponseMessage OpenAlexWithQuotaHeaders()
+    {
+        HttpResponseMessage response = StubHttpHandler.Json("""{"results":[]}""");
+        response.Headers.Add("X-RateLimit-Limit", "900");
+        response.Headers.Add("X-RateLimit-Remaining", "321");
+        response.Headers.Add("X-RateLimit-Reset", "3600");
+        return response;
+    }
+
+    private static HttpResponseMessage WebOfScienceWithQuotaHeaders()
+    {
+        HttpResponseMessage response = StubHttpHandler.Json("""{"metadata":{}}""");
+        response.Headers.Add("X-RateLimit-Limit-Day", "700");
+        response.Headers.Add("X-RateLimit-Remaining-Day", "222");
+        response.Headers.Add("X-RateLimit-Limit-Second", "8");
+        response.Headers.Add("X-RateLimit-Remaining-Second", "3");
+        response.Headers.Add("X-RateLimit-Limit", "11");
+        response.Headers.Add("X-RateLimit-Remaining", "7");
+        response.Headers.Add("X-RateLimit-Reset", "2");
+        return response;
     }
 
     private static HttpResponseMessage Limited()
