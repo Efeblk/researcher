@@ -5,6 +5,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Data.SqlClient;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 
@@ -104,15 +105,23 @@ public sealed class ResearcherCollectionHandler
                 int enriched = await _crossrefEnrichmentService.EnrichAsync(researcher.PersonelId);
                 if (enriched > 0)
                 {
-                    await using IDbContextTransaction enrichmentTransaction = await _dbContext.Database.BeginTransactionAsync();
-                    await _academicWorkSynchronizer.SyncAsync(researcher);
-                    publicationSummaryCount = await _publicationSummarySynchronizer.SyncAsync(researcher.PersonelId);
-                    await enrichmentTransaction.CommitAsync();
+                    publicationSummaryCount = await SynchronizeCrossrefAsync(researcher);
                     response.Messages.Add($"[OK] Crossref: {enriched} DOI sorgusu işlendi.");
                 }
             }
+            catch (CrossrefPartialEnrichmentException exception)
+            {
+                publicationSummaryCount = await SynchronizeCrossrefAsync(researcher);
+                if (!ProviderCallScope.HasFailure("Crossref"))
+                    ProviderCallScope.Record("Crossref", false);
+                response.Messages.Add($"[OK] Crossref: {exception.CompletedCount} DOI sorgusu işlendi.");
+                response.Messages.Add($"[HATA] Crossref zenginleştirmesi tamamlanamadı: {exception.Message}");
+                response.Messages.Add(string.Empty);
+            }
             catch (Exception exception)
             {
+                if (!ProviderCallScope.HasFailure("Crossref"))
+                    ProviderCallScope.Record("Crossref", false);
                 response.Messages.Add($"[HATA] Crossref zenginleştirmesi tamamlanamadı: {exception.Message}");
                 response.Messages.Add(string.Empty);
             }
@@ -133,6 +142,15 @@ public sealed class ResearcherCollectionHandler
         }
 
         return response;
+    }
+
+    private async Task<int> SynchronizeCrossrefAsync(Researcher researcher)
+    {
+        await using IDbContextTransaction transaction = await _dbContext.Database.BeginTransactionAsync();
+        await _academicWorkSynchronizer.SyncAsync(researcher);
+        int count = await _publicationSummarySynchronizer.SyncAsync(researcher.PersonelId);
+        await transaction.CommitAsync();
+        return count;
     }
 
     private static SqlException? FindSqlException(Exception exception)

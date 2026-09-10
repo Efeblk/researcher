@@ -33,7 +33,15 @@ public sealed class CrossrefEnrichmentService(AcademicDbContext dbContext, Cross
             {
                 continue;
             }
-            CrossrefWork incoming = await client.GetAsync(personelId, doi, cancellationToken);
+            CrossrefWork incoming;
+            try
+            {
+                incoming = await client.GetAsync(personelId, doi, cancellationToken);
+            }
+            catch (Exception exception) when (fetched > 0 && exception is not OperationCanceledException)
+            {
+                throw new CrossrefPartialEnrichmentException(fetched, exception);
+            }
             if (existing is null)
             {
                 dbContext.CrossrefWorks.Add(incoming);

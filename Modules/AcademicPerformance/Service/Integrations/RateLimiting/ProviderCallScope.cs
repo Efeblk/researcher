@@ -20,8 +20,11 @@ public sealed class ProviderCallScope : IDisposable
     }
 
     public static void Record(string provider, bool retryable, DateTime? retryAt = null,
-        bool isLocalDeferral = false)
-        => Current.Value?.Failures.Add(new(provider, retryable, retryAt, isLocalDeferral));
+        bool isLocalDeferral = false, bool isDisabled = false)
+        => Current.Value?.Failures.Add(new(provider, retryable, retryAt, isLocalDeferral, isDisabled));
+
+    public static bool HasFailure(string provider) => Current.Value?.Failures.Any(failure =>
+        string.Equals(failure.Provider, provider, StringComparison.OrdinalIgnoreCase)) == true;
 
     public static int NextRequestOrdinal() => Current.Value is null ? 0 : ++Current.Value._requestOrdinal;
 

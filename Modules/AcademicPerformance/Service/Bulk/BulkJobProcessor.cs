@@ -105,8 +105,7 @@ public sealed class BulkJobProcessor(
 
         bool onlyLocalDeferrals = retryable && collectionReturnedNormally && !collectionHasFailureCode &&
             providerCalls.Failures.Any(failure => failure.Retryable) &&
-            providerCalls.Failures.Where(failure => failure.Retryable)
-                .All(failure => failure.IsLocalDeferral);
+            providerCalls.Failures.All(failure => failure.IsLocalDeferral || failure.IsDisabled);
         if (onlyLocalDeferrals)
             job.Attempts--;
         if (retryable && job.Attempts < options.Value.MaximumAttempts)
