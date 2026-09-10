@@ -14,12 +14,16 @@
 - [x] **YÖKSİS:** SOAP entegrasyonu ve desteklenen kategorilerden veri toplama.
 - [x] **TR Dizin:** Yalnızca tam ORCID eşleşmesiyle yazar ve yayın toplama.
 - [x] **Crossref:** Toplanmış eserlerin DOI'leriyle metaveri zenginleştirme ve önbellek.
+- [x] **Semantic Scholar:** Mevcut eser DOI'leri için ortak makale/atıf önbelleği, bağlamlar,
+  TLDR ve açık erişim PDF kaynağı; atıf yapan eserler araştırmacının yayın listesine eklenmez.
 
 ### Ham Veri
 
 - [x] Sağlayıcıların ham yanıt ve kayıtları SQL Server'da saklanıyor.
 - [x] OpenAlex ve TR Dizin ham kayıtlarında kaynak bilgisi korunuyor.
 - [x] Crossref'te olumlu ve olumsuz sonuçlar zaman damgasıyla önbelleğe alınıyor.
+- [x] Semantic Scholar makale yanıtları, atıf ilişkileri ve bağlamları ayrı sağlayıcı tablolarında
+  tutuluyor; yarım kalan yenilemede tamamlanmış eski satırlar korunuyor.
 
 ### Özet Veri
 
@@ -27,6 +31,9 @@
 - [x] OpenAlex ve TR Dizin yayınları ortak listede kaynak bilgisiyle birleştiriliyor.
 - [x] Crossref çağrısı sonraki bir DOI'de başarısız olsa bile daha önce tamamlanan
   zenginleştirmeler özetlere işleniyor; tekrar denemede önbellek kullanılıyor.
+- [x] Semantic Scholar açık erişim PDF bağlantıları aynı DOI'ye sahip personele ait eserlerin
+  kaynaklarına ekleniyor. S2 sayaçları sağlayıcı kaydında kalıyor; yayın özetinin sağlayıcı
+  metrikleriyle veya yerel AI raporuyla birleştirilmiyor.
 
 ### Uygulama ve İş Akışları
 
@@ -61,6 +68,7 @@ Bir araştırmacıyı toplamak, aşağıdaki dış çağrıların birden fazlas�
 | YÖKSİS | Kategori listeleri ve desteklenen eser ayrıntıları | 21 liste işlemi; bulunan bazı eserler için ayrıca detay çağrısı |
 | TR Dizin | ORCID ile doğrulanmış yazar ve o yazarın yayın ayrıntıları | 1 yazar + 1 yayın listesi + listedeki her yayın için 1 ayrıntı çağrısı; eksik liste yanıtı başarısız sayılır |
 | Crossref | Yalnızca diğer kaynaklarda zaten bulunan DOI'lerin bibliyografik metaverisi ve atıf sayısı | Önbellekte olmayan her benzersiz DOI için en fazla 1 `/works/{doi}` çağrısı; 404 sonuçları da zaman damgasıyla önbelleğe alınır |
+| Semantic Scholar | Mevcut `AcademicWorks` DOI'leri için makale metaverisi, açık erişim PDF, TLDR ve atıf bağlamları | Önbellekte olmayan DOI için 1 makale çağrısı; atıflar varsayılan 100'lük sayfalarla, makale başına en fazla 500 kayıt ve çalıştırma başına 10 DOI |
 | Yerel Ollama | `/api/chat` ile kayıtlı snapshot analizi | Üretilen rapor başına model çağrısı |
 
 Önbellek kullanılırsa dış çağrı atlanabilir. Provider Status ayrıca küçük sağlık/kota sorguları yapar.
@@ -76,6 +84,7 @@ Bir araştırmacıyı toplamak, aşağıdaki dış çağrıların birden fazlas�
 | [x] | YÖKSİS | Kurumsal kullanıcı bilgileri ve servis yetkisi sağlanacak. |
 | [x] | [TR Dizin](https://development.trdizin.gov.tr/) | Kamuya açık uçlar kullanılır; ORCID eşleşmesi zorunludur. Sağlayıcı hız sınırı yayımlanmadığından üretim aralığı kurumla teyit edilecek. |
 | [ ] | [Crossref](https://www.crossref.org/documentation/retrieve-metadata/rest-api/access-and-authentication/) | Public pool kullanılabilir. Polite pool için gerçek iletişim e-postası `Crossref:Mailto` deployment ayarına eklenecek. |
+| [x] | [Semantic Scholar](https://www.semanticscholar.org/product/api) | API anahtarı isteğe bağlıdır; kullanılacaksa `SemanticScholar:ApiKey` güvenli deployment ayarıyla verilecek. Anonim kullanımda uygulama varsayılanı 1 istek/sn'dir. |
 | [x] | Yerel Ollama | Kurulu; Qwen modeliyle smoke testi yapıldı. |
 
 ## API Planları, Fiyat ve Hız
@@ -91,6 +100,7 @@ Bir araştırmacıyı toplamak, aşağıdaki dış çağrıların birden fazlas�
 | [YÖKSİS](docs/YOKSIS/YOKSIS_API_RAPORU.md) | Kurumsal Özgeçmiş V2 erişimi | Kurum/YÖK teyidi gerekli | Kamuya açık limit doğrulanamadı |
 | [TR Dizin](https://development.trdizin.gov.tr/) | Kamuya açık veri uçları | Ücretsiz kamu erişimi | Yayımlanmış kota bulunmadı; uygulama varsayılanı 1 istek/sn |
 | [Crossref](https://www.crossref.org/documentation/retrieve-metadata/rest-api/access-and-authentication/) | Public pool; isteğe bağlı polite pool | Ücretsiz | Tek DOI public pool: 5 istek/sn, eşzamanlılık 1; uygulama varsayılanı 200 ms ve sıralı |
+| [Semantic Scholar](https://www.semanticscholar.org/product/api) | Anonim veya isteğe bağlı API anahtarı | Ücretsiz erişim; sağlayıcı koşullarına bağlı | Uygulama varsayılanı 1 istek/sn; gerçek sağlayıcı kotası hesap/erişim biçimine göre teyit edilmeli |
 
 SearchApi fiyat örneği: **Developer $40/ay → 10.000 arama/ay, 2.000 arama/saat**;
 satın alınmış planı doğrulamaz. Ayrıntılar: [API raporu](docs/API_OZET_RAPORU.md).
@@ -105,13 +115,3 @@ satın alınmış planı doğrulamaz. Ayrıntılar: [API raporu](docs/API_OZET_R
 PR CI, sentetik akışlar ve yerel Qwen smoke testi geçti; gerçek sağlayıcı hesaplarıyla
 tam uçtan uca doğrulama yapılmadı. Teknik ayrıntılar: [bulk](docs/BULK_COLLECTION.md),
 [analiz](docs/RESEARCHER_ANALYSIS.md), [durum](docs/PROVIDER_STATUS.md).
-# Semantic Scholar DOI ve atıf ilişkileri
-
-| Durum | Kapsam |
-|---|---|
-| ✅ | Mevcut, personele ait `AcademicWorks` DOI'lerinden ortak Semantic Scholar makale önbelleği |
-| ✅ | S2 makale kimliği, özet/yazar/yayın alanları, açık erişim PDF, TLDR ve atıf sayaçları |
-| ✅ | Hedef makale → atıf yapan S2 makalesi → bağlam ve bağlama özgü niyet ilişkisi |
-| ✅ | 404 negatif önbellek; 429/hata halinde eski veriyi koruyan atomik yenileme |
-| ✅ | Personel ve mevcut yayın sahipliği doğrulamalı, sınırlı V1 listeleme uçları |
-| ⏳ | Scite ve yapay zekâ ile destekleyici/çelişen sınıflandırması ertelendi |
