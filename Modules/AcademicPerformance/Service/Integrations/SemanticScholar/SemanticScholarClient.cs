@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.SemanticScholar;
 
 public sealed record SemanticScholarSnapshot(SemanticScholarPaper Paper, List<SemanticScholarCitation> Citations);
+public sealed record SemanticScholarCitationPage(int? Total, int? NextOffset, List<SemanticScholarCitation> Citations);
 
 public sealed class SemanticScholarClient(HttpClient httpClient, IOptions<SemanticScholarOptions> configured)
 {
@@ -16,6 +17,17 @@ public sealed class SemanticScholarClient(HttpClient httpClient, IOptions<Semant
     public async Task<SemanticScholarSnapshot> GetAsync(string doi, CancellationToken cancellationToken = default)
     {
         SemanticScholarOptions options = configured.Value;
+        SemanticScholarPaper paper = await GetPaperAsync(doi, cancellationToken);
+        List<SemanticScholarCitation> citations = [];
+        if (paper.Found && !string.IsNullOrWhiteSpace(paper.PaperId) && options.MaximumCitationsPerPaper > 0)
+            await FetchCitationsAsync(options.ApiBaseUrl.TrimEnd('/'), paper, citations, options, cancellationToken);
+        paper.CitationsFetched = citations.Count;
+        return new(paper, citations);
+    }
+
+    public async Task<SemanticScholarPaper> GetPaperAsync(string doi, CancellationToken cancellationToken = default)
+    {
+        SemanticScholarOptions options = configured.Value;
         string root = options.ApiBaseUrl.TrimEnd('/');
         using HttpRequestMessage request = CreateRequest($"{root}/paper/DOI:{Uri.EscapeDataString(doi)}?fields={Uri.EscapeDataString(PaperFields)}", options);
         request.Options.Set(ProviderRateLimitHandler.ExpectedNotFound, true);
@@ -23,7 +35,7 @@ public sealed class SemanticScholarClient(HttpClient httpClient, IOptions<Semant
         using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
-            return new(new() { NormalizedDoi = doi, Found = false, FetchedAt = DateTime.UtcNow }, []);
+            return new() { NormalizedDoi = doi, Found = false, FetchedAt = DateTime.UtcNow };
         }
         response.EnsureSuccessStatusCode();
         string raw = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -33,13 +45,30 @@ public sealed class SemanticScholarClient(HttpClient httpClient, IOptions<Semant
         if (!string.Equals(CrossrefClient.NormalizeDoi(returnedDoi), doi, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Semantic Scholar returned metadata for a different DOI.");
         SemanticScholarPaper paper = ParsePaper(rootElement, doi, raw);
-        List<SemanticScholarCitation> citations = [];
-        if (!string.IsNullOrWhiteSpace(paper.PaperId) && options.MaximumCitationsPerPaper > 0)
-            await FetchCitationsAsync(root, paper, citations, options, cancellationToken);
-        else
-            paper.CitationsComplete = true;
-        paper.CitationsFetched = citations.Count;
-        return new(paper, citations);
+        if (string.IsNullOrWhiteSpace(paper.PaperId)) throw new InvalidDataException("Semantic Scholar paper response has no paperId.");
+        return paper;
+    }
+
+    public async Task<SemanticScholarCitationPage> GetCitationPageAsync(string paperId, int offset, int limit,
+        CancellationToken cancellationToken = default)
+    {
+        SemanticScholarOptions options = configured.Value;
+        string root = options.ApiBaseUrl.TrimEnd('/');
+        string url = $"{root}/paper/{Uri.EscapeDataString(paperId)}/citations?offset={offset}&limit={limit}&fields={Uri.EscapeDataString(CitationFields)}";
+        using HttpRequestMessage request = CreateRequest(url, options);
+        request.Options.Set(ProviderRateLimitHandler.ResponseBufferLimit, 8L * 1024 * 1024);
+        using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        string raw = await response.Content.ReadAsStringAsync(cancellationToken);
+        using JsonDocument document = JsonDocument.Parse(raw);
+        JsonElement page = document.RootElement;
+        if (!page.TryGetProperty("data", out JsonElement data) || data.ValueKind != JsonValueKind.Array)
+            throw new InvalidDataException("Semantic Scholar citation page has no data array.");
+        List<SemanticScholarCitation> citations = data.EnumerateArray().Select(ParseCitation).Where(x => x is not null)
+            .Cast<SemanticScholarCitation>().DistinctBy(x => x.CitingPaperId).ToList();
+        int? next = Int(page, "next");
+        if (next is not null && next <= offset) throw new InvalidDataException("Semantic Scholar returned a non-advancing citation offset.");
+        return new(Int(page, "total"), next, citations);
     }
 
     public static string NormalizeDoi(string? value) => CrossrefClient.NormalizeDoi(value);

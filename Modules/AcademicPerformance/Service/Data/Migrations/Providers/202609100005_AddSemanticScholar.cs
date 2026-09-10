@@ -12,6 +12,7 @@ public sealed class AddSemanticScholar : Migration
             .WithColumn("PaperId").AsString(100).Nullable().WithColumn("Found").AsBoolean().NotNullable()
             .WithColumn("FetchedAt").AsDateTime2().NotNullable().WithColumn("CitationTotal").AsInt32().Nullable()
             .WithColumn("CitationsFetched").AsInt32().NotNullable().WithColumn("CitationsComplete").AsBoolean().NotNullable()
+            .WithColumn("CitationNextOffset").AsInt32().NotNullable().WithColumn("RefreshGeneration").AsString(32).Nullable()
             .WithColumn("Title").AsString(2000).Nullable().WithColumn("Abstract").AsString(int.MaxValue).Nullable()
             .WithColumn("AuthorsJson").AsString(int.MaxValue).Nullable().WithColumn("Year").AsInt32().Nullable()
             .WithColumn("Venue").AsString(1000).Nullable().WithColumn("PublicationDate").AsDateTime2().Nullable().WithColumn("JournalJson").AsString(int.MaxValue).Nullable().WithColumn("PublicationTypesJson").AsString(int.MaxValue).Nullable()
@@ -27,7 +28,7 @@ public sealed class AddSemanticScholar : Migration
             .WithColumn("CitingPaperId").AsString(100).NotNullable().WithColumn("CitingDoi").AsString(500).Nullable()
             .WithColumn("CitingTitle").AsString(2000).Nullable().WithColumn("CitingAuthorsJson").AsString(int.MaxValue).Nullable()
             .WithColumn("IsInfluential").AsBoolean().Nullable().WithColumn("IntentsJson").AsString(int.MaxValue).Nullable()
-            .WithColumn("RawDataJson").AsString(int.MaxValue).Nullable();
+            .WithColumn("RawDataJson").AsString(int.MaxValue).Nullable().WithColumn("RefreshGeneration").AsString(32).NotNullable();
         Create.UniqueConstraint("UQ_SemanticScholarCitations_Target_Citing").OnTable("SemanticScholarCitations").Columns("TargetPaperId", "CitingPaperId");
         Create.Table("SemanticScholarCitationContexts").WithColumn("Id").AsInt32().PrimaryKey().Identity()
             .WithColumn("CitationId").AsInt32().NotNullable().ForeignKey("SemanticScholarCitations", "Id").OnDelete(System.Data.Rule.Cascade)

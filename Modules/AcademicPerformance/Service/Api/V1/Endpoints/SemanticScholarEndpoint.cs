@@ -16,8 +16,9 @@ public sealed class SemanticScholarEndpoint : ServiceEndpoint
         [FromServices] SemanticScholarEnrichmentService enrichmentService,
         [FromServices] AcademicDbContext dbContext, CancellationToken cancellationToken)
     {
+        if (!ModelState.IsValid || string.IsNullOrWhiteSpace(request.PersonelId)) return BadRequest(ModelState);
         string personelId = request.PersonelId.Trim();
-        if (!ModelState.IsValid || personelId.Length is 0 or > 200) return BadRequest(ModelState);
+        if (personelId.Length > 200) return BadRequest(ModelState);
         if (!await dbContext.Researchers.AsNoTracking().AnyAsync(x => x.PersonelId == personelId, cancellationToken)) return NotFound(new { Message = "Researcher was not found." });
         try
         {
@@ -36,7 +37,7 @@ public sealed class SemanticScholarEndpoint : ServiceEndpoint
         [FromBody] SemanticScholarRequest request, [FromServices] AcademicDbContext dbContext,
         CancellationToken cancellationToken)
     {
-        if (!ModelState.IsValid) return BadRequest(ModelState);
+        if (!ModelState.IsValid || string.IsNullOrWhiteSpace(request.PersonelId)) return BadRequest(ModelState);
         string personelId = request.PersonelId.Trim();
         if (personelId.Length is 0 or > 200 || request.Skip < 0 || request.AcademicWorkId is <= 0) return BadRequest();
         var works = await dbContext.AcademicWorks.AsNoTracking()
@@ -90,7 +91,7 @@ public sealed class SemanticScholarEndpoint : ServiceEndpoint
     private static SemanticScholarPaperDto Map(SemanticScholarPaper x, int workId) => new()
     {
         AcademicWorkId = workId, Doi = x.NormalizedDoi, PaperId = x.PaperId, Found = x.Found, FetchedAt = x.FetchedAt,
-        CitationTotal = x.CitationTotal, CitationsFetched = x.CitationsFetched, CitationsComplete = x.CitationsComplete,
+        CitationTotal = x.CitationTotal, CitationsFetched = x.CitationsFetched, CitationsComplete = x.CitationsComplete, CitationNextOffset = x.CitationNextOffset,
         Title = x.Title, Abstract = x.Abstract, AuthorsJson = x.AuthorsJson, Year = x.Year, Venue = x.Venue,
         PublicationDate = x.PublicationDate, JournalJson = x.JournalJson, PublicationTypesJson = x.PublicationTypesJson, FieldsOfStudyJson = x.FieldsOfStudyJson,
         OpenAccessPdfJson = x.OpenAccessPdfJson, CitationCount = x.CitationCount, ReferenceCount = x.ReferenceCount,

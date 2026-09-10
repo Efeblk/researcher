@@ -12,6 +12,7 @@ public sealed class SemanticScholarCitation
     public bool? IsInfluential { get; set; } = null;
     public string? IntentsJson { get; set; } = null;
     public string? RawDataJson { get; set; } = null;
+    public string RefreshGeneration { get; set; } = string.Empty;
     public List<SemanticScholarCitationContext> Contexts { get; set; } = [];
 }
 

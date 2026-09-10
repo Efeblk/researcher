@@ -24,7 +24,7 @@ public sealed class SemanticScholarEnrichmentService(
             .Distinct(StringComparer.OrdinalIgnoreCase).Order().ToList();
         List<string> fresh = await dbContext.SemanticScholarPapers.AsNoTracking()
             .Where(x => dois.Contains(x.NormalizedDoi) && x.FetchedAt >= freshAfter &&
-                (!x.Found || x.CitationsComplete || x.CitationsFetched >= options.MaximumCitationsPerPaper))
+                (!x.Found || x.CitationsComplete || x.CitationNextOffset >= options.MaximumCitationsPerPaper))
             .Select(x => x.NormalizedDoi).ToListAsync(cancellationToken);
         List<string> pending = dois.Except(fresh, StringComparer.OrdinalIgnoreCase).ToList();
         int completed = 0;
@@ -53,31 +53,75 @@ public sealed class SemanticScholarEnrichmentService(
             connectionString, "AcademicCollector.SemanticScholar." + hash, 30000, cancellationToken);
         if (gate is null) throw new TimeoutException("Semantic Scholar DOI cache is busy; retry later.");
         SemanticScholarPaper? existing = await dbContext.SemanticScholarPapers
-            .Include(x => x.Citations).ThenInclude(x => x.Contexts)
             .SingleOrDefaultAsync(x => x.NormalizedDoi == doi, cancellationToken);
         if (existing is not null && existing.FetchedAt >= freshAfter &&
-            (!existing.Found || existing.CitationsComplete || existing.CitationsFetched >= options.MaximumCitationsPerPaper)) return false;
+            (!existing.Found || existing.CitationsComplete || existing.CitationNextOffset >= options.MaximumCitationsPerPaper)) return false;
 
-        SemanticScholarSnapshot snapshot = await client.GetAsync(doi, cancellationToken);
+        if (existing?.RefreshGeneration is null)
+        {
+            SemanticScholarPaper metadata = await client.GetPaperAsync(doi, cancellationToken);
+            if (existing is null) { existing = metadata; dbContext.SemanticScholarPapers.Add(existing); }
+            else Copy(existing, metadata);
+            existing.CitationsComplete = !metadata.Found;
+            existing.CitationNextOffset = 0;
+            existing.CitationsFetched = 0;
+            existing.RefreshGeneration = metadata.Found ? Guid.NewGuid().ToString("N") : null;
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        if (!existing.Found) return true;
+        string generation = existing.RefreshGeneration!;
+        while (existing.CitationNextOffset < options.MaximumCitationsPerPaper)
+        {
+            int limit = Math.Min(options.CitationPageSize, options.MaximumCitationsPerPaper - existing.CitationNextOffset);
+            SemanticScholarCitationPage page = await client.GetCitationPageAsync(existing.PaperId!, existing.CitationNextOffset, limit, cancellationToken);
+            await PersistPageAsync(existing, page, generation, cancellationToken);
+            if (page.NextOffset is null) break;
+        }
+        if (existing.RefreshGeneration is not null && existing.CitationNextOffset >= options.MaximumCitationsPerPaper)
+        {
+            existing.RefreshGeneration = null;
+            existing.CitationsComplete = false;
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        return true;
+    }
+
+    private async Task PersistPageAsync(SemanticScholarPaper paper, SemanticScholarCitationPage page,
+        string generation, CancellationToken cancellationToken)
+    {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        if (existing is null)
+        List<string> ids = page.Citations.Select(x => x.CitingPaperId).ToList();
+        List<SemanticScholarCitation> existing = await dbContext.SemanticScholarCitations.Include(x => x.Contexts)
+            .Where(x => x.TargetPaperId == paper.Id && ids.Contains(x.CitingPaperId)).ToListAsync(cancellationToken);
+        foreach (SemanticScholarCitation incoming in page.Citations)
         {
-            existing = snapshot.Paper;
-            dbContext.SemanticScholarPapers.Add(existing);
+            SemanticScholarCitation? current = existing.FirstOrDefault(x => x.CitingPaperId == incoming.CitingPaperId);
+            if (current is null) { incoming.TargetPaperId = paper.Id; incoming.RefreshGeneration = generation; dbContext.SemanticScholarCitations.Add(incoming); }
+            else
+            {
+                dbContext.SemanticScholarCitationContexts.RemoveRange(current.Contexts);
+                current.CitingDoi = incoming.CitingDoi; current.CitingTitle = incoming.CitingTitle;
+                current.CitingAuthorsJson = incoming.CitingAuthorsJson; current.IsInfluential = incoming.IsInfluential;
+                current.IntentsJson = incoming.IntentsJson; current.RawDataJson = incoming.RawDataJson;
+                current.RefreshGeneration = generation; current.Contexts = incoming.Contexts;
+            }
         }
-        else
+        await dbContext.SaveChangesAsync(cancellationToken);
+        paper.CitationTotal ??= page.Total;
+        paper.CitationNextOffset = page.NextOffset ?? (paper.CitationNextOffset + page.Citations.Count);
+        paper.CitationsFetched = await dbContext.SemanticScholarCitations.CountAsync(
+            x => x.TargetPaperId == paper.Id && x.RefreshGeneration == generation, cancellationToken) +
+            0;
+        if (page.NextOffset is null)
         {
-            dbContext.SemanticScholarCitationContexts.RemoveRange(existing.Citations.SelectMany(x => x.Contexts));
-            dbContext.SemanticScholarCitations.RemoveRange(existing.Citations);
-            Copy(existing, snapshot.Paper);
-            existing.Citations.Clear();
-            foreach (SemanticScholarCitation citation in snapshot.Citations) existing.Citations.Add(citation);
+            List<SemanticScholarCitation> stale = await dbContext.SemanticScholarCitations
+                .Where(x => x.TargetPaperId == paper.Id && x.RefreshGeneration != generation).ToListAsync(cancellationToken);
+            dbContext.SemanticScholarCitations.RemoveRange(stale);
+            paper.CitationsComplete = true; paper.RefreshGeneration = null;
         }
-        if (existing == snapshot.Paper)
-            foreach (SemanticScholarCitation citation in snapshot.Citations) existing.Citations.Add(citation);
+        else paper.CitationsComplete = false;
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return true;
     }
 
     private static bool IsDoi(string value) => value.StartsWith("10.", StringComparison.Ordinal) && value.Contains('/');

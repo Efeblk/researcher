@@ -4,7 +4,7 @@ using Serenity.Services;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
 
-public sealed class SemanticScholarRequest : ServiceRequest
+public sealed class SemanticScholarRequest
 {
     [Required, JsonPropertyName("PersonelID"), Newtonsoft.Json.JsonProperty("PersonelID")]
     public string PersonelId { get; set; } = string.Empty;
@@ -13,7 +13,7 @@ public sealed class SemanticScholarRequest : ServiceRequest
     [Range(1, 500)] public int Take { get; set; } = 100;
 }
 
-public sealed class SemanticScholarCitationRequest : ServiceRequest
+public sealed class SemanticScholarCitationRequest
 {
     [Required, JsonPropertyName("PersonelID"), Newtonsoft.Json.JsonProperty("PersonelID")]
     public string PersonelId { get; set; } = string.Empty;
@@ -22,7 +22,7 @@ public sealed class SemanticScholarCitationRequest : ServiceRequest
     [Range(1, 500)] public int Take { get; set; } = 100;
 }
 
-public sealed class SemanticScholarCollectRequest : ServiceRequest
+public sealed class SemanticScholarCollectRequest
 {
     [Required, JsonPropertyName("PersonelID"), Newtonsoft.Json.JsonProperty("PersonelID")]
     public string PersonelId { get; set; } = string.Empty;
@@ -51,6 +51,7 @@ public sealed class SemanticScholarPaperDto
     public int? CitationTotal { get; set; } = null;
     public int CitationsFetched { get; set; }
     public bool CitationsComplete { get; set; }
+    public int CitationNextOffset { get; set; }
     public string? Title { get; set; } = null;
     public string? Abstract { get; set; } = null;
     public string? AuthorsJson { get; set; } = null;

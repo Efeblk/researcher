@@ -10,6 +10,8 @@ public sealed class SemanticScholarPaper
     public int? CitationTotal { get; set; } = null;
     public int CitationsFetched { get; set; }
     public bool CitationsComplete { get; set; }
+    public int CitationNextOffset { get; set; }
+    public string? RefreshGeneration { get; set; } = null;
     public string? Title { get; set; } = null;
     public string? Abstract { get; set; } = null;
     public string? AuthorsJson { get; set; } = null;
