@@ -1,4 +1,4 @@
-import { EntityGrid, ListRequest, serviceRequest } from "@serenity-is/corelib";
+import { EntityGrid, serviceRequest } from "@serenity-is/corelib";
 import type { Column } from "@serenity-is/sleekgrid";
 import type { PublicationSummaryRow, PublicationDisplayApprovalResponse } from "../Contracts/AcademicPerformanceContracts";
 
@@ -9,7 +9,8 @@ interface PublicationSelectionCallbacks {
 }
 
 export class PublicationSummaryGrid extends EntityGrid<PublicationSummaryRow> {
-    private personelId = "";
+    private researcherReady = false;
+    private loadGeneration = 0;
     private approvedPublicationIds = new Set<number>();
     private selectionsLoaded = false;
 
@@ -23,7 +24,7 @@ export class PublicationSummaryGrid extends EntityGrid<PublicationSummaryRow> {
     protected override getService() { return "AcademicPerformance/PublicationSummary"; }
     protected override getInitialTitle() { return "Yayınlar"; }
     protected override getButtons() { return []; }
-    protected override getGridCanLoad() { return this.personelId.length > 0; }
+    protected override getGridCanLoad() { return this.researcherReady; }
 
     protected override createColumns(): Column<PublicationSummaryRow>[] {
         return [
@@ -69,20 +70,9 @@ export class PublicationSummaryGrid extends EntityGrid<PublicationSummaryRow> {
         ];
     }
 
-    protected override onViewSubmit() {
-        if (!super.onViewSubmit())
-            return false;
-
-        const request = this.view.params as ListRequest;
-        request.EqualityFilter = {
-            ...(request.EqualityFilter ?? {}),
-            PersonelID: this.personelId
-        };
-        return true;
-    }
-
-    async setResearcher(personelId: string, displayName?: string) {
-        this.personelId = personelId;
+    async setResearcher(displayName?: string) {
+        const generation = ++this.loadGeneration;
+        this.researcherReady = true;
         this.selectionsLoaded = false;
         this.approvedPublicationIds.clear();
         this.view.setItems([]);
@@ -90,15 +80,12 @@ export class PublicationSummaryGrid extends EntityGrid<PublicationSummaryRow> {
         this.callbacks.onControlsEnabled(false);
         this.callbacks.onCountChanged(0);
 
-        if (!personelId)
-            return;
-
         try {
             const response = await serviceRequest<PublicationDisplayApprovalResponse>(
                 "AcademicPerformance/PublicationDisplayApproval/Get",
-                { PersonelID: personelId, PublicationSummaryIds: [] });
+                { PublicationSummaryIds: [] });
 
-            if (this.personelId !== personelId)
+            if (this.loadGeneration !== generation)
                 return;
 
             this.approvedPublicationIds = new Set(response.PublicationSummaryIds ?? []);
@@ -107,23 +94,36 @@ export class PublicationSummaryGrid extends EntityGrid<PublicationSummaryRow> {
             this.callbacks.onControlsEnabled(true);
         }
         catch (error) {
+            if (this.loadGeneration !== generation)
+                return;
+
             const message = error instanceof Error ? error.message : String(error);
             this.callbacks.onError(`Kayıtlı yayın seçimleri okunamadı: ${message}`);
         }
         finally {
-            if (this.personelId === personelId)
+            if (this.loadGeneration === generation)
                 this.refresh();
         }
     }
 
+    clearResearcher() {
+        ++this.loadGeneration;
+        this.researcherReady = false;
+        this.selectionsLoaded = false;
+        this.approvedPublicationIds.clear();
+        this.view.setItems([]);
+        this.setTitle("Yayınlar");
+        this.callbacks.onControlsEnabled(false);
+        this.callbacks.onCountChanged(0);
+    }
+
     async saveApprovals() {
-        if (!this.personelId || !this.selectionsLoaded)
+        if (!this.researcherReady || !this.selectionsLoaded)
             throw new Error("Önce bir akademisyen araştırın.");
 
         return serviceRequest<PublicationDisplayApprovalResponse>(
             "AcademicPerformance/PublicationDisplayApproval/Save",
             {
-                PersonelID: this.personelId,
                 PublicationSummaryIds: [...this.approvedPublicationIds]
             });
     }

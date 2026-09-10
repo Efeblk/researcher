@@ -2,6 +2,9 @@
 
 Bulk processing: [SQL import, queue worker, and provider limits](docs/BULK_COLLECTION.md).
 
+BYS hosts must provide the authenticated personnel claim described in
+[the BYS authentication contract](docs/BYS_AUTHENTICATION.md).
+
 Provider citation metrics are available directly on each `Researchers` row for reporting. The provider profile tables remain the source of truth; see [the SQL example and field details](docs/CODEBASE_GUIDE.md#understand-the-data-layers).
 
 Start here: [Codebase guide](docs/CODEBASE_GUIDE.md) — folders, request flow, and where to make changes.

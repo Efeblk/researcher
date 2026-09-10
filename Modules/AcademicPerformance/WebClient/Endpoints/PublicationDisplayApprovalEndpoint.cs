@@ -6,56 +6,75 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Serenity.Services;
+using AcademicCollectorDemo.Modules.AcademicPerformance.WebClient.Identity;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.WebClient.Endpoints;
 
 [Route("Services/AcademicPerformance/PublicationDisplayApproval/[action]")]
-public sealed class PublicationDisplayApprovalEndpoint : ServiceEndpoint
+public sealed class PublicationDisplayApprovalEndpoint : ControllerBase
 {
     [HttpPost]
-    public async Task<PublicationDisplayApprovalResponse> Get(
+    public async Task<ActionResult<PublicationDisplayApprovalResponse>> Get(
         PublicationDisplayApprovalRequest request,
-        [FromServices] AcademicDbContext dbContext)
+        [FromServices] AcademicDbContext dbContext,
+        [FromServices] ICurrentPersonnelResolver currentPersonnel)
     {
-        await EnsureResearcherExistsAsync(request.PersonelId, dbContext);
+        if (!CurrentPersonnelHttpResult.TryResolve(
+            currentPersonnel, out string personelId, out ActionResult? error))
+        {
+            return error!;
+        }
+        await EnsureResearcherExistsAsync(personelId, dbContext);
 
         List<int> approvedIds = await dbContext.PublicationDisplayApprovals
             .AsNoTracking()
-            .Where(approval => approval.PersonelId == request.PersonelId)
+            .Where(approval => approval.PersonelId == personelId)
             .OrderBy(approval => approval.PublicationSummaryId)
             .Select(approval => approval.PublicationSummaryId)
             .ToListAsync();
 
-        return CreateResponse(request.PersonelId, approvedIds);
+        return CreateResponse(personelId, approvedIds);
     }
 
     [HttpPost]
-    public async Task<PublicationDisplayApprovalResponse> Save(
+    public async Task<ActionResult<PublicationDisplayApprovalResponse>> Save(
         PublicationDisplayApprovalRequest request,
+        [FromServices] ICurrentPersonnelResolver currentPersonnel,
         [FromServices] IAcademicPerformanceApplicationService applicationService)
     {
+        if (!CurrentPersonnelHttpResult.TryResolve(
+            currentPersonnel, out string personelId, out ActionResult? error))
+        {
+            return error!;
+        }
         AcademicPublicationSelectionResponse response =
             await applicationService.SavePublicationSelectionsAsync(
                 new AcademicPublicationSelectionRequest
                 {
-                    PersonelId = request.PersonelId,
+                    PersonelId = personelId,
                     PublicationIds = request.PublicationSummaryIds
                 });
 
-        return CreateResponse(request.PersonelId, response.PublicationIds);
+        return CreateResponse(personelId, response.PublicationIds);
     }
 
     [HttpPost]
-    public async Task<ApprovedPublicationListResponse> ListApproved(
+    public async Task<ActionResult<ApprovedPublicationListResponse>> ListApproved(
         PublicationDisplayApprovalRequest request,
-        [FromServices] AcademicDbContext dbContext)
+        [FromServices] AcademicDbContext dbContext,
+        [FromServices] ICurrentPersonnelResolver currentPersonnel)
     {
-        await EnsureResearcherExistsAsync(request.PersonelId, dbContext);
+        if (!CurrentPersonnelHttpResult.TryResolve(
+            currentPersonnel, out string personelId, out ActionResult? error))
+        {
+            return error!;
+        }
+        await EnsureResearcherExistsAsync(personelId, dbContext);
 
         List<PublicationSummary> publications = await dbContext
             .PublicationDisplayApprovals
             .AsNoTracking()
-            .Where(approval => approval.PersonelId == request.PersonelId)
+            .Where(approval => approval.PersonelId == personelId)
             .Select(approval => approval.PublicationSummary!)
             .OrderByDescending(summary => summary.PublicationYear)
             .ThenBy(summary => summary.Title)
@@ -68,7 +87,7 @@ public sealed class PublicationDisplayApprovalEndpoint : ServiceEndpoint
 
         return new ApprovedPublicationListResponse
         {
-            PersonelId = request.PersonelId,
+            PersonelId = personelId,
             Entities = publications,
             TotalCount = publications.Count
         };

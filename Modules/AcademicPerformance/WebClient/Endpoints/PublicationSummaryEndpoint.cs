@@ -3,28 +3,26 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Serenity.Services;
+using AcademicCollectorDemo.Modules.AcademicPerformance.WebClient.Identity;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.WebClient.Endpoints;
 
 [Route("Services/AcademicPerformance/PublicationSummary/[action]")]
-public sealed class PublicationSummaryEndpoint : ServiceEndpoint
+public sealed class PublicationSummaryEndpoint : ControllerBase
 {
     [HttpPost]
-    public async Task<ListResponse<PublicationSummary>> List(
+    public async Task<ActionResult<ListResponse<PublicationSummary>>> List(
         ListRequest request,
-        [FromServices] AcademicDbContext dbContext)
+        [FromServices] AcademicDbContext dbContext,
+        [FromServices] ICurrentPersonnelResolver currentPersonnel)
     {
+        if (!CurrentPersonnelHttpResult.TryResolve(
+            currentPersonnel, out string personelId, out ActionResult? error))
+        {
+            return error!;
+        }
         IQueryable<PublicationSummary> query = dbContext.PublicationSummaries
             .AsNoTracking();
-
-        if (!TryGetPersonelId(request, out string personelId))
-        {
-            return new ListResponse<PublicationSummary>
-            {
-                Entities = [],
-                TotalCount = 0
-            };
-        }
 
         query = query.Where(item => item.PersonelId == personelId);
 
@@ -70,18 +68,4 @@ public sealed class PublicationSummaryEndpoint : ServiceEndpoint
         };
     }
 
-    private static bool TryGetPersonelId(ListRequest request, out string personelId)
-    {
-        personelId = string.Empty;
-
-        if (request.EqualityFilter is null ||
-            !request.EqualityFilter.TryGetValue("PersonelID", out object? value) ||
-            value is null)
-        {
-            return false;
-        }
-
-        personelId = value.ToString()?.Trim() ?? string.Empty;
-        return personelId.Length is > 0 and <= 200;
-    }
 }

@@ -21,6 +21,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Analysis;
 using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries;
+using AcademicCollectorDemo.Modules.AcademicPerformance.WebClient.Identity;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance;
 
@@ -96,6 +97,8 @@ public static class AcademicPerformanceModule
         services.AddScoped<ResearcherCollectionHandler>();
         services.AddScoped<IAcademicPerformanceApplicationService,
             AcademicPerformanceApplicationService>();
+        services.AddScoped<ICurrentPersonnelResolver,
+            HttpContextCurrentPersonnelResolver>();
         return services;
     }
 
