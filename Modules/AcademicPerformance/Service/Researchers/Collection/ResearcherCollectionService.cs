@@ -80,25 +80,45 @@ public sealed class ResearcherCollectionService
         _collectionFeedback.Add(researcher, requestedIdentifiers, messages);
     }
 
-    private async Task CollectTrDizinAsync(Researcher researcher, string? requestedOrcid, List<string> messages)
+    private async Task CollectTrDizinAsync(
+        Researcher researcher,
+        string? requestedOrcid,
+        List<string> messages)
     {
         if (!_trDizinEnabled)
         {
             AddMessage(messages, "[ATLANDI] TR Dizin: yerel yapılandırmada devre dışı.");
             return;
         }
-        if (string.IsNullOrWhiteSpace(requestedOrcid)) { AddMessage(messages, "[ATLANDI] TR Dizin: ORCID verilmedi."); return; }
+        if (string.IsNullOrWhiteSpace(requestedOrcid))
+        {
+            AddMessage(messages, "[ATLANDI] TR Dizin: ORCID verilmedi.");
+            return;
+        }
         if (IdentifiersMatch(researcher.TrDizinProfile?.Orcid, requestedOrcid) &&
             IsProviderDataCurrent(researcher.TrDizinProfile?.LastUpdatedAt))
-        { AddCachedDataMessage(messages, "TR Dizin", researcher.TrDizinProfile?.LastUpdatedAt); return; }
+        {
+            AddCachedDataMessage(
+                messages,
+                "TR Dizin",
+                researcher.TrDizinProfile?.LastUpdatedAt);
+            return;
+        }
         try
         {
             TrDizinProfile? profile = await _trDizinClient.GetByOrcidAsync(requestedOrcid);
-            if (profile is null) { AddMessage(messages, "[BULUNAMADI] TR Dizin: ORCID ile eşleşen yazar yok."); return; }
+            if (profile is null)
+            {
+                AddMessage(messages, "[BULUNAMADI] TR Dizin: ORCID ile eşleşen yazar yok.");
+                return;
+            }
             researcher.TrDizinProfile = profile;
             AddMessage(messages, $"[OK] TR Dizin: {profile.Works?.Count ?? 0} yayın alındı.");
         }
-        catch (Exception exception) { AddMessage(messages, $"[HATA] TR Dizin: {exception.Message}"); }
+        catch (Exception exception)
+        {
+            AddMessage(messages, $"[HATA] TR Dizin: {exception.Message}");
+        }
     }
 
     private async Task CollectOpenAlexAsync(

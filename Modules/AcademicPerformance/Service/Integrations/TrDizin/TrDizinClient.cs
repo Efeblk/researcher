@@ -13,12 +13,17 @@ public sealed class TrDizinClient(HttpClient httpClient, IConfiguration configur
     {
         string root = (configuration["TrDizin:ApiBaseUrl"] ?? "https://search.trdizin.gov.tr").TrimEnd('/');
         string? authorJson = await GetAsync($"{root}/api/public/yazar/orcid?orcid={Uri.EscapeDataString(orcid)}", true, cancellationToken);
-        if (authorJson is null) return null;
+        if (authorJson is null)
+        {
+            return null;
+        }
         using JsonDocument authorDocument = JsonDocument.Parse(authorJson);
         JsonElement author = authorDocument.RootElement;
         if (author.ValueKind != JsonValueKind.Object || !string.Equals(Text(author, "orcid"), orcid,
                 StringComparison.OrdinalIgnoreCase) || !Long(author, "id").HasValue)
+        {
             return null;
+        }
 
         long authorId = Long(author, "id")!.Value;
         string publicationsJson = (await GetAsync($"{root}/api/authorPublicationsById/{authorId}", false, cancellationToken))!;
@@ -33,7 +38,10 @@ public sealed class TrDizinClient(HttpClient httpClient, IConfiguration configur
         foreach (JsonElement item in items.EnumerateArray())
         {
             string? publicationId = Text(item, "_id") ?? FirstText(item.GetProperty("fields"), "id");
-            if (string.IsNullOrWhiteSpace(publicationId)) throw new InvalidDataException("TR Dizin publication id was missing.");
+            if (string.IsNullOrWhiteSpace(publicationId))
+            {
+                throw new InvalidDataException("TR Dizin publication id was missing.");
+            }
             string detailJson = (await GetAsync($"{root}/api/publicationById/{Uri.EscapeDataString(publicationId)}", false, cancellationToken))!;
             using JsonDocument detailDocument = JsonDocument.Parse(detailJson);
             JsonElement detailHits = detailDocument.RootElement.GetProperty("hits").GetProperty("hits");
@@ -44,9 +52,14 @@ public sealed class TrDizinClient(HttpClient httpClient, IConfiguration configur
         }
         return new()
         {
-            Orcid = orcid, AuthorId = authorId, DisplayName = Text(author, "fullName"),
-            PublicationCount = Int(author, "orderPublicationCount"), CitationCount = Int(author, "orderCitationCount"),
-            LastUpdatedAt = DateTime.UtcNow, RawAuthorJson = authorJson, RawPublicationsJson = publicationsJson,
+            Orcid = orcid,
+            AuthorId = authorId,
+            DisplayName = Text(author, "fullName"),
+            PublicationCount = Int(author, "orderPublicationCount"),
+            CitationCount = Int(author, "orderCitationCount"),
+            LastUpdatedAt = DateTime.UtcNow,
+            RawAuthorJson = authorJson,
+            RawPublicationsJson = publicationsJson,
             Works = works
         };
     }
@@ -55,10 +68,16 @@ public sealed class TrDizinClient(HttpClient httpClient, IConfiguration configur
     {
         using HttpRequestMessage request = new(HttpMethod.Get, url);
         request.Headers.Accept.ParseAdd("application/json");
-        if (expectedNotFound) request.Options.Set(ProviderRateLimitHandler.ExpectedNotFound, true);
+        if (expectedNotFound)
+        {
+            request.Options.Set(ProviderRateLimitHandler.ExpectedNotFound, true);
+        }
         request.Options.Set(ProviderRateLimitHandler.ResponseBufferLimit, MaximumResponseBytes);
         using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
-        if (response.StatusCode == HttpStatusCode.NotFound && expectedNotFound) return null;
+        if (response.StatusCode == HttpStatusCode.NotFound && expectedNotFound)
+        {
+            return null;
+        }
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStringAsync(cancellationToken);
     }
@@ -67,11 +86,14 @@ public sealed class TrDizinClient(HttpClient httpClient, IConfiguration configur
     {
         PublicationId = id,
         Title = Text(source, "orderTitle") ?? Text(source, "title") ?? FirstObjectText(source, "abstracts", "title"),
-        Doi = Text(source, "doi"), PublicationYear = NumberOrText(source, "publicationYear") ?? NumberOrText(source, "year") ?? IssueYear(source),
+        Doi = Text(source, "doi"),
+        PublicationYear = NumberOrText(source, "publicationYear") ??
+            NumberOrText(source, "year") ?? IssueYear(source),
         PublicationType = Text(source, "publicationType") ?? Text(source, "docType"),
         Authors = JoinObjectText(source, "authors", "inPublicationName"),
         Journal = Text(source, "journalTitle") ?? Text(source, "journalName") ?? NestedText(source, "journal", "name"),
-        CitationCount = Int(source, "orderCitationCount"), RawDataJson = raw
+        CitationCount = Int(source, "orderCitationCount"),
+        RawDataJson = raw
     };
 
     private static string? Text(JsonElement value, string name) => value.ValueKind == JsonValueKind.Object &&

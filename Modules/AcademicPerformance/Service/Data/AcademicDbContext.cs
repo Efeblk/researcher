@@ -177,29 +177,45 @@ public sealed class AcademicDbContext : DbContext
         });
         modelBuilder.Entity<TrDizinProfile>(entity =>
         {
-            entity.ToTable("TrDizinProfiles"); entity.HasKey(x => x.Id);
+            entity.ToTable("TrDizinProfiles");
+            entity.HasKey(x => x.Id);
             entity.Property(x => x.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
-            entity.Property(x => x.Orcid).HasMaxLength(19); entity.Property(x => x.DisplayName).HasMaxLength(500);
+            entity.Property(x => x.Orcid).HasMaxLength(19);
+            entity.Property(x => x.DisplayName).HasMaxLength(500);
             entity.HasIndex(x => x.PersonelId).IsUnique();
-            entity.HasMany(x => x.Works).WithOne(x => x.TrDizinProfile).HasForeignKey(x => x.TrDizinProfileId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(x => x.Works)
+                .WithOne(x => x.TrDizinProfile)
+                .HasForeignKey(x => x.TrDizinProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<TrDizinWork>(entity =>
         {
-            entity.ToTable("TrDizinWorks"); entity.HasKey(x => x.Id);
-            entity.Property(x => x.PublicationId).HasMaxLength(100); entity.Property(x => x.Title).HasMaxLength(2000);
-            entity.Property(x => x.Doi).HasMaxLength(500); entity.Property(x => x.PublicationType).HasMaxLength(100);
-            entity.Property(x => x.Authors); entity.Property(x => x.Journal).HasMaxLength(2000);
+            entity.ToTable("TrDizinWorks");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.PublicationId).HasMaxLength(100);
+            entity.Property(x => x.Title).HasMaxLength(2000);
+            entity.Property(x => x.Doi).HasMaxLength(500);
+            entity.Property(x => x.PublicationType).HasMaxLength(100);
+            entity.Property(x => x.Authors);
+            entity.Property(x => x.Journal).HasMaxLength(2000);
             entity.HasIndex(x => new { x.TrDizinProfileId, x.PublicationId }).IsUnique();
         });
         modelBuilder.Entity<CrossrefWork>(entity =>
         {
-            entity.ToTable("CrossrefWorks"); entity.HasKey(x => x.Id);
+            entity.ToTable("CrossrefWorks");
+            entity.HasKey(x => x.Id);
             entity.Property(x => x.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
-            entity.Property(x => x.Doi).HasMaxLength(500); entity.Property(x => x.Title).HasMaxLength(2000);
-            entity.Property(x => x.Authors); entity.Property(x => x.ContainerTitle).HasMaxLength(2000);
-            entity.Property(x => x.Type).HasMaxLength(100); entity.Property(x => x.Url).HasMaxLength(2000);
+            entity.Property(x => x.Doi).HasMaxLength(500);
+            entity.Property(x => x.Title).HasMaxLength(2000);
+            entity.Property(x => x.Authors);
+            entity.Property(x => x.ContainerTitle).HasMaxLength(2000);
+            entity.Property(x => x.Type).HasMaxLength(100);
+            entity.Property(x => x.Url).HasMaxLength(2000);
             entity.HasIndex(x => new { x.PersonelId, x.Doi }).IsUnique();
-            entity.HasOne<Researcher>().WithMany().HasForeignKey(x => x.PersonelId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Researcher>()
+                .WithMany()
+                .HasForeignKey(x => x.PersonelId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<OrcidProfile>(entity =>
