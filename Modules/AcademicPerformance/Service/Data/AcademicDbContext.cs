@@ -14,6 +14,7 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 
 public sealed class AcademicDbContext : DbContext
 {
+    public DbSet<ArticleSummaries.SavedArticleSummary> ArticleSummaries { get; set; } = null!;
     public DbSet<Analysis.SavedResearcherAnalysis> ResearcherAnalyses { get; set; } = null!;
     public DbSet<BulkCollectionBatch> BulkCollectionBatches { get; set; } = null!;
     public DbSet<BulkCollectionJob> BulkCollectionJobs { get; set; } = null!;
@@ -56,6 +57,16 @@ public sealed class AcademicDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<ArticleSummaries.SavedArticleSummary>(entity =>
+        {
+            entity.ToTable("ArticleSummaries"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
+            entity.Property(x => x.SourceUrl).HasMaxLength(2000); entity.Property(x => x.SourceHash).HasMaxLength(64);
+            entity.Property(x => x.SourceKind).HasMaxLength(20); entity.Property(x => x.ExtractionVersion).HasMaxLength(100);
+            entity.HasIndex(x => new { x.PersonelId, x.OriginalAcademicWorkId, x.Id }).IsDescending(false, false, true);
+            entity.HasOne<AcademicWork>().WithMany().HasForeignKey(x => x.AcademicWorkId).OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne<Researcher>().WithMany().HasForeignKey(x => x.PersonelId).OnDelete(DeleteBehavior.NoAction);
+        });
         modelBuilder.Entity<Analysis.SavedResearcherAnalysis>(entity =>
         {
             entity.ToTable("ResearcherAnalyses");

@@ -1,0 +1,15 @@
+@collector = http://localhost:5001
+@personelId = P-1001
+@academicWorkId = 1
+
+### Generate and save a Turkish summary from the work's saved source URL (or abstract fallback)
+POST {{collector}}/Services/AcademicPerformance/V1/SummarizeArticle
+Content-Type: application/json
+
+{"personelID":"{{personelId}}","academicWorkId":{{academicWorkId}},"language":"tr"}
+
+### Retrieve the latest saved summary; the model service may be stopped
+POST {{collector}}/Services/AcademicPerformance/V1/GetArticleSummary
+Content-Type: application/json
+
+{"personelID":"{{personelId}}","academicWorkId":{{academicWorkId}},"language":"tr"}
