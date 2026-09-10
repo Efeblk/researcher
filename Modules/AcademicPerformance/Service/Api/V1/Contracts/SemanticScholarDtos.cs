@@ -52,6 +52,8 @@ public sealed class SemanticScholarPaperDto
     public int CitationsFetched { get; set; }
     public bool CitationsComplete { get; set; }
     public int CitationNextOffset { get; set; }
+    public bool CitationsRefreshing { get; set; }
+    public int? StoredCitationCount { get; set; } = null;
     public string? Title { get; set; } = null;
     public string? Abstract { get; set; } = null;
     public string? AuthorsJson { get; set; } = null;

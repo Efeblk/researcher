@@ -14,6 +14,7 @@ public sealed class SemanticScholarEndpoint : ServiceEndpoint
     public async Task<ActionResult<SemanticScholarCollectResponse>> CollectSemanticScholar(
         [FromBody] SemanticScholarCollectRequest request,
         [FromServices] SemanticScholarEnrichmentService enrichmentService,
+        [FromServices] SemanticScholarWorkSourceSynchronizer sourceSynchronizer,
         [FromServices] AcademicDbContext dbContext, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid || string.IsNullOrWhiteSpace(request.PersonelId)) return BadRequest(ModelState);
@@ -23,12 +24,20 @@ public sealed class SemanticScholarEndpoint : ServiceEndpoint
         try
         {
             int count = await enrichmentService.EnrichAsync(personelId, cancellationToken);
+            await sourceSynchronizer.SyncAsync(personelId, cancellationToken);
             return Ok(new SemanticScholarCollectResponse { ProcessedDoiCount = count });
         }
         catch (SemanticScholarPartialEnrichmentException exception)
         {
+            await sourceSynchronizer.SyncAsync(personelId, cancellationToken);
             return Ok(new SemanticScholarCollectResponse { ProcessedDoiCount = exception.CompletedCount,
                 HasPendingWork = true, Message = exception.Message });
+        }
+        catch (HttpRequestException)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                new SemanticScholarCollectResponse { HasPendingWork = true,
+                    Message = "Semantic Scholar is temporarily unavailable; saved progress can be resumed." });
         }
     }
 
@@ -76,6 +85,8 @@ public sealed class SemanticScholarEndpoint : ServiceEndpoint
             .SingleOrDefaultAsync(x => x.NormalizedDoi == doi, cancellationToken);
         if (paper is null) return NotFound(new { Message = "No saved Semantic Scholar paper exists for this work." });
         SemanticScholarPaperDto result = Map(paper, work.Id);
+        result.StoredCitationCount = await dbContext.SemanticScholarCitations.CountAsync(
+            x => x.TargetPaperId == paper.Id, cancellationToken);
         List<SemanticScholarCitation> citations = await dbContext.SemanticScholarCitations.AsNoTracking()
             .Include(x => x.Contexts).Where(x => x.TargetPaperId == paper.Id)
             .OrderBy(x => x.Id).Skip(request.Skip).Take(request.Take).ToListAsync(cancellationToken);
@@ -91,7 +102,8 @@ public sealed class SemanticScholarEndpoint : ServiceEndpoint
     private static SemanticScholarPaperDto Map(SemanticScholarPaper x, int workId) => new()
     {
         AcademicWorkId = workId, Doi = x.NormalizedDoi, PaperId = x.PaperId, Found = x.Found, FetchedAt = x.FetchedAt,
-        CitationTotal = x.CitationTotal, CitationsFetched = x.CitationsFetched, CitationsComplete = x.CitationsComplete, CitationNextOffset = x.CitationNextOffset,
+        CitationTotal = x.CitationTotal, CitationsFetched = x.CitationsFetched, CitationsComplete = x.CitationsComplete,
+        CitationNextOffset = x.CitationNextOffset, CitationsRefreshing = x.RefreshGeneration != null,
         Title = x.Title, Abstract = x.Abstract, AuthorsJson = x.AuthorsJson, Year = x.Year, Venue = x.Venue,
         PublicationDate = x.PublicationDate, JournalJson = x.JournalJson, PublicationTypesJson = x.PublicationTypesJson, FieldsOfStudyJson = x.FieldsOfStudyJson,
         OpenAccessPdfJson = x.OpenAccessPdfJson, CitationCount = x.CitationCount, ReferenceCount = x.ReferenceCount,

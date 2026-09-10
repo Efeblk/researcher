@@ -110,8 +110,7 @@ public sealed class SemanticScholarEnrichmentService(
         paper.CitationTotal ??= page.Total;
         paper.CitationNextOffset = page.NextOffset ?? (paper.CitationNextOffset + page.Citations.Count);
         paper.CitationsFetched = await dbContext.SemanticScholarCitations.CountAsync(
-            x => x.TargetPaperId == paper.Id && x.RefreshGeneration == generation, cancellationToken) +
-            0;
+            x => x.TargetPaperId == paper.Id && x.RefreshGeneration == generation, cancellationToken);
         if (page.NextOffset is null)
         {
             List<SemanticScholarCitation> stale = await dbContext.SemanticScholarCitations

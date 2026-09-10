@@ -7,3 +7,5 @@ Veri DOI düzeyinde ortak önbellekte bir kez saklanır. Makale kimliği, başl�
 `SemanticScholar:ApiKey` isteğe bağlıdır ve `dotnet user-secrets` ile ayarlanmalıdır. Anonim kullanım için varsayılan hız saniyede en çok bir istektir. `CitationPageSize`, `MaximumCitationsPerPaper` ve `MaximumPapersPerRun` sınırları ayarlanabilir. `CitationsFetched`, `CitationTotal` ve `CitationsComplete` alanları sonucun tamamlanma veya kesilme durumunu açıklar. HTTP 404 negatif önbelleğe alınır; 429 ve aktarım hataları negatif sonuç sayılmaz.
 
 Kaydedilmiş sonuçlar `POST /Services/AcademicPerformance/V1/ListSemanticScholarPapers` ile `PersonelID`, isteğe bağlı `AcademicWorkId`, `Skip` ve `Take` kullanılarak okunur.
+
+`CitationsRefreshing=true` olduğunda sayfalı yenileme sürmektedir. Bu sırada ilişki listesi, son tamamlanmış görünümden korunmuş eski satırlarla yeni nesilde alınmış satırları birlikte içerebilir; `CitationsFetched` yalnızca yeni nesilde alınanları, `StoredCitationCount` ise saklanan toplam ilişkiyi gösterir.
