@@ -5,6 +5,8 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleSchol
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Persistence;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 
@@ -26,6 +28,9 @@ public sealed class AcademicDbContext : DbContext
     public DbSet<WebOfScienceWork> WebOfScienceWorks { get; set; } = null!;
     public DbSet<WebOfSciencePeerReview> WebOfSciencePeerReviews { get; set; } = null!;
     public DbSet<YoksisRecord> YoksisRecords { get; set; } = null!;
+    public DbSet<TrDizinProfile> TrDizinProfiles { get; set; } = null!;
+    public DbSet<TrDizinWork> TrDizinWorks { get; set; } = null!;
+    public DbSet<CrossrefWork> CrossrefWorks { get; set; } = null!;
     public DbSet<AcademicWork> AcademicWorks { get; set; } = null!;
     public DbSet<PublicationSummary> PublicationSummaries { get; set; } = null!;
     public DbSet<PublicationDisplayApproval> PublicationDisplayApprovals { get; set; } = null!;
@@ -135,6 +140,8 @@ public sealed class AcademicDbContext : DbContext
                 .WithOne(profile => profile.Researcher)
                 .HasForeignKey<WebOfScienceProfile>(profile => profile.PersonelId)
                 .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(researcher => researcher.TrDizinProfile).WithOne(profile => profile.Researcher)
+                .HasForeignKey<TrDizinProfile>(profile => profile.PersonelId).OnDelete(DeleteBehavior.Cascade);
 
             entity.HasMany(researcher => researcher.PublicationSummaries)
                 .WithOne(summary => summary.Researcher)
@@ -167,6 +174,48 @@ public sealed class AcademicDbContext : DbContext
                 record.PersonelId,
                 record.OperationName
             });
+        });
+        modelBuilder.Entity<TrDizinProfile>(entity =>
+        {
+            entity.ToTable("TrDizinProfiles");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
+            entity.Property(x => x.Orcid).HasMaxLength(19);
+            entity.Property(x => x.DisplayName).HasMaxLength(500);
+            entity.HasIndex(x => x.PersonelId).IsUnique();
+            entity.HasMany(x => x.Works)
+                .WithOne(x => x.TrDizinProfile)
+                .HasForeignKey(x => x.TrDizinProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<TrDizinWork>(entity =>
+        {
+            entity.ToTable("TrDizinWorks");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.PublicationId).HasMaxLength(100);
+            entity.Property(x => x.Title).HasMaxLength(2000);
+            entity.Property(x => x.Doi).HasMaxLength(500);
+            entity.Property(x => x.PublicationType).HasMaxLength(100);
+            entity.Property(x => x.Authors);
+            entity.Property(x => x.Journal).HasMaxLength(2000);
+            entity.HasIndex(x => new { x.TrDizinProfileId, x.PublicationId }).IsUnique();
+        });
+        modelBuilder.Entity<CrossrefWork>(entity =>
+        {
+            entity.ToTable("CrossrefWorks");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
+            entity.Property(x => x.Doi).HasMaxLength(500);
+            entity.Property(x => x.Title).HasMaxLength(2000);
+            entity.Property(x => x.Authors);
+            entity.Property(x => x.ContainerTitle).HasMaxLength(2000);
+            entity.Property(x => x.Type).HasMaxLength(100);
+            entity.Property(x => x.Url).HasMaxLength(2000);
+            entity.HasIndex(x => new { x.PersonelId, x.Doi }).IsUnique();
+            entity.HasOne<Researcher>()
+                .WithMany()
+                .HasForeignKey(x => x.PersonelId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<OrcidProfile>(entity =>

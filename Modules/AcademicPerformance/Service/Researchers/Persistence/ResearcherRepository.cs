@@ -4,6 +4,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Persistence;
 
@@ -106,6 +107,9 @@ public sealed class ResearcherRepository
                 .ThenInclude(profile => profile!.Works)
             .Include(researcher => researcher.WebOfScienceProfile)
                 .ThenInclude(profile => profile!.PeerReviews)
+            .Include(researcher => researcher.TrDizinProfile)
+                .ThenInclude(profile => profile!.Works)
+            .Include(researcher => researcher.AcademicWorks)
             .AsSplitQuery();
 
         return query;
@@ -120,6 +124,22 @@ public sealed class ResearcherRepository
         UpdateGoogleScholar(target, source);
         UpdateOpenAlex(target, source);
         UpdateWebOfScience(target, source);
+        UpdateTrDizin(target, source);
+    }
+
+    private void UpdateTrDizin(Researcher target, Researcher source)
+    {
+        if (source.TrDizinProfile is null) return;
+        if (target.TrDizinProfile is null) { target.TrDizinProfile = source.TrDizinProfile; return; }
+        TrDizinProfile profile = target.TrDizinProfile;
+        TrDizinProfile incoming = source.TrDizinProfile;
+        profile.Orcid = incoming.Orcid; profile.AuthorId = incoming.AuthorId;
+        profile.DisplayName = incoming.DisplayName ?? profile.DisplayName;
+        profile.PublicationCount = incoming.PublicationCount ?? profile.PublicationCount;
+        profile.CitationCount = incoming.CitationCount ?? profile.CitationCount;
+        profile.LastUpdatedAt = incoming.LastUpdatedAt; profile.RawAuthorJson = incoming.RawAuthorJson;
+        profile.RawPublicationsJson = incoming.RawPublicationsJson;
+        _dbContext.TrDizinWorks.RemoveRange(profile.Works ?? []); profile.Works = incoming.Works;
     }
 
     private void UpdateOpenAlex(Researcher target, Researcher source)

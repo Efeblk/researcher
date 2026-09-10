@@ -321,3 +321,6 @@ Content-Type: application/json
 # Standalone request and response guide: ProviderStatus.http
 GET {{api}}/ProviderStatus
 Accept: application/json
+
+# An ORCID collection also checks TR Dizin by exact ORCID. Crossref enriches
+# DOI-bearing works already attributed by another collected source.

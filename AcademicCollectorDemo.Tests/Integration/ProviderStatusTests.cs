@@ -35,7 +35,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         using HttpClient client = new(handler);
         ProviderStatusService service = CreateService(client);
         var responses = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => service.GetAsync(default)));
-        Assert.Equal(6, handler.RequestCount);
+        Assert.Equal(8, handler.RequestCount);
         Assert.All(responses, response => Assert.Same(responses[0], response));
         var providers = responses[0].Providers.ToDictionary(provider => provider.Provider);
         Assert.Equal("Healthy", providers["Orcid"].Status);
@@ -59,7 +59,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         using StubHttpHandler handler = new(_ => StubHttpHandler.Json("{}"));
         using HttpClient client = new(handler);
         ProviderStatusResponse response = await CreateService(client, false).GetAsync(default);
-        Assert.Equal(3, handler.RequestCount);
+        Assert.Equal(5, handler.RequestCount);
         Assert.Equal(3, response.Providers.Count(provider => provider.Status == "NotConfigured"));
         Assert.All(response.Providers.Where(provider => provider.Status == "NotConfigured"),
             provider => Assert.Equal("Unavailable", provider.RemainingUsage.Status));
@@ -147,7 +147,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
     }
 
     [Fact]
-    public async Task ProviderStatus_HttpGet_ReturnsSixProvidersAndNoStore()
+    public async Task ProviderStatus_HttpGet_ReturnsEightProvidersAndNoStore()
     {
         using HttpClient upstream = new(new StubHttpHandler(request => request.RequestUri!.Host switch
         {
@@ -173,7 +173,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         JsonElement root = document.RootElement;
         Assert.Equal(["providers"], root.EnumerateObject().Select(property => property.Name));
         JsonElement[] providers = root.GetProperty("providers").EnumerateArray().ToArray();
-        Assert.Equal(6, providers.Length);
+        Assert.Equal(8, providers.Length);
         Assert.All(providers, provider => Assert.Equal(
             ["provider", "health", "quotas"],
             provider.EnumerateObject().Select(property => property.Name)));
@@ -307,6 +307,8 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
             ["OpenAlex:ApiBaseUrl"] = "https://openalex.test",
             ["WebOfScience:ApiBaseUrl"] = "https://wos.test/v1",
             ["Yoksis:ServiceUrl"] = "https://yoksis.test/ws",
+            ["TrDizin:ApiBaseUrl"] = "https://trdizin.test",
+            ["Crossref:ApiBaseUrl"] = "https://crossref.test",
             ["AnalysisService:BaseUrl"] = "https://analysis.test",
             ["ProviderRequestLimits:Orcid:DailyRequestLimit"] = "2"
         };

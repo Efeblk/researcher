@@ -38,6 +38,8 @@ Modules/AcademicPerformance/
       Orcid/                       ORCID client, profile, and work types
       GoogleScholar/               Google Scholar integration
       OpenAlex/                    Provider profile and raw works
+      TrDizin/                     Exact-ORCID author/publication collection
+      Crossref/                    DOI-only enrichment and positive/negative cache
       WebOfScience/                Web of Science integration
       Yoksis/
         Collection/                SOAP operation catalog and collection workflow

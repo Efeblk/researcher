@@ -12,6 +12,8 @@ public sealed class ProviderRateLimitHandler(
 {
     public static readonly HttpRequestOptionsKey<long> ResponseBufferLimit =
         new("AcademicCollector.ProviderResponseBufferLimit");
+    public static readonly HttpRequestOptionsKey<bool> ExpectedNotFound =
+        new("AcademicCollector.ExpectedProviderNotFound");
 
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
@@ -112,7 +114,9 @@ public sealed class ProviderRateLimitHandler(
             if (requestOrdinal > 0)
                 logger?.LogInformation("Bulk provider request {RequestOrdinal} to {Provider} returned HTTP {StatusCode}.",
                     requestOrdinal, policy.Name, (int)response.StatusCode);
-            if (!response.IsSuccessStatusCode)
+            bool expectedNotFound = response.StatusCode == HttpStatusCode.NotFound &&
+                request.Options.TryGetValue(ExpectedNotFound, out bool expected) && expected;
+            if (!response.IsSuccessStatusCode && !expectedNotFound)
             {
                 ProviderCallScope.Record(policy.Name, retryableResponse, responseRetryAt);
             }

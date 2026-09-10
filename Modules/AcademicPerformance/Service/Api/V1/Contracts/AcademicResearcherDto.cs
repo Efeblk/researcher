@@ -43,5 +43,6 @@ public sealed class AcademicResearcherDto
     public OrcidProfileSummaryDto? OrcidProfile { get; set; } = null;
     public GoogleScholarProfileSummaryDto? GoogleScholarProfile { get; set; } = null;
     public OpenAlexProfileSummaryDto? OpenAlexProfile { get; set; } = null;
+    public TrDizinProfileSummaryDto? TrDizinProfile { get; set; } = null;
     public WebOfScienceProfileSummaryDto? WebOfScienceProfile { get; set; } = null;
 }

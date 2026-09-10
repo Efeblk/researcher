@@ -6,5 +6,7 @@ public enum AcademicWorkCategorySource
     Orcid = 1,
     WebOfScience = 2,
     Yoksis = 3,
-    OpenAlex = 4
+    OpenAlex = 4,
+    TrDizin = 5,
+    Crossref = 6
 }

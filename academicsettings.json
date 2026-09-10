@@ -27,6 +27,8 @@
   "Yoksis": {
     "ServiceUrl": "https://servisler.yok.gov.tr/ws/OzgecmisV2"
   },
+  "TrDizin": { "ApiBaseUrl": "https://search.trdizin.gov.tr" },
+  "Crossref": { "ApiBaseUrl": "https://api.crossref.org", "Mailto": "", "CacheMaxAgeHours": 720 },
   "ProviderCache": {
     "MaxAgeHours": 24
   },
@@ -68,6 +70,8 @@
     "Yoksis": {
       "MinimumIntervalMilliseconds": 1000,
       "DailyRequestLimit": 0
-    }
+    },
+    "TrDizin": { "Enabled": true, "MinimumIntervalMilliseconds": 1000, "DailyRequestLimit": 0 },
+    "Crossref": { "Enabled": true, "MinimumIntervalMilliseconds": 200, "DailyRequestLimit": 0 }
   }
 }
