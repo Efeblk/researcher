@@ -42,9 +42,15 @@ public sealed class CrossrefClient(HttpClient httpClient, IConfiguration configu
     {
         string result = (value ?? string.Empty).Trim();
         foreach (string prefix in new[] { "https://doi.org/", "http://doi.org/", "https://dx.doi.org/", "http://dx.doi.org/", "doi:" })
-            if (result.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) result = result[prefix.Length..];
+        {
+            if (result.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                result = result[prefix.Length..];
+            }
+        }
         return result.Trim().ToLowerInvariant();
     }
+
     private static string? Text(JsonElement value, string name) => value.TryGetProperty(name, out JsonElement item) && item.ValueKind == JsonValueKind.String ? item.GetString() : null;
     private static int? Int(JsonElement value, string name) => value.TryGetProperty(name, out JsonElement item) &&
         item.ValueKind == JsonValueKind.Number && item.TryGetInt32(out int number) ? number : null;
@@ -55,5 +61,18 @@ public sealed class CrossrefClient(HttpClient httpClient, IConfiguration configu
         date.ValueKind == JsonValueKind.Object && date.TryGetProperty("date-parts", out JsonElement parts) &&
         parts.ValueKind == JsonValueKind.Array && parts.GetArrayLength() > 0 && parts[0].ValueKind == JsonValueKind.Array
             ? parts[0].EnumerateArray().Where(x => x.TryGetInt32(out _)).Select(x => x.GetInt32()).ToArray() : null;
-    private static DateTime? ToDate(int[]? parts) { try { return parts is { Length: > 0 } ? new DateTime(parts[0], parts.Length > 1 ? parts[1] : 1, parts.Length > 2 ? parts[2] : 1) : null; } catch { return null; } }
+    private static DateTime? ToDate(int[]? parts)
+    {
+        try
+        {
+            return parts is { Length: > 0 }
+                ? new DateTime(parts[0], parts.Length > 1 ? parts[1] : 1,
+                    parts.Length > 2 ? parts[2] : 1)
+                : null;
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return null;
+        }
+    }
 }
