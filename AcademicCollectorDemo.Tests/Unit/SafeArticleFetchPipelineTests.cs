@@ -38,6 +38,27 @@ public sealed class SafeArticleFetchPipelineTests
     }
 
     [Fact]
+    public async Task FetchPdfAsync_RedirectToSpecialAddress_RejectsBeforeCreatingAnotherClient()
+    {
+        int clientCreations = 0;
+        Queue<HttpResponseMessage> responses = new([
+            new HttpResponseMessage(HttpStatusCode.Redirect)
+            {
+                Headers = { Location = new Uri("http://198.18.0.1/paper.pdf") }
+            }]);
+        SafeArticleFetcher fetcher = new(Options.Create(new ArticleSummaryOptions()), (_, _) =>
+        {
+            clientCreations++;
+            return Task.FromResult(new HttpClient(new QueueHandler(responses)));
+        });
+
+        await Assert.ThrowsAsync<ArticleSourceException>(() =>
+            fetcher.FetchPdfAsync(new Uri("https://example.org/article"), default));
+
+        Assert.Equal(1, clientCreations);
+    }
+
+    [Fact]
     public async Task FetchPdfAsync_OversizedBody_Rejects()
     {
         Queue<HttpResponseMessage> responses = new([Response(HttpStatusCode.OK, "application/pdf", new string('x', 200))]);
