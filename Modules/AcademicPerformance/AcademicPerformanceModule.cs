@@ -88,6 +88,7 @@ public static class AcademicPerformanceModule
         services.AddOptions<SemanticScholarOptions>().Bind(configuration.GetSection("SemanticScholar")).ValidateDataAnnotations();
         services.AddTransient<SemanticScholarClient>();
         services.AddScoped<SemanticScholarEnrichmentService>();
+        services.AddScoped<SemanticScholarWorkSourceSynchronizer>();
         services.AddTransient<YoksisCollectionService>();
         services.AddScoped<YoksisRecordSynchronizer>();
         services.AddScoped<YoksisAcademicWorkSynchronizer>();

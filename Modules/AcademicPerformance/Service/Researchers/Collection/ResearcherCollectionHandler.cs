@@ -20,6 +20,7 @@ public sealed class ResearcherCollectionHandler
     private readonly AcademicDbContext _dbContext;
     private readonly CrossrefEnrichmentService _crossrefEnrichmentService;
     private readonly SemanticScholarEnrichmentService? _semanticScholarEnrichmentService;
+    private readonly SemanticScholarWorkSourceSynchronizer? _semanticScholarWorkSourceSynchronizer;
 
     public ResearcherCollectionHandler(
         ResearcherIdentifierParser identifierParser,
@@ -29,7 +30,8 @@ public sealed class ResearcherCollectionHandler
         PublicationSummarySynchronizer publicationSummarySynchronizer,
         CrossrefEnrichmentService crossrefEnrichmentService,
         AcademicDbContext dbContext,
-        SemanticScholarEnrichmentService? semanticScholarEnrichmentService = null)
+        SemanticScholarEnrichmentService? semanticScholarEnrichmentService = null,
+        SemanticScholarWorkSourceSynchronizer? semanticScholarWorkSourceSynchronizer = null)
     {
         _identifierParser = identifierParser;
         _collectionService = collectionService;
@@ -38,6 +40,7 @@ public sealed class ResearcherCollectionHandler
         _publicationSummarySynchronizer = publicationSummarySynchronizer;
         _crossrefEnrichmentService = crossrefEnrichmentService;
         _semanticScholarEnrichmentService = semanticScholarEnrichmentService;
+        _semanticScholarWorkSourceSynchronizer = semanticScholarWorkSourceSynchronizer;
         _dbContext = dbContext;
     }
 
@@ -133,10 +136,14 @@ public sealed class ResearcherCollectionHandler
             {
                 int enriched = _semanticScholarEnrichmentService is null ? 0 :
                     await _semanticScholarEnrichmentService.EnrichAsync(researcher.PersonelId);
+                if (_semanticScholarWorkSourceSynchronizer is not null)
+                    await _semanticScholarWorkSourceSynchronizer.SyncAsync(researcher.PersonelId);
                 response.Messages.Add($"[OK] Semantic Scholar: {enriched} DOI işlendi.");
             }
             catch (SemanticScholarPartialEnrichmentException exception)
             {
+                if (_semanticScholarWorkSourceSynchronizer is not null)
+                    await _semanticScholarWorkSourceSynchronizer.SyncAsync(researcher.PersonelId);
                 if (!ProviderCallScope.HasFailure("SemanticScholar")) ProviderCallScope.Record("SemanticScholar", true);
                 response.Messages.Add($"[OK] Semantic Scholar: {exception.CompletedCount} DOI işlendi.");
                 response.Messages.Add($"[HATA] Semantic Scholar zenginleştirmesi tamamlanamadı: {exception.Message}");

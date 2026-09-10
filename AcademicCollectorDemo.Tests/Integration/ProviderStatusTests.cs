@@ -30,12 +30,13 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
             "wos.test" => new(HttpStatusCode.Unauthorized),
             "yoksis.test" => new(HttpStatusCode.OK) { Content = new StringContent(
                 "<definitions xmlns='http://schemas.xmlsoap.org/wsdl/'/>") },
+            "semantic.test" => SemanticScholar(request),
             _ => throw new HttpRequestException("synthetic secret must not be exposed")
         });
         using HttpClient client = new(handler);
         ProviderStatusService service = CreateService(client);
         var responses = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => service.GetAsync(default)));
-        Assert.Equal(8, handler.RequestCount);
+        Assert.Equal(9, handler.RequestCount);
         Assert.All(responses, response => Assert.Same(responses[0], response));
         var providers = responses[0].Providers.ToDictionary(provider => provider.Provider);
         Assert.Equal("Healthy", providers["Orcid"].Status);
@@ -49,6 +50,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         Assert.Equal("Unauthorized", providers["WebOfScience"].Status);
         Assert.Equal("Unavailable", providers["WebOfScience"].RemainingUsage.Status);
         Assert.Equal("Reachable", providers["Yoksis"].Status);
+        Assert.Equal("Healthy", providers["SemanticScholar"].Status);
         Assert.Equal("Unavailable", providers["AnalysisService"].Status);
         Assert.DoesNotContain("synthetic secret", JsonSerializer.Serialize(responses[0]));
     }
@@ -59,7 +61,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         using StubHttpHandler handler = new(_ => StubHttpHandler.Json("{}"));
         using HttpClient client = new(handler);
         ProviderStatusResponse response = await CreateService(client, false).GetAsync(default);
-        Assert.Equal(5, handler.RequestCount);
+        Assert.Equal(6, handler.RequestCount);
         Assert.Equal(3, response.Providers.Count(provider => provider.Status == "NotConfigured"));
         Assert.All(response.Providers.Where(provider => provider.Status == "NotConfigured"),
             provider => Assert.Equal("Unavailable", provider.RemainingUsage.Status));
@@ -147,7 +149,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
     }
 
     [Fact]
-    public async Task ProviderStatus_HttpGet_ReturnsEightProvidersAndNoStore()
+    public async Task ProviderStatus_HttpGet_ReturnsNineProvidersAndNoStore()
     {
         using HttpClient upstream = new(new StubHttpHandler(request => request.RequestUri!.Host switch
         {
@@ -173,7 +175,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         JsonElement root = document.RootElement;
         Assert.Equal(["providers"], root.EnumerateObject().Select(property => property.Name));
         JsonElement[] providers = root.GetProperty("providers").EnumerateArray().ToArray();
-        Assert.Equal(8, providers.Length);
+        Assert.Equal(9, providers.Length);
         Assert.All(providers, provider => Assert.Equal(
             ["provider", "health", "quotas"],
             provider.EnumerateObject().Select(property => property.Name)));
@@ -310,6 +312,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
             ["TrDizin:ApiBaseUrl"] = "https://trdizin.test",
             ["Crossref:ApiBaseUrl"] = "https://crossref.test",
             ["AnalysisService:BaseUrl"] = "https://analysis.test",
+            ["SemanticScholar:ApiBaseUrl"] = "https://semantic.test/graph/v1",
             ["ProviderRequestLimits:Orcid:DailyRequestLimit"] = "2"
         };
         settings["ProviderRequestLimits:SearchApi:Enabled"] = searchApiEnabled.ToString();
@@ -317,6 +320,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
             foreach (string key in new[] { "SearchApi:ApiKey", "WebOfScience:ApiKey", "Yoksis:Username", "Yoksis:Password" })
                 settings[key] = "synthetic";
         if (openAlexKey) settings["OpenAlex:ApiKey"] = "synthetic";
+        settings["SemanticScholar:ApiKey"] = "synthetic-semantic-key";
         return new(client, new ClientFactory(client), new ConfigurationBuilder().AddInMemoryCollection(settings).Build());
     }
 
@@ -358,6 +362,14 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         response.Headers.RetryAfter = new(TimeSpan.FromMinutes(2));
         response.Headers.Add("X-RateLimit-Remaining", "0");
         return response;
+    }
+
+    private static HttpResponseMessage SemanticScholar(HttpRequestMessage request)
+    {
+        Assert.Equal("/graph/v1/paper/DOI:10.1038/nphys1170", request.RequestUri!.AbsolutePath);
+        Assert.Equal("?fields=paperId", request.RequestUri.Query);
+        Assert.Equal("synthetic-semantic-key", request.Headers.GetValues("x-api-key").Single());
+        return StubHttpHandler.Json("""{"paperId":"synthetic-paper"}""");
     }
 
     // The service owns factory-created clients, so each gets its own wrapper.
