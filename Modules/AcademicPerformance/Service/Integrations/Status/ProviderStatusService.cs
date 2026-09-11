@@ -28,6 +28,7 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
         ("Yoksis", "Yoksis:ServiceUrl", "https://servisler.yok.gov.tr/ws/OzgecmisV2"),
         ("TrDizin", "TrDizin:ApiBaseUrl", "https://search.trdizin.gov.tr"),
         ("Crossref", "Crossref:ApiBaseUrl", "https://api.crossref.org"),
+        ("SemanticScholar", "SemanticScholar:ApiBaseUrl", "https://api.semanticscholar.org/graph/v1"),
         ("AnalysisService", "AnalysisService:BaseUrl", "http://localhost:5011/")
     ];
 
@@ -221,7 +222,7 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
                     JsonElement root = document.RootElement;
                     string expectedProperty = name switch
                     {
-                        "Orcid" => "overallOk", "OpenAlex" => string.IsNullOrWhiteSpace(configuration["OpenAlex:ApiKey"]) ? "results" : "rate_limit", "WebOfScience" => "metadata", "TrDizin" => "hits", "Crossref" => "message",
+                        "Orcid" => "overallOk", "OpenAlex" => string.IsNullOrWhiteSpace(configuration["OpenAlex:ApiKey"]) ? "results" : "rate_limit", "WebOfScience" => "metadata", "TrDizin" => "hits", "Crossref" => "message", "SemanticScholar" => "paperId",
                         "AnalysisService" => "status", _ => "account"
                     };
                     if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty(expectedProperty, out _))
@@ -308,6 +309,8 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", configuration["SearchApi:ApiKey"]!.Trim());
         if (name == "WebOfScience")
             request.Headers.Add("X-ApiKey", configuration["WebOfScience:ApiKey"]!.Trim());
+        if (name == "SemanticScholar" && !string.IsNullOrWhiteSpace(configuration["SemanticScholar:ApiKey"]))
+            request.Headers.Add("x-api-key", configuration["SemanticScholar:ApiKey"]!.Trim());
         if (name == "Yoksis")
             request.Headers.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(
                 Encoding.UTF8.GetBytes(configuration["Yoksis:Username"] + ":" + configuration["Yoksis:Password"])));
@@ -326,6 +329,7 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
             "Yoksis" => url + "?wsdl",
             "TrDizin" => url + "/api/defaultSearch/author/?q=status-check&order=relevance-DESC&page=1&limit=10",
             "Crossref" => url + "/works/10.1038/nphys1170",
+            "SemanticScholar" => url + "/paper/DOI:10.1038/nphys1170?fields=paperId",
             "AnalysisService" => url + "/health",
             _ => throw new InvalidOperationException("Unknown provider.")
         };
