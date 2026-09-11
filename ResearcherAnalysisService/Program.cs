@@ -34,6 +34,7 @@ public static class Program
                 "Ai:ArticleFallbackChunkBytes must fit the conservative article input budget.")
             .ValidateOnStart();
         builder.Services.AddOptions<GeminiOptions>().BindConfiguration("Gemini");
+        builder.Services.AddSingleton<IGeminiUsageRepository, GeminiUsageRepository>();
         builder.Services.AddScoped<AnalysisAccessFilter>();
         builder.Services.AddScoped<ResearcherAnalysis>();
         builder.Services.AddScoped<ArticleSummarizer>();

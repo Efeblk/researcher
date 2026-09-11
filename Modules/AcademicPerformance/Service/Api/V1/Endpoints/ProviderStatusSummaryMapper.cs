@@ -17,7 +17,24 @@ public static class ProviderStatusSummaryMapper
             .Select((quota, index) => MapQuota(provider, quota, index, now))
             .Where(quota => quota is not null)
             .Cast<ProviderQuotaSummaryDto>()
-            .ToList()
+            .ToList(),
+        Spending = provider.Provider == "Gemini" && provider.Spending is not null
+            ? MapSpending(provider.Spending) : null
+    };
+
+    private static ProviderSpendingSummaryDto MapSpending(ProviderSpendingDto spending) => new()
+    {
+        Available = spending.Available,
+        Currency = spending.Currency,
+        Kind = spending.Kind,
+        Since = spending.Since,
+        RequestCount = spending.RequestCount,
+        UnknownCount = spending.UnknownCount,
+        EstimatedTotalUsd = spending.EstimatedTotalUsd,
+        Last3 = spending.Last3.Select(item => new ProviderSpendingItemSummaryDto
+        {
+            At = item.At, Model = item.Model, EstimatedUsd = item.EstimatedUsd
+        }).ToList()
     };
 
     private static string MapHealth(ProviderStatusDto provider, DateTime now)
@@ -76,7 +93,8 @@ public static class ProviderStatusSummaryMapper
     private static bool HasVerifiedProviderScope(string provider, ProviderQuotaDto quota)
     {
         bool recognizedAnonymousScope = provider == "OpenAlex" && quota.Scope == "anonymous";
-        if ((quota.Scope is not ("account" or "api-key") && !recognizedAnonymousScope) ||
+        bool recognizedRequestPool = provider == "Crossref" && quota.Scope == "request-pool";
+        if (quota.Scope is not ("account" or "api-key") && !recognizedAnonymousScope && !recognizedRequestPool ||
             quota.ValueKind is not ("ProviderReported" or "DerivedFromProviderValues"))
             return false;
         if (quota.Source == "AccountApi")
@@ -88,7 +106,9 @@ public static class ProviderStatusSummaryMapper
                     "X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset") ||
             (provider == "WebOfScience" && quota.Scope == "api-key" &&
                 quota.SourceFields is "X-RateLimit-Limit-Day,X-RateLimit-Remaining-Day" or
-                    "X-RateLimit-Limit-Second,X-RateLimit-Remaining-Second");
+                    "X-RateLimit-Limit-Second,X-RateLimit-Remaining-Second") ||
+            (provider == "Crossref" && quota.Scope == "request-pool" &&
+                quota.SourceFields == "X-Rate-Limit-Limit,X-Rate-Limit-Interval");
     }
 
     private static string MapPeriod(string window) => window.ToLowerInvariant() switch

@@ -6,6 +6,7 @@
     <UserSecretsId>researcher-analysis-service-7ee882b9-4273-45ec-9928-a42501ff4f15</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.6" />
     <ProjectReference Include="../ResearcherAnalysis.Contracts/ResearcherAnalysis.Contracts.csproj" />
   </ItemGroup>
 </Project>
