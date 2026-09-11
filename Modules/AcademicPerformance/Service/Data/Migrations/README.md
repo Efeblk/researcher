@@ -18,7 +18,8 @@ Mevcut sıra:
 | `202608250001` | `Core/202608250001_InitialAcademicSchema.cs` | Temel akademik şema |
 | `202608270001` | `Providers/202608270001_AddGoogleScholar.cs` | Scholar profil ve eser tabloları |
 | `202608280001` | `Providers/202608280001_AddOpenAlexComparison.cs` | Ayrı OpenAlex karşılaştırma tabloları |
-| `202609110001` | `Core/202609110001_GroupTablesBySchema.cs` | Mevcut tabloları sorumluluk şemalarına taşıma |
+| `202609110001` | `Core/202609110001_AddGeminiUsageAttempts.cs` | Kalıcı Gemini kullanım denemeleri tablosu |
+| `202609110002` | `Core/202609110002_GroupTablesBySchema.cs` | 28 uygulama tablosunu sorumluluk şemalarına taşıma |
 
 Son migration uygulama tablolarını `core`, sağlayıcıya özel şemalar, `analysis`,
 `bulk` ve `integrations` altında gruplar. `dbo` yalnızca FluentMigrator sürüm kaydı

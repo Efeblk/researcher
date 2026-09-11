@@ -183,6 +183,38 @@ public sealed class ProviderStatusServiceTests
         Assert.Null(quotas[0].Scope);
     }
 
+    [Fact]
+    public void ParseCrossrefQuotas_OfficialLimitAndInterval_PreservesUnknownRemaining()
+    {
+        using HttpResponseMessage response = new(HttpStatusCode.OK);
+        response.Headers.Add("X-Rate-Limit-Limit", "5");
+        response.Headers.Add("X-Rate-Limit-Interval", "1s");
+        response.Headers.Add("X-RateLimit-Remaining", "4");
+
+        ProviderQuotaDto quota = Assert.Single(ProviderStatusService.ParseCrossrefQuotas(response));
+
+        Assert.Equal(5, quota.Limit);
+        Assert.Null(quota.Remaining);
+        Assert.Equal("requests", quota.Unit);
+        Assert.Equal("second", quota.Window);
+        Assert.Equal("request-pool", quota.Scope);
+    }
+
+    [Theory]
+    [InlineData(null, "1s")]
+    [InlineData("5", null)]
+    [InlineData("5", "10s")]
+    [InlineData("5", "invalid")]
+    public void ParseCrossrefQuotas_MissingOrUnsupportedOfficialHeaders_ReturnsEmpty(
+        string? limit, string? interval)
+    {
+        using HttpResponseMessage response = new(HttpStatusCode.OK);
+        if (limit is not null) response.Headers.Add("X-Rate-Limit-Limit", limit);
+        if (interval is not null) response.Headers.Add("X-Rate-Limit-Interval", interval);
+
+        Assert.Empty(ProviderStatusService.ParseCrossrefQuotas(response));
+    }
+
     [Theory]
     [InlineData("90", true)]
     [InlineData("invalid", false)]
@@ -266,6 +298,32 @@ public sealed class ProviderStatusServiceTests
         Assert.Equal("DerivedFromProviderValues", quotas[1].ValueKind);
         Assert.Null(quotas[1].ResetsAt);
         Assert.NotNull(quotas[1].SubscriptionPeriodEndsAt);
+    }
+
+    [Fact]
+    public void ParseGeminiSpending_ValidUnavailableRead_PreservesNullTotal()
+    {
+        using JsonDocument document = JsonDocument.Parse("""
+            {"spending":{"available":false,"currency":"USD","kind":"paidStandardEstimate",
+             "since":null,"requestCount":0,"unknownCount":0,"estimatedTotalUsd":null,"last3":[]}}
+            """);
+
+        ProviderSpendingDto spending = ProviderStatusService.ParseGeminiSpending(document.RootElement)!;
+
+        Assert.False(spending.Available);
+        Assert.Null(spending.EstimatedTotalUsd);
+        Assert.Empty(spending.Last3);
+    }
+
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("{\"spending\":{\"available\":true}}")]
+    [InlineData("{\"spending\":{\"available\":true,\"currency\":\"USD\",\"kind\":\"paidStandardEstimate\",\"since\":null,\"requestCount\":0,\"unknownCount\":0,\"estimatedTotalUsd\":null,\"last3\":[]}}")]
+    [InlineData("{\"spending\":{\"available\":false,\"currency\":\"USD\",\"kind\":\"paidStandardEstimate\",\"since\":null,\"requestCount\":0,\"unknownCount\":0,\"estimatedTotalUsd\":0,\"last3\":[]}}")]
+    public void ParseGeminiSpending_InvalidContract_ReturnsNull(string json)
+    {
+        using JsonDocument document = JsonDocument.Parse(json);
+        Assert.Null(ProviderStatusService.ParseGeminiSpending(document.RootElement));
     }
 
     private static ProviderStatusDto ProviderWithQuota(DateTime now, decimal? remaining) => new()

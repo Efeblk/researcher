@@ -95,7 +95,7 @@ public sealed class TableSchemaGroupingMigrationTests(SqlServerFixture fixture)
     private void MigrateDown()
     {
         using IServiceScope scope = fixture.Services.CreateScope();
-        scope.ServiceProvider.GetRequiredService<IMigrationRunner>().MigrateDown(202609100005);
+        scope.ServiceProvider.GetRequiredService<IMigrationRunner>().MigrateDown(202609110001);
     }
 
     private void MigrateUp()
@@ -108,7 +108,7 @@ public sealed class TableSchemaGroupingMigrationTests(SqlServerFixture fixture)
     {
         string[] expectedApplicationTables =
         [
-            "analysis.ArticleSummaries", "analysis.ResearcherAnalyses",
+            "analysis.ArticleSummaries", "analysis.GeminiUsageAttempts", "analysis.ResearcherAnalyses",
             "bulk.BulkCollectionBatches", "bulk.BulkCollectionJobs",
             "core.AcademicWorks", "core.AcademicWorkSources", "core.PublicationDisplayApprovals",
             "core.PublicationSummaries", "core.Researchers", "crossref.CrossrefWorks",

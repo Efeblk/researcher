@@ -17,6 +17,7 @@
   <ItemGroup>
     <Using Include="Xunit" />
     <ProjectReference Include="..\AcademicCollectorDemo.csproj" />
+    <ProjectReference Include="..\ResearcherAnalysisService\ResearcherAnalysisService.csproj" />
   </ItemGroup>
 
 </Project>

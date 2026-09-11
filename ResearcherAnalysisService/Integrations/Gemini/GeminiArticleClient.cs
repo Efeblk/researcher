@@ -11,12 +11,66 @@ using ResearcherAnalysisService.Configuration;
 namespace ResearcherAnalysisService.Integrations.Gemini;
 
 public sealed class GeminiArticleClient(HttpClient client, IOptions<AiOptions> aiOptions,
-    IOptions<GeminiOptions> geminiOptions)
+    IOptions<GeminiOptions> geminiOptions, IGeminiUsageRepository usageRepository)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         Encoder = JavaScriptEncoder.Create(UnicodeRanges.All)
     };
+
+    public async Task<GeminiProviderStatus> GetStatusAsync(CancellationToken cancellationToken)
+    {
+        AiOptions settings = aiOptions.Value;
+        string? apiKey = geminiOptions.Value.ApiKey;
+        if (settings.ArticleProvider != "Gemini")
+            return new("Disabled");
+        if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(settings.ArticleModel))
+            return new("NotConfigured");
+
+        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        try
+        {
+            string model = settings.ArticleModel.Trim();
+            using HttpRequestMessage message = new(HttpMethod.Get,
+                $"https://generativelanguage.googleapis.com/v1beta/models/{Uri.EscapeDataString(model)}");
+            message.Headers.Add("x-goog-api-key", apiKey.Trim());
+            using HttpResponseMessage response = await client.SendAsync(
+                message, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+                return new("Unauthorized");
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                return new("RateLimited");
+            if ((int)response.StatusCode >= 500)
+                return new("Unavailable");
+            if (!response.IsSuccessStatusCode)
+                return new("UnexpectedResponse");
+
+            await response.Content.LoadIntoBufferAsync(1024 * 1024, timeout.Token);
+            using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(timeout.Token));
+            JsonElement root = document.RootElement;
+            bool expectedName = root.ValueKind == JsonValueKind.Object &&
+                root.TryGetProperty("name", out JsonElement name) && name.ValueKind == JsonValueKind.String &&
+                name.GetString() == $"models/{model}";
+            bool supportsGeneration = root.ValueKind == JsonValueKind.Object &&
+                root.TryGetProperty("supportedGenerationMethods", out JsonElement methods) &&
+                methods.ValueKind == JsonValueKind.Array && methods.EnumerateArray().Any(method =>
+                    method.ValueKind == JsonValueKind.String && method.GetString() == "generateContent");
+            return new(expectedName && supportsGeneration ? "Healthy" : "UnexpectedResponse");
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return new("Timeout");
+        }
+        catch (HttpRequestException)
+        {
+            return new("Unavailable");
+        }
+        catch (JsonException)
+        {
+            return new("UnexpectedResponse");
+        }
+    }
 
     public async Task<GeminiArticleResult> GenerateAsync(string model, string instructions, string input,
         JsonObject schema, int maxOutputTokens, CancellationToken cancellationToken)
@@ -50,49 +104,119 @@ public sealed class GeminiArticleClient(HttpClient client, IOptions<AiOptions> a
             Content = new StringContent(serializedBody, Encoding.UTF8, "application/json")
         };
         message.Headers.Add("x-goog-api-key", apiKey);
-        using HttpResponseMessage response = await client.SendAsync(message, cancellationToken);
-        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
-            throw new AnalysisUnavailableException("Gemini rejected the configured API key.");
-        if (response.StatusCode == HttpStatusCode.BadRequest)
+        Guid attemptId = Guid.NewGuid();
+        DateTime startedAt = DateTime.UtcNow;
+        using (CancellationTokenSource beginTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
         {
-            string error = await response.Content.ReadAsStringAsync(cancellationToken);
-            if (error.Contains("token", StringComparison.OrdinalIgnoreCase) ||
-                error.Contains("context", StringComparison.OrdinalIgnoreCase) ||
-                error.Contains("too long", StringComparison.OrdinalIgnoreCase))
-                throw new AnalysisInputTooLargeException();
+            beginTimeout.CancelAfter(TimeSpan.FromSeconds(5));
+            try
+            {
+                await usageRepository.BeginAsync(attemptId, startedAt, model, beginTimeout.Token);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                throw new AnalysisUnavailableException("Gemini usage tracking is unavailable.");
+            }
         }
-        if (!response.IsSuccessStatusCode)
-            throw new HttpRequestException("Gemini article request failed.", null, response.StatusCode);
 
+        GeminiUsageCompletion completion = new() { Outcome = "Unknown" };
         try
         {
-            using JsonDocument document = await JsonDocument.ParseAsync(
-                await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
-            JsonElement root = document.RootElement;
-            JsonElement candidates = root.GetProperty("candidates");
-            if (candidates.GetArrayLength() != 1)
+            using HttpResponseMessage response = await client.SendAsync(message, cancellationToken);
+            int httpStatus = (int)response.StatusCode;
+            completion = completion with { HttpStatus = httpStatus,
+                Outcome = response.IsSuccessStatusCode ? "InvalidResponse" : "Rejected" };
+            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+                throw new AnalysisUnavailableException("Gemini rejected the configured API key.");
+            if (response.StatusCode == HttpStatusCode.BadRequest)
+            {
+                string error = await response.Content.ReadAsStringAsync(cancellationToken);
+                if (error.Contains("token", StringComparison.OrdinalIgnoreCase) ||
+                    error.Contains("context", StringComparison.OrdinalIgnoreCase) ||
+                    error.Contains("too long", StringComparison.OrdinalIgnoreCase))
+                    throw new AnalysisInputTooLargeException();
+            }
+            if (!response.IsSuccessStatusCode)
+                throw new HttpRequestException("Gemini article request failed.", null, response.StatusCode);
+
+            JsonDocument document;
+            try
+            {
+                document = await JsonDocument.ParseAsync(
+                    await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+            }
+            catch (JsonException)
+            {
+                completion = completion with { Outcome = "InvalidJson" };
                 throw new InvalidAnalysisException(AnalysisFailure.InvalidJson);
-            JsonElement candidate = candidates[0];
-            string? finishReason = candidate.GetProperty("finishReason").GetString();
-            if (finishReason == "MAX_TOKENS")
-                throw new InvalidAnalysisException(AnalysisFailure.IncompleteOutput);
-            if (finishReason != "STOP")
-                throw new InvalidAnalysisException(AnalysisFailure.InvalidJson);
-            int promptTokens = root.GetProperty("usageMetadata").GetProperty("promptTokenCount").GetInt32();
-            if (promptTokens <= 0)
-                throw new InvalidAnalysisException(AnalysisFailure.IncompleteOutput);
-            if (promptTokens > settings.ArticleContextTokens - maxOutputTokens)
-                throw new AnalysisInputTooLargeException();
-            string answer = string.Concat(candidate.GetProperty("content").GetProperty("parts")
-                .EnumerateArray().Where(part => !part.TryGetProperty("thought", out JsonElement thought) ||
-                    thought.ValueKind != JsonValueKind.True).Select(part => part.GetProperty("text").GetString()));
-            if (string.IsNullOrWhiteSpace(answer))
-                throw new InvalidAnalysisException(AnalysisFailure.IncompleteOutput);
-            return new(answer, root.GetProperty("modelVersion").GetString() ?? settings.ArticleModel);
+            }
+            using (document)
+            {
+                JsonElement root = document.RootElement;
+                completion = GeminiUsagePricing.Parse(root, model, startedAt, httpStatus, "InvalidResponse");
+                try
+                {
+                    JsonElement candidates = root.GetProperty("candidates");
+                    if (candidates.GetArrayLength() != 1)
+                        throw new InvalidAnalysisException(AnalysisFailure.InvalidJson);
+                    JsonElement candidate = candidates[0];
+                    string? finishReason = candidate.GetProperty("finishReason").GetString();
+                    if (finishReason == "MAX_TOKENS")
+                        throw new InvalidAnalysisException(AnalysisFailure.IncompleteOutput);
+                    if (finishReason != "STOP")
+                        throw new InvalidAnalysisException(AnalysisFailure.InvalidJson);
+                    int promptTokens = root.GetProperty("usageMetadata").GetProperty("promptTokenCount").GetInt32();
+                    if (promptTokens <= 0)
+                        throw new InvalidAnalysisException(AnalysisFailure.IncompleteOutput);
+                    if (promptTokens > settings.ArticleContextTokens - maxOutputTokens)
+                        throw new AnalysisInputTooLargeException();
+                    string answer = string.Concat(candidate.GetProperty("content").GetProperty("parts")
+                        .EnumerateArray().Where(part =>
+                            !part.TryGetProperty("thought", out JsonElement thought) ||
+                            thought.ValueKind != JsonValueKind.True)
+                        .Select(part => part.GetProperty("text").GetString()));
+                    if (string.IsNullOrWhiteSpace(answer))
+                        throw new InvalidAnalysisException(AnalysisFailure.IncompleteOutput);
+                    completion = completion with { Outcome = "Success" };
+                    return new(answer, completion.ReturnedModel ?? settings.ArticleModel);
+                }
+                catch (Exception exception) when (exception is JsonException or KeyNotFoundException or
+                    InvalidOperationException)
+                {
+                    throw new InvalidAnalysisException(AnalysisFailure.InvalidJson);
+                }
+            }
         }
-        catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException)
+        catch (OperationCanceledException)
         {
-            throw new InvalidAnalysisException(AnalysisFailure.InvalidJson);
+            completion = completion with
+            {
+                Outcome = cancellationToken.IsCancellationRequested ? "Cancelled" : "Timeout"
+            };
+            throw;
+        }
+        catch (HttpRequestException)
+        {
+            if (completion.Outcome != "Rejected")
+                completion = completion with { Outcome = "NetworkFailure" };
+            throw;
+        }
+        finally
+        {
+            using CancellationTokenSource completionTimeout = new(TimeSpan.FromSeconds(5));
+            try
+            {
+                await usageRepository.CompleteAsync(attemptId, DateTime.UtcNow, completion,
+                    completionTimeout.Token);
+            }
+            catch (Exception)
+            {
+                // The durable Pending row intentionally remains an unknown-cost attempt.
+            }
         }
     }
 }

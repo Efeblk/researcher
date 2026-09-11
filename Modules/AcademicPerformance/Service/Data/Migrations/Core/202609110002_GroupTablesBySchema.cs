@@ -2,7 +2,7 @@ using FluentMigrator;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Data.Migrations.Core;
 
-[Migration(202609110001, "Group academic tables into SQL Server schemas")]
+[Migration(202609110002, "Group academic tables into SQL Server schemas")]
 public sealed class GroupTablesBySchema : Migration
 {
     private static readonly (string Schema, string[] Tables)[] Groups =
@@ -18,7 +18,7 @@ public sealed class GroupTablesBySchema : Migration
         ("crossref", ["CrossrefWorks"]),
         ("semanticscholar", ["SemanticScholarPapers", "SemanticScholarCitations",
             "SemanticScholarCitationContexts"]),
-        ("analysis", ["ArticleSummaries", "ResearcherAnalyses"]),
+        ("analysis", ["ArticleSummaries", "GeminiUsageAttempts", "ResearcherAnalyses"]),
         ("bulk", ["BulkCollectionBatches", "BulkCollectionJobs"]),
         ("integrations", ["ProviderRequestBudgets", "ProviderStatusObservations"])
     ];

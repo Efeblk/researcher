@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using AcademicCollector.Analysis.Contracts;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
@@ -234,13 +235,160 @@ public sealed class GeminiArticleIntegrationTests
         Assert.Equal(2, calls);
     }
 
+    [Fact]
+    public async Task Generate_UsageInsertFailure_DoesNotSendPaidRequest()
+    {
+        int sends = 0;
+        using StubHandler handler = new((_, _) =>
+        {
+            sends++;
+            return Task.FromResult(Response("{}"));
+        });
+        TestGeminiUsageRepository usage = new() { FailBegin = true };
+
+        AnalysisUnavailableException exception = await Assert.ThrowsAsync<AnalysisUnavailableException>(() =>
+            GenerateAsync(Client(handler, usage)));
+
+        Assert.Equal("Gemini usage tracking is unavailable.", exception.Message);
+        Assert.Equal(0, sends);
+        Assert.DoesNotContain("Synthetic", exception.Message);
+    }
+
+    [Fact]
+    public async Task Generate_MissingUsageDatabase_FailsClosedWithoutSendingPaidRequest()
+    {
+        int sends = 0;
+        using StubHandler handler = new((_, _) =>
+        {
+            sends++;
+            return Task.FromResult(Response("{}"));
+        });
+        GeminiUsageRepository usage = new(new ConfigurationBuilder().AddInMemoryCollection().Build());
+
+        AnalysisUnavailableException exception = await Assert.ThrowsAsync<AnalysisUnavailableException>(() =>
+            GenerateAsync(Client(handler, usage)));
+
+        Assert.Equal("Gemini usage tracking is unavailable.", exception.Message);
+        Assert.Equal(0, sends);
+    }
+
+    [Fact]
+    public async Task Generate_CompletionFailure_LeavesDurablePendingAttemptUnknown()
+    {
+        using StubHandler handler = new((_, _) => Task.FromResult(Response("{}")));
+        TestGeminiUsageRepository usage = new() { FailComplete = true };
+
+        await GenerateAsync(Client(handler, usage));
+
+        TestGeminiUsageRepository.Entry attempt = Assert.Single(usage.Entries);
+        Assert.Null(attempt.Completion);
+        GeminiSpendingStatus spending = await usage.GetSpendingAsync(default);
+        Assert.Equal(1, spending.UnknownCount);
+        Assert.Null(spending.EstimatedTotalUsd);
+    }
+
+    [Fact]
+    public async Task Generate_Success_TracksTokensModelPriceAndOutcome()
+    {
+        using StubHandler handler = new((_, _) => Task.FromResult(Response("{}")));
+        TestGeminiUsageRepository usage = new();
+
+        await GenerateAsync(Client(handler, usage));
+
+        GeminiUsageCompletion completion = Assert.Single(usage.Entries).Completion!;
+        Assert.Equal("Success", completion.Outcome);
+        Assert.Equal(200, completion.HttpStatus);
+        Assert.Equal("gemini-3.8-flash", completion.ReturnedModel);
+        Assert.Equal(100, completion.PromptTokenCount);
+        Assert.Equal(0, completion.CachedTokenCount);
+        Assert.Equal(20, completion.CandidateTokenCount);
+        Assert.Equal(0, completion.ThoughtTokenCount);
+        Assert.Equal(120, completion.TotalTokenCount);
+        Assert.NotNull(completion.EstimatedUsd);
+    }
+
+    [Fact]
+    public async Task Generate_RejectedRequest_TracksStatusWithoutProviderBody()
+    {
+        using StubHandler handler = new((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden)
+        {
+            Content = new StringContent("sensitive rejection")
+        }));
+        TestGeminiUsageRepository usage = new();
+
+        AnalysisUnavailableException exception = await Assert.ThrowsAsync<AnalysisUnavailableException>(() =>
+            GenerateAsync(Client(handler, usage)));
+
+        GeminiUsageCompletion completion = Assert.Single(usage.Entries).Completion!;
+        Assert.Equal("Rejected", completion.Outcome);
+        Assert.Equal(403, completion.HttpStatus);
+        Assert.Null(completion.EstimatedUsd);
+        Assert.DoesNotContain("sensitive", exception.Message);
+    }
+
+    [Theory]
+    [InlineData("invalid-json", "InvalidJson")]
+    [InlineData("{\"modelVersion\":\"gemini-3.8-flash\",\"candidates\":[]}", "InvalidResponse")]
+    public async Task Generate_InvalidJsonOrMissingUsage_TracksUnknownAttempt(string responseBody,
+        string expectedOutcome)
+    {
+        using StubHandler handler = new((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(responseBody)
+        }));
+        TestGeminiUsageRepository usage = new();
+
+        await Assert.ThrowsAsync<InvalidAnalysisException>(() => GenerateAsync(Client(handler, usage)));
+
+        GeminiUsageCompletion completion = Assert.Single(usage.Entries).Completion!;
+        Assert.Equal(expectedOutcome, completion.Outcome);
+        Assert.Null(completion.EstimatedUsd);
+    }
+
+    [Theory]
+    [InlineData(false, "NetworkFailure")]
+    [InlineData(true, "Timeout")]
+    public async Task Generate_TransportFailure_TracksUnknownAttempt(bool timeout, string expectedOutcome)
+    {
+        using StubHandler handler = new((_, _) => timeout
+            ? throw new TaskCanceledException("sensitive timeout")
+            : throw new HttpRequestException("sensitive network"));
+        TestGeminiUsageRepository usage = new();
+
+        await Assert.ThrowsAnyAsync<Exception>(() => GenerateAsync(Client(handler, usage)));
+
+        GeminiUsageCompletion completion = Assert.Single(usage.Entries).Completion!;
+        Assert.Equal(expectedOutcome, completion.Outcome);
+        Assert.Null(completion.EstimatedUsd);
+    }
+
+    [Fact]
+    public async Task Generate_CallerCancellation_CompletesAttemptAsUnknown()
+    {
+        using StubHandler handler = new(async (_, token) =>
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            return Response("{}");
+        });
+        TestGeminiUsageRepository usage = new();
+        using CancellationTokenSource cancellation = new();
+        cancellation.CancelAfter(TimeSpan.FromMilliseconds(20));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            GenerateAsync(Client(handler, usage), cancellation.Token));
+
+        GeminiUsageCompletion completion = Assert.Single(usage.Entries).Completion!;
+        Assert.Equal("Cancelled", completion.Outcome);
+        Assert.Null(completion.EstimatedUsd);
+    }
+
     private static ArticleSourceSpan Span() => new("src-1", 1, 0, 7, "Source.");
 
     private static GeminiArticleSummaryGenerator Summary(HttpMessageHandler handler)
     {
         IOptions<AiOptions> ai = Options.Create(new AiOptions());
         GeminiArticleClient client = new(new HttpClient(handler), ai,
-            Options.Create(new GeminiOptions { ApiKey = "synthetic-key" }));
+            Options.Create(new GeminiOptions { ApiKey = "synthetic-key" }), new TestGeminiUsageRepository());
         return new(client, ai);
     }
 
@@ -248,9 +396,20 @@ public sealed class GeminiArticleIntegrationTests
     {
         IOptions<AiOptions> ai = Options.Create(settings ?? new AiOptions());
         GeminiArticleClient client = new(new HttpClient(handler), ai,
-            Options.Create(new GeminiOptions { ApiKey = "synthetic-key" }));
+            Options.Create(new GeminiOptions { ApiKey = "synthetic-key" }), new TestGeminiUsageRepository());
         return new(client, ai);
     }
+
+    private static GeminiArticleClient Client(HttpMessageHandler handler, IGeminiUsageRepository usage)
+    {
+        IOptions<AiOptions> ai = Options.Create(new AiOptions());
+        return new(new HttpClient(handler), ai,
+            Options.Create(new GeminiOptions { ApiKey = "synthetic-key" }), usage);
+    }
+
+    private static Task<GeminiArticleResult> GenerateAsync(GeminiArticleClient client,
+        CancellationToken cancellationToken = default) => client.GenerateAsync("gemini-3.8-flash",
+        "Synthetic instructions.", "Synthetic input.", new JsonObject(), 512, cancellationToken);
 
     private static HttpResponseMessage Response(string answer, string finishReason = "STOP") =>
         new(HttpStatusCode.OK)

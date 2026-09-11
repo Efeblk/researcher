@@ -8,6 +8,8 @@ The collector's `Service/Analysis/` builds those snapshots and saves reports in 
 The ID-only `AnalyzeResearcher` and `GetResearcherAnalysis` endpoints generate/save and retrieve
 reports respectively. Both applications reference the DTO library `ResearcherAnalysis.Contracts/`.
 See [Researcher analysis](RESEARCHER_ANALYSIS.md) for its contract, setup, and current integration boundary.
+See [Provider status](PROVIDER_STATUS.md) for compact health and verified quota reporting, including
+the collector-to-analysis-service Gemini check.
 
 ## Start with these files
 
@@ -98,7 +100,7 @@ SQL Server tables are grouped by responsibility: shared researcher and publicati
 `core`; provider data in `orcid`, `googlescholar`, `openalex`, `wos`, `yoksis`, `trdizin`,
 `crossref`, and `semanticscholar`; saved AI results in `analysis`; queue data in `bulk`; and
 provider coordination state in `integrations`. The `dbo` schema is reserved for migration
-bookkeeping. Migration `202609110001` transfers existing tables without recreating them.
+bookkeeping. Migration `202609110001` creates the Gemini usage ledger, then migration `202609110002` transfers all 28 application tables without recreating them.
 
 ## Find the right file for a change
 

@@ -61,6 +61,28 @@ public sealed class ProviderStatusSummaryMapperTests
     }
 
     [Fact]
+    public void Map_CrossrefOfficialRateWindow_ExposesLimitWithoutRemaining()
+    {
+        ProviderStatusDto provider = ProviderWithQuota();
+        provider.Provider = "Crossref";
+        provider.ProviderQuotas[0].Source = "ResponseHeaders";
+        provider.ProviderQuotas[0].Scope = "request-pool";
+        provider.ProviderQuotas[0].Unit = "requests";
+        provider.ProviderQuotas[0].Window = "second";
+        provider.ProviderQuotas[0].SourceFields = "X-Rate-Limit-Limit,X-Rate-Limit-Interval";
+        provider.ProviderQuotas[0].Limit = 5;
+        provider.ProviderQuotas[0].Remaining = null;
+        provider.RemainingUsage.Items[0].Status = "Unknown";
+        provider.RemainingUsage.Items[0].Value = null;
+
+        ProviderQuotaSummaryDto quota = Assert.Single(Map(provider).Quotas);
+
+        Assert.Equal(5, quota.Limit);
+        Assert.Null(quota.Remaining);
+        Assert.Equal("perSecond", quota.Period);
+    }
+
+    [Fact]
     public void Map_Health_ExpiresOrcidReportAndUsesReachabilityForOtherProviders()
     {
         ProviderStatusDto orcid = new()
@@ -99,6 +121,41 @@ public sealed class ProviderStatusSummaryMapperTests
         };
 
         Assert.Equal("Disabled", Map(provider).Health);
+    }
+
+    [Fact]
+    public void Map_GeminiSpending_PreservesOnlySanitizedAggregate()
+    {
+        ProviderStatusDto provider = new()
+        {
+            Provider = "Gemini",
+            Status = "Healthy",
+            Transport = new() { ObservedAt = Now.AddSeconds(-1), ExpiresAt = Now.AddSeconds(30) },
+            Spending = new()
+            {
+                Available = true, Since = Now.AddDays(-1), RequestCount = 2, UnknownCount = 0,
+                EstimatedTotalUsd = 0.003m,
+                Last3 = [new() { At = Now, Model = "gemini-3.8-flash", EstimatedUsd = 0.002m }]
+            }
+        };
+
+        ProviderSpendingSummaryDto spending = Map(provider).Spending!;
+
+        Assert.True(spending.Available);
+        Assert.Equal("USD", spending.Currency);
+        Assert.Equal("paidStandardEstimate", spending.Kind);
+        Assert.Equal(2, spending.RequestCount);
+        Assert.Equal(0.003m, spending.EstimatedTotalUsd);
+        Assert.Equal("gemini-3.8-flash", Assert.Single(spending.Last3).Model);
+    }
+
+    [Fact]
+    public void Map_NonGeminiSpending_DoesNotExposeAggregate()
+    {
+        ProviderStatusDto provider = ProviderWithQuota();
+        provider.Spending = new() { Available = true, EstimatedTotalUsd = 12m };
+
+        Assert.Null(Map(provider).Spending);
     }
 
     private static ProviderStatusSummaryDto Map(ProviderStatusDto provider) =>

@@ -85,13 +85,14 @@
 | `trdizin` | `TrDizinProfiles`, `TrDizinWorks` |
 | `crossref` | `CrossrefWorks` |
 | `semanticscholar` | `SemanticScholarPapers`, `SemanticScholarCitations`, `SemanticScholarCitationContexts` |
-| `analysis` | `ArticleSummaries`, `ResearcherAnalyses` |
+| `analysis` | `ArticleSummaries`, `GeminiUsageAttempts`, `ResearcherAnalyses` |
 | `bulk` | `BulkCollectionBatches`, `BulkCollectionJobs` |
 | `integrations` | `ProviderRequestBudgets`, `ProviderStatusObservations` |
 
 Uygulama tabloları işlevlerine göre bu şemalarda tutulur; `dbo` yalnızca FluentMigrator
-sürüm kaydı gibi migration altyapısı için kalır. `202609110001` migration'ı mevcut tabloları
-veri ve yabancı anahtarları koruyarak yerinde taşır; uygulama veritabanını sıfırlamak gerekmez.
+sürüm kaydı gibi migration altyapısı için kalır. `202609110001` Gemini kullanım tablosunu
+oluşturur; `202609110002` migration'ı 28 uygulama tablosunu veri ve yabancı anahtarları koruyarak
+yerinde taşır; uygulama veritabanını sıfırlamak gerekmez.
 
 ## Bir İstek Ne Yapar?
 
