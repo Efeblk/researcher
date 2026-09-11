@@ -32,7 +32,7 @@ Generation requires both applications and the configured model to be running.
 Retrieval needs only the collector and SQL Server, and still works after a restart.
 Collect fresh provider data separately with the existing `Collect` endpoint.
 
-Each successful generation inserts a new `ResearcherAnalyses` row; older reports are
+Each successful generation inserts a new `analysis.ResearcherAnalyses` row; older reports are
 preserved. The row contains the exact snapshot and complete report, including model,
 prompt version, generation time and coverage. Latest means highest saved report ID.
 Snapshot time is the supplied date or the saved-data capture time; provider metric collection

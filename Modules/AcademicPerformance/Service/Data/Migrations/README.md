@@ -18,6 +18,12 @@ Mevcut sıra:
 | `202608250001` | `Core/202608250001_InitialAcademicSchema.cs` | Temel akademik şema |
 | `202608270001` | `Providers/202608270001_AddGoogleScholar.cs` | Scholar profil ve eser tabloları |
 | `202608280001` | `Providers/202608280001_AddOpenAlexComparison.cs` | Ayrı OpenAlex karşılaştırma tabloları |
+| `202609110001` | `Core/202609110001_GroupTablesBySchema.cs` | Mevcut tabloları sorumluluk şemalarına taşıma |
+
+Son migration uygulama tablolarını `core`, sağlayıcıya özel şemalar, `analysis`,
+`bulk` ve `integrations` altında gruplar. `dbo` yalnızca FluentMigrator sürüm kaydı
+gibi migration altyapısına ayrılmıştır. Taşıma `ALTER SCHEMA TRANSFER` kullandığı için
+mevcut satırları, anahtarları ve indeksleri yeniden oluşturmaz.
 
 ## Yeni Migration Ekleme
 
@@ -31,6 +37,11 @@ için daima daha büyük sürüm numaralı yeni bir migration ekleyin. `Up()` il
 değişikliği, `Down()` ise yabancı anahtar bağımlılıklarını gözeterek güvenli geri
 alma sırasını içermelidir. Aynı değişikliği `AcademicDbContext` modeline de
 yansıtın.
+
+Yeni tablo, indeks, anahtar ve yabancı anahtar migration işlemlerinde hedef tabloya
+uygun `.InSchema("...")` çağrısını ekleyin. `Execute.Sql` içindeki tablo adlarını ve
+yabancı anahtar hedeflerini de şema adıyla açıkça niteleyin; uygulama tabloları için
+varsayılan `dbo` çözümlemesine güvenmeyin.
 
 Geliştirme veritabanında tüm migration zincirini sıfırdan doğrulamak için önce
 sunucuyu durdurun, ardından `dotnet run -- --clean-database` ve `dotnet run`

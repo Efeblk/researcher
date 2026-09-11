@@ -64,7 +64,7 @@ public sealed class AcademicDbContext : DbContext
     {
         modelBuilder.Entity<SemanticScholarPaper>(entity =>
         {
-            entity.ToTable("SemanticScholarPapers"); entity.HasKey(x => x.Id);
+            entity.ToTable("SemanticScholarPapers", "semanticscholar"); entity.HasKey(x => x.Id);
             entity.Property(x => x.NormalizedDoi).HasMaxLength(500); entity.Property(x => x.PaperId).HasMaxLength(100);
             entity.Property(x => x.Title).HasMaxLength(2000); entity.Property(x => x.Venue).HasMaxLength(1000);
             entity.Property(x => x.Url).HasMaxLength(2000); entity.Property(x => x.TextAvailability).HasMaxLength(100);
@@ -74,7 +74,7 @@ public sealed class AcademicDbContext : DbContext
         });
         modelBuilder.Entity<SemanticScholarCitation>(entity =>
         {
-            entity.ToTable("SemanticScholarCitations"); entity.HasKey(x => x.Id);
+            entity.ToTable("SemanticScholarCitations", "semanticscholar"); entity.HasKey(x => x.Id);
             entity.Property(x => x.CitingPaperId).HasMaxLength(100); entity.Property(x => x.CitingDoi).HasMaxLength(500);
             entity.Property(x => x.CitingTitle).HasMaxLength(2000);
             entity.Property(x => x.RefreshGeneration).HasMaxLength(32);
@@ -83,12 +83,12 @@ public sealed class AcademicDbContext : DbContext
         });
         modelBuilder.Entity<SemanticScholarCitationContext>(entity =>
         {
-            entity.ToTable("SemanticScholarCitationContexts"); entity.HasKey(x => x.Id);
+            entity.ToTable("SemanticScholarCitationContexts", "semanticscholar"); entity.HasKey(x => x.Id);
             entity.HasIndex(x => new { x.CitationId, x.Ordinal }).IsUnique();
         });
         modelBuilder.Entity<ArticleSummaries.SavedArticleSummary>(entity =>
         {
-            entity.ToTable("ArticleSummaries"); entity.HasKey(x => x.Id);
+            entity.ToTable("ArticleSummaries", "analysis"); entity.HasKey(x => x.Id);
             entity.Property(x => x.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
             entity.Property(x => x.SourceUrl).HasMaxLength(2000); entity.Property(x => x.SourceHash).HasMaxLength(64);
             entity.Property(x => x.SourceKind).HasMaxLength(20); entity.Property(x => x.ExtractionVersion).HasMaxLength(100);
@@ -98,7 +98,7 @@ public sealed class AcademicDbContext : DbContext
         });
         modelBuilder.Entity<Analysis.SavedResearcherAnalysis>(entity =>
         {
-            entity.ToTable("ResearcherAnalyses");
+            entity.ToTable("ResearcherAnalyses", "analysis");
             entity.HasKey(value => value.Id);
             entity.Property(value => value.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
             entity.HasIndex(value => new { value.PersonelId, value.Id }).IsDescending(false, true);
@@ -107,13 +107,13 @@ public sealed class AcademicDbContext : DbContext
         });
         modelBuilder.Entity<BulkCollectionBatch>(entity =>
         {
-            entity.ToTable("BulkCollectionBatches");
+            entity.ToTable("BulkCollectionBatches", "bulk");
             entity.HasKey(batch => batch.Id);
             entity.Property(batch => batch.InputHash).HasMaxLength(64);
         });
         modelBuilder.Entity<BulkCollectionJob>(entity =>
         {
-            entity.ToTable("BulkCollectionJobs");
+            entity.ToTable("BulkCollectionJobs", "bulk");
             entity.HasKey(job => job.Id);
             entity.Property(job => job.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
             entity.Property(job => job.Status).HasMaxLength(20);
@@ -124,7 +124,7 @@ public sealed class AcademicDbContext : DbContext
 
         modelBuilder.Entity<Researcher>(entity =>
         {
-            entity.ToTable("Researchers");
+            entity.ToTable("Researchers", "core");
             entity.HasKey(researcher => researcher.PersonelId);
             entity.Property(researcher => researcher.PersonelId).HasColumnName("PersonelID").HasMaxLength(200).ValueGeneratedNever();
             entity.Property(researcher => researcher.Orcid).HasColumnName("ORCID").HasMaxLength(19);
@@ -201,7 +201,7 @@ public sealed class AcademicDbContext : DbContext
 
         modelBuilder.Entity<YoksisRecord>(entity =>
         {
-            entity.ToTable("YoksisRecords");
+            entity.ToTable("YoksisRecords", "yoksis");
             entity.HasKey(record => record.Id);
             entity.Property(record => record.CategoryName).HasMaxLength(250);
             entity.Property(record => record.OperationName).HasMaxLength(250);
@@ -217,7 +217,7 @@ public sealed class AcademicDbContext : DbContext
         });
         modelBuilder.Entity<TrDizinProfile>(entity =>
         {
-            entity.ToTable("TrDizinProfiles");
+            entity.ToTable("TrDizinProfiles", "trdizin");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
             entity.Property(x => x.Orcid).HasMaxLength(19);
@@ -230,7 +230,7 @@ public sealed class AcademicDbContext : DbContext
         });
         modelBuilder.Entity<TrDizinWork>(entity =>
         {
-            entity.ToTable("TrDizinWorks");
+            entity.ToTable("TrDizinWorks", "trdizin");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.PublicationId).HasMaxLength(100);
             entity.Property(x => x.Title).HasMaxLength(2000);
@@ -242,7 +242,7 @@ public sealed class AcademicDbContext : DbContext
         });
         modelBuilder.Entity<CrossrefWork>(entity =>
         {
-            entity.ToTable("CrossrefWorks");
+            entity.ToTable("CrossrefWorks", "crossref");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
             entity.Property(x => x.Doi).HasMaxLength(500);
@@ -260,7 +260,7 @@ public sealed class AcademicDbContext : DbContext
 
         modelBuilder.Entity<OrcidProfile>(entity =>
         {
-            entity.ToTable("OrcidProfiles");
+            entity.ToTable("OrcidProfiles", "orcid");
             entity.HasKey(profile => profile.Id);
             entity.Property(profile => profile.DisplayName).HasMaxLength(500);
             entity.Property(profile => profile.GivenNames).HasMaxLength(250);
@@ -282,7 +282,7 @@ public sealed class AcademicDbContext : DbContext
 
         modelBuilder.Entity<OrcidWork>(entity =>
         {
-            entity.ToTable("OrcidWorks");
+            entity.ToTable("OrcidWorks", "orcid");
             entity.HasKey(work => work.Id);
             entity.Property(work => work.Title).HasMaxLength(2000);
             entity.Property(work => work.Subtitle).HasMaxLength(2000);
@@ -303,7 +303,7 @@ public sealed class AcademicDbContext : DbContext
 
         modelBuilder.Entity<GoogleScholarProfile>(entity =>
         {
-            entity.ToTable("GoogleScholarProfiles");
+            entity.ToTable("GoogleScholarProfiles", "googlescholar");
             entity.HasKey(profile => profile.Id);
             entity.Property(profile => profile.DisplayName).HasMaxLength(500);
             entity.Property(profile => profile.Affiliations).HasMaxLength(2000);
@@ -321,7 +321,7 @@ public sealed class AcademicDbContext : DbContext
 
         modelBuilder.Entity<GoogleScholarWork>(entity =>
         {
-            entity.ToTable("GoogleScholarWorks");
+            entity.ToTable("GoogleScholarWorks", "googlescholar");
             entity.HasKey(work => work.Id);
             entity.Property(work => work.CitationId).HasMaxLength(200);
             entity.Property(work => work.Title).HasMaxLength(2000);
@@ -337,7 +337,7 @@ public sealed class AcademicDbContext : DbContext
 
         modelBuilder.Entity<OpenAlexProfile>(entity =>
         {
-            entity.ToTable("OpenAlexProfiles");
+            entity.ToTable("OpenAlexProfiles", "openalex");
             entity.HasKey(profile => profile.Id);
             entity.Property(profile => profile.OpenAlexAuthorId).HasMaxLength(100);
             entity.Property(profile => profile.DisplayName).HasMaxLength(500);
@@ -356,7 +356,7 @@ public sealed class AcademicDbContext : DbContext
 
         modelBuilder.Entity<OpenAlexWork>(entity =>
         {
-            entity.ToTable("OpenAlexWorks");
+            entity.ToTable("OpenAlexWorks", "openalex");
             entity.HasKey(work => work.Id);
             entity.Property(work => work.OpenAlexWorkId).HasMaxLength(100);
             entity.Property(work => work.Title).HasMaxLength(2000);
@@ -375,7 +375,7 @@ public sealed class AcademicDbContext : DbContext
 
         modelBuilder.Entity<WebOfScienceProfile>(entity =>
         {
-            entity.ToTable("WebOfScienceProfiles");
+            entity.ToTable("WebOfScienceProfiles", "wos");
             entity.HasKey(profile => profile.Id);
             entity.Property(profile => profile.DisplayName).HasMaxLength(500);
             entity.Property(profile => profile.FirstName).HasMaxLength(250);
@@ -401,7 +401,7 @@ public sealed class AcademicDbContext : DbContext
 
         modelBuilder.Entity<WebOfScienceWork>(entity =>
         {
-            entity.ToTable("WebOfScienceWorks");
+            entity.ToTable("WebOfScienceWorks", "wos");
             entity.HasKey(work => work.Id);
             entity.Property(work => work.Uid).HasMaxLength(100);
             entity.Property(work => work.Title).HasMaxLength(2000);
@@ -423,7 +423,7 @@ public sealed class AcademicDbContext : DbContext
 
         modelBuilder.Entity<WebOfSciencePeerReview>(entity =>
         {
-            entity.ToTable("WebOfSciencePeerReviews");
+            entity.ToTable("WebOfSciencePeerReviews", "wos");
             entity.HasKey(peerReview => peerReview.Id);
             entity.Property(peerReview => peerReview.Journal).HasMaxLength(2000);
             entity.Property(peerReview => peerReview.Publisher).HasMaxLength(2000);
@@ -436,7 +436,7 @@ public sealed class AcademicDbContext : DbContext
 
         modelBuilder.Entity<AcademicWork>(entity =>
         {
-            entity.ToTable("AcademicWorks");
+            entity.ToTable("AcademicWorks", "core");
             entity.HasKey(work => work.Id);
             entity.Property(work => work.Provider)
                 .HasConversion<string>()
@@ -483,7 +483,7 @@ public sealed class AcademicDbContext : DbContext
 
         modelBuilder.Entity<AcademicWorkSource>(entity =>
         {
-            entity.ToTable("AcademicWorkSources");
+            entity.ToTable("AcademicWorkSources", "core");
             entity.HasKey(source => source.Id);
             entity.Property(source => source.Url).HasMaxLength(2000);
             entity.Property(source => source.Kind).HasMaxLength(20);
@@ -493,7 +493,7 @@ public sealed class AcademicDbContext : DbContext
 
         modelBuilder.Entity<PublicationSummary>(entity =>
         {
-            entity.ToTable("PublicationSummaries");
+            entity.ToTable("PublicationSummaries", "core");
             entity.HasKey(summary => summary.Id);
             entity.Property(summary => summary.Fingerprint).HasMaxLength(64);
             entity.Property(summary => summary.Title).HasMaxLength(2000);
@@ -524,7 +524,7 @@ public sealed class AcademicDbContext : DbContext
 
         modelBuilder.Entity<PublicationDisplayApproval>(entity =>
         {
-            entity.ToTable("PublicationDisplayApprovals");
+            entity.ToTable("PublicationDisplayApprovals", "core");
             entity.HasKey(approval => approval.Id);
             entity.Property(approval => approval.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
             entity.HasIndex(approval => approval.PersonelId);

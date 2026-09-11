@@ -53,7 +53,7 @@ public sealed class ResearcherProviderMetricsTests(SqlServerFixture fixture)
             SELECT OpenAlexCitationCount, OpenAlexHIndex, OpenAlexI10Index,
                    OpenAlexDocumentsCount, OpenAlexTwoYearMeanCitedness,
                    OpenAlexMetricsUpdatedAt
-            FROM Researchers WHERE PersonelID = @personelId;
+            FROM [core].[Researchers] WHERE PersonelID = @personelId;
             """;
         command.Parameters.AddWithValue("@personelId", personelId);
         await using SqlDataReader reader = await command.ExecuteReaderAsync();

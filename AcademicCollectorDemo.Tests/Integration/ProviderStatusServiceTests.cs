@@ -79,7 +79,7 @@ public sealed class ProviderStatusServiceTests(SqlServerFixture fixture)
         {
             await connection.OpenAsync();
             await using var command = connection.CreateCommand();
-            command.CommandText = "INSERT INTO ProviderStatusObservations VALUES (@provider,SYSUTCDATETIME(),DATEADD(minute,5,SYSUTCDATETIME()),'{\"Provider\":\"Orcid\",\"Status\":\"Healthy\"}')";
+            command.CommandText = "INSERT INTO [integrations].[ProviderStatusObservations] VALUES (@provider,SYSUTCDATETIME(),DATEADD(minute,5,SYSUTCDATETIME()),'{\"Provider\":\"Orcid\",\"Status\":\"Healthy\"}')";
             command.Parameters.AddWithValue("@provider", key);
             await command.ExecuteNonQueryAsync();
         }

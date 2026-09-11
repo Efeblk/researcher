@@ -26,14 +26,14 @@
 - [x] Semantic Scholar makale yanıtları, atıf ilişkileri ve bağlamları ayrı sağlayıcı tablolarında
   tutuluyor; yarım kalan yenilemede tamamlanmış eski satırlar korunuyor.
 - [x] SQL ilişkileri normalize DOI ile ortak Semantic Scholar makalesini, hedef makale ile atıf
-  yapan eseri ve atıf ile sıralı bağlamlarını bağlıyor; `AcademicWorkSources` kaynak sağlayıcı
+  yapan eseri ve atıf ile sıralı bağlamlarını bağlıyor; `core.AcademicWorkSources` kaynak sağlayıcı
   atfını koruyor. Bilinmeyen sayaçlar `null` kalıyor; `Found`, `CitationsComplete`,
   `CitationNextOffset`, `CitationsRefreshing` ve `HasPendingWork` sonuç ve tamamlanma durumunu
   açıkça gösteriyor. Üst sınıra ulaşan `CitationsComplete=false` tek başına yeni iş kaldığı anlamına gelmiyor.
 
 ### Özet Veri
 
-- [x] Tekilleştirilmiş yayınlar `PublicationSummaries` tablosunda tutuluyor.
+- [x] Tekilleştirilmiş yayınlar `core.PublicationSummaries` tablosunda tutuluyor.
 - [x] OpenAlex ve TR Dizin yayınları ortak listede kaynak bilgisiyle birleştiriliyor.
 - [x] Crossref çağrısı sonraki bir DOI'de başarısız olsa bile daha önce tamamlanan
   zenginleştirmeler özetlere işleniyor; tekrar denemede önbellek kullanılıyor.
@@ -51,7 +51,7 @@
 
 - [x] **Service / V1 API:** Client bağımsız, Serenity uyumlu toplama ve yayın API'si.
 - [x] **SQL Server:** FluentMigrator migration'ları ve kalıcı veri katmanı.
-- [x] **Sağlayıcı metrikleri:** WoS, OpenAlex ve Scholar metrikleri `Researchers` tablosunda `PersonelID` bazında sorgulanabilir.
+- [x] **Sağlayıcı metrikleri:** WoS, OpenAlex ve Scholar metrikleri `core.Researchers` tablosunda `PersonelID` bazında sorgulanabilir.
 - [x] **Web client:** Profil, yayın listesi ve okulda gösterilecek yayın seçimi.
 - [x] **Akademik metrikler özeti:** Dar ve geniş ekranlarda açılıp kapanabilir görünüm;
   ORCID yayın sayısını, Scholar, WoS ve OpenAlex yayın/atıf/h-indeksi değerlerini ayrı gösterir.
@@ -72,6 +72,27 @@
   kayıtlarını raporluyor. DOI varsa tam normalize DOI, DOI yoksa yalnız tek anlamlı başlık/yıl
   eşleşmesi kullanılıyor; belirsiz eşleşmeler kapsam iddiasına dönüşmüyor.
 
+### SQL Server tablo şemaları
+
+| Şema | Tablolar |
+| --- | --- |
+| `core` | `Researchers`, `AcademicWorks`, `AcademicWorkSources`, `PublicationSummaries`, `PublicationDisplayApprovals` |
+| `orcid` | `OrcidProfiles`, `OrcidWorks` |
+| `googlescholar` | `GoogleScholarProfiles`, `GoogleScholarWorks` |
+| `openalex` | `OpenAlexProfiles`, `OpenAlexWorks` |
+| `wos` | `WebOfScienceProfiles`, `WebOfScienceWorks`, `WebOfSciencePeerReviews` |
+| `yoksis` | `YoksisRecords` |
+| `trdizin` | `TrDizinProfiles`, `TrDizinWorks` |
+| `crossref` | `CrossrefWorks` |
+| `semanticscholar` | `SemanticScholarPapers`, `SemanticScholarCitations`, `SemanticScholarCitationContexts` |
+| `analysis` | `ArticleSummaries`, `ResearcherAnalyses` |
+| `bulk` | `BulkCollectionBatches`, `BulkCollectionJobs` |
+| `integrations` | `ProviderRequestBudgets`, `ProviderStatusObservations` |
+
+Uygulama tabloları işlevlerine göre bu şemalarda tutulur; `dbo` yalnızca FluentMigrator
+sürüm kaydı gibi migration altyapısı için kalır. `202609110001` migration'ı mevcut tabloları
+veri ve yabancı anahtarları koruyarak yerinde taşır; uygulama veritabanını sıfırlamak gerekmez.
+
 ## Bir İstek Ne Yapar?
 
 Bir araştırmacıyı toplamak, aşağıdaki dış çağrıların birden fazlasını yapabilir.
@@ -85,7 +106,7 @@ Bir araştırmacıyı toplamak, aşağıdaki dış çağrıların birden fazlas�
 | YÖKSİS | Kategori listeleri ve desteklenen eser ayrıntıları | 21 liste işlemi; bulunan bazı eserler için ayrıca detay çağrısı |
 | TR Dizin | ORCID ile doğrulanmış yazar ve o yazarın yayın ayrıntıları | 1 yazar + 1 yayın listesi + listedeki her yayın için 1 ayrıntı çağrısı; eksik liste yanıtı başarısız sayılır |
 | Crossref | Mevcut DOI'lerin bibliyografik metaverisi ve atıf sayısı; makale özetinde alternatif kaynak/özet | Önbellekte olmayan her benzersiz DOI için en fazla 1 `/works/{doi}` çağrısı; 404 sonuçları da zaman damgasıyla önbelleğe alınır |
-| Semantic Scholar | Normal Submit ve toplu akışta mevcut `AcademicWorks` DOI'leri için makale metaverisi, açık erişim PDF, TLDR, atıf ve bağlamlar | Önbellekte olmayan DOI için 1 makale çağrısı; atıflar varsayılan 100'lük sayfalarla, makale başına en fazla 500 taranan kayıt ve çalıştırma başına 10 DOI |
+| Semantic Scholar | Normal Submit ve toplu akışta mevcut `core.AcademicWorks` DOI'leri için makale metaverisi, açık erişim PDF, TLDR, atıf ve bağlamlar | Önbellekte olmayan DOI için 1 makale çağrısı; atıflar varsayılan 100'lük sayfalarla, makale başına en fazla 500 taranan kayıt ve çalıştırma başına 10 DOI |
 | Gemini | Makale kaynağından yapılandırılmış özet ve her iddia için ayrı kanıt doğrulaması | En az 1 özet + doğrulama çağrısı; bağlam sınırında parça ve doğrulama grubu sayısına göre ek çağrı olabilir |
 | Yerel Ollama | `/api/chat` ile araştırmacı snapshot analizi; ayrıca açıkça seçilirse makale özeti ve iddia doğrulaması | Üretilen rapor başına model çağrısı; makale doğrulamasında ek çağrılar olabilir |
 | Unpaywall | Kayıtlı kaynaklar kullanılamazsa DOI ile açık erişim PDF ve açılış sayfası adayı bulma | Yalnız `Unpaywall:Email` ayarlıysa, DOI metaveri önbelleği kaçırıldığında çağrılır |

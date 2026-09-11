@@ -11,10 +11,11 @@ public sealed class PersonnelKeySchemaTests(SqlServerFixture fixture)
     {
         string[] directTables =
         [
-            "OrcidProfiles", "GoogleScholarProfiles", "OpenAlexProfiles",
-            "WebOfScienceProfiles", "YoksisRecords", "AcademicWorks",
-            "PublicationSummaries", "PublicationDisplayApprovals",
-            "ResearcherAnalyses"
+            "[orcid].[OrcidProfiles]", "[googlescholar].[GoogleScholarProfiles]",
+            "[openalex].[OpenAlexProfiles]", "[wos].[WebOfScienceProfiles]",
+            "[yoksis].[YoksisRecords]", "[core].[AcademicWorks]",
+            "[core].[PublicationSummaries]", "[core].[PublicationDisplayApprovals]",
+            "[analysis].[ResearcherAnalyses]"
         ];
 
         await using SqlConnection connection = new(fixture.ConnectionString);
@@ -29,7 +30,7 @@ public sealed class PersonnelKeySchemaTests(SqlServerFixture fixture)
                     AND ic.index_id = kc.unique_index_id
                 JOIN sys.columns c ON c.object_id = ic.object_id
                     AND c.column_id = ic.column_id
-                WHERE kc.parent_object_id = OBJECT_ID('Researchers')
+                WHERE kc.parent_object_id = OBJECT_ID('[core].[Researchers]')
                     AND kc.type = 'PK';
                 """;
             Assert.Equal("PersonelID", (string?)await primaryKey.ExecuteScalarAsync());
@@ -40,7 +41,7 @@ public sealed class PersonnelKeySchemaTests(SqlServerFixture fixture)
             tcKimlikNo.CommandText = """
                 SELECT COUNT(*)
                 FROM sys.columns c
-                WHERE c.object_id = OBJECT_ID('Researchers')
+                WHERE c.object_id = OBJECT_ID('[core].[Researchers]')
                     AND c.name = 'TcKimlikNo'
                     AND TYPE_NAME(c.user_type_id) = 'nvarchar'
                     AND c.max_length = 22
@@ -67,7 +68,7 @@ public sealed class PersonnelKeySchemaTests(SqlServerFixture fixture)
                 JOIN sys.columns referenced_column ON referenced_column.object_id = fkc.referenced_object_id
                     AND referenced_column.column_id = fkc.referenced_column_id
                 WHERE fkc.parent_object_id = OBJECT_ID(@table)
-                    AND fkc.referenced_object_id = OBJECT_ID('Researchers')
+                    AND fkc.referenced_object_id = OBJECT_ID('[core].[Researchers]')
                     AND parent_column.name = 'PersonelID'
                     AND referenced_column.name = 'PersonelID'
                     AND NOT EXISTS (
@@ -85,7 +86,10 @@ public sealed class PersonnelKeySchemaTests(SqlServerFixture fixture)
     {
         await using SqlConnection connection = new(fixture.ConnectionString);
         await connection.OpenAsync();
-        foreach (string table in new[] { "OrcidWorks", "AcademicWorks", "PublicationSummaries" })
+        foreach (string table in new[]
+        {
+            "[orcid].[OrcidWorks]", "[core].[AcademicWorks]", "[core].[PublicationSummaries]"
+        })
         {
             await using SqlCommand command = connection.CreateCommand();
             command.CommandText = """
