@@ -324,3 +324,31 @@ Accept: application/json
 
 # An ORCID collection also checks TR Dizin by exact ORCID. Crossref enriches
 # DOI-bearing works already attributed by another collected source.
+### Kaydedilmiş Semantic Scholar makale, atıf ve bağlam ilişkileri
+POST {{baseUrl}}/Services/AcademicPerformance/V1/ListSemanticScholarPapers
+Content-Type: application/json
+
+{
+  "PersonelID": "demo-personel",
+  "AcademicWorkId": null,
+  "Skip": 0,
+  "Take": 100
+}
+
+### Bir yayının kaydedilmiş atıf ilişkileri (sınırlı sayfalama)
+POST {{baseUrl}}/Services/AcademicPerformance/V1/ListSemanticScholarCitations
+Content-Type: application/json
+
+{
+  "PersonelID": "demo-personel",
+  "AcademicWorkId": 1,
+  "Skip": 0,
+  "Take": 100
+}
+### Daha önce kaydedilmiş yayınların DOI zenginleştirmesini çalıştır
+POST {{baseUrl}}/Services/AcademicPerformance/V1/CollectSemanticScholar
+Content-Type: application/json
+
+{
+  "PersonelID": "demo-personel"
+}

@@ -7,6 +7,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScienc
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Persistence;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.SemanticScholar;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 
@@ -32,6 +33,9 @@ public sealed class AcademicDbContext : DbContext
     public DbSet<TrDizinProfile> TrDizinProfiles { get; set; } = null!;
     public DbSet<TrDizinWork> TrDizinWorks { get; set; } = null!;
     public DbSet<CrossrefWork> CrossrefWorks { get; set; } = null!;
+    public DbSet<SemanticScholarPaper> SemanticScholarPapers { get; set; } = null!;
+    public DbSet<SemanticScholarCitation> SemanticScholarCitations { get; set; } = null!;
+    public DbSet<SemanticScholarCitationContext> SemanticScholarCitationContexts { get; set; } = null!;
     public DbSet<AcademicWork> AcademicWorks { get; set; } = null!;
     public DbSet<AcademicWorkSource> AcademicWorkSources { get; set; } = null!;
     public DbSet<PublicationSummary> PublicationSummaries { get; set; } = null!;
@@ -58,6 +62,30 @@ public sealed class AcademicDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<SemanticScholarPaper>(entity =>
+        {
+            entity.ToTable("SemanticScholarPapers"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.NormalizedDoi).HasMaxLength(500); entity.Property(x => x.PaperId).HasMaxLength(100);
+            entity.Property(x => x.Title).HasMaxLength(2000); entity.Property(x => x.Venue).HasMaxLength(1000);
+            entity.Property(x => x.Url).HasMaxLength(2000); entity.Property(x => x.TextAvailability).HasMaxLength(100);
+            entity.Property(x => x.RefreshGeneration).HasMaxLength(32);
+            entity.HasIndex(x => x.NormalizedDoi).IsUnique(); entity.HasIndex(x => x.PaperId).IsUnique().HasFilter("[PaperId] IS NOT NULL");
+            entity.HasMany(x => x.Citations).WithOne(x => x.TargetPaper).HasForeignKey(x => x.TargetPaperId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<SemanticScholarCitation>(entity =>
+        {
+            entity.ToTable("SemanticScholarCitations"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.CitingPaperId).HasMaxLength(100); entity.Property(x => x.CitingDoi).HasMaxLength(500);
+            entity.Property(x => x.CitingTitle).HasMaxLength(2000);
+            entity.Property(x => x.RefreshGeneration).HasMaxLength(32);
+            entity.HasIndex(x => new { x.TargetPaperId, x.CitingPaperId }).IsUnique();
+            entity.HasMany(x => x.Contexts).WithOne(x => x.Citation).HasForeignKey(x => x.CitationId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<SemanticScholarCitationContext>(entity =>
+        {
+            entity.ToTable("SemanticScholarCitationContexts"); entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.CitationId, x.Ordinal }).IsUnique();
+        });
         modelBuilder.Entity<ArticleSummaries.SavedArticleSummary>(entity =>
         {
             entity.ToTable("ArticleSummaries"); entity.HasKey(x => x.Id);

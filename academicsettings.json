@@ -37,6 +37,7 @@
   },
   "TrDizin": { "ApiBaseUrl": "https://search.trdizin.gov.tr" },
   "Crossref": { "ApiBaseUrl": "https://api.crossref.org", "Mailto": "", "CacheMaxAgeHours": 720 },
+  "SemanticScholar": { "ApiBaseUrl": "https://api.semanticscholar.org/graph/v1", "ApiKey": "", "CitationPageSize": 100, "MaximumCitationsPerPaper": 500, "MaximumPapersPerRun": 10, "CacheMaxAgeHours": 720 },
   "ProviderCache": {
     "MaxAgeHours": 24
   },
@@ -80,6 +81,7 @@
       "DailyRequestLimit": 0
     },
     "TrDizin": { "Enabled": true, "MinimumIntervalMilliseconds": 1000, "DailyRequestLimit": 0 },
-    "Crossref": { "Enabled": true, "MinimumIntervalMilliseconds": 200, "DailyRequestLimit": 0 }
+    "Crossref": { "Enabled": true, "MinimumIntervalMilliseconds": 200, "DailyRequestLimit": 0 },
+    "SemanticScholar": { "Enabled": true, "MinimumIntervalMilliseconds": 1000, "DailyRequestLimit": 0 }
   }
 }
