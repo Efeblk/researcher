@@ -30,6 +30,7 @@ public sealed class OpenAlexAcademicWorkPersistenceTests(SqlServerFixture fixtur
         first.Sources.Add(new AcademicWorkSource
         { Url = "https://legacy.test/CaseSensitive.pdf", Kind = "Pdf", Origin = "Legacy.OpenAccessUrl" });
         await db.SaveChangesAsync();
+        researcher.OpenAlexProfile!.Works![0].RawDataJson = "{\"id\":\"W1\"}";
         await synchronizer.SyncAsync(researcher);
 
         AcademicWork work = await db.AcademicWorks.Include(item => item.Sources).SingleAsync(item =>
@@ -42,6 +43,7 @@ public sealed class OpenAlexAcademicWorkPersistenceTests(SqlServerFixture fixtur
         Assert.Equal(9, work.CitedByCount);
         Assert.Equal("Synthetic Journal", work.Publication);
         Assert.Equal("Ada Example", work.Authors);
+        Assert.Equal("Stored payload abstract.", work.Abstract);
         Assert.Equal("https://example.test/work.pdf", work.FullTextUrl);
         Assert.Contains(work.Sources, source => source.Url == "https://example.test/work.pdf");
         Assert.Contains(work.Sources, source => source.Url == "https://legacy.test/CaseSensitive.pdf");
@@ -126,7 +128,7 @@ public sealed class OpenAlexAcademicWorkPersistenceTests(SqlServerFixture fixtur
                         SourceName = "Synthetic Journal",
                         Url = "https://example.test/work",
                         OpenAccessUrl = "https://example.test/work.pdf",
-                        RawDataJson = "{\"id\":\"W1\"}"
+                        RawDataJson = "{\"id\":\"W1\",\"abstract_inverted_index\":{\"Stored\":[0],\"payload\":[1],\"abstract.\":[2]}}"
                     }
                 ]
             }

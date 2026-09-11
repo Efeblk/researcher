@@ -39,6 +39,20 @@ public sealed class SafeArticleFetchPipelineTests
         Assert.Equal("https://example.org/second.pdf", result.FinalUri.AbsoluteUri);
     }
 
+    [Fact]
+    public async Task FetchSourceAsync_PdfCandidatesFail_ReturnsOriginalHtml()
+    {
+        Queue<HttpResponseMessage> responses = new([
+            Response(HttpStatusCode.OK, "text/html", "<article><a href='/paper.pdf'>PDF</a></article>"),
+            Response(HttpStatusCode.Forbidden, "text/plain", "denied")]);
+        SafeArticleFetcher fetcher = Create(responses, 1024);
+
+        FetchedArticleSource result = await fetcher.FetchSourceAsync(new Uri("https://example.org/article"), default);
+
+        Assert.Equal("text/html", result.MediaType);
+        Assert.Equal("https://example.org/article", result.FinalUri.AbsoluteUri);
+    }
+
     [Theory]
     [InlineData("/paper.pdf", "https://example.org/paper.pdf")]
     [InlineData("paper.pdf", "https://example.org/articles/paper.pdf")]

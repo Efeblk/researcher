@@ -47,6 +47,7 @@ public sealed record ArticleSummaryReport(string Language, string SourceKind, st
     ArticleCoverage Coverage, ArticleSummarySections Sections, string Model, string PromptVersion)
 {
     public ArticleVerificationMetadata? Verification { get; init; }
+    public string? ExtractionMethod { get; init; }
 }
 
 public static class ArticleSourceCatalog
@@ -70,12 +71,13 @@ public static class ArticleSourceCatalog
 
     public static bool IsValid(IReadOnlyList<ArticlePage> pages, IReadOnlyList<ArticleSourceSpan>? spans, string sourceKind)
     {
+        if (sourceKind is not ("pdf" or "html" or "abstract")) return false;
         if (spans is null || spans.Count == 0 || spans.Any(x => x is null) ||
             spans.Select(x => x.SourceId).Distinct(StringComparer.Ordinal).Count() != spans.Count)
             return false;
         if (sourceKind == "pdf" && (pages.Any(x => x.PageNumber is null or <= 0) ||
             pages.Select(x => x.PageNumber).Distinct().Count() != pages.Count)) return false;
-        if (sourceKind == "abstract" && (pages.Count != 1 || pages.Any(x => x.PageNumber is not null))) return false;
+        if (sourceKind is "abstract" or "html" && (pages.Count != 1 || pages.Any(x => x.PageNumber is not null))) return false;
         foreach (ArticleSourceSpan span in spans)
         {
             int pageIndex = FindPageIndex(pages, span);
@@ -116,7 +118,7 @@ public static class ArticleEvidenceMatcher
     public static bool IsMatch(IReadOnlyList<ArticlePage> pages, ArticleEvidence evidence, string sourceKind,
         IReadOnlyList<ArticleSourceSpan>? spans = null)
     {
-        if (evidence is null || evidence.Quote is null || sourceKind == "abstract" && evidence.PageNumber is not null) return false;
+        if (evidence is null || evidence.Quote is null || sourceKind is "abstract" or "html" && evidence.PageNumber is not null) return false;
         if (evidence.SourceId is not null)
         {
             ArticleSourceSpan? span = spans?.SingleOrDefault(x => x.SourceId == evidence.SourceId);

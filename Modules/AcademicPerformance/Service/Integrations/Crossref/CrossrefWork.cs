@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref;
 
 public sealed class CrossrefWork
@@ -15,5 +17,7 @@ public sealed class CrossrefWork
     public DateTime? PublicationDate { get; set; } = null;
     public int? CitedByCount { get; set; } = null;
     public string? Url { get; set; } = null;
+    [NotMapped]
+    public string? Abstract { get; set; } = null;
     public string? RawDataJson { get; set; } = null;
 }

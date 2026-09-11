@@ -22,3 +22,10 @@ Content-Type: application/json
 {
   "PersonelID": "{{personelId}}"
 }
+### Read source coverage without invoking the analysis model
+POST {{host}}/Services/AcademicPerformance/V1/GetResearcherSourceCoverage
+Content-Type: application/json
+
+{
+  "PersonelID": "{{personelId}}"
+}

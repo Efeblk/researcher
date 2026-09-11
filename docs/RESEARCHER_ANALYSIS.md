@@ -19,6 +19,7 @@ Use the requests in [AcademicPerformance.http](../Requests/AcademicPerformance.h
 | --- | --- |
 | `POST /Services/AcademicPerformance/V1/AnalyzeResearcher` | Load saved data, create a snapshot, call the AI service, and save a new report. |
 | `POST /Services/AcademicPerformance/V1/GetResearcherAnalysis` | Return the latest saved report without calling the AI service or providers. |
+| `POST /Services/AcademicPerformance/V1/GetResearcherSourceCoverage` | Return current saved evidence availability without calling the AI service or providers. |
 
 Generation accepts `{ "PersonelID": "00123-A", "snapshotAt": "2026-09-08T00:00:00Z" }`.
 Retrieval accepts `{ "PersonelID": "00123-A" }`.
@@ -52,7 +53,13 @@ total count includes all saved summaries, while findings and activity describe o
 the selected sample. Titles and whole abstracts/keywords must fit the UTF-8 byte
 budget; oversized fields are omitted, never silently truncated. An abstract is attached
 only through an unambiguous DOI or exact title/year match to a saved normalized work.
-Coverage reports the selected count and available abstract count. The AI service may
+`SourceCoverage` reports unique publication totals, saved validated PDF/OCR/HTML summaries,
+abstract-only and metadata-only records, partial full text, exclusions, and the publications and
+abstracts actually submitted to the researcher model. Available full text is distinct from model
+input: researcher analysis currently sends titles, abstracts, and keywords, so it does not claim
+that saved article full text was analyzed. Evidence availability matches publication summaries to
+academic works by exact normalized DOI; publications without a DOI are conservatively classified
+as metadata-only even when a title-only association may exist. Coverage reports the selected count and available abstract count. The AI service may
 still reject input exceeding its own model context limit; tune the collector limits
 alongside that context. Turkish model output still needs quality review.
 

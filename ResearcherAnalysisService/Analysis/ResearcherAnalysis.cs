@@ -39,7 +39,8 @@ public sealed class ResearcherAnalysis(IResearcherReportGenerator generator)
             CitationMetrics = request.CitationMetrics,
             Coverage = new EvidenceCoverage(request.SnapshotAt, request.TotalPublicationCount,
                 request.Publications.Count, request.Publications.Count(publication => !string.IsNullOrWhiteSpace(publication.Abstract)),
-                request.Publications.Count(publication => !publication.Year.HasValue), isPartial, limitations)
+                request.Publications.Count(publication => !publication.Year.HasValue), isPartial, limitations),
+            SourceCoverage = request.SourceCoverage
         };
     }
 

@@ -32,9 +32,12 @@ public sealed class ResearcherAnalysisWorkflow(
                 .Select(value => new Works.Models.AcademicWork
                 {
                     Id = value.Id, Title = value.Title, Doi = value.Doi,
-                    PublicationYear = value.PublicationYear, Abstract = value.Abstract, Keywords = value.Keywords
+                    PublicationYear = value.PublicationYear, Abstract = value.Abstract, Keywords = value.Keywords,
+                    FullTextUrl = value.FullTextUrl, Sources = value.Sources.ToList()
                 }).ToListAsync(cancellationToken);
-            snapshot = ResearcherSnapshotBuilder.Build(researcher, summaries, works, options.Value);
+            var articleSummaries = await database.ArticleSummaries.AsNoTracking()
+                .Where(value => value.PersonelId == personelId).ToListAsync(cancellationToken);
+            snapshot = ResearcherSnapshotBuilder.Build(researcher, summaries, works, options.Value, articleSummaries);
             snapshot.SnapshotAt = snapshotAt?.ToUniversalTime() ?? snapshot.SnapshotAt;
             await transaction.CommitAsync(cancellationToken);
         }
@@ -42,6 +45,7 @@ public sealed class ResearcherAnalysisWorkflow(
             throw new AnalysisInputUnavailableException();
 
         ResearcherAnalysisReport report = await client.AnalyzeAsync(snapshot, cancellationToken);
+        report.SourceCoverage = snapshot.SourceCoverage;
         SavedResearcherAnalysis saved = new()
         {
             PersonelId = personelId,
@@ -51,7 +55,7 @@ public sealed class ResearcherAnalysisWorkflow(
         };
         database.ResearcherAnalyses.Add(saved);
         await database.SaveChangesAsync(cancellationToken);
-        return new(saved.Id, saved.SavedAt, report);
+        return new(saved.Id, saved.SavedAt, report, snapshot.SourceCoverage!);
     }
 
     public async Task<SavedResearcherAnalysisResponse?> GetLatestAsync(string personelId, CancellationToken cancellationToken)
@@ -59,7 +63,22 @@ public sealed class ResearcherAnalysisWorkflow(
         SavedResearcherAnalysis? saved = await database.ResearcherAnalyses.AsNoTracking()
             .Where(value => value.PersonelId == personelId)
             .OrderByDescending(value => value.Id).FirstOrDefaultAsync(cancellationToken);
-        return saved is null ? null : new(saved.Id, saved.SavedAt,
-            JsonSerializer.Deserialize<ResearcherAnalysisReport>(saved.ReportJson, JsonOptions)!);
+        if (saved is null) return null;
+        ResearcherAnalysisReport report = JsonSerializer.Deserialize<ResearcherAnalysisReport>(saved.ReportJson, JsonOptions)!;
+        AnalyzeResearcherRequest? snapshot = JsonSerializer.Deserialize<AnalyzeResearcherRequest>(saved.SnapshotJson, JsonOptions);
+        return new(saved.Id, saved.SavedAt, report, snapshot?.SourceCoverage ?? report.SourceCoverage);
+    }
+
+    public async Task<ResearcherSourceCoverage?> GetCoverageAsync(string personelId, CancellationToken cancellationToken)
+    {
+        bool exists = await database.Researchers.AsNoTracking().AnyAsync(value => value.PersonelId == personelId, cancellationToken);
+        if (!exists) return null;
+        List<Works.Models.PublicationSummary> summaries = await database.PublicationSummaries.AsNoTracking()
+            .Where(value => value.PersonelId == personelId).ToListAsync(cancellationToken);
+        List<Works.Models.AcademicWork> works = await database.AcademicWorks.AsNoTracking().Include(value => value.Sources)
+            .Where(value => value.PersonelId == personelId).ToListAsync(cancellationToken);
+        List<ArticleSummaries.SavedArticleSummary> saved = await database.ArticleSummaries.AsNoTracking()
+            .Where(value => value.PersonelId == personelId).ToListAsync(cancellationToken);
+        return ResearcherSnapshotBuilder.BuildCoverage(summaries, works, saved, []);
     }
 }

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AcademicCollector.Analysis.Contracts;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Analysis;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
 using Microsoft.AspNetCore.Mvc;
@@ -50,5 +51,16 @@ public sealed class ResearcherAnalysisEndpoint : ServiceEndpoint
             return BadRequest(new { Message = "PersonelID is required." });
         SavedResearcherAnalysisResponse? result = await workflow.GetLatestAsync(request.PersonelId.Trim(), cancellationToken);
         return result is null ? NotFound(new { Message = "No saved analysis exists for this researcher." }) : Ok(result);
+    }
+
+    [HttpPost]
+    public async Task<ActionResult<ResearcherSourceCoverage>> GetResearcherSourceCoverage(
+        [FromBody] ResearcherAnalysisIdRequest? request,
+        [FromServices] ResearcherAnalysisWorkflow workflow, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid || request is null || string.IsNullOrWhiteSpace(request.PersonelId))
+            return BadRequest(new { Message = "PersonelID is required." });
+        ResearcherSourceCoverage? result = await workflow.GetCoverageAsync(request.PersonelId.Trim(), cancellationToken);
+        return result is null ? NotFound(new { Message = "Researcher not found." }) : Ok(result);
     }
 }

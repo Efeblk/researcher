@@ -31,7 +31,9 @@ public sealed class ArticleSummaryEndpointTests(SqlServerFixture fixture)
         AcademicWork work = new()
         {
             PersonelId = owner.PersonelId, ProviderWorkId = Guid.NewGuid().ToString("N"),
-            Abstract = "This synthetic\r\nabstract\tdescribes\u00a0a controlled study and its measured finding.", SyncedAt = DateTime.UtcNow
+            Provider = AcademicWorkProvider.OpenAlex,
+            ProviderPayload = "{\"abstract_inverted_index\":{\"This\":[0],\"synthetic\":[1],\"abstract\":[2],\"describes\":[3],\"a\":[4],\"controlled\":[5],\"study\":[6],\"and\":[7],\"its\":[8],\"measured\":[9],\"finding.\":[10]}}",
+            SyncedAt = DateTime.UtcNow
         };
         database.AcademicWorks.Add(work);
         await database.SaveChangesAsync();
@@ -84,6 +86,7 @@ public sealed class ArticleSummaryEndpointTests(SqlServerFixture fixture)
         SavedArticleSummaryResponse roundTrip = (await retrieved.Content.ReadFromJsonAsync<SavedArticleSummaryResponse>())!;
         Assert.Equal("automatically_checked", roundTrip.Report.Verification!.Status);
         Assert.Equal(1, roundTrip.Report.Coverage.SupportedClaims);
+        Assert.Contains("controlled study", (await database.AcademicWorks.AsNoTracking().SingleAsync(x => x.Id == work.Id)).Abstract);
         database.AcademicWorks.Remove(work);
         await database.SaveChangesAsync();
         Assert.Null((await database.ArticleSummaries.SingleAsync(x => x.PersonelId == owner.PersonelId)).AcademicWorkId);

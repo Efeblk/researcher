@@ -11,8 +11,25 @@
     "MaximumDownloadBytes": 12582912,
     "MaximumPages": 40,
     "MaximumExtractedCharacters": 160000,
+    "MaximumHtmlCharacters": 160000,
     "FetchTimeoutSeconds": 30,
-    "TotalTimeoutSeconds": 600
+    "TotalTimeoutSeconds": 600,
+    "OcrEnabled": true,
+    "MaximumOcrPages": 12,
+    "OcrDpi": 220,
+    "OcrPageTimeoutSeconds": 20,
+    "OcrTotalTimeoutSeconds": 180,
+    "MaximumOcrImageBytes": 20971520,
+    "MaximumOcrPixels": 40000000,
+    "MaximumOcrDimensionPixels": 10000,
+    "TesseractPath": "tesseract"
+  },
+  "ArticleMetadataEnrichment": {
+    "PositiveCacheMinutes": 1440,
+    "NegativeCacheMinutes": 60,
+    "RequestTimeoutSeconds": 20,
+    "MaximumResponseBytes": 2097152,
+    "MaximumCandidates": 8
   },
   "Orcid": {
     "ApiBaseUrl": "https://pub.orcid.org/v3.0"
@@ -23,6 +40,7 @@
   },
   "OpenAlex": {
     "ApiBaseUrl": "https://api.openalex.org",
+    "ApiKey": "",
     "MaximumPages": 100
   },
   "WebOfScience": {
@@ -37,6 +55,7 @@
   },
   "TrDizin": { "ApiBaseUrl": "https://search.trdizin.gov.tr" },
   "Crossref": { "ApiBaseUrl": "https://api.crossref.org", "Mailto": "", "CacheMaxAgeHours": 720 },
+  "Unpaywall": { "ApiBaseUrl": "https://api.unpaywall.org", "Email": "" },
   "SemanticScholar": { "ApiBaseUrl": "https://api.semanticscholar.org/graph/v1", "ApiKey": "", "CitationPageSize": 100, "MaximumCitationsPerPaper": 500, "MaximumPapersPerRun": 10, "CacheMaxAgeHours": 720 },
   "ProviderCache": {
     "MaxAgeHours": 24

@@ -1,5 +1,6 @@
 using AcademicCollector.Analysis.Contracts;
 using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Http;
 using ResearcherAnalysisService.Analysis;
 using ResearcherAnalysisService.Configuration;
 
@@ -130,6 +131,37 @@ public sealed class ArticleSummarizerTests
         var incomplete = complete.Skip(1).ToList();
         Assert.NotEmpty(incomplete);
         Assert.False(ArticleSourceCatalog.IsValid(pages, incomplete, "pdf"));
+    }
+
+    [Fact]
+    public async Task SummarizeAsync_HtmlSource_AcceptsNullPageAndReportsExtractionMethod()
+    {
+        IReadOnlyList<ArticlePage> pages = [new(null, "HTML article body with a supported result.")];
+        SummarizeArticleRequest request = new("en", "html", "hash", "html-v1", pages, 1, false, null)
+            { SourceSpans = ArticleSourceCatalog.Create(pages) };
+        string id = request.SourceSpans.Single().SourceId;
+
+        ArticleSummaryReport report = await Create(
+            new FixedGenerator(new([new("c1", "Supported result.", [id])], [], [], [], [])),
+            new FixedVerifier("supported", "Directly stated.")).SummarizeAsync(request, default);
+
+        Assert.Equal("html", report.ExtractionMethod);
+        Assert.Null(Assert.Single(Assert.Single(report.Sections.Purpose).Evidence).PageNumber);
+    }
+
+    [Theory]
+    [InlineData("html", 1)]
+    [InlineData("abstract", 1)]
+    [InlineData("unknown", null)]
+    public async Task SummarizeAsync_InvalidSourceKindOrFakePageNumber_Rejects(string sourceKind, int? pageNumber)
+    {
+        IReadOnlyList<ArticlePage> pages = [new(pageNumber, "Source text")];
+        SummarizeArticleRequest request = new("en", sourceKind, "hash", "v1", pages, 1, false, null)
+            { SourceSpans = ArticleSourceCatalog.Create(pages) };
+
+        await Assert.ThrowsAsync<BadHttpRequestException>(() => Create(
+            new FixedGenerator(new([], [], [], [], [])), new FixedVerifier("supported", "ok"))
+            .SummarizeAsync(request, default));
     }
 
     private static SummarizeArticleRequest Request(string text)

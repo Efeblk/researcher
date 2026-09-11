@@ -1,5 +1,8 @@
 using System.Globalization;
 using System.Text.Json;
+using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries.Enrichment;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using Microsoft.Extensions.Configuration;
 
@@ -8,6 +11,7 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAle
 public sealed class OpenAlexClient
 {
     private const int DefaultMaximumPages = 100;
+    private const long DefaultMaximumResponseBytes = 4L * 1024 * 1024;
 
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
@@ -27,8 +31,7 @@ public sealed class OpenAlexClient
             throw new ArgumentException("OpenAlex sorgusu için ORCID gereklidir.");
         }
 
-        string apiBaseUrl = (_configuration["OpenAlex:ApiBaseUrl"]
-            ?? "https://api.openalex.org").TrimEnd('/');
+        string apiBaseUrl = GetApiBaseUrl();
         string orcid = researcher.Orcid.Trim();
 
         using JsonDocument authorResponse = await GetJsonAsync(
@@ -80,6 +83,37 @@ public sealed class OpenAlexClient
         researcher.OpenAlexProfile = profile;
     }
 
+    public async Task<OpenAlexWork?> GetWorkByDoiAsync(
+        string doi,
+        CancellationToken cancellationToken = default)
+    {
+        string normalizedDoi = CrossrefClient.NormalizeDoi(doi);
+        if (string.IsNullOrWhiteSpace(normalizedDoi))
+        {
+            throw new ArgumentException("A DOI is required.", nameof(doi));
+        }
+
+        string apiBaseUrl = GetApiBaseUrl();
+        using JsonDocument response = await GetJsonAsync(AppendApiKey(
+            $"{apiBaseUrl}/works?filter=doi:{Uri.EscapeDataString(normalizedDoi)}&per_page=1"),
+            cancellationToken);
+        ThrowIfApiError(response.RootElement, "OpenAlex work could not be retrieved.");
+        JsonElement results = GetProperty(response.RootElement, "results");
+        if (results.ValueKind != JsonValueKind.Array || results.GetArrayLength() == 0)
+        {
+            return null;
+        }
+
+        JsonElement result = results[0];
+        string returnedDoi = CrossrefClient.NormalizeDoi(GetString(result, "doi"));
+        if (!returnedDoi.Equals(normalizedDoi, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("OpenAlex returned metadata for a different DOI.");
+        }
+
+        return CreateWork(result);
+    }
+
     private static JsonElement SelectBestAuthor(JsonElement root)
     {
         JsonElement results = GetProperty(root, "results");
@@ -114,10 +148,17 @@ public sealed class OpenAlexClient
             "ORCID ile eşleşen OpenAlex yazarı bulunamadı.");
     }
 
-    private async Task<JsonDocument> GetJsonAsync(string url)
+    private async Task<JsonDocument> GetJsonAsync(
+        string url,
+        CancellationToken cancellationToken = default)
     {
-        using HttpResponseMessage response = await _httpClient.GetAsync(url);
-        string content = await response.Content.ReadAsStringAsync();
+        using HttpRequestMessage request = new(HttpMethod.Get, url);
+        request.Headers.Accept.ParseAdd("application/json");
+        request.Options.Set(ProviderRateLimitHandler.ResponseBufferLimit, GetMaximumResponseBytes());
+        using HttpResponseMessage response = await _httpClient.SendAsync(
+            request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        await response.Content.LoadIntoBufferAsync(GetMaximumResponseBytes(), cancellationToken);
+        string content = await response.Content.ReadAsStringAsync(cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -190,29 +231,34 @@ public sealed class OpenAlexClient
                 continue;
             }
 
-            JsonElement primaryLocation = GetObject(result, "primary_location");
-            JsonElement bestOpenAccessLocation = GetObject(
-                result,
-                "best_oa_location");
-            JsonElement source = GetObject(primaryLocation, "source");
-
-            works.Add(new OpenAlexWork
-            {
-                OpenAlexWorkId = workId,
-                Title = GetString(result, "display_name"),
-                PublicationYear = GetInteger(result, "publication_year"),
-                PublicationDate = GetDate(result, "publication_date"),
-                Doi = GetString(result, "doi"),
-                WorkType = GetString(result, "type"),
-                CitedByCount = GetInteger(result, "cited_by_count") ?? 0,
-                Authors = CreateAuthors(result),
-                SourceName = GetString(source, "display_name"),
-                Url = GetString(primaryLocation, "landing_page_url") ?? workId,
-                OpenAccessUrl = GetString(bestOpenAccessLocation, "pdf_url") ??
-                    GetString(bestOpenAccessLocation, "landing_page_url"),
-                RawDataJson = result.GetRawText()
-            });
+            works.Add(CreateWork(result));
         }
+    }
+
+    private static OpenAlexWork CreateWork(JsonElement result)
+    {
+        JsonElement primaryLocation = GetObject(result, "primary_location");
+        JsonElement bestOpenAccessLocation = GetObject(result, "best_oa_location");
+        JsonElement source = GetObject(primaryLocation, "source");
+        string raw = result.GetRawText();
+
+        return new OpenAlexWork
+        {
+            OpenAlexWorkId = GetString(result, "id") ?? string.Empty,
+            Title = GetString(result, "display_name"),
+            PublicationYear = GetInteger(result, "publication_year"),
+            PublicationDate = GetDate(result, "publication_date"),
+            Doi = GetString(result, "doi"),
+            WorkType = GetString(result, "type"),
+            CitedByCount = GetInteger(result, "cited_by_count") ?? 0,
+            Authors = CreateAuthors(result),
+            SourceName = GetString(source, "display_name"),
+            Url = GetString(primaryLocation, "landing_page_url") ?? GetString(result, "id"),
+            OpenAccessUrl = GetString(bestOpenAccessLocation, "pdf_url") ??
+                GetString(bestOpenAccessLocation, "landing_page_url"),
+            Abstract = ArticleAbstractReader.FromPayload(raw, "OpenAlex"),
+            RawDataJson = raw
+        };
     }
 
     private static string? CreateAuthors(JsonElement work)
@@ -260,6 +306,30 @@ public sealed class OpenAlexClient
             maximumPages > 0
                 ? maximumPages
                 : DefaultMaximumPages;
+    }
+
+    private long GetMaximumResponseBytes()
+    {
+        return long.TryParse(
+                _configuration["ArticleMetadataEnrichment:MaximumResponseBytes"],
+                out long maximumResponseBytes) &&
+            maximumResponseBytes is >= 1024 and <= 16L * 1024 * 1024
+                ? maximumResponseBytes
+                : DefaultMaximumResponseBytes;
+    }
+
+    private string GetApiBaseUrl()
+    {
+        string value = _configuration["OpenAlex:ApiBaseUrl"] ?? "https://api.openalex.org";
+        if (!Uri.TryCreate(value, UriKind.Absolute, out Uri? uri) ||
+            uri.Scheme != Uri.UriSchemeHttps && !(uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback) ||
+            !string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Query) ||
+            !string.IsNullOrEmpty(uri.Fragment))
+        {
+            throw new InvalidOperationException("OpenAlex:ApiBaseUrl must use HTTPS or loopback HTTP.");
+        }
+
+        return value.TrimEnd('/');
     }
 
     private static string GetShortOpenAlexId(string id)
