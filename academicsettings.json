@@ -101,6 +101,7 @@
     },
     "TrDizin": { "Enabled": true, "MinimumIntervalMilliseconds": 1000, "DailyRequestLimit": 0 },
     "Crossref": { "Enabled": true, "MinimumIntervalMilliseconds": 200, "DailyRequestLimit": 0 },
+    "Unpaywall": { "Enabled": true, "MinimumIntervalMilliseconds": 1000, "DailyRequestLimit": 0 },
     "SemanticScholar": { "Enabled": true, "MinimumIntervalMilliseconds": 1000, "DailyRequestLimit": 0 }
   }
 }

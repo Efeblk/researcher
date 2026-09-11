@@ -8,6 +8,8 @@ The collector's `Service/Analysis/` builds those snapshots and saves reports in 
 The ID-only `AnalyzeResearcher` and `GetResearcherAnalysis` endpoints generate/save and retrieve
 reports respectively. Both applications reference the DTO library `ResearcherAnalysis.Contracts/`.
 See [Researcher analysis](RESEARCHER_ANALYSIS.md) for its contract, setup, and current integration boundary.
+See [Provider status](PROVIDER_STATUS.md) for compact health and verified quota reporting, including
+the collector-to-analysis-service Gemini check.
 
 ## Start with these files
 

@@ -76,7 +76,8 @@ public static class ProviderStatusSummaryMapper
     private static bool HasVerifiedProviderScope(string provider, ProviderQuotaDto quota)
     {
         bool recognizedAnonymousScope = provider == "OpenAlex" && quota.Scope == "anonymous";
-        if ((quota.Scope is not ("account" or "api-key") && !recognizedAnonymousScope) ||
+        bool recognizedRequestPool = provider == "Crossref" && quota.Scope == "request-pool";
+        if (quota.Scope is not ("account" or "api-key") && !recognizedAnonymousScope && !recognizedRequestPool ||
             quota.ValueKind is not ("ProviderReported" or "DerivedFromProviderValues"))
             return false;
         if (quota.Source == "AccountApi")
@@ -88,7 +89,9 @@ public static class ProviderStatusSummaryMapper
                     "X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset") ||
             (provider == "WebOfScience" && quota.Scope == "api-key" &&
                 quota.SourceFields is "X-RateLimit-Limit-Day,X-RateLimit-Remaining-Day" or
-                    "X-RateLimit-Limit-Second,X-RateLimit-Remaining-Second");
+                    "X-RateLimit-Limit-Second,X-RateLimit-Remaining-Second") ||
+            (provider == "Crossref" && quota.Scope == "request-pool" &&
+                quota.SourceFields == "X-Rate-Limit-Limit,X-Rate-Limit-Interval");
     }
 
     private static string MapPeriod(string window) => window.ToLowerInvariant() switch

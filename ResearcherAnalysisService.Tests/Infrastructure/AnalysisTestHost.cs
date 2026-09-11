@@ -15,18 +15,23 @@ internal sealed class AnalysisTestHost(WebApplication application, HttpClient cl
     public HttpClient Client { get; } = client;
 
     public static async Task<AnalysisTestHost> StartAsync(IResearcherReportGenerator? generator = null,
-        bool configureAccessKey = true, string environment = "Testing", HttpMessageHandler? geminiHandler = null)
+        bool configureAccessKey = true, string environment = "Testing", HttpMessageHandler? geminiHandler = null,
+        IReadOnlyDictionary<string, string?>? settings = null)
     {
         WebApplication application = Program.CreateApplication(["--environment", environment], builder =>
         {
             // Tests never use developer secrets, application settings, or paid provider requests.
             builder.Configuration.Sources.Clear();
-            builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            Dictionary<string, string?> configuration = new()
             {
                 ["Urls"] = "http://127.0.0.1:0",
                 ["Service:ApiKey"] = configureAccessKey ? "synthetic-service-key" : null,
                 ["Gemini:ApiKey"] = geminiHandler is null ? null : "synthetic-gemini-key"
-            });
+            };
+            if (settings is not null)
+                foreach ((string key, string? value) in settings)
+                    configuration[key] = value;
+            builder.Configuration.AddInMemoryCollection(configuration);
             builder.Logging.ClearProviders();
             if (generator is not null)
             {

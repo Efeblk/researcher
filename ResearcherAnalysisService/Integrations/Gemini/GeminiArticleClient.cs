@@ -18,6 +18,60 @@ public sealed class GeminiArticleClient(HttpClient client, IOptions<AiOptions> a
         Encoder = JavaScriptEncoder.Create(UnicodeRanges.All)
     };
 
+    public async Task<GeminiProviderStatus> GetStatusAsync(CancellationToken cancellationToken)
+    {
+        AiOptions settings = aiOptions.Value;
+        string? apiKey = geminiOptions.Value.ApiKey;
+        if (settings.ArticleProvider != "Gemini")
+            return new("Disabled");
+        if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(settings.ArticleModel))
+            return new("NotConfigured");
+
+        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        try
+        {
+            string model = settings.ArticleModel.Trim();
+            using HttpRequestMessage message = new(HttpMethod.Get,
+                $"https://generativelanguage.googleapis.com/v1beta/models/{Uri.EscapeDataString(model)}");
+            message.Headers.Add("x-goog-api-key", apiKey.Trim());
+            using HttpResponseMessage response = await client.SendAsync(
+                message, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+                return new("Unauthorized");
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                return new("RateLimited");
+            if ((int)response.StatusCode >= 500)
+                return new("Unavailable");
+            if (!response.IsSuccessStatusCode)
+                return new("UnexpectedResponse");
+
+            await response.Content.LoadIntoBufferAsync(1024 * 1024, timeout.Token);
+            using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(timeout.Token));
+            JsonElement root = document.RootElement;
+            bool expectedName = root.ValueKind == JsonValueKind.Object &&
+                root.TryGetProperty("name", out JsonElement name) && name.ValueKind == JsonValueKind.String &&
+                name.GetString() == $"models/{model}";
+            bool supportsGeneration = root.ValueKind == JsonValueKind.Object &&
+                root.TryGetProperty("supportedGenerationMethods", out JsonElement methods) &&
+                methods.ValueKind == JsonValueKind.Array && methods.EnumerateArray().Any(method =>
+                    method.ValueKind == JsonValueKind.String && method.GetString() == "generateContent");
+            return new(expectedName && supportsGeneration ? "Healthy" : "UnexpectedResponse");
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return new("Timeout");
+        }
+        catch (HttpRequestException)
+        {
+            return new("Unavailable");
+        }
+        catch (JsonException)
+        {
+            return new("UnexpectedResponse");
+        }
+    }
+
     public async Task<GeminiArticleResult> GenerateAsync(string model, string instructions, string input,
         JsonObject schema, int maxOutputTokens, CancellationToken cancellationToken)
     {

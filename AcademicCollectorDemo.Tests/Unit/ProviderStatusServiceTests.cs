@@ -183,6 +183,38 @@ public sealed class ProviderStatusServiceTests
         Assert.Null(quotas[0].Scope);
     }
 
+    [Fact]
+    public void ParseCrossrefQuotas_OfficialLimitAndInterval_PreservesUnknownRemaining()
+    {
+        using HttpResponseMessage response = new(HttpStatusCode.OK);
+        response.Headers.Add("X-Rate-Limit-Limit", "5");
+        response.Headers.Add("X-Rate-Limit-Interval", "1s");
+        response.Headers.Add("X-RateLimit-Remaining", "4");
+
+        ProviderQuotaDto quota = Assert.Single(ProviderStatusService.ParseCrossrefQuotas(response));
+
+        Assert.Equal(5, quota.Limit);
+        Assert.Null(quota.Remaining);
+        Assert.Equal("requests", quota.Unit);
+        Assert.Equal("second", quota.Window);
+        Assert.Equal("request-pool", quota.Scope);
+    }
+
+    [Theory]
+    [InlineData(null, "1s")]
+    [InlineData("5", null)]
+    [InlineData("5", "10s")]
+    [InlineData("5", "invalid")]
+    public void ParseCrossrefQuotas_MissingOrUnsupportedOfficialHeaders_ReturnsEmpty(
+        string? limit, string? interval)
+    {
+        using HttpResponseMessage response = new(HttpStatusCode.OK);
+        if (limit is not null) response.Headers.Add("X-Rate-Limit-Limit", limit);
+        if (interval is not null) response.Headers.Add("X-Rate-Limit-Interval", interval);
+
+        Assert.Empty(ProviderStatusService.ParseCrossrefQuotas(response));
+    }
+
     [Theory]
     [InlineData("90", true)]
     [InlineData("invalid", false)]
