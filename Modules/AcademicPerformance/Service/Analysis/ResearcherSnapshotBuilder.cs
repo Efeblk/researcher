@@ -74,9 +74,8 @@ public static class ResearcherSnapshotBuilder
         int pdf = 0, ocr = 0, html = 0, partial = 0, abstractOnly = 0, metadataOnly = 0;
         foreach (PublicationSummary summary in summaries)
         {
-            string doi = CrossrefClient.NormalizeDoi(summary.Doi);
-            List<AcademicWork> matches = string.IsNullOrWhiteSpace(doi) ? [] : works
-                .Where(work => CrossrefClient.NormalizeDoi(work.Doi) == doi).ToList();
+            List<AcademicWork> matches = works.Where(work => Matches(summary, work) &&
+                summaries.Count(candidate => Matches(candidate, work)) == 1).ToList();
             List<SavedArticleSummary> saved = matches.Where(work => latestSaved.ContainsKey(work.Id))
                 .Select(work => latestSaved[work.Id]).ToList();
             bool hasPdf = saved.Any(value => value.SourceKind.Equals("pdf", StringComparison.OrdinalIgnoreCase));

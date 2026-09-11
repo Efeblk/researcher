@@ -90,4 +90,37 @@ public sealed class ResearcherSnapshotBuilderTests
             new SummarizeArticleRequest("en", "pdf", "hash", "v1", [new(1, "text")], 1, partial, null),
             new JsonSerializerOptions(JsonSerializerDefaults.Web));
     }
+
+    [Fact]
+    public void BuildCoverage_DoiLessPublication_UsesUnambiguousTitleAndYearEvidence()
+    {
+        List<PublicationSummary> summaries =
+        [
+            new() { Id = 1, Title = "Saved full text", PublicationYear = 2024 },
+            new() { Id = 2, Title = "Recovered abstract", PublicationYear = 2023 },
+            new() { Id = 3, Title = "Conflicting DOI", PublicationYear = 2022 },
+            new() { Id = 4, Title = "Conflicting DOI", PublicationYear = 2022, Doi = "10.1/owned" }
+        ];
+        List<AcademicWork> works =
+        [
+            new() { Id = 10, Title = "Saved full text", PublicationYear = 2024 },
+            new() { Id = 11, Title = "Recovered abstract", PublicationYear = 2023, Abstract = "Evidence" },
+            new() { Id = 12, Title = "Conflicting DOI", PublicationYear = 2022, Doi = "10.1/owned", Abstract = "Must not attach ambiguously" }
+        ];
+        List<SavedArticleSummary> saved =
+        [
+            new() { Id = 1, OriginalAcademicWorkId = 10, SourceKind = "html", ExtractionVersion = "html-v1", SnapshotJson = Snapshot(false) }
+        ];
+
+        ResearcherSourceCoverage coverage = ResearcherSnapshotBuilder.BuildCoverage(summaries, works, saved, []);
+
+        Assert.Equal(1, coverage.FullTextAvailable);
+        Assert.Equal(1, coverage.HtmlAvailable);
+        Assert.Equal(1, coverage.AbstractOnly);
+        Assert.Equal(2, coverage.MetadataOnly);
+
+        static string Snapshot(bool partial) => JsonSerializer.Serialize(
+            new SummarizeArticleRequest("en", "html", "hash", "v1", [new(null, "text")], 1, partial, null),
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    }
 }

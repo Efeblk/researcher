@@ -22,9 +22,19 @@ public sealed class SafeArticleFetcher
     }
 
     public Task<FetchedArticleSource> FetchSourceAsync(Uri initialUri, CancellationToken cancellationToken) =>
-        FetchCoreAsync(initialUri, allowHtmlFallback: true, cancellationToken);
+        FetchCoreAsync(initialUri, allowHtmlFallback: true,
+            new ArticleSourceRequestBudget(options.Value.MaximumSourceRequests), cancellationToken);
 
-    private async Task<FetchedArticleSource> FetchCoreAsync(Uri initialUri, bool allowHtmlFallback, CancellationToken cancellationToken)
+    internal Task<FetchedArticleSource> FetchSourceAsync(Uri initialUri,
+        ArticleSourceRequestBudget requestBudget, CancellationToken cancellationToken) =>
+        FetchCoreAsync(initialUri, allowHtmlFallback: true, requestBudget, cancellationToken);
+
+    private Task<FetchedArticleSource> FetchCoreAsync(Uri initialUri, bool allowHtmlFallback,
+        CancellationToken cancellationToken) => FetchCoreAsync(initialUri, allowHtmlFallback,
+            new ArticleSourceRequestBudget(options.Value.MaximumSourceRequests), cancellationToken);
+
+    private async Task<FetchedArticleSource> FetchCoreAsync(Uri initialUri, bool allowHtmlFallback,
+        ArticleSourceRequestBudget requestBudget, CancellationToken cancellationToken)
     {
         using CancellationTokenSource fetch = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         fetch.CancelAfter(TimeSpan.FromSeconds(options.Value.FetchTimeoutSeconds));
@@ -34,14 +44,13 @@ public sealed class SafeArticleFetcher
         pending.Enqueue((initialUri, 0, 0));
         ArticleSourceException? lastFailure = null;
         FetchedArticleSource? htmlFallback = null;
-        int requests = 0;
-        while (pending.Count != 0 && requests < options.Value.MaximumSourceRequests)
+        while (pending.Count != 0 && requestBudget.Remaining > 0)
         {
             (Uri current, int depth, int redirects) = pending.Dequeue();
             try { ValidateUri(current); }
             catch (ArticleSourceException exception) { lastFailure = exception; continue; }
             if (!visited.Add(current.AbsoluteUri)) continue;
-            requests++;
+            if (!requestBudget.TryConsume()) break;
             try
             {
                 using HttpClient client = _clientFactory is null ? await CreatePinnedClientAsync(current, fetch.Token) : await _clientFactory(current, fetch.Token);
@@ -162,3 +171,22 @@ public sealed class SafeArticleFetcher
 }
 
 public sealed record FetchedArticleSource(byte[] Bytes, Uri FinalUri, string MediaType);
+
+internal sealed class ArticleSourceRequestBudget
+{
+    private int remaining;
+
+    public ArticleSourceRequestBudget(int maximumRequests) => remaining = maximumRequests;
+
+    public int Remaining => Math.Max(0, Volatile.Read(ref remaining));
+
+    public bool TryConsume()
+    {
+        while (true)
+        {
+            int current = Volatile.Read(ref remaining);
+            if (current <= 0) return false;
+            if (Interlocked.CompareExchange(ref remaining, current - 1, current) == current) return true;
+        }
+    }
+}

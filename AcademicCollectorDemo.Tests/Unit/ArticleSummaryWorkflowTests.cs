@@ -9,6 +9,35 @@ namespace AcademicCollectorDemo.Tests.Unit;
 public sealed class ArticleSummaryWorkflowTests
 {
     [Fact]
+    public async Task AcquireAsync_MultipleCandidates_SharesHttpRequestBudget()
+    {
+        int requests = 0;
+        ArticleSummaryOptions values = new() { MaximumSourceRequests = 2, MaximumDownloadBytes = 65536 };
+        IOptions<ArticleSummaryOptions> options = Options.Create(values);
+        SafeArticleFetcher fetcher = new(options, (uri, _) =>
+        {
+            requests++;
+            HttpResponseMessage response = uri.AbsolutePath == "/first"
+                ? new(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("<html><a href='/missing.pdf'>PDF</a></html>",
+                        Encoding.UTF8, "text/html")
+                }
+                : new(HttpStatusCode.NotFound);
+            return Task.FromResult(new HttpClient(new StubHttpHandler(_ => response)));
+        });
+        ArticleSummaryWorkflow workflow = new(null!, fetcher, new ArticlePdfExtractor(options),
+            new ArticleHtmlExtractor(options), null!, null!, options);
+
+        ArticleSummaryWorkflow.Acquisition result = await workflow.AcquireAsync(
+            [new("first", "https://example.org/first"), new("second", "https://example.org/second")],
+            "en", [], CancellationToken.None, CancellationToken.None);
+
+        Assert.Null(result.Snapshot);
+        Assert.Equal(2, requests);
+    }
+
+    [Fact]
     public async Task AcquireAsync_HtmlAbstractThenBudgetCancellation_RetainsAbstract()
     {
         const string expected = "This semantic abstract contains enough specific study detail to qualify as article evidence when full text acquisition later reaches its bounded deadline.";

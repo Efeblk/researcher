@@ -37,10 +37,11 @@ public sealed class ArticleSummaryWorkflow(AcademicDbContext database, SafeArtic
         IReadOnlyList<ArticleSourceCandidate> stored = ArticleSourceCandidateCatalog.GetCandidates(sourceWorks);
         IReadOnlyList<ArticleSourceCandidate> initial = stored.Take(initialBudget).ToList();
         List<string> failures = [];
+        ArticleSourceRequestBudget requestBudget = new(options.Value.MaximumSourceRequests);
         using CancellationTokenSource acquisition = CancellationTokenSource.CreateLinkedTokenSource(total.Token);
         acquisition.CancelAfter(TimeSpan.FromSeconds(Math.Max(5, Math.Min(
             options.Value.TotalTimeoutSeconds / 2, options.Value.TotalTimeoutSeconds - 30))));
-        var acquired = await AcquireAsync(initial, language, failures, acquisition.Token, total.Token);
+        var acquired = await AcquireAsync(initial, language, failures, requestBudget, acquisition.Token, total.Token);
         recoveredAbstract ??= acquired.Abstract;
 
         ArticleMetadataResult? enrichment = null;
@@ -60,7 +61,8 @@ public sealed class ArticleSummaryWorkflow(AcademicDbContext database, SafeArtic
                 .Select(x => new ArticleSourceCandidate(x.Origin, x.Url))
                 .Concat(stored.Skip(initial.Count)).Where(x => attempted.Add(x.Url))
                 .Take(Math.Max(0, options.Value.MaximumSourceRequests - initial.Count)).ToList();
-            var remainingAcquisition = await AcquireAsync(remaining, language, failures, acquisition.Token, total.Token);
+            var remainingAcquisition = await AcquireAsync(remaining, language, failures, requestBudget,
+                acquisition.Token, total.Token);
             recoveredAbstract ??= remainingAcquisition.Abstract;
             if (remainingAcquisition.Snapshot is not null) acquired = remainingAcquisition;
         }
@@ -118,14 +120,21 @@ public sealed class ArticleSummaryWorkflow(AcademicDbContext database, SafeArtic
     }
 
     internal async Task<Acquisition> AcquireAsync(IReadOnlyList<ArticleSourceCandidate> candidates,
-        string language, List<string> failures, CancellationToken cancellationToken, CancellationToken totalToken)
+        string language, List<string> failures, CancellationToken cancellationToken, CancellationToken totalToken) =>
+        await AcquireAsync(candidates, language, failures,
+            new ArticleSourceRequestBudget(options.Value.MaximumSourceRequests), cancellationToken, totalToken);
+
+    internal async Task<Acquisition> AcquireAsync(IReadOnlyList<ArticleSourceCandidate> candidates,
+        string language, List<string> failures, ArticleSourceRequestBudget requestBudget,
+        CancellationToken cancellationToken, CancellationToken totalToken)
     {
         string? discoveredAbstract = null;
         foreach (ArticleSourceCandidate candidate in candidates)
         {
             try
             {
-                FetchedArticleSource fetched = await fetcher.FetchSourceAsync(new Uri(candidate.Url), cancellationToken);
+                FetchedArticleSource fetched = await fetcher.FetchSourceAsync(
+                    new Uri(candidate.Url), requestBudget, cancellationToken);
                 if (fetched.MediaType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase))
                     return new(await pdfExtractor.ExtractAsync(fetched.Bytes, language, cancellationToken), fetched.FinalUri.ToString(), discoveredAbstract);
                 discoveredAbstract ??= htmlExtractor.TryExtractAbstract(fetched.Bytes, fetched.FinalUri);
