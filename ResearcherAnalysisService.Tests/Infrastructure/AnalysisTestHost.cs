@@ -16,7 +16,7 @@ internal sealed class AnalysisTestHost(WebApplication application, HttpClient cl
 
     public static async Task<AnalysisTestHost> StartAsync(IResearcherReportGenerator? generator = null,
         bool configureAccessKey = true, string environment = "Testing", HttpMessageHandler? geminiHandler = null,
-        IReadOnlyDictionary<string, string?>? settings = null)
+        IReadOnlyDictionary<string, string?>? settings = null, IGeminiUsageRepository? usageRepository = null)
     {
         WebApplication application = Program.CreateApplication(["--environment", environment], builder =>
         {
@@ -33,6 +33,8 @@ internal sealed class AnalysisTestHost(WebApplication application, HttpClient cl
                     configuration[key] = value;
             builder.Configuration.AddInMemoryCollection(configuration);
             builder.Logging.ClearProviders();
+            builder.Services.RemoveAll<IGeminiUsageRepository>();
+            builder.Services.AddSingleton(usageRepository ?? new TestGeminiUsageRepository());
             if (generator is not null)
             {
                 builder.Services.RemoveAll<IResearcherReportGenerator>();

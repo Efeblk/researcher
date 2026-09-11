@@ -300,6 +300,32 @@ public sealed class ProviderStatusServiceTests
         Assert.NotNull(quotas[1].SubscriptionPeriodEndsAt);
     }
 
+    [Fact]
+    public void ParseGeminiSpending_ValidUnavailableRead_PreservesNullTotal()
+    {
+        using JsonDocument document = JsonDocument.Parse("""
+            {"spending":{"available":false,"currency":"USD","kind":"paidStandardEstimate",
+             "since":null,"requestCount":0,"unknownCount":0,"estimatedTotalUsd":null,"last3":[]}}
+            """);
+
+        ProviderSpendingDto spending = ProviderStatusService.ParseGeminiSpending(document.RootElement)!;
+
+        Assert.False(spending.Available);
+        Assert.Null(spending.EstimatedTotalUsd);
+        Assert.Empty(spending.Last3);
+    }
+
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("{\"spending\":{\"available\":true}}")]
+    [InlineData("{\"spending\":{\"available\":true,\"currency\":\"USD\",\"kind\":\"paidStandardEstimate\",\"since\":null,\"requestCount\":0,\"unknownCount\":0,\"estimatedTotalUsd\":null,\"last3\":[]}}")]
+    [InlineData("{\"spending\":{\"available\":false,\"currency\":\"USD\",\"kind\":\"paidStandardEstimate\",\"since\":null,\"requestCount\":0,\"unknownCount\":0,\"estimatedTotalUsd\":0,\"last3\":[]}}")]
+    public void ParseGeminiSpending_InvalidContract_ReturnsNull(string json)
+    {
+        using JsonDocument document = JsonDocument.Parse(json);
+        Assert.Null(ProviderStatusService.ParseGeminiSpending(document.RootElement));
+    }
+
     private static ProviderStatusDto ProviderWithQuota(DateTime now, decimal? remaining) => new()
     {
         Provider = "SearchApi",

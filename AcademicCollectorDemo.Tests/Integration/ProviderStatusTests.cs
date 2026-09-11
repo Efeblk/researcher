@@ -192,9 +192,13 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         Assert.Equal(["providers"], root.EnumerateObject().Select(property => property.Name));
         JsonElement[] providers = root.GetProperty("providers").EnumerateArray().ToArray();
         Assert.Equal(11, providers.Length);
-        Assert.All(providers, provider => Assert.Equal(
-            ["provider", "health", "quotas"],
-            provider.EnumerateObject().Select(property => property.Name)));
+        Assert.All(providers.Where(provider => provider.GetProperty("provider").GetString() != "Gemini"),
+            provider => Assert.Equal(["provider", "health", "quotas"],
+                provider.EnumerateObject().Select(property => property.Name)));
+        JsonElement gemini = providers.Single(provider =>
+            provider.GetProperty("provider").GetString() == "Gemini");
+        Assert.Equal(["provider", "health", "quotas", "spending"],
+            gemini.EnumerateObject().Select(property => property.Name));
         JsonElement quota = providers.Single(provider =>
             provider.GetProperty("provider").GetString() == "SearchApi")
             .GetProperty("quotas").EnumerateArray().First();
@@ -237,6 +241,18 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         Assert.Equal(JsonValueKind.Null, crossrefQuota.GetProperty("remaining").ValueKind);
         Assert.Equal("requests", crossrefQuota.GetProperty("unit").GetString());
         Assert.Equal("perSecond", crossrefQuota.GetProperty("period").GetString());
+
+        JsonElement spending = gemini.GetProperty("spending");
+        Assert.Equal(["available", "currency", "kind", "since", "requestCount", "unknownCount",
+            "estimatedTotalUsd", "last3"], spending.EnumerateObject().Select(property => property.Name));
+        Assert.True(spending.GetProperty("available").GetBoolean());
+        Assert.Equal("USD", spending.GetProperty("currency").GetString());
+        Assert.Equal("paidStandardEstimate", spending.GetProperty("kind").GetString());
+        Assert.Equal(3, spending.GetProperty("requestCount").GetInt64());
+        Assert.Equal(1, spending.GetProperty("unknownCount").GetInt64());
+        Assert.Equal(JsonValueKind.Null, spending.GetProperty("estimatedTotalUsd").ValueKind);
+        Assert.Equal(3, spending.GetProperty("last3").GetArrayLength());
+        Assert.DoesNotContain("knownSubtotal", json, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -502,7 +518,16 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
             return StubHttpHandler.Json("""{"status":"Running"}""");
         Assert.Equal("/api/v1/internal/provider-status/gemini", request.RequestUri.AbsolutePath);
         Assert.Equal("synthetic-analysis-key", request.Headers.GetValues("X-Analysis-Key").Single());
-        return StubHttpHandler.Json("""{"provider":"Gemini","health":"Healthy","quotas":[]}""");
+        return StubHttpHandler.Json("""
+            {"provider":"Gemini","health":"Healthy","quotas":[],"spending":{
+              "available":true,"currency":"USD","kind":"paidStandardEstimate",
+              "since":"2026-09-03T00:00:00Z","requestCount":3,"unknownCount":1,
+              "estimatedTotalUsd":null,"last3":[
+                {"at":"2026-09-11T12:00:00Z","model":"gemini-3.8-flash","estimatedUsd":0.002},
+                {"at":"2026-09-11T11:00:00Z","model":"gemini-3.8-flash","estimatedUsd":null},
+                {"at":"2026-09-11T10:00:00Z","model":"gemini-3.8-flash","estimatedUsd":0.001}
+              ]}}
+            """);
     }
 
     private static HttpResponseMessage ValidResponse(HttpRequestMessage request) => request.RequestUri!.Host switch

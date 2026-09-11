@@ -260,7 +260,10 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
                         serviceStatus.ValueKind != JsonValueKind.String || serviceStatus.GetString() != "Running"))
                         result.Status = "UnexpectedResponse";
                     if (name == "Gemini")
+                    {
                         result.Status = ParseGeminiHealth(root);
+                        result.Spending = ParseGeminiSpending(root);
+                    }
                 }
             }
             if (name == "OpenAlex")
@@ -445,6 +448,95 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
             "UnexpectedResponse" => "UnexpectedResponse",
             _ => "UnexpectedResponse"
         };
+    }
+
+    internal static ProviderSpendingDto? ParseGeminiSpending(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object ||
+            !root.TryGetProperty("spending", out JsonElement spending))
+            return null;
+        if (spending.ValueKind != JsonValueKind.Object ||
+            !spending.TryGetProperty("available", out JsonElement available) ||
+            available.ValueKind is not (JsonValueKind.True or JsonValueKind.False) ||
+            !TextEquals(spending, "currency", "USD") ||
+            !TextEquals(spending, "kind", "paidStandardEstimate") ||
+            !NonnegativeInt64(spending, "requestCount", out long requestCount) ||
+            !NonnegativeInt64(spending, "unknownCount", out long unknownCount) || unknownCount > requestCount ||
+            !OptionalDate(spending, "since", out DateTime? since) ||
+            !OptionalDecimal(spending, "estimatedTotalUsd", out decimal? total) || total < 0 ||
+            unknownCount > 0 && total.HasValue || !available.GetBoolean() && total.HasValue ||
+            !spending.TryGetProperty("last3", out JsonElement last3) || last3.ValueKind != JsonValueKind.Array ||
+            last3.GetArrayLength() > 3)
+            return null;
+
+        bool isAvailable = available.GetBoolean();
+        if (!isAvailable && (since.HasValue || requestCount != 0 || unknownCount != 0 || total.HasValue ||
+            last3.GetArrayLength() != 0) ||
+            isAvailable && unknownCount == 0 && !total.HasValue ||
+            isAvailable && requestCount == 0 && (since.HasValue || last3.GetArrayLength() != 0) ||
+            isAvailable && requestCount > 0 && !since.HasValue)
+            return null;
+
+        List<ProviderSpendingItemDto> items = [];
+        foreach (JsonElement item in last3.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object || !RequiredDate(item, "at", out DateTime at) ||
+                !item.TryGetProperty("model", out JsonElement model) || model.ValueKind != JsonValueKind.String ||
+                string.IsNullOrWhiteSpace(model.GetString()) || model.GetString()!.Length > 200 ||
+                !OptionalDecimal(item, "estimatedUsd", out decimal? estimate) || estimate < 0)
+                return null;
+            items.Add(new() { At = at, Model = model.GetString()!, EstimatedUsd = estimate });
+        }
+        return new()
+        {
+            Available = isAvailable, Currency = "USD", Kind = "paidStandardEstimate",
+            Since = since, RequestCount = requestCount, UnknownCount = unknownCount,
+            EstimatedTotalUsd = total, Last3 = items
+        };
+    }
+
+    private static bool TextEquals(JsonElement root, string property, string expected) =>
+        root.TryGetProperty(property, out JsonElement value) && value.ValueKind == JsonValueKind.String &&
+        value.GetString() == expected;
+
+    private static bool NonnegativeInt64(JsonElement root, string property, out long value)
+    {
+        value = 0;
+        return root.TryGetProperty(property, out JsonElement item) && item.ValueKind == JsonValueKind.Number &&
+            item.TryGetInt64(out value) && value >= 0;
+    }
+
+    private static bool OptionalDecimal(JsonElement root, string property, out decimal? value)
+    {
+        value = null;
+        if (!root.TryGetProperty(property, out JsonElement item))
+            return false;
+        if (item.ValueKind == JsonValueKind.Null)
+            return true;
+        if (item.ValueKind != JsonValueKind.Number || !item.TryGetDecimal(out decimal parsed))
+            return false;
+        value = parsed;
+        return true;
+    }
+
+    private static bool OptionalDate(JsonElement root, string property, out DateTime? value)
+    {
+        value = null;
+        if (!root.TryGetProperty(property, out JsonElement item))
+            return false;
+        if (item.ValueKind == JsonValueKind.Null)
+            return true;
+        if (item.ValueKind != JsonValueKind.String || !item.TryGetDateTime(out DateTime parsed))
+            return false;
+        value = parsed.ToUniversalTime();
+        return true;
+    }
+
+    private static bool RequiredDate(JsonElement root, string property, out DateTime value)
+    {
+        value = default;
+        return root.TryGetProperty(property, out JsonElement item) && item.ValueKind == JsonValueKind.String &&
+            item.TryGetDateTime(out value) && (value = value.ToUniversalTime()) != default;
     }
 
     public static List<ProviderQuotaDto> ParseSearchApiQuotas(JsonElement root, DateTime? observedAt = null)

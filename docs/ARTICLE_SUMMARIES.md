@@ -4,9 +4,22 @@ Start the collector and the independent analysis service. Researcher reports con
 
 ```powershell
 dotnet user-secrets set "Gemini:ApiKey" "YOUR_KEY" --project ResearcherAnalysisService
+dotnet user-secrets set "ConnectionStrings:UsageDatabase" "Server=(localdb)\MSSQLLocalDB;Database=AcademicCollectorDemo;Integrated Security=true;TrustServerCertificate=true" --project ResearcherAnalysisService
 ```
 
+`ConnectionStrings:UsageDatabase` has no default or fallback. Point it explicitly at the same SQL
+Server database that the collector migrates. Start the collector first so migration `202609110001`
+creates `GeminiUsageAttempts`, then start or restart `ResearcherAnalysisService`. A Gemini generation
+request is not sent when its Pending usage-attempt row cannot be inserted.
+
 Gemini requests use structured JSON output, temperature zero, and high thinking for both summary generation and claim verification. The API key is sent in the `x-goog-api-key` header and is never included in the request URL. To use local Ollama explicitly, set `Ai:ArticleProvider` to `Ollama`, set `Ai:ArticleModel` (and optionally `Ai:ArticleVerifierModel`) to installed local models, and run Ollama 0.33.3 or newer. This does not change the provider used for researcher reports.
+
+Each `generateContent` HTTP attempt is recorded in SQL before it is sent and completed afterward,
+including rejected, timed-out, cancelled, network-failed, malformed, and successful responses. The
+ledger stores timestamps, model identifiers, outcome, HTTP status, token counts, pricing version,
+and the estimate only. It never stores prompts, source content, keys, request URLs, researcher IDs,
+or DOIs. A completion-write failure intentionally leaves the durable row Pending so its cost remains
+unknown. The metadata-only Gemini provider-status request and Ollama calls are not usage attempts.
 
 Call `SummarizeArticle` with `PersonelID`, `AcademicWorkId`, and optional language (`tr` by default). The work must belong to that researcher. The collector never accepts a fetch URL from the request. `AcademicWork.Link` is the canonical article landing page and `FullTextUrl` is the preferred PDF candidate. Additional provider and previously stored URLs are retained with their origin in `AcademicWorkSources`. Candidates from the selected work and same-researcher works with the exact normalized DOI are tried with PDF candidates first. A successful final PDF URL is saved back as the preferred candidate. The collector downloads only public HTTP(S) content, extracts layout-aware page text, and stores that exact source snapshot and its SHA-256 hash with the report.
 

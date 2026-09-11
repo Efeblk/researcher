@@ -4,7 +4,8 @@
 ORCID, SearchApi, OpenAlex, Web of Science, YÖKSİS, TR Dizin, Crossref, Unpaywall,
 Semantic Scholar, AnalysisService, and Gemini. Each row contains only `provider`, `health`, and
 `quotas`; quota entries contain only `limit`, `remaining`, `unit`, `period`, and `resetsAt`.
-Local SQL request counters and raw provider responses are not part of this public contract.
+The Gemini row can additionally contain `spending`. Local request-budget counters and raw provider
+responses are not part of this public contract.
 
 ```json
 {
@@ -61,8 +62,47 @@ depend on project, model, and tier, so model metadata is not treated as a remain
 The collector authenticates this internal call with its existing `AnalysisService:ApiKey` in the
 `X-Analysis-Key` header. No Gemini credential is added to the collector.
 
+Gemini `spending` is a SQL-backed Paid Tier Standard estimate:
+
+```json
+{
+  "available": true,
+  "currency": "USD",
+  "kind": "paidStandardEstimate",
+  "since": "2026-09-11T10:00:00Z",
+  "requestCount": 3,
+  "unknownCount": 1,
+  "estimatedTotalUsd": null,
+  "last3": [
+    { "at": "2026-09-11T12:00:00Z", "model": "gemini-3.8-flash", "estimatedUsd": 0.001065 },
+    { "at": "2026-09-11T11:00:00Z", "model": "gemini-3.8-flash", "estimatedUsd": null },
+    { "at": "2026-09-11T10:00:00Z", "model": "gemini-3.8-flash", "estimatedUsd": 0.000825 }
+  ]
+}
+```
+
+The estimate follows Google's [Gemini 3.8 Flash pricing](https://ai.google.dev/gemini-api/docs/pricing):
+through December 31, 2026, uncached input is $0.75/M tokens, cached input is $0.075/M,
+and output including thinking is $3.75/M; from January 1, 2027 those prices are $1.50/M,
+$0.15/M, and $7.50/M. Pricing support begins with the model's September 3, 2026 release and uses
+`((prompt-cached)*input + cached*cachedPrice + (candidate+thought)*output)/1,000,000`.
+Missing or inconsistent usage, unsupported models or dates, tool-use prompt tokens, and durable
+Pending rows count as unknown. When any attempt is unknown, `estimatedTotalUsd` is null; no partial
+known subtotal is exposed. This is an estimate for Paid Tier Standard pricing, not an invoice and
+not a claim that a request used the paid rather than free tier. Google's
+[rate-limit documentation](https://ai.google.dev/gemini-api/docs/rate-limits) explains that active
+limits depend on the project and tier, so spending estimates are not presented as quota.
+
+The analysis service reads this aggregate only from `GeminiUsageAttempts`. If SQL cannot be read,
+`available` is false and the total is null. The collector caches the complete ProviderStatus snapshot
+for 60 seconds, including spending, and returns at most the last three attempts ordered newest first.
+
 Deploy compatible collector and analysis-service versions together when enabling the Gemini row.
 Keep `AnalysisService:ApiKey` aligned with `Service:ApiKey` in the analysis service, and keep the
-Gemini key only in analysis-service secret configuration. Provider payloads, API keys, email query
-values, and transport exception details are not copied into the compact response.
+Gemini key only in analysis-service secret configuration. Configure
+`ConnectionStrings:UsageDatabase` in analysis-service secrets to the same database as the collector's
+`AcademicDatabase`; there is no default. Deploy and start the collector first so its migrations create
+the table, then deploy or restart the analysis service. Tracking begins only after that migration and
+the instrumented analysis service are running; historical Gemini calls are not backfilled. Provider
+payloads, API keys, email query values, and transport exception details are not copied into the compact response.
 The executable collector request remains in [`Requests/ProviderStatus.http`](../Requests/ProviderStatus.http).

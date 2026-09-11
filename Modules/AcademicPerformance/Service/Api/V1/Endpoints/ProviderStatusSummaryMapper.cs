@@ -17,7 +17,24 @@ public static class ProviderStatusSummaryMapper
             .Select((quota, index) => MapQuota(provider, quota, index, now))
             .Where(quota => quota is not null)
             .Cast<ProviderQuotaSummaryDto>()
-            .ToList()
+            .ToList(),
+        Spending = provider.Provider == "Gemini" && provider.Spending is not null
+            ? MapSpending(provider.Spending) : null
+    };
+
+    private static ProviderSpendingSummaryDto MapSpending(ProviderSpendingDto spending) => new()
+    {
+        Available = spending.Available,
+        Currency = spending.Currency,
+        Kind = spending.Kind,
+        Since = spending.Since,
+        RequestCount = spending.RequestCount,
+        UnknownCount = spending.UnknownCount,
+        EstimatedTotalUsd = spending.EstimatedTotalUsd,
+        Last3 = spending.Last3.Select(item => new ProviderSpendingItemSummaryDto
+        {
+            At = item.At, Model = item.Model, EstimatedUsd = item.EstimatedUsd
+        }).ToList()
     };
 
     private static string MapHealth(ProviderStatusDto provider, DateTime now)

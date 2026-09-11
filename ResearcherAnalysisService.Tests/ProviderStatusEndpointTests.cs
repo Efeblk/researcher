@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using ResearcherAnalysisService.Integrations.Gemini;
 using ResearcherAnalysisService.Tests.Infrastructure;
 
 namespace ResearcherAnalysisService.Tests;
@@ -21,13 +22,14 @@ public sealed class ProviderStatusEndpointTests
                 {"name":"models/gemini-test","supportedGenerationMethods":["generateContent"]}
                 """);
         });
+        TestGeminiUsageRepository usage = new();
         await using AnalysisTestHost host = await AnalysisTestHost.StartAsync(geminiHandler: handler,
             settings: new Dictionary<string, string?>
             {
                 ["Gemini:ApiKey"] = secret,
                 ["Ai:ArticleProvider"] = "Gemini",
                 ["Ai:ArticleModel"] = "gemini-test"
-            });
+            }, usageRepository: usage);
 
         using HttpResponseMessage response = await host.Client.GetAsync("/api/v1/internal/provider-status/gemini");
 
@@ -35,13 +37,44 @@ public sealed class ProviderStatusEndpointTests
         Assert.True(response.Headers.CacheControl?.NoStore);
         string body = await response.Content.ReadAsStringAsync();
         using JsonDocument document = JsonDocument.Parse(body);
-        Assert.Equal(["provider", "health", "quotas"],
+        Assert.Equal(["provider", "health", "quotas", "spending"],
             document.RootElement.EnumerateObject().Select(property => property.Name));
         Assert.Equal("Gemini", document.RootElement.GetProperty("provider").GetString());
         Assert.Equal("Healthy", document.RootElement.GetProperty("health").GetString());
         Assert.Empty(document.RootElement.GetProperty("quotas").EnumerateArray());
+        JsonElement spending = document.RootElement.GetProperty("spending");
+        Assert.Equal(["available", "currency", "kind", "since", "requestCount", "unknownCount",
+            "estimatedTotalUsd", "last3"], spending.EnumerateObject().Select(property => property.Name));
+        Assert.True(spending.GetProperty("available").GetBoolean());
+        Assert.Equal("USD", spending.GetProperty("currency").GetString());
+        Assert.Equal("paidStandardEstimate", spending.GetProperty("kind").GetString());
+        Assert.Equal(0, spending.GetProperty("requestCount").GetInt64());
+        Assert.Equal(0, spending.GetProperty("unknownCount").GetInt64());
+        Assert.Equal(0, spending.GetProperty("estimatedTotalUsd").GetDecimal());
+        Assert.Empty(spending.GetProperty("last3").EnumerateArray());
         Assert.DoesNotContain(secret, body);
         Assert.Equal(1, handler.RequestCount);
+        Assert.Empty(usage.Entries);
+    }
+
+    [Fact]
+    public async Task Gemini_UsageReadUnavailable_ReturnsNullTotalWithoutFakeZero()
+    {
+        TestGeminiUsageRepository usage = new()
+        {
+            SpendingOverride = new GeminiSpendingStatus { Available = false }
+        };
+        using RecordingHandler handler = new(_ => Json(
+            """{"name":"models/gemini-test","supportedGenerationMethods":["generateContent"]}"""));
+        await using AnalysisTestHost host = await AnalysisTestHost.StartAsync(geminiHandler: handler,
+            settings: ConfiguredSettings(), usageRepository: usage);
+
+        using HttpResponseMessage response = await host.Client.GetAsync("/api/v1/internal/provider-status/gemini");
+
+        using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        JsonElement spending = document.RootElement.GetProperty("spending");
+        Assert.False(spending.GetProperty("available").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, spending.GetProperty("estimatedTotalUsd").ValueKind);
     }
 
     [Theory]
