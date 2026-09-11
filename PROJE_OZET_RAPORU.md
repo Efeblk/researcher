@@ -40,9 +40,12 @@
 - [x] Semantic Scholar açık erişim PDF bağlantıları aynı DOI'ye sahip personele ait eserlerin
   kaynaklarına ekleniyor. S2 sayaçları sağlayıcı kaydında kalıyor; yayın özetinin sağlayıcı
   metrikleriyle veya yerel AI raporuyla birleştirilmiyor.
-- [x] Makale özetleri kayıtlı PDF metni veya veritabanındaki özetten üretiliyor. Model iddiaları
-  yalnızca kayıtlı kaynak parçalarına bağlanıyor, ayrı doğrulama geçişinde desteklenmeyen veya
-  belirsiz iddialar eleniyor ve kanıt kalmazsa başarılı rapor kaydedilmiyor.
+- [x] Makale özetleri yerel metinli PDF, sınırlı Tesseract OCR, doğrulanan semantik HTML gövdesi
+  veya veritabanındaki özetten üretiliyor. Model iddiaları yalnızca kayıtlı kaynak parçalarına
+  bağlanıyor; ayrı doğrulama geçişinde desteklenmeyen veya belirsiz iddialar eleniyor ve kanıt
+  kalmazsa başarılı rapor kaydedilmiyor.
+- [x] Kayıtlı kaynaklar kullanılamadığında OpenAlex, Crossref ve yapılandırılmışsa Unpaywall,
+  DOI üzerinden önbellekli alternatif kaynak/özet arıyor; metaveri tek başına bulgu üretmiyor.
 
 ### Uygulama ve İş Akışları
 
@@ -65,6 +68,9 @@
   Analiz veri toplamaz; snapshot zamanı rapora giren mevcut kaydı etiketler.
 - [x] **Makale özeti API'si:** Seçilen eserin kayıtlı PDF'si veya özetiyle kanıt bağlantılı ve
   doğrulanmış iddialar üretme; son başarılı sonucu model çağrısı yapmadan getirme.
+- [x] **Kaynak kapsamı:** Doğrulanmış PDF/OCR/HTML özetlerini, yalnız özet ve yalnız metaveri
+  kayıtlarını raporluyor. DOI varsa tam normalize DOI, DOI yoksa yalnız tek anlamlı başlık/yıl
+  eşleşmesi kullanılıyor; belirsiz eşleşmeler kapsam iddiasına dönüşmüyor.
 
 ## Bir İstek Ne Yapar?
 
@@ -74,16 +80,16 @@ Bir araştırmacıyı toplamak, aşağıdaki dış çağrıların birden fazlas�
 | --- | --- | --- |
 | ORCID | `/record`: profil ve yayın özetleri; ek çağrılar: eser ayrıntıları | Profil için 1; eserler en fazla 100'lük gruplar halinde |
 | Google Scholar / SearchApi | `google_scholar_author`: profil, atıf metrikleri ve yayın sayfası | Her sonuç sayfası için 1; tüm yayınlar tek çağrıya sığmayabilir |
-| OpenAlex | ORCID ile yazar profili/metrikleri ve eserler; PR #52 birleşince DOI metaveri geri dönüşü | Yazar için 1; eserler en fazla 100'lük sayfalar halinde; bekleyen geri dönüş yalnız özet isteğinde ve önbellek kaçırıldığında |
+| OpenAlex | ORCID ile yazar profili/metrikleri ve eserler; makale özetinde DOI ile alternatif kaynak/özet | Yazar için 1; eserler en fazla 100'lük sayfalar halinde; DOI sorgusu yalnız özet isteğinde ve metaveri önbelleği kaçırıldığında |
 | Web of Science | ResearcherID ile `documents`: yayınlar ve atıf bilgileri | Her seçili veritabanında en fazla 50 sonuçluk sayfa için 1 |
 | YÖKSİS | Kategori listeleri ve desteklenen eser ayrıntıları | 21 liste işlemi; bulunan bazı eserler için ayrıca detay çağrısı |
 | TR Dizin | ORCID ile doğrulanmış yazar ve o yazarın yayın ayrıntıları | 1 yazar + 1 yayın listesi + listedeki her yayın için 1 ayrıntı çağrısı; eksik liste yanıtı başarısız sayılır |
-| Crossref | Mevcut DOI'lerin bibliyografik metaverisi ve atıf sayısı; PR #52 birleşince makale kaynağı/özet geri dönüşü | Önbellekte olmayan her benzersiz DOI için en fazla 1 `/works/{doi}` çağrısı; 404 sonuçları da zaman damgasıyla önbelleğe alınır |
+| Crossref | Mevcut DOI'lerin bibliyografik metaverisi ve atıf sayısı; makale özetinde alternatif kaynak/özet | Önbellekte olmayan her benzersiz DOI için en fazla 1 `/works/{doi}` çağrısı; 404 sonuçları da zaman damgasıyla önbelleğe alınır |
 | Semantic Scholar | Normal Submit ve toplu akışta mevcut `AcademicWorks` DOI'leri için makale metaverisi, açık erişim PDF, TLDR, atıf ve bağlamlar | Önbellekte olmayan DOI için 1 makale çağrısı; atıflar varsayılan 100'lük sayfalarla, makale başına en fazla 500 taranan kayıt ve çalıştırma başına 10 DOI |
 | Gemini | Makale kaynağından yapılandırılmış özet ve her iddia için ayrı kanıt doğrulaması | En az 1 özet + doğrulama çağrısı; bağlam sınırında parça ve doğrulama grubu sayısına göre ek çağrı olabilir |
 | Yerel Ollama | `/api/chat` ile araştırmacı snapshot analizi; ayrıca açıkça seçilirse makale özeti ve iddia doğrulaması | Üretilen rapor başına model çağrısı; makale doğrulamasında ek çağrılar olabilir |
-| Unpaywall *(PR #52, birleşme bekliyor)* | Kayıtlı kaynaklar kullanılamazsa DOI ile açık erişim PDF ve açılış sayfası adayı bulma | Yalnız `Unpaywall:Email` ayarlıysa, DOI metaveri önbelleği kaçırıldığında çağrılır |
-| Tesseract *(yerel; PR #52, birleşme bekliyor)* | Metin katmanı olmayan sınırlı sayıdaki PDF sayfasına OCR uygulama | Harici HTTP isteği yoktur; sayfa, süre, DPI, piksel ve çıktı boyutu sınırları vardır |
+| Unpaywall | Kayıtlı kaynaklar kullanılamazsa DOI ile açık erişim PDF ve açılış sayfası adayı bulma | Yalnız `Unpaywall:Email` ayarlıysa, DOI metaveri önbelleği kaçırıldığında çağrılır |
+| Tesseract *(yerel)* | Metin katmanı olmayan sınırlı sayıdaki PDF sayfasına OCR uygulama | Harici HTTP isteği yoktur; sayfa, süre, DPI, piksel ve çıktı boyutu sınırları vardır |
 
 Önbellek kullanılırsa dış çağrı atlanabilir. Provider Status ayrıca küçük sağlık/kota sorguları yapar.
 
@@ -101,8 +107,8 @@ Bir araştırmacıyı toplamak, aşağıdaki dış çağrıların birden fazlas�
 | [x] | [Semantic Scholar](https://www.semanticscholar.org/product/api) | API anahtarı isteğe bağlıdır; kullanılacaksa `SemanticScholar:ApiKey` güvenli deployment ayarıyla verilecek. Anonim kullanımda uygulama varsayılanı 1 istek/sn'dir. |
 | [x] | Yerel Ollama | Kurulu; Qwen modeliyle smoke testi yapıldı. |
 | [ ] | Gemini | Makale özeti için ücretli API anahtarı user-secret ile verilecek; gerçek makalelerde kalite ve maliyet henüz tam benchmark edilmedi. |
-| [ ] | Tesseract OCR *(PR #52)* | OCR kullanılacak hostta Tesseract ile `eng` ve `tur` dil verileri isteğe bağlı kurulacak; yol gerekirse `ArticleSummary:TesseractPath` ile ayarlanacak. |
-| [ ] | Unpaywall *(PR #52)* | Entegrasyon kullanılacaksa isteğe bağlı `Unpaywall:Email` değeri kişisel varsayılan eklenmeden user-secret veya güvenli deployment ayarıyla verilecek. |
+| [ ] | Tesseract OCR | OCR kullanılacak hostta Tesseract ile `eng` ve `tur` dil verileri isteğe bağlı kurulacak; yol gerekirse `ArticleSummary:TesseractPath` ile ayarlanacak. |
+| [ ] | Unpaywall | Entegrasyon kullanılacaksa isteğe bağlı `Unpaywall:Email` değeri kişisel varsayılan eklenmeden user-secret veya güvenli deployment ayarıyla verilecek. |
 | [ ] | Scite | Yalnızca araştırma konusu; entegrasyon uygulanmadı ve production sağlayıcısı olarak sayılmıyor. |
 
 ## API Planları, Fiyat ve Hız
@@ -126,9 +132,6 @@ satın alınmış planı doğrulamaz. Ayrıntılar: [API raporu](docs/API_OZET_R
 ## Öncelikli Yol Haritası
 
 - [ ] **Türkçe AI:** Qwen rapor kalitesini gerçek örneklerle iyileştirmek.
-- [ ] **PR #52'yi tamamlamak:** Ayrı incelenen dalda amaçlanan semantik HTML gövdesi,
-  sınırlı Tesseract OCR, OpenAlex/Crossref/Unpaywall DOI metaveri geri dönüşü ve kaynak kapsamı
-  davranışlarını düzeltmelerden sonra birleştirip yeniden doğrulamak. Bu yetenekler henüz `main`de değildir.
 - [ ] **Makale özeti kalite ölçümü:** Ücretli Gemini akışını temsilî Türkçe/İngilizce, metin PDF,
   taranmış PDF ve yalnız özet örnekleriyle kalite, doğruluk, süre ve maliyet açısından benchmark etmek.
 - [ ] **Production ayarları:** Gerçek sağlayıcı hesaplarını, bütçeleri ve SQL kolon eşlemelerini doğrulamak.
@@ -136,7 +139,6 @@ satın alınmış planı doğrulamaz. Ayrıntılar: [API raporu](docs/API_OZET_R
 - [ ] **Rapor UI:** Kayıtlı AI raporlarını gösteren ekranı isteğe bağlı olarak eklemek.
 
 Birleşmiş değişikliklerin PR CI ve sentetik akışları ile yerel Qwen smoke testi geçti; gerçek sağlayıcı
-hesaplarıyla tam uçtan uca doğrulama ve ücretli Gemini kalite benchmark'ı yapılmadı. PR #52'nin son
-amaçlanan HTML/OCR/metaveri geri dönüş davranışı ayrı committe incelendi ve birleşmeyi bekliyor.
-Teknik ayrıntılar: [bulk](docs/BULK_COLLECTION.md),
+hesaplarıyla tam uçtan uca doğrulama ve ücretli Gemini kalite benchmark'ı yapılmadı. Teknik ayrıntılar:
+[bulk](docs/BULK_COLLECTION.md),
 [analiz](docs/RESEARCHER_ANALYSIS.md), [durum](docs/PROVIDER_STATUS.md).
