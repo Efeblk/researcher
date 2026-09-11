@@ -1,8 +1,8 @@
 # Semantic Scholar DOI zenginleştirmesi
 
-Semantic Scholar entegrasyonu, personele ait mevcut `AcademicWorks` satırlarında bulunan DOI'leri Graph API ile zenginleştirir. Yazar adıyla eser aramaz ve atıf yapan makaleleri araştırmacının kendi eserleri arasına eklemez. Bu nedenle yalnızca YÖKSİS'ten gelmiş olsa bile `AcademicWorks` içinde DOI'si bulunan bir eser, açık toplama ucu çağrılarak zenginleştirilebilir.
+Semantic Scholar entegrasyonu, personele ait mevcut `core.AcademicWorks` satırlarında bulunan DOI'leri Graph API ile zenginleştirir. Yazar adıyla eser aramaz ve atıf yapan makaleleri araştırmacının kendi eserleri arasına eklemez. Bu nedenle yalnızca YÖKSİS'ten gelmiş olsa bile `core.AcademicWorks` içinde DOI'si bulunan bir eser, açık toplama ucu çağrılarak zenginleştirilebilir.
 
-Makale verisi DOI düzeyinde ortak önbellekte tutulur ve aynı DOI başka bir personelin eserinde bulunduğunda yeni HTTP isteği yapılmadan yeniden kullanılır. S2 makale kimliği, başlık, özet, yazarlar, yayın alanları, açık erişim PDF bilgisi, sayaçlar, TLDR ve metin erişilebilirliği ham sağlayıcı kaydıyla birlikte saklanır. Açık erişim PDF bağlantısı aynı DOI'ye sahip mevcut eserlerin `AcademicWorkSources` satırlarına eklenir. S2 atıf sayaçları sağlayıcı kaydında kalır; eserin kendi sağlayıcısına ait `CitedByCount` alanının anlamını değiştirmez.
+Makale verisi DOI düzeyinde `semanticscholar` şemasındaki ortak önbellekte tutulur ve aynı DOI başka bir personelin eserinde bulunduğunda yeni HTTP isteği yapılmadan yeniden kullanılır. S2 makale kimliği, başlık, özet, yazarlar, yayın alanları, açık erişim PDF bilgisi, sayaçlar, TLDR ve metin erişilebilirliği ham sağlayıcı kaydıyla birlikte saklanır. Açık erişim PDF bağlantısı aynı DOI'ye sahip mevcut eserlerin `core.AcademicWorkSources` satırlarına eklenir. S2 atıf sayaçları sağlayıcı kaydında kalır; eserin kendi sağlayıcısına ait `CitedByCount` alanının anlamını değiştirmez.
 
 Semantic Scholar'ın `tldr` alanı sağlayıcının sunduğu kısa açıklamadır. Uygulamanın yerel analiz servisiyle ürettiği ve ayrıca sakladığı AI raporu değildir.
 

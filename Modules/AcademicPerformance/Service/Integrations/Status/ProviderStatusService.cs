@@ -80,7 +80,7 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
             if (gate is null) return OrcidCoordinationUnavailable();
             await using (SqlCommand read = gate.Connection.CreateCommand())
             {
-                read.CommandText = "SELECT PayloadJson, ExpiresAt FROM ProviderStatusObservations WHERE Provider=@provider AND ExpiresAt>SYSUTCDATETIME()";
+                read.CommandText = "SELECT PayloadJson, ExpiresAt FROM [integrations].[ProviderStatusObservations] WHERE Provider=@provider AND ExpiresAt>SYSUTCDATETIME()";
                 read.Parameters.AddWithValue("@provider", key);
                 await using SqlDataReader reader = await read.ExecuteReaderAsync(operationToken);
                 if (await reader.ReadAsync(operationToken))
@@ -124,7 +124,7 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
         await using SqlCommand write = connection.CreateCommand();
         write.CommandTimeout = 5;
         write.CommandText = """
-            MERGE ProviderStatusObservations WITH (HOLDLOCK) AS target
+            MERGE [integrations].[ProviderStatusObservations] WITH (HOLDLOCK) AS target
             USING (SELECT @provider Provider) source ON target.Provider=source.Provider
             WHEN MATCHED THEN UPDATE SET ObservedAt=@observedAt,ExpiresAt=@expiresAt,PayloadJson=@payload
             WHEN NOT MATCHED THEN INSERT (Provider,ObservedAt,ExpiresAt,PayloadJson)
@@ -757,7 +757,7 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
             await connection.OpenAsync(timeout.Token);
             await using SqlCommand command = connection.CreateCommand();
             command.CommandTimeout = 5;
-            command.CommandText = "SELECT BudgetDate, RequestsToday, NextAllowedAt FROM ProviderRequestBudgets WHERE Provider = @provider";
+            command.CommandText = "SELECT BudgetDate, RequestsToday, NextAllowedAt FROM [integrations].[ProviderRequestBudgets] WHERE Provider = @provider";
             command.Parameters.AddWithValue("@provider", name);
             await using SqlDataReader reader = await command.ExecuteReaderAsync(timeout.Token);
             int used = 0;

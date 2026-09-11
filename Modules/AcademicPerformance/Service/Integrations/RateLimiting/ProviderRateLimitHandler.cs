@@ -45,10 +45,10 @@ public sealed class ProviderRateLimitHandler(
             DateTime now = DateTime.UtcNow;
             await using SqlCommand budget = gate.Connection.CreateCommand();
             budget.CommandText = """
-                IF NOT EXISTS (SELECT 1 FROM ProviderRequestBudgets WHERE Provider = @provider)
-                    INSERT INTO ProviderRequestBudgets VALUES (@provider, @now, CAST(@now AS date), 0);
+                IF NOT EXISTS (SELECT 1 FROM [integrations].[ProviderRequestBudgets] WHERE Provider = @provider)
+                    INSERT INTO [integrations].[ProviderRequestBudgets] VALUES (@provider, @now, CAST(@now AS date), 0);
                 SELECT NextAllowedAt, BudgetDate, RequestsToday
-                FROM ProviderRequestBudgets WHERE Provider = @provider;
+                FROM [integrations].[ProviderRequestBudgets] WHERE Provider = @provider;
                 """;
             budget.Parameters.AddWithValue("@provider", policy.Name);
             budget.Parameters.AddWithValue("@now", now);
@@ -81,7 +81,7 @@ public sealed class ProviderRateLimitHandler(
             now = DateTime.UtcNow;
             await using SqlCommand reserve = gate.Connection.CreateCommand();
             reserve.CommandText = """
-                UPDATE ProviderRequestBudgets SET NextAllowedAt = @next,
+                UPDATE [integrations].[ProviderRequestBudgets] SET NextAllowedAt = @next,
                     RequestsToday = CASE WHEN BudgetDate = CAST(@now AS date)
                         THEN RequestsToday + 1 ELSE 1 END,
                     BudgetDate = CAST(@now AS date) WHERE Provider = @provider;
@@ -162,7 +162,7 @@ public sealed class ProviderRateLimitHandler(
     {
         await using SqlCommand cooldown = gate.Connection.CreateCommand();
         cooldown.CommandText = """
-            UPDATE ProviderRequestBudgets SET NextAllowedAt =
+            UPDATE [integrations].[ProviderRequestBudgets] SET NextAllowedAt =
                 CASE WHEN NextAllowedAt > @retry THEN NextAllowedAt ELSE @retry END
             WHERE Provider = @provider;
             """;

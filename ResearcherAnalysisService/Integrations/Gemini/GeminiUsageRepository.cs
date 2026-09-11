@@ -13,7 +13,7 @@ public sealed class GeminiUsageRepository(IConfiguration configuration) : IGemin
         await using SqlCommand command = connection.CreateCommand();
         command.CommandTimeout = 5;
         command.CommandText = """
-            INSERT INTO GeminiUsageAttempts
+            INSERT INTO [analysis].[GeminiUsageAttempts]
                 (AttemptId,StartedAt,RequestedModel,Outcome)
             VALUES (@attemptId,@startedAt,@requestedModel,'Pending')
             """;
@@ -31,7 +31,7 @@ public sealed class GeminiUsageRepository(IConfiguration configuration) : IGemin
         await using SqlCommand command = connection.CreateCommand();
         command.CommandTimeout = 5;
         command.CommandText = """
-            UPDATE GeminiUsageAttempts SET
+            UPDATE [analysis].[GeminiUsageAttempts] SET
                 CompletedAt=@completedAt,ReturnedModel=@returnedModel,Outcome=@outcome,HttpStatus=@httpStatus,
                 PromptTokenCount=@promptTokenCount,CachedTokenCount=@cachedTokenCount,
                 CandidateTokenCount=@candidateTokenCount,ThoughtTokenCount=@thoughtTokenCount,
@@ -75,9 +75,9 @@ public sealed class GeminiUsageRepository(IConfiguration configuration) : IGemin
                     CASE WHEN COUNT_BIG(*)=0 THEN CAST(0 AS decimal(19,9))
                          WHEN SUM(CASE WHEN EstimatedUsd IS NULL THEN 1 ELSE 0 END)=0 THEN SUM(EstimatedUsd)
                          ELSE NULL END
-                FROM GeminiUsageAttempts;
+                FROM [analysis].[GeminiUsageAttempts];
                 SELECT TOP (3) StartedAt,COALESCE(ReturnedModel,RequestedModel),EstimatedUsd
-                FROM GeminiUsageAttempts
+                FROM [analysis].[GeminiUsageAttempts]
                 ORDER BY StartedAt DESC,AttemptId DESC;
                 """;
             await using SqlDataReader reader = await command.ExecuteReaderAsync(operationToken);

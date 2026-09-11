@@ -42,7 +42,7 @@ public sealed class AcademicWorkSourceUrlMigrationTests(SqlServerFixture fixture
             await using SqlConnection connection = new(fixture.ConnectionString);
             await connection.OpenAsync();
             await using SqlCommand command = connection.CreateCommand();
-            command.CommandText = "SELECT Origin, Url FROM AcademicWorkSources WHERE AcademicWorkId=@id ORDER BY Origin";
+            command.CommandText = "SELECT Origin, Url FROM [core].[AcademicWorkSources] WHERE AcademicWorkId=@id ORDER BY Origin";
             command.Parameters.AddWithValue("@id", workId);
             Dictionary<string, string> sources = [];
             await using (SqlDataReader reader = await command.ExecuteReaderAsync())

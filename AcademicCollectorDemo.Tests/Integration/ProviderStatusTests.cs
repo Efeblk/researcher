@@ -132,8 +132,8 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         await connection.OpenAsync();
         await using SqlCommand command = connection.CreateCommand();
         command.CommandText = """
-            DELETE FROM ProviderRequestBudgets WHERE Provider IN ('Orcid', 'OpenAlex');
-            INSERT INTO ProviderRequestBudgets VALUES
+            DELETE FROM [integrations].[ProviderRequestBudgets] WHERE Provider IN ('Orcid', 'OpenAlex');
+            INSERT INTO [integrations].[ProviderRequestBudgets] VALUES
                 ('Orcid', DATEADD(hour, 1, SYSUTCDATETIME()), CAST(SYSUTCDATETIME() AS date), 2),
                 ('OpenAlex', SYSUTCDATETIME(), CAST(DATEADD(day, -1, SYSUTCDATETIME()) AS date), 99);
             """;
@@ -154,7 +154,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         }
         finally
         {
-            command.CommandText = "DELETE FROM ProviderRequestBudgets WHERE Provider IN ('Orcid', 'OpenAlex')";
+            command.CommandText = "DELETE FROM [integrations].[ProviderRequestBudgets] WHERE Provider IN ('Orcid', 'OpenAlex')";
             await command.ExecuteNonQueryAsync();
         }
     }

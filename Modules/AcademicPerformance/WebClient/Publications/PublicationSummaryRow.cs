@@ -6,7 +6,7 @@ using System.ComponentModel;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.WebClient.Publications;
 
-[ConnectionKey("AcademicDatabase"), Module("AcademicPerformance"), TableName("PublicationSummaries")]
+[ConnectionKey("AcademicDatabase"), Module("AcademicPerformance"), TableName("core.PublicationSummaries")]
 [DisplayName("Yayınlar"), InstanceName("Yayın")]
 [ReadPermission("*")]
 public sealed class PublicationSummaryRow : Row<PublicationSummaryRow.RowFields>, IIdRow, INameRow

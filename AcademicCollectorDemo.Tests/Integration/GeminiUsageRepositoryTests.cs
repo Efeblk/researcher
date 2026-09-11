@@ -64,7 +64,7 @@ public sealed class GeminiUsageRepositoryTests(SqlServerFixture fixture)
             await using SqlConnection connection = new(fixture.ConnectionString);
             await connection.OpenAsync();
             await using SqlCommand command = connection.CreateCommand();
-            command.CommandText = "SELECT Outcome,HttpStatus,PromptTokenCount,EstimatedUsd FROM GeminiUsageAttempts WHERE AttemptId=@id";
+            command.CommandText = "SELECT Outcome,HttpStatus,PromptTokenCount,EstimatedUsd FROM [analysis].[GeminiUsageAttempts] WHERE AttemptId=@id";
             command.Parameters.AddWithValue("@id", ids[0]);
             await using SqlDataReader reader = await command.ExecuteReaderAsync();
             Assert.True(await reader.ReadAsync());
@@ -118,7 +118,7 @@ public sealed class GeminiUsageRepositoryTests(SqlServerFixture fixture)
             await using SqlConnection connection = new(fixture.ConnectionString);
             await connection.OpenAsync();
             await using SqlCommand command = connection.CreateCommand();
-            command.CommandText = "SELECT Outcome,CompletedAt FROM GeminiUsageAttempts";
+            command.CommandText = "SELECT Outcome,CompletedAt FROM [analysis].[GeminiUsageAttempts]";
             await using SqlDataReader reader = await command.ExecuteReaderAsync();
             Assert.True(await reader.ReadAsync());
             Assert.Equal("Pending", reader.GetString(0));
@@ -141,7 +141,7 @@ public sealed class GeminiUsageRepositoryTests(SqlServerFixture fixture)
         await using SqlConnection connection = new(fixture.ConnectionString);
         await connection.OpenAsync();
         await using SqlCommand command = connection.CreateCommand();
-        command.CommandText = "DELETE FROM GeminiUsageAttempts";
+        command.CommandText = "DELETE FROM [analysis].[GeminiUsageAttempts]";
         await command.ExecuteNonQueryAsync();
     }
 

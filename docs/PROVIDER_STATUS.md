@@ -93,7 +93,7 @@ not a claim that a request used the paid rather than free tier. Google's
 [rate-limit documentation](https://ai.google.dev/gemini-api/docs/rate-limits) explains that active
 limits depend on the project and tier, so spending estimates are not presented as quota.
 
-The analysis service reads this aggregate only from `GeminiUsageAttempts`. If SQL cannot be read,
+The analysis service reads this aggregate only from `analysis.GeminiUsageAttempts`. If SQL cannot be read,
 `available` is false and the total is null. The collector caches the complete ProviderStatus snapshot
 for 60 seconds, including spending, and returns at most the last three attempts ordered newest first.
 
