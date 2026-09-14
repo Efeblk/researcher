@@ -1,12 +1,9 @@
-using ResearcherAnalysisService.SourceData.Works;
-
 namespace ResearcherAnalysisService.Products.ArticleSummaries;
 
 public sealed class ArticleSummaryAutomationJob
 {
     public long Id { get; set; }
     public int CanonicalWorkId { get; set; }
-    public CanonicalWork? CanonicalWork { get; set; } = null;
     public string Language { get; set; } = string.Empty;
     public string Status { get; set; } = ArticleSummaryAutomationJobStatus.Pending;
     public string DesiredInputHash { get; set; } = string.Empty;

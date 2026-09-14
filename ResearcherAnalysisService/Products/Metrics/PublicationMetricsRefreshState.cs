@@ -1,11 +1,8 @@
-using ResearcherAnalysisService.SourceData.Researchers;
-
 namespace ResearcherAnalysisService.Products.Metrics;
 
 public sealed class PublicationMetricsRefreshState
 {
     public string PersonelId { get; set; } = string.Empty;
-    public Researcher? Researcher { get; set; } = null;
     public long RequestedRevision { get; set; }
     public long ComputedRevision { get; set; }
     public string RequestedCatalogVersion { get; set; } = string.Empty;

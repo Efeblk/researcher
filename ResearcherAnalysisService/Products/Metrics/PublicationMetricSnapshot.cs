@@ -1,12 +1,9 @@
-using ResearcherAnalysisService.SourceData.Researchers;
-
 namespace ResearcherAnalysisService.Products.Metrics;
 
 public sealed class PublicationMetricSnapshot
 {
     public long Id { get; set; }
     public string PersonelId { get; set; } = string.Empty;
-    public Researcher? Researcher { get; set; } = null;
     public string CatalogVersion { get; set; } = string.Empty;
     public long SourceRevision { get; set; }
     public int ComputationYear { get; set; }

@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-using ResearcherAnalysisService.SourceData.Works;
 
 namespace ResearcherAnalysisService.Products.ArticleSummaries;
 
@@ -7,9 +6,6 @@ public sealed class CanonicalArticleAnalysisRun
 {
     public long Id { get; set; }
     public int CanonicalWorkId { get; set; }
-
-    [JsonIgnore]
-    public CanonicalWork? CanonicalWork { get; set; } = null;
 
     public long ArticleSourceSnapshotId { get; set; }
 
