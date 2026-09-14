@@ -14,7 +14,7 @@ Analiz servisi yalnızca aşağıdaki önceden tanımlanmış profil kimliklerin
 | `ollama-qwen-baseline` | Yerel Ollama, `qwen3.8:27b-q4_K_M` | `Ai:OllamaBaseUrl` güvenli bir loopback adresiyse `configured` | Model özeti `25b843619e944cd0ae6069f94ff4e5e26a16e109ccbc0a66a0f05979ed70098e` |
 | `deepseek-candidate` | DeepSeek, `deepseek-flash` | `Evaluation:DeepSeek:ApiKey` yoksa `not_configured` | Profil ayar sürümü ve parmak izi |
 
-Profil kimliği serbest metinle yeni bir model seçmez. Kolektör kuyruğa almadan önce analiz servisindeki `GET /api/v1/evaluations/profiles` iç uç noktasından izin listesini ve kullanılabilirliği okur. Seçilen profilin sağlayıcı, istenen model, model revizyonu, güvenli yürütme ayarları, `SettingsVersion` ve SHA-256 `SettingsFingerprint` değeri SQL'e anlık görüntü olarak yazılır. Parmak izi; profil meta verisinden ve sıralı, yeniden kurulabilir ayarlardan üretilir. İş çalıştırılırken güncel parmak izi tekrar kontrol edilir; değişiklik `ProfileDrift` ile kapalı biçimde başarısız olur.
+Profil kimliği serbest metinle yeni bir model seçmez. Analysis ürün akışı kuyruğa almadan önce kendi `GET /api/v1/evaluations/profiles` sözleşmesindeki izin listesini ve kullanılabilirliği denetler. Seçilen profilin sağlayıcı, istenen model, model revizyonu, güvenli yürütme ayarları, `SettingsVersion` ve SHA-256 `SettingsFingerprint` değeri SQL'e anlık görüntü olarak yazılır. Parmak izi; profil meta verisinden ve sıralı, yeniden kurulabilir ayarlardan üretilir. İş çalıştırılırken güncel parmak izi tekrar kontrol edilir; değişiklik `ProfileDrift` ile kapalı biçimde başarısız olur.
 
 Bu profiller değerlendirmeye özeldir. `Ai:Provider`, `Ai:Model`, `Ai:ArticleProvider`, `Ai:ArticleModel` veya normal makale doğrulayıcısı seçimini değiştirmezler.
 
@@ -24,7 +24,7 @@ Her çalışma, `controlled-source-reading-v2` veri kümesindeki altı sentetik 
 
 Vakalarda sayı ve birim değişimleri, olumsuzluk, nüfus koşulu ve kaynak içine gömülmüş yönlendirme gibi sınırlı okuma sorunları ölçülür. Bu kapsam gerçek makale çeşitliliğini, alan bilgisini, yöntem kalitesini veya eksiksiz bulgu keşfini temsil etmez.
 
-Çalışma oluşturulurken iddia sırası `RunId`, vaka kimliği ve özgün iddia kimliğinden deterministik olarak karıştırılır. Modele yalnızca çalışma için üretilen opak kimlikler, iddia metinleri ve değişmez kaynak span kimlikleri gönderilir. Beklenen yanıtlar ve mekanik türetim açıklamaları kolektörde kalır; analiz servisine veya modele gönderilmez.
+Çalışma oluşturulurken iddia sırası `RunId`, vaka kimliği ve özgün iddia kimliğinden deterministik olarak karıştırılır. Modele yalnızca çalışma için üretilen opak kimlikler, iddia metinleri ve değişmez kaynak span kimlikleri gönderilir. Beklenen yanıtlar ve mekanik türetim açıklamaları Analysis Service'in özel değerlendirme verisinde kalır; sağlayıcıya gönderilmez.
 
 12 Eylül 2026 tarihli altı modellik kontrollü çalışma ile eşlenmiş gerçek-makale pilotunun yöntem, sonuç ve yorum sınırları [model karşılaştırma raporunda](MODEL_COMPARISON_20260912.md) tutulur.
 
@@ -32,7 +32,7 @@ Terminal bir çalışmada kontrollü kaynak-okuma doğruluğunun paydası planla
 
 ## Gerçek makale vakaları ve kör çapraz kontrol
 
-İstek en fazla üç gerçek vaka ekleyebilir. Her vaka için güncel `PersonelID`–`CanonicalWorkId` ilişkisi ve istenen dilde başarılı, değişmez bir kanonik analiz ile kaynak anlık görüntüsü bulunmalıdır. Kolektör yeni URL açmaz, sağlayıcıdan veri toplamaz ve metni yeniden çıkarmaz. Sayfaları, span'leri, kaynak türünü, çıkarım sürümünü ve kapsam bilgisini mevcut SQL kaydından kopyalar; hash ve katalog tutarlılığını kuyruğa almadan önce denetler.
+İstek en fazla üç gerçek vaka ekleyebilir. Her vaka için güncel `PersonelID`–`CanonicalWorkId` ilişkisi ve istenen dilde başarılı, değişmez bir kanonik analiz ile kaynak anlık görüntüsü bulunmalıdır. Değerlendirme akışı yeni URL açmaz, sağlayıcıdan kaynak veri toplamaz ve metni yeniden çıkarmaz. Sayfaları, span'leri, kaynak türünü, çıkarım sürümünü ve kapsam bilgisini mevcut Analysis SQL kaydından immutable vaka temsiline alır; hash ve katalog tutarlılığını kuyruğa almadan önce denetler.
 
 İlişki hem iş alınırken hem sonuç kaydedilirken tekrar kontrol edilir. Gerçek vakalı bir çalışmanın okunması da aynı sahip `PersonelID` değerini ve bütün yayınlarla güncel ilişkiyi gerektirir. Böylece geçmişte kuyruğa alınmış bir iş, ilişki kaldırıldıktan sonra sonucu açığa çıkaramaz.
 
@@ -52,7 +52,7 @@ Gerçek inceleme ölçümlerindeki `ExactEvidenceLinkRate`, dönen kanıtların 
 
 ## Yapılandırma
 
-Kolektörün kuyruk ve kaynak sınırları `academicsettings.json` içindeki `ArticleEvaluation` bölümündedir:
+Kalıcı kuyruk ve kaynak sınırları `ResearcherAnalysisService/appsettings.json` içindeki `ArticleEvaluation` bölümündedir:
 
 ```json
 "ArticleEvaluation": {
@@ -65,9 +65,9 @@ Kolektörün kuyruk ve kaynak sınırları `academicsettings.json` içindeki `Ar
 }
 ```
 
-Gerçek vaka kaynağı kuyruğa alınırken etkin sınır, bu kolektör değerinin ve seçilen profillerin sabitlenmiş `maximumInputBytes` değerlerinin en küçüğüdür; bu nedenle analiz servisinde kaçınılmaz biçimde reddedilecek büyük bir kaynak çalışması oluşturulmaz.
+Gerçek vaka kaynağı kuyruğa alınırken etkin sınır, product workflow değerinin ve seçilen profillerin sabitlenmiş `maximumInputBytes` değerlerinin en küçüğüdür; böylece kaçınılmaz biçimde reddedilecek büyük bir kaynak çalışması oluşturulmaz.
 
-Kolektörün 330 saniyelik istek sınırı, analiz servisinin yapılandırılmış 300 saniyelik toplam sınırından sonra yapılandırılmış timeout telemetrisini döndürebilmesi için 30 saniye pay bırakır. Analiz servisinin bağımsız değerlendirme sınırları `ResearcherAnalysisService/appsettings.json` içinde `Evaluation` altında yapılandırılır:
+Kalıcı product workflow'nun 330 saniyelik istek sınırı, stateless evaluation çalışmasının yapılandırılmış 300 saniyelik toplam sınırından sonra timeout telemetrisini döndürebilmesi için 30 saniye pay bırakır. Stateless değerlendirme sınırları aynı `ResearcherAnalysisService/appsettings.json` dosyasında `Evaluation` altında yapılandırılır:
 
 ```json
 "Evaluation": {
@@ -90,14 +90,14 @@ Gemini anahtarı `Gemini:ApiKey`, yerel Ollama adresi `Ai:OllamaBaseUrl` üzerin
 
 ## API akışı
 
-Kolektörün desteklenen V1 uç noktaları şunlardır:
+Analysis Service'in kalıcı ürün uçları şunlardır:
 
-- `POST /Services/AcademicPerformance/V1/StartArticleEvaluation`: sabit profilleri ön denetler, kalibrasyon ve isteğe bağlı gerçek vakaları kalıcı kuyruğa ekler, HTTP 202 döndürür.
-- `POST /Services/AcademicPerformance/V1/GetArticleEvaluation`: `RunId`, zorunlu sahip `PersonelID`, `Skip` ve `Take` ile kalıcı ilerleme/sonuç sayfasını okur.
+- `POST /api/v1/products/StartArticleEvaluation`: sabit profilleri ön denetler, kalibrasyon ve isteğe bağlı gerçek vakaları kalıcı kuyruğa ekler, HTTP 202 döndürür.
+- `POST /api/v1/products/GetArticleEvaluation`: `RunId`, zorunlu sahip `PersonelID`, `Skip` ve `Take` ile kalıcı ilerleme/sonuç sayfasını okur.
 
-`StartArticleEvaluationRequest`, `ProfileIds`, `PersonelId`, `RealCases` ve `EnableBlindCrossCheck` alanlarını taşır. HTTP 202 gövdesindeki `StartArticleEvaluationResponse`; `RunId`, ilk durum, vaka/iş/olası çağrı sayıları ile veri kümesi ve evaluator sürümünü döndürür. Sayfalı okuma `GetArticleEvaluationRequest` alır ve `ArticleEvaluationResponse` döndürür. Analiz servisindeki `GET /api/v1/evaluations/profiles` ve `POST /api/v1/evaluations/execute` kolektörün `X-Analysis-Key` ile kullandığı iç sözleşmelerdir; son kullanıcı akışı değildir.
+`StartArticleEvaluationRequest`, `ProfileIds`, `PersonelId`, `RealCases` ve `EnableBlindCrossCheck` alanlarını taşır. HTTP 202 gövdesindeki `StartArticleEvaluationResponse`; `RunId`, ilk durum, vaka/iş/olası çağrı sayıları ile veri kümesi ve evaluator sürümünü döndürür. Sayfalı okuma `GetArticleEvaluationRequest` alır ve `ArticleEvaluationResponse` döndürür. Aynı servisteki `GET /api/v1/evaluations/profiles` ve `POST /api/v1/evaluations/execute` tam kaynak/parmak izi alan stateless sözleşmelerdir; kalıcı son kullanıcı akışından ayrıdır.
 
-Bu dilimde iptal uç noktası yoktur. Collector'daki kalibrasyon dahil bütün başlatma ve okuma istekleri açık bir `PersonelID` ve güvenilir ürün erişim adaptörü üzerinden yetki denetimi gerektirir. Collector'ın kalıcı kuyruk örnekleri [ArticleEvaluation.http](../Requests/AcademicCollector/ArticleEvaluation.http), Analysis Service'in tam kaynak ve güncel profil parmak izi isteyen doğrudan örneği [EvaluationAndFaculty.http](../ResearcherAnalysisService/Requests/EvaluationAndFaculty.http) dosyasındadır.
+Bu dilimde iptal uç noktası yoktur. Kalibrasyon dahil bütün kalıcı başlatma ve okuma istekleri açık bir `PersonelID` ve güvenilir ürün erişim adaptörü üzerinden yetki denetimi gerektirir. Kalıcı kuyruk örnekleri [ArticleEvaluation.http](../ResearcherAnalysisService/Requests/ArticleEvaluation.http), tam kaynak ve güncel profil parmak izi isteyen stateless örnek [EvaluationAndFaculty.http](../ResearcherAnalysisService/Requests/EvaluationAndFaculty.http) dosyasındadır.
 
 ## Yerel entegrasyon smoke sonucu
 

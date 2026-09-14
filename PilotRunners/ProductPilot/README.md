@@ -1,6 +1,6 @@
 # Product API Pilot Runner — 2026-09-13
 
-This is the dedicated runner for the dated HR and faculty product API acceptance pilot. It is tied to the reviewed 2026-09-13 fixture, artifact hashes, endpoint sequence, and retry history; it is not a general-purpose product runner.
+This is the dedicated runner for the dated HR and faculty product API acceptance pilot. It is tied to the reviewed 2026-09-13 fixture, artifact hashes, pre-separation endpoint sequence, and retry history; it is not a general-purpose product runner. Current HR and faculty product routes are owned by Researcher Analysis Service at `/api/v1/products/[action]` on port 5011.
 
 The pilot reuses immutable public Adam source artifacts and an isolated SQL Server database. It performs no new publication collection, download, extraction, summary, or article-review generation. Synthetic authorization and provider capture exist only inside this runner.
 

@@ -1,6 +1,6 @@
 # Deterministic data and knowledge layer
 
-This layer keeps SQL Server authoritative and does not call an analysis model. It adds three bounded capabilities: publication-metrics policy and provider consistency, faculty evidence retrieval, and a Neo4j-ready public evidence projection. All public endpoints authorize the requested subject before any product data read and pass the authorization grant's subject identifier to the service.
+This Analysis Service layer keeps SQL Server authoritative and does not call an analysis model. It adds three bounded capabilities: publication-metrics policy and provider consistency, faculty evidence retrieval, and a Neo4j-ready public evidence projection. All persistent product endpoints run at `/api/v1/products/[action]`, authorize the requested subject before any product data read, and pass the authorization grant's subject identifier to the workflow. Collector source tables are accessed only through private read-only source models. Runnable search, reference-population, and graph requests are in [AcademicKnowledge.http](../ResearcherAnalysisService/Requests/AcademicKnowledge.http).
 
 ## Publication metrics V4
 

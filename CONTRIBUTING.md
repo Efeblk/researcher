@@ -17,7 +17,7 @@ git diff --check
 git status
 ```
 
-`feature/`, `fix/`, `chore/` veya `docs/` öneki kullanın. Commit ve PR tek bir amacı kapsamalı; davranış değişikliğini, çalıştırılan kontrolleri, şema/yapılandırma etkisini ve UI değiştiyse ekran görüntüsünü belirtmelidir. Uygulanmış migration'ı değiştirmeyin; tablo sahibine göre collector için `Modules/AcademicPerformance/Service/Data/Migrations/{Core,Providers}`, yalnız Analysis Service kullanım defteri için `ResearcherAnalysisService/Data/Migrations` altında daha büyük benzersiz numarayla yeni migration ekleyin. İki servis aynı SQL veritabanında ayrı migration geçmişleri kullanır.
+`feature/`, `fix/`, `chore/` veya `docs/` öneki kullanın. Commit ve PR tek bir amacı kapsamalı; davranış değişikliğini, çalıştırılan kontrolleri, şema/yapılandırma etkisini ve UI değiştiyse ekran görüntüsünü belirtmelidir. Yeni migration'ı tablonun sahibine ekleyin: collector `core`, provider, `bulk` ve `integrations` nesneleri için `Modules/AcademicPerformance/Service/Data/Migrations/{Core,Providers}`; Analysis Service `analysis`, `hr` ve `faculty` nesneleri için `ResearcherAnalysisService/Data/Migrations` kullanır. İki servis aynı SQL veritabanında `dbo.VersionInfo` ve `dbo.ResearcherAnalysisVersionInfo` geçmişlerini ayrı tutar. Servisler arası foreign key eklemeyin; Analysis'in collector kaynak erişimini salt okunur model olarak koruyun.
 
 PR; Build, Dependency Review ve CodeQL kontrolleri geçmeden birleştirilmemelidir. SQL testleri Windows'ta LocalDB, diğer ortamlarda yalnız test için ayrılmış `ACADEMIC_TEST_SQLSERVER` kullanır; uygulama bağlantı ayarlarını veya gerçek sağlayıcı anahtarlarını okumaz. Sağlayıcı testlerinde temizlenmiş sentetik yanıtlar kullanın.
 

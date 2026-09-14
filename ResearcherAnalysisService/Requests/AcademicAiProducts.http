@@ -1,5 +1,6 @@
-@baseUrl = http://localhost:5001
-@api = {{baseUrl}}/Services/AcademicPerformance/V1
+@baseUrl = http://localhost:5011
+@api = {{baseUrl}}/api/v1/products
+@analysisKey = REPLACE_WITH_SERVICE_API_KEY
 @personelId = P-1001
 @canonicalWorkId = 1
 @dossierId = 1
@@ -8,14 +9,16 @@
 @facultyRunId = 33333333-3333-3333-3333-333333333333
 @expectedVersion = 0
 
-# İK ve fakülte ürünleri. canonicalWorkId = ListCanonicalPublications.Entities[].Id.
+# İK ve fakülte ürünleri. canonicalWorkId = collector ListCanonicalPublications.Entities[].Id.
 # Bu uçlar güvenilir ürün erişim adaptörü ister; kimlik bilgisinin cookie/header biçimini kurulu adaptör belirler.
+# X-Analysis-Key servis erişimini açar, özne yetkisi yerine geçmez.
 # Varsayılan kurulum: anonim 401, kimliği doğrulanmış fakat adaptörü yapılandırılmamış istek 503.
 
 ### 1. İK kanıt dosyası oluştur [yazma]
 # Yanıttaki DossierId değerini dossierId değişkenine kopyalayın.
 POST {{api}}/CreateHrEvidenceDossier
 Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",
@@ -27,6 +30,7 @@ Content-Type: application/json
 ### 2. İK kanıt dosyasını oku [okuma]
 POST {{api}}/GetHrEvidenceDossier
 Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",
@@ -36,6 +40,7 @@ Content-Type: application/json
 ### 3. İK inceleme işlemlerini listele [okuma]
 POST {{api}}/ListHrDossierReviewActions
 Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",
@@ -48,6 +53,7 @@ Content-Type: application/json
 # Aynı gövde için aynı clientRequestId yeniden kullanılabilir; gövde değişirse yeni UUID üretin.
 POST {{api}}/AppendHrDossierReviewAction
 Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",
@@ -62,6 +68,7 @@ Content-Type: application/json
 # Version gönderilmediği için son sürüm gelir.
 POST {{api}}/GetFacultyAssistantContext
 Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}"
@@ -72,6 +79,7 @@ Content-Type: application/json
 # Başarılı yanıtın Version değerini sonraki güncellemede expectedVersion değişkenine kopyalayın.
 POST {{api}}/SaveFacultyAssistantContext
 Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",
@@ -95,6 +103,7 @@ Content-Type: application/json
 # Yanıttaki RunId değerini facultyRunId'ye kopyalayın.
 POST {{api}}/StartFacultyAssistant
 Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",
@@ -109,6 +118,7 @@ Content-Type: application/json
 ### 8. Fakülte asistanı kuyruğunu veya sonucunu oku [okuma]
 POST {{api}}/GetFacultyAssistantRun
 Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",

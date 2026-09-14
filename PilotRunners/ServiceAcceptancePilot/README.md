@@ -1,6 +1,6 @@
 # Service acceptance runner
 
-This is the new opt-in acceptance lifecycle for `service-acceptance-20260913-v1`. It does not execute or mutate the historical ProductPilot or FullTextResumePilot lifecycles or their artifacts.
+This is the dated opt-in acceptance lifecycle for `service-acceptance-20260913-v1`. Its recorded collector/product orchestration reflects the pre-separation host topology; current persistent product routes, persistence, and workers are owned by Researcher Analysis Service at `/api/v1/products/[action]`. The runner does not execute or mutate the historical ProductPilot or FullTextResumePilot lifecycles or their artifacts.
 
 Run the offline checks first:
 

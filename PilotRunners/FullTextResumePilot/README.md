@@ -1,6 +1,6 @@
 # Full-text resume pilot runner
 
-This opt-in runner checks the collector's public full-text summary and staged article-review workflow against an isolated SQL Server database. It launches the analysis service in-process on `127.0.0.1:5097` and the already-built collector DLL on `127.0.0.1:5197`; it never uses `dotnet run` for either live host.
+This dated opt-in runner recorded the pre-separation collector-hosted full-text summary and staged article-review workflow against an isolated SQL Server database. Its 5097/5197 host topology and frozen artifacts remain historical evidence; the current persistent product routes are owned by Researcher Analysis Service at `/api/v1/products/[action]` on port 5011. It launches the analysis service in-process on `127.0.0.1:5097` and the already-built collector DLL on `127.0.0.1:5197`; it never uses `dotnet run` for either live host.
 
 The offline preflight requires a source directory containing `adam-v1-fulltext.pdf` and `football-fulltext.pdf`:
 

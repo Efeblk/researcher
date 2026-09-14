@@ -1,13 +1,17 @@
-# Eski uyumluluk araştırmacı analizi. HR/fakülte ürünlerinden ve onların erişim adaptöründen ayrıdır;
-# bağımsız Ai:Provider/Ai:Model ayarlarını kullanır ve yerel varsayılanı Qwen'dir.
-@baseUrl = http://localhost:5001
-@api = {{baseUrl}}/Services/AcademicPerformance/V1
+# Kalıcı araştırmacı analizi. Bağımsız Ai:Provider/Ai:Model ayarlarını kullanır ve yerel varsayılanı Qwen'dir.
+@baseUrl = http://localhost:5011
+@api = {{baseUrl}}/api/v1/products
+@analysisKey = REPLACE_WITH_SERVICE_API_KEY
 @personelId = P-1001
 @snapshotAt = 2026-09-14T00:00:00Z
+
+# X-Analysis-Key gerekir; bu uyumluluk işlemleri ayrı ürün erişim adaptörünü kullanmaz.
+# Collector kaynak şeması veya gerekli kayıt hazır değilse bağımlı işlem 503 dönebilir.
 
 ### 1. Kaynak kapsamını AI çağrısı yapmadan oku [okuma]
 POST {{api}}/GetResearcherSourceCoverage
 Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}"
@@ -16,6 +20,7 @@ Content-Type: application/json
 ### 2. Son kaydedilmiş araştırmacı analizini oku [okuma]
 POST {{api}}/GetResearcherAnalysis
 Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}"
@@ -26,6 +31,7 @@ Content-Type: application/json
 # snapshotAt rapor metadata'sıdır; geçmişe ait veri sürümünü seçmez. Her başarı yeni rapor ekler.
 POST {{api}}/AnalyzeResearcher
 Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",
