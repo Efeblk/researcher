@@ -14,8 +14,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Status;
 
-public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFactory clientFactory,
-    IConfiguration configuration)
+public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration configuration)
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private ProviderStatusResponse? _cached = null;
@@ -29,9 +28,7 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
         ("TrDizin", "TrDizin:ApiBaseUrl", "https://search.trdizin.gov.tr"),
         ("Crossref", "Crossref:ApiBaseUrl", "https://api.crossref.org"),
         ("Unpaywall", "Unpaywall:ApiBaseUrl", "https://api.unpaywall.org"),
-        ("SemanticScholar", "SemanticScholar:ApiBaseUrl", "https://api.semanticscholar.org/graph/v1"),
-        ("AnalysisService", "AnalysisService:BaseUrl", "http://localhost:5011/"),
-        ("Gemini", "AnalysisService:BaseUrl", "http://localhost:5011/")
+        ("SemanticScholar", "SemanticScholar:ApiBaseUrl", "https://api.semanticscholar.org/graph/v1")
     ];
 
     public async Task<ProviderStatusResponse> GetAsync(CancellationToken cancellationToken)
@@ -48,7 +45,7 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
                 ? CheckOrcidAsync(configuration[provider.Key] ?? provider.Url, cancellationToken)
                 : CheckAsync(provider.Name, configuration[provider.Key] ?? provider.Url, cancellationToken)));
             DateTime budgetAt = DateTime.UtcNow;
-            await Task.WhenAll(results.Where(result => result.Provider is not ("AnalysisService" or "Gemini"))
+            await Task.WhenAll(results
                 .Select(async result =>
                 result.LocalBudget = await ReadBudgetAsync(result.Provider, budgetAt, cancellationToken)));
             DateTime now = DateTime.UtcNow;
@@ -166,10 +163,8 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
             CheckKind = name == "Orcid" ? "OfficialStatus" : name == "Yoksis" ? "WsdlReachability" :
                 name == "SearchApi" ? "AccountUsage" : name == "OpenAlex" &&
                 !string.IsNullOrWhiteSpace(configuration["OpenAlex:ApiKey"]) ? "AccountQuota" :
-                name == "AnalysisService" ? "ServiceHealth" : name == "Gemini" ? "ProviderMetadata" :
                 "ApiRequest" };
-        if (name is not ("AnalysisService" or "Gemini") &&
-            !configuration.GetValue($"ProviderRequestLimits:{name}:Enabled", true))
+        if (!configuration.GetValue($"ProviderRequestLimits:{name}:Enabled", true))
         {
             result.Status = result.Transport.Status = "Disabled";
             return result;
@@ -189,9 +184,7 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
         {
             using HttpRequestMessage request = CreateRequest(name, baseUrl);
             request.Options.Set(ProviderRateLimitHandler.ResponseBufferLimit, 1024L * 1024);
-            using HttpClient? healthClient = name is "AnalysisService" or "Gemini"
-                ? clientFactory.CreateClient("ProviderStatus") : null;
-            using HttpResponseMessage response = await (healthClient ?? httpClient).SendAsync(
+            using HttpResponseMessage response = await httpClient.SendAsync(
                 request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
             result.HttpStatusCode = (int)response.StatusCode;
             result.CheckedAt = DateTime.UtcNow;
@@ -231,7 +224,7 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
                     string expectedProperty = name switch
                     {
                         "Orcid" => "overallOk", "OpenAlex" => string.IsNullOrWhiteSpace(configuration["OpenAlex:ApiKey"]) ? "results" : "rate_limit", "WebOfScience" => "metadata", "TrDizin" => "orcid", "Crossref" => "message", "SemanticScholar" => "paperId",
-                        "Unpaywall" => "doi", "AnalysisService" => "status", "Gemini" => "provider", _ => "account"
+                        "Unpaywall" => "doi", _ => "account"
                     };
                     if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty(expectedProperty, out _))
                         result.Status = "UnexpectedResponse";
@@ -255,15 +248,6 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
                     { result.ProviderQuotas = ParseOpenAlexQuotas(root, result.CheckedAt); result.QuotaSource = "AccountApi";
                         result.QuotaAvailability = result.ProviderQuotas.Count > 0 ? "Available" : "Unknown";
                         if (result.ProviderQuotas.Count == 0) result.Status = "UnexpectedResponse"; }
-                    if (name == "AnalysisService" && (root.ValueKind != JsonValueKind.Object ||
-                        !root.TryGetProperty("status", out JsonElement serviceStatus) ||
-                        serviceStatus.ValueKind != JsonValueKind.String || serviceStatus.GetString() != "Running"))
-                        result.Status = "UnexpectedResponse";
-                    if (name == "Gemini")
-                    {
-                        result.Status = ParseGeminiHealth(root);
-                        result.Spending = ParseGeminiSpending(root);
-                    }
                 }
             }
             if (name == "OpenAlex")
@@ -302,10 +286,6 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
             foreach (ProviderQuotaDto quota in result.ProviderQuotas) quota.ExpiresAt = expiresAt;
             if (name == "Yoksis")
                 result.Message = "WSDL reachability only; SOAP operations and account quota are not verified.";
-            if (name == "AnalysisService")
-                result.Message = "Analysis host only; AI provider health and quota are not verified.";
-            if (name == "Gemini")
-                result.Transport.Status = result.Status;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         { result.Status = result.Transport.Status = "Timeout"; }
@@ -334,8 +314,6 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
             request.Headers.Add("X-ApiKey", configuration["WebOfScience:ApiKey"]!.Trim());
         if (name == "SemanticScholar" && !string.IsNullOrWhiteSpace(configuration["SemanticScholar:ApiKey"]))
             request.Headers.Add("x-api-key", configuration["SemanticScholar:ApiKey"]!.Trim());
-        if (name == "Gemini" && !string.IsNullOrWhiteSpace(configuration["AnalysisService:ApiKey"]))
-            request.Headers.Add("X-Analysis-Key", configuration["AnalysisService:ApiKey"]!.Trim());
         if (name == "Yoksis")
             request.Headers.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(
                 Encoding.UTF8.GetBytes(configuration["Yoksis:Username"] + ":" + configuration["Yoksis:Password"])));
@@ -359,8 +337,6 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
             "Unpaywall" => url + "/v2/10.1038/nphys1170?email=" +
                 Uri.EscapeDataString(configuration["Unpaywall:Email"]!.Trim()),
             "SemanticScholar" => url + "/paper/DOI:10.1038/nphys1170?fields=paperId",
-            "AnalysisService" => url + "/health",
-            "Gemini" => url + "/api/v1/internal/provider-status/gemini",
             _ => throw new InvalidOperationException("Unknown provider.")
         };
         Uri uri = new(url);
@@ -426,117 +402,6 @@ public sealed class ProviderStatusService(HttpClient httpClient, IHttpClientFact
     {
         string email = value?.Trim() ?? string.Empty;
         return email.Length is > 3 and <= 254 && email.Contains('@') && !email.Any(char.IsWhiteSpace);
-    }
-
-    private static string ParseGeminiHealth(JsonElement root)
-    {
-        if (root.ValueKind != JsonValueKind.Object ||
-            !root.TryGetProperty("provider", out JsonElement provider) || provider.ValueKind != JsonValueKind.String ||
-            provider.GetString() != "Gemini" ||
-            !root.TryGetProperty("health", out JsonElement health) || health.ValueKind != JsonValueKind.String ||
-            !root.TryGetProperty("quotas", out JsonElement quotas) || quotas.ValueKind != JsonValueKind.Array ||
-            quotas.GetArrayLength() != 0)
-            return "UnexpectedResponse";
-        return health.GetString() switch
-        {
-            "Healthy" => "Healthy",
-            "Disabled" => "Disabled",
-            "NotConfigured" => "NotConfigured",
-            "Unauthorized" => "Unauthorized",
-            "RateLimited" => "RateLimited",
-            "Unavailable" or "Timeout" => "Unavailable",
-            "UnexpectedResponse" => "UnexpectedResponse",
-            _ => "UnexpectedResponse"
-        };
-    }
-
-    internal static ProviderSpendingDto? ParseGeminiSpending(JsonElement root)
-    {
-        if (root.ValueKind != JsonValueKind.Object ||
-            !root.TryGetProperty("spending", out JsonElement spending))
-            return null;
-        if (spending.ValueKind != JsonValueKind.Object ||
-            !spending.TryGetProperty("available", out JsonElement available) ||
-            available.ValueKind is not (JsonValueKind.True or JsonValueKind.False) ||
-            !TextEquals(spending, "currency", "USD") ||
-            !TextEquals(spending, "kind", "paidStandardEstimate") ||
-            !NonnegativeInt64(spending, "requestCount", out long requestCount) ||
-            !NonnegativeInt64(spending, "unknownCount", out long unknownCount) || unknownCount > requestCount ||
-            !OptionalDate(spending, "since", out DateTime? since) ||
-            !OptionalDecimal(spending, "estimatedTotalUsd", out decimal? total) || total < 0 ||
-            unknownCount > 0 && total.HasValue || !available.GetBoolean() && total.HasValue ||
-            !spending.TryGetProperty("last3", out JsonElement last3) || last3.ValueKind != JsonValueKind.Array ||
-            last3.GetArrayLength() > 3)
-            return null;
-
-        bool isAvailable = available.GetBoolean();
-        if (!isAvailable && (since.HasValue || requestCount != 0 || unknownCount != 0 || total.HasValue ||
-            last3.GetArrayLength() != 0) ||
-            isAvailable && unknownCount == 0 && !total.HasValue ||
-            isAvailable && requestCount == 0 && (since.HasValue || last3.GetArrayLength() != 0) ||
-            isAvailable && requestCount > 0 && !since.HasValue)
-            return null;
-
-        List<ProviderSpendingItemDto> items = [];
-        foreach (JsonElement item in last3.EnumerateArray())
-        {
-            if (item.ValueKind != JsonValueKind.Object || !RequiredDate(item, "at", out DateTime at) ||
-                !item.TryGetProperty("model", out JsonElement model) || model.ValueKind != JsonValueKind.String ||
-                string.IsNullOrWhiteSpace(model.GetString()) || model.GetString()!.Length > 200 ||
-                !OptionalDecimal(item, "estimatedUsd", out decimal? estimate) || estimate < 0)
-                return null;
-            items.Add(new() { At = at, Model = model.GetString()!, EstimatedUsd = estimate });
-        }
-        return new()
-        {
-            Available = isAvailable, Currency = "USD", Kind = "paidStandardEstimate",
-            Since = since, RequestCount = requestCount, UnknownCount = unknownCount,
-            EstimatedTotalUsd = total, Last3 = items
-        };
-    }
-
-    private static bool TextEquals(JsonElement root, string property, string expected) =>
-        root.TryGetProperty(property, out JsonElement value) && value.ValueKind == JsonValueKind.String &&
-        value.GetString() == expected;
-
-    private static bool NonnegativeInt64(JsonElement root, string property, out long value)
-    {
-        value = 0;
-        return root.TryGetProperty(property, out JsonElement item) && item.ValueKind == JsonValueKind.Number &&
-            item.TryGetInt64(out value) && value >= 0;
-    }
-
-    private static bool OptionalDecimal(JsonElement root, string property, out decimal? value)
-    {
-        value = null;
-        if (!root.TryGetProperty(property, out JsonElement item))
-            return false;
-        if (item.ValueKind == JsonValueKind.Null)
-            return true;
-        if (item.ValueKind != JsonValueKind.Number || !item.TryGetDecimal(out decimal parsed))
-            return false;
-        value = parsed;
-        return true;
-    }
-
-    private static bool OptionalDate(JsonElement root, string property, out DateTime? value)
-    {
-        value = null;
-        if (!root.TryGetProperty(property, out JsonElement item))
-            return false;
-        if (item.ValueKind == JsonValueKind.Null)
-            return true;
-        if (item.ValueKind != JsonValueKind.String || !item.TryGetDateTime(out DateTime parsed))
-            return false;
-        value = parsed.ToUniversalTime();
-        return true;
-    }
-
-    private static bool RequiredDate(JsonElement root, string property, out DateTime value)
-    {
-        value = default;
-        return root.TryGetProperty(property, out JsonElement item) && item.ValueKind == JsonValueKind.String &&
-            item.TryGetDateTime(out value) && (value = value.ToUniversalTime()) != default;
     }
 
     public static List<ProviderQuotaDto> ParseSearchApiQuotas(JsonElement root, DateTime? observedAt = null)

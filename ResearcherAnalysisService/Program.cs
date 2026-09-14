@@ -6,6 +6,7 @@ using ResearcherAnalysisService.Data;
 using ResearcherAnalysisService.Integrations.OpenAi;
 using ResearcherAnalysisService.Integrations.Ollama;
 using ResearcherAnalysisService.Integrations.Gemini;
+using ResearcherAnalysisService.Products;
 
 namespace ResearcherAnalysisService;
 
@@ -122,12 +123,21 @@ public static class Program
             builder.Services.AddAnalysisDatabaseMigrations(builder.Configuration);
             builder.Services.AddHostedService<AnalysisDatabaseMigrationHostedService>();
         }
+        builder.Services.AddAcademicProducts(builder.Configuration);
 
         WebApplication application = builder.Build();
         application.UseExceptionHandler(new ExceptionHandlerOptions
         {
             StatusCodeSelector = exception => exception is BadHttpRequestException badRequest
                 ? badRequest.StatusCode
+                : exception is Microsoft.Data.SqlClient.SqlException { Number: 208 }
+                    ? StatusCodes.Status503ServiceUnavailable
+                : exception is AnalysisUnavailableException
+                    ? StatusCodes.Status503ServiceUnavailable
+                : exception is AnalysisInputTooLargeException
+                    ? StatusCodes.Status413PayloadTooLarge
+                : exception is InvalidAnalysisException
+                    ? StatusCodes.Status502BadGateway
                 : StatusCodes.Status500InternalServerError
         });
         application.MapGet("/health", () => Results.Ok(new { Service = "ResearcherAnalysisService", Status = "Running" }));

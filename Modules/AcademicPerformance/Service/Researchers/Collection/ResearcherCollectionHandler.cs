@@ -105,7 +105,7 @@ public sealed class ResearcherCollectionHandler
             await _academicWorkSynchronizer.SyncAsync(researcher);
             if (_canonicalWorkSynchronizer is not null)
                 await _canonicalWorkSynchronizer.SyncAsync(
-                    researcher.PersonelId, scheduleArticleSummaries: true);
+                    researcher.PersonelId);
             int publicationSummaryCount = await _publicationSummarySynchronizer.SyncAsync(researcher.PersonelId);
             await transaction.CommitAsync();
             response.Messages.Add(
@@ -194,7 +194,7 @@ public sealed class ResearcherCollectionHandler
         await _academicWorkSynchronizer.SyncAsync(researcher);
         if (_canonicalWorkSynchronizer is not null)
             await _canonicalWorkSynchronizer.SyncAsync(
-                researcher.PersonelId, scheduleArticleSummaries: true);
+                researcher.PersonelId);
         int count = await _publicationSummarySynchronizer.SyncAsync(researcher.PersonelId);
         await transaction.CommitAsync();
         return count;

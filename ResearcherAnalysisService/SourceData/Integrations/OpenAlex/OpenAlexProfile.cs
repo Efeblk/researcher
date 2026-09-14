@@ -1,0 +1,38 @@
+using System.Text.Json.Serialization;
+using ResearcherAnalysisService.SourceData.Researchers;
+
+namespace ResearcherAnalysisService.SourceData.Integrations.OpenAlex;
+
+public sealed class OpenAlexProfile
+{
+    [JsonIgnore]
+    public int Id { get; set; }
+
+    [JsonIgnore]
+    public string PersonelId { get; set; } = string.Empty;
+
+    [JsonIgnore]
+    public Researcher? Researcher { get; set; } = null;
+
+    public string OpenAlexAuthorId { get; set; } = string.Empty;
+    public string? DisplayName { get; set; } = null;
+    public string? LastKnownInstitution { get; set; } = null;
+    public int? WorksCount { get; set; } = null;
+    public int? CitedByCount { get; set; } = null;
+    public int? HIndex { get; set; } = null;
+    public int? I10Index { get; set; } = null;
+    public decimal? TwoYearMeanCitedness { get; set; } = null;
+    public DateTime LastUpdatedAt { get; set; }
+
+    [JsonIgnore]
+    public string? CountsByYearJson { get; set; } = null;
+
+    [JsonIgnore]
+    public string? RawDataJson { get; set; } = null;
+
+    [JsonIgnore]
+    public string? WorksPagesJson { get; set; } = null;
+
+    [JsonIgnore]
+    public List<OpenAlexWork>? Works { get; set; } = null;
+}

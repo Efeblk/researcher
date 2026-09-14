@@ -5,7 +5,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries.Enrichment;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Enrichment;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using Microsoft.EntityFrameworkCore;
