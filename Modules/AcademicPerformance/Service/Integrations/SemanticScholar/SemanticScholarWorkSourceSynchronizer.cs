@@ -28,6 +28,7 @@ public sealed class SemanticScholarWorkSourceSynchronizer(
             .Where(x => x.Found && worksByDoi.Keys.Contains(x.NormalizedDoi) && x.OpenAccessPdfJson != null)
             .ToListAsync(cancellationToken);
         int added = 0;
+        HashSet<int> changedWorkIds = [];
         foreach (SemanticScholarPaper paper in papers)
         {
             OpenAccessPdf? pdf = ReadOpenAccessPdf(paper.OpenAccessPdfJson);
@@ -40,6 +41,7 @@ public sealed class SemanticScholarWorkSourceSynchronizer(
                     Url = pdf.Url, Kind = "Pdf", Origin = "SemanticScholar.OpenAccessPdf",
                     IsOpenAccess = pdf.IsOpenAccess
                 });
+                changedWorkIds.Add(work.Id);
                 added++;
             }
         }
@@ -55,6 +57,33 @@ public sealed class SemanticScholarWorkSourceSynchronizer(
             {
                 if (canonicalWorkSynchronizer is not null)
                     await canonicalWorkSynchronizer.AcquireWriteGateAsync(cancellationToken);
+                await dbContext.SaveChangesAsync(cancellationToken);
+                DateTime occurredAt = DateTime.UtcNow;
+                var affected = await dbContext
+                    .CanonicalWorkObservations.AsNoTracking()
+                    .Where(value => value.PersonelId == personelId &&
+                        changedWorkIds.Contains(value.AcademicWorkId))
+                    .Select(value => new { value.AcademicWorkId, value.CanonicalWorkId })
+                    .ToListAsync(cancellationToken);
+                dbContext.CollectionChanges.Add(new()
+                {
+                    EventId = Guid.NewGuid(),
+                    ChangeKind = "ResearcherCollected",
+                    PersonelId = personelId,
+                    OccurredAtUtc = occurredAt
+                });
+                foreach (var group in affected.GroupBy(value => value.CanonicalWorkId))
+                {
+                    dbContext.CollectionChanges.Add(new()
+                    {
+                        EventId = Guid.NewGuid(),
+                        ChangeKind = "CanonicalWorkChanged",
+                        PersonelId = personelId,
+                        CanonicalWorkId = group.Key,
+                        AcademicWorkId = group.Select(value => (int?)value.AcademicWorkId).First(),
+                        OccurredAtUtc = occurredAt
+                    });
+                }
                 await dbContext.SaveChangesAsync(cancellationToken);
                 if (ownedTransaction is not null)
                     await ownedTransaction.CommitAsync(cancellationToken);
