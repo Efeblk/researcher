@@ -73,6 +73,7 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
             BatchId = Guid.NewGuid(), Researchers = [new()
             {
                 PersonelId = "synthetic-cleanup",
+                TcKimlikNo = new string('1', 11),
                 Orcid = " (https://orcid.org/0000-0002-1825-009X) ,",
                 GoogleScholarId = "person@example.test",
                 WebOfScienceId = "https://www.webofscience.com/wos/author/record/A-1234-2020.",
@@ -106,6 +107,7 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
         Assert.Equal("0000-0002-1825-009X", fake.LastRequest!.Orcid);
         Assert.Equal("A-1234-2020", fake.LastRequest.WebOfScienceResearcherId);
         Assert.Equal("synthetic-cleanup", fake.LastRequest.PersonelId);
+        Assert.Equal(new string('1', 11), fake.LastRequest.TcKimlikNo);
         Assert.Equal("unsupported-scopus-value", fake.LastRequest.ScopusId);
         Assert.Null(fake.LastRequest.GoogleScholarId);
     }
@@ -143,6 +145,23 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
 
         Assert.Equal(2, result.Counts[BulkJobStatus.Rejected]);
         Assert.Equal(["same-person", "SAME-PERSON"], result.Jobs.Select(value => value.PersonelId));
+    }
+
+    [Fact]
+    public async Task SubmitAsync_SharedTcAcrossPersonnel_RejectsBeforeWorkerRuns()
+    {
+        using var scope = fixture.Services.CreateScope();
+        string tcKimlikNo = new('1', 11);
+        var request = new BulkCollectionSubmitRequest { BatchId = Guid.NewGuid(), Researchers =
+        [
+            new() { PersonelId = "synthetic-tc-a", TcKimlikNo = tcKimlikNo },
+            new() { PersonelId = "synthetic-tc-b", TcKimlikNo = tcKimlikNo }
+        ]};
+
+        var result = await scope.ServiceProvider.GetRequiredService<BulkCollectionService>().SubmitAsync(request);
+
+        Assert.Equal(2, result.Counts[BulkJobStatus.Rejected]);
+        Assert.All(result.Jobs, job => Assert.DoesNotContain(tcKimlikNo, job.Message));
     }
 
     [Fact]
@@ -530,6 +549,25 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
     }
 
     [Fact]
+    public async Task ProcessNextAsync_YoksisCategoryFailure_SchedulesGenericRetry()
+    {
+        await using var services = BuildServices(new FakeApplicationService(false, yoksisFailedCategories: 1));
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        await DeferExistingJobsAsync(db);
+        var service = scope.ServiceProvider.GetRequiredService<BulkCollectionService>();
+        var input = Input();
+        await service.SubmitAsync(input);
+
+        await scope.ServiceProvider.GetRequiredService<BulkJobProcessor>().ProcessNextAsync();
+        var result = await service.GetStatusAsync(new() { BatchId = input.BatchId });
+
+        Assert.Equal(BulkJobStatus.RetryWaiting, result.Jobs.Single().Status);
+        Assert.Equal(1, result.Jobs.Single().Attempts);
+        Assert.Equal("Temporary failure or provider cooldown; retry scheduled.", result.Jobs.Single().Message);
+    }
+
+    [Fact]
     public async Task ProcessNextAsync_LocalAndActualNonretryableFailures_ConsumeAttempt()
     {
         await using var services = BuildServices(
@@ -614,7 +652,8 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
 
     private sealed class FakeApplicationService(bool fail, string? failureCode = null,
         bool localDeferral = false, bool throwAfterFailure = false, bool actualFailure = false,
-        bool nonretryableFailure = false, bool actualNonretryableFailure = false) : IAcademicPerformanceApplicationService
+        bool nonretryableFailure = false, bool actualNonretryableFailure = false,
+        int yoksisFailedCategories = 0) : IAcademicPerformanceApplicationService
     {
         public AcademicDataCollectRequest? LastRequest { get; private set; }
 
@@ -635,7 +674,8 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
                     OpenAlexProfile = request.Orcid is null ? null : new(),
                     GoogleScholarProfile = request.GoogleScholarId is null ? null : new(),
                     WebOfScienceProfile = request.WebOfScienceResearcherId is null ? null : new()
-                }
+                },
+                YoksisFailedCategoryCount = yoksisFailedCategories
             });
         }
         public Task<AcademicDataResponse> GetResearcherAsync(AcademicResearcherRequest request) => throw new NotSupportedException();

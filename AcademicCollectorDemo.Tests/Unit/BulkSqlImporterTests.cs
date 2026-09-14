@@ -50,4 +50,20 @@ public sealed class BulkSqlImporterTests
         Assert.Equal("AbCdEfGhIjKl", row.GoogleScholarId);
         Assert.Equal(" raw-scopus ", row.ScopusId);
     }
+
+    [Fact]
+    public void ReadRow_TcOnlyProfile_MapsConfiguredIdentityColumn()
+    {
+        DataTable data = new();
+        data.Columns.Add("KimlikNo");
+        data.Rows.Add(new string('1', 11));
+        using var reader = data.CreateDataReader();
+        reader.Read();
+        var columns = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { ["KimlikNo"] = 0 };
+
+        var row = BulkSqlImporter.ReadRow(reader, columns,
+            new() { TcKimlikNoColumn = "KimlikNo" }, 1);
+
+        Assert.Equal(new string('1', 11), row.TcKimlikNo);
+    }
 }

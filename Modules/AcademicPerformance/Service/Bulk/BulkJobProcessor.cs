@@ -52,6 +52,7 @@ public sealed class BulkJobProcessor(
         bool retryable = false;
         bool collectionReturnedNormally = false;
         bool collectionHasFailureCode = false;
+        bool yoksisHasFailures = false;
         try
         {
             BulkResearcherInput input = BulkCollectionService.ReadPersisted(job.InputJson).Input;
@@ -61,6 +62,7 @@ public sealed class BulkJobProcessor(
             AcademicDataResponse response = await service.CollectAsync(new()
             {
                 PersonelId = input.PersonelId,
+                TcKimlikNo = input.TcKimlikNo,
                 Orcid = input.Orcid,
                 GoogleScholarId = input.GoogleScholarId,
                 WebOfScienceResearcherId = input.WebOfScienceId,
@@ -68,9 +70,10 @@ public sealed class BulkJobProcessor(
             });
             collectionReturnedNormally = true;
             collectionHasFailureCode = response.FailureCode is not null;
+            yoksisHasFailures = response.YoksisFailedCategoryCount > 0;
             saved = response.IsSaved;
             bool persistenceDataTooLong = response.FailureCode == "PersistenceDataTooLong";
-            bool hasErrors = providerCalls.Failures.Count > 0 ||
+            bool hasErrors = collectionHasFailureCode || yoksisHasFailures || providerCalls.Failures.Count > 0 ||
                 response.Messages.Any(message => message.StartsWith("[HATA]", StringComparison.Ordinal)) ||
                 (!string.IsNullOrWhiteSpace(input.Orcid) &&
                     (response.Researcher?.OrcidProfile is null || response.Researcher.OpenAlexProfile is null)) ||
@@ -83,7 +86,9 @@ public sealed class BulkJobProcessor(
             }
             else
             {
-                retryable = !persistenceDataTooLong && (providerCalls.Failures.Any(failure => failure.Retryable) ||
+                retryable = !persistenceDataTooLong && (yoksisHasFailures ||
+                    response.FailureCode == "YoksisPersistenceFailure" ||
+                    providerCalls.Failures.Any(failure => failure.Retryable) ||
                     (!saved && providerCalls.Failures.Count == 0));
                 if (persistenceDataTooLong)
                     job.ResultMessage = "Collection could not be saved because provider metadata exceeds the database schema.";
@@ -104,6 +109,7 @@ public sealed class BulkJobProcessor(
         }
 
         bool onlyLocalDeferrals = retryable && collectionReturnedNormally && !collectionHasFailureCode &&
+            !yoksisHasFailures &&
             providerCalls.Failures.Any(failure => failure.Retryable) &&
             providerCalls.Failures.All(failure => failure.IsLocalDeferral || failure.IsDisabled);
         if (onlyLocalDeferrals)
