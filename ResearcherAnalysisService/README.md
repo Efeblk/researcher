@@ -6,7 +6,7 @@
 
 Servis SQL Server kullanır. Yerel `ConnectionStrings:UsageDatabase` varsayılanı collector'ın `ConnectionStrings:AcademicDatabase` değeriyle aynı `AcademicCollectorDemo` LocalDB veritabanını hedefler. Deployment'ta iki projeye aynı SQL veritabanı hedefini ayrı güvenli yapılandırmayla verin; servis hesapları ve izinleri farklı olabilir.
 
-Analysis Service başlangıçta `ResearcherAnalysisService/Data/Migrations` altındaki `202609140001`–`202609140016` migration serisini `dbo.ResearcherAnalysisVersionInfo` geçmişiyle uygular. `analysis`, `hr` ve `faculty` tablolarının DDL/yazma sahibi Analysis Service'tir; collector tablolarını oluşturmaz. Fresh veritabanında Analysis Service önce başlatılabilir: stateless uçlar çalışır, kaynak isteyen kalıcı uçlar açık `503` dönebilir ve worker'lar collector kaynakları hazır olana kadar bekler. Collector önce veya iki servis eşzamanlı da başlatılabilir.
+Analysis Service başlangıçta `ResearcherAnalysisService/Data/Migrations` altındaki `202609140001`–`202609140017` migration serisini `dbo.ResearcherAnalysisVersionInfo` geçmişiyle uygular. `analysis`, `hr` ve `faculty` tablolarının DDL/yazma sahibi Analysis Service'tir; collector tablolarını oluşturmaz. Fresh veritabanında Analysis Service önce başlatılabilir: stateless uçlar çalışır, kaynak isteyen kalıcı uçlar açık `503` dönebilir ve worker'lar collector kaynakları hazır olana kadar bekler. Collector önce veya iki servis eşzamanlı da başlatılabilir.
 
 ```powershell
 dotnet restore ResearcherAnalysisService/ResearcherAnalysisService.csproj
@@ -27,6 +27,8 @@ Repo kökünde aynı işlemler için `make run-analysis`, `make build-analysis` 
 ## Veritabanı ve veri akışı
 
 Analysis Service tek `AnalysisDbContext` içinde kendi yazılabilir entity'lerini ve aynı veritabanındaki collector tabloları için özel salt okunur kaynak modellerini eşler. `SaveChanges` kaynak modellerinde ekleme, değiştirme veya silmeyi reddeder. Servis collector tablolarını kopyalamaz; analiz kanıtı için gereken değişmez snapshot temsillerini kendi tablolarına yazar. Servisler arasında foreign key yoktur. `PersonelID`, `CanonicalWorkId` ve `AcademicWorkId` mantıksal kaynak referanslarıdır; güncel ilişki ve uygunluk salt okunur kaynak sorgularıyla denetlenir.
+
+Yeni analiz çalışmaları kanonik kaynak kümesinin kararlı kimlik özetini saklar. Collector tabloları temizlenip tamsayı kimlikleri yeniden kullanılsa bile farklı bir çalışmaya ait eski özet, inceleme veya kanıt güncel kabul edilmez. Bu alan eklenmeden önce kaydedilmiş ve kimliği güvenle türetilemeyen çalışmalar korunur, fakat yeniden üretilene kadar güncelliği `Unknown` olarak raporlanır.
 
 Collector başarılı normalizasyon transaction'ında `core.CollectionChanges` kaydı yazar. Analysis worker'ları bu kalıcı sinyali `analysis.CollectionChangeReceipts` ile idempotent işler ve özet/metrik işlerini kendi kuyruk tablolarına planlar. Collector offline iken Analysis Service mevcut normalize kaynaklardan ürün okuyup işleyebilir; Analysis Service offline iken collector sinyalleri kaybetmeden toplamaya devam eder.
 

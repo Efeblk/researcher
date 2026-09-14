@@ -40,13 +40,14 @@ Analysis Service aşağıdaki 30 veri tablosunun DDL ve yazma sahibidir:
 | `202609140014` | `analysis.ArticleReviewWorkItems`, `analysis.ArticleReviewStageCheckpoints` ve review-run checkpoint alanları |
 | `202609140015` | `analysis.ArticleEvaluationRuns` yetkilendirme alanları |
 | `202609140016` | `analysis.CollectionChangeReceipts` |
+| `202609140017` | `analysis.CanonicalArticleAnalysisRuns.SourceIdentityHash`; collector kimlikleri yeniden kullanıldığında eski ürünlerin güncel sayılmasını engeller |
 
 `core.PublicationSummaries` bibliyografik normalizasyon çıktısıdır ve collector'da kalır; `analysis.ArticleSummaries` AI makale raporudur ve Analysis Service'e geçer. `core.CollectionChanges` normalize kaynak değişikliklerini kalıcı olarak bildirir; `analysis.CollectionChangeReceipts` Analysis Service'in idempotent tüketim durumunu saklar.
 
 Migration kabulü:
 
 - Collector yalnız `dbo.VersionInfo`, Analysis Service yalnız `dbo.ResearcherAnalysisVersionInfo` geçmişini kullanır. Salt analitik migration tipleri collector assembly'sinden çıkarılır; mevcut `dbo.VersionInfo` satırları korunur ve no-op/tombstone migration yığını eklenmez. Gemini ledger ve diğer analitik DDL'ler Analysis Service'e aittir.
-- Karışık eski `202609110002` migration'ı collector tablolarına daraltılır. Analysis Service'in `202609140002`–`202609140016` final-schema/adoption serisi mevcut analitik tabloları ve satırları değiştirmeden benimser; fresh kurulumda aynı son şemayı kurar. Kimlik, audit, maliyet ve kuyruk satırları kaybolmaz veya yeniden yazılmaz.
+- Karışık eski `202609110002` migration'ı collector tablolarına daraltılır. Analysis Service'in `202609140002`–`202609140017` final-schema/adoption serisi mevcut analitik tabloları ve satırları değiştirmeden benimser; fresh kurulumda aynı son şemayı kurar. Kimlik, audit, maliyet ve kuyruk satırları kaybolmaz veya yeniden yazılmaz. Eski analiz satırlarında güvenle türetilemeyen kaynak kimlik özeti `NULL` kalır ve sonuç yeniden üretilene kadar güncel kabul edilmez.
 - Servisler arası foreign key oluşturulmaz. Analysis tablolarındaki `PersonelID`, `CanonicalWorkId`, `AcademicWorkId` gibi kaynak kimlikleri mantıksal referanstır; uygunluk Analysis Service'in salt okunur kaynak sorgularıyla doğrulanır. Analysis/hr/faculty içindeki kendi-servis foreign key ve unique/index kuralları korunur.
 - Fresh veritabanında Analysis-first yalnız `analysis`, `hr`, `faculty` ve kendi history/receipt tablolarını; Collector-first yalnız collector şemaları, history ve değişiklik sinyalini oluşturur. Eşzamanlı başlangıç ortak SQL uygulama kilidiyle yarışmadan tamamlanır.
 - Development collector temizliği yalnız collector tablolarını/history/sinyalini indirir; Analysis Service tablolarına ve `dbo.ResearcherAnalysisVersionInfo` geçmişine dokunmaz.
