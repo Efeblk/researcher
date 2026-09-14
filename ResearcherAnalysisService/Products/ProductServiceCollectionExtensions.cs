@@ -23,8 +23,7 @@ public static class ProductServiceCollectionExtensions
     {
         string connectionString = configuration.GetConnectionString("UsageDatabase")
             ?? throw new InvalidOperationException("ConnectionStrings:UsageDatabase is required.");
-        services.AddDbContext<AnalysisDbContext>(options => options.UseSqlServer(connectionString,
-            sql => sql.EnableRetryOnFailure()));
+        services.AddDbContext<AnalysisDbContext>(options => options.UseSqlServer(connectionString));
         services.AddScoped<AnalysisSourceLock>();
         services.AddOptions<CollectionChangeOptions>().Bind(configuration.GetSection("CollectionChanges"))
             .ValidateDataAnnotations();

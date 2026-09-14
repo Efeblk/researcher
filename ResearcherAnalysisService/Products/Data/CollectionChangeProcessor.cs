@@ -31,9 +31,39 @@ public sealed class CollectionChangeProcessor(
                 await using var transaction = await database.Database.BeginTransactionAsync(
                     IsolationLevel.Serializable, cancellationToken);
                 await sourceLock.AcquireWriteGateAsync(cancellationToken);
+
+                if (processed == 0)
+                {
+                    CollectionChange? unsupported = await database.CollectionChanges.AsNoTracking()
+                        .Where(candidate => !database.CollectionChangeReceipts.Any(
+                            receipt => receipt.EventId == candidate.EventId))
+                        .Where(candidate => candidate.PayloadVersion != 1 ||
+                            (candidate.ChangeKind != "ResearcherCollected" &&
+                             candidate.ChangeKind != "CanonicalWorkChanged") ||
+                            (candidate.ChangeKind == "ResearcherCollected" &&
+                             (candidate.PersonelId == null || candidate.PersonelId == "")) ||
+                            (candidate.ChangeKind == "CanonicalWorkChanged" &&
+                             (candidate.CanonicalWorkId == null || candidate.CanonicalWorkId <= 0)))
+                        .OrderBy(candidate => candidate.OccurredAtUtc)
+                        .ThenBy(candidate => candidate.EventId)
+                        .FirstOrDefaultAsync(cancellationToken);
+                    if (unsupported is not null)
+                    {
+                        logger.LogWarning(
+                            "Collection change {EventId} remains pending because payload version {PayloadVersion} " +
+                            "or change kind {ChangeKind} is unsupported.",
+                            unsupported.EventId, unsupported.PayloadVersion, unsupported.ChangeKind);
+                    }
+                }
+
                 CollectionChange? change = await database.CollectionChanges.AsNoTracking()
                     .Where(candidate => !database.CollectionChangeReceipts.Any(
                         receipt => receipt.EventId == candidate.EventId))
+                    .Where(candidate => candidate.PayloadVersion == 1 &&
+                        ((candidate.ChangeKind == "ResearcherCollected" &&
+                          candidate.PersonelId != null && candidate.PersonelId != "") ||
+                         (candidate.ChangeKind == "CanonicalWorkChanged" &&
+                          candidate.CanonicalWorkId != null && candidate.CanonicalWorkId > 0)))
                     .OrderBy(candidate => candidate.OccurredAtUtc)
                     .ThenBy(candidate => candidate.EventId)
                     .FirstOrDefaultAsync(cancellationToken);
@@ -70,6 +100,10 @@ public sealed class CollectionChangeProcessor(
                             job.Status = ArticleSummaryAutomationJobStatus.Failed;
                             job.LastOutcomeCode = "SourceRemoved";
                             job.LastOutcomeMessage = "Collector source association was removed.";
+                            job.ExecutionToken = null;
+                            job.RunningInputHash = null;
+                            job.RunningPolicyVersion = null;
+                            job.CompletedAt = now;
                             job.UpdatedAt = now;
                         }
                         scheduled = jobs.Count != 0;
