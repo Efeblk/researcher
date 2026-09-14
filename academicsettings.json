@@ -64,6 +64,7 @@
     "CommandTimeoutSeconds": 30,
     "PersonelIdColumn": "PersonelID",
     "OrcidColumn": "ORCID",
+    "TcKimlikNoColumn": "TcKimlikNo",
     "GoogleScholarIdColumn": "ScholarID",
     "WebOfScienceIdColumn": "ResearcherID",
     "ScopusIdColumn": "ScopusID"

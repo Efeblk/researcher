@@ -10,6 +10,8 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using Microsoft.EntityFrameworkCore;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Persistence;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Collection;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Application;
 
@@ -24,19 +26,22 @@ public sealed class AcademicPerformanceApplicationService :
     private readonly ResearcherProviderInputNormalizer _inputNormalizer;
     private readonly CanonicalWorkQueryService _canonicalWorkQueryService;
     private readonly CanonicalWorkSynchronizer _canonicalWorkSynchronizer;
+    private readonly YoksisCollectionHandler? _yoksisCollectionHandler;
 
     public AcademicPerformanceApplicationService(
         ResearcherCollectionHandler collectionHandler,
         AcademicDbContext dbContext,
         ResearcherProviderInputNormalizer inputNormalizer,
         CanonicalWorkQueryService? canonicalWorkQueryService = null,
-        CanonicalWorkSynchronizer? canonicalWorkSynchronizer = null)
+        CanonicalWorkSynchronizer? canonicalWorkSynchronizer = null,
+        YoksisCollectionHandler? yoksisCollectionHandler = null)
     {
         _collectionHandler = collectionHandler;
         _dbContext = dbContext;
         _inputNormalizer = inputNormalizer;
         _canonicalWorkQueryService = canonicalWorkQueryService ?? new CanonicalWorkQueryService(dbContext);
         _canonicalWorkSynchronizer = canonicalWorkSynchronizer ?? new CanonicalWorkSynchronizer(dbContext);
+        _yoksisCollectionHandler = yoksisCollectionHandler;
     }
 
     public async Task<AcademicDataResponse> CollectAsync(
@@ -48,6 +53,18 @@ public sealed class AcademicPerformanceApplicationService :
         if (request.PersonelId.Trim().Length > 200)
             throw new ArgumentException("PersonelID must be at most 200 characters.");
 
+        string personelId = request.PersonelId.Trim();
+        string? tcKimlikNo = string.IsNullOrWhiteSpace(request.TcKimlikNo)
+            ? null : YoksisCollectionService.ValidateTcKimlikNo(request.TcKimlikNo);
+        if (tcKimlikNo is not null)
+        {
+            bool identityConflict = await _dbContext.Researchers.AsNoTracking().AnyAsync(researcher =>
+                (researcher.PersonelId == personelId && researcher.TcKimlikNo != null && researcher.TcKimlikNo != tcKimlikNo) ||
+                (researcher.TcKimlikNo == tcKimlikNo && researcher.PersonelId != personelId));
+            if (identityConflict)
+                throw new ArgumentException("T.C. kimlik numarası farklı bir personel kaydıyla eşleşiyor.");
+        }
+
         ResearcherProviderInputNormalizationResult normalization = _inputNormalizer.Normalize(new()
         {
             Orcid = request.Orcid,
@@ -55,37 +72,81 @@ public sealed class AcademicPerformanceApplicationService :
             WebOfScienceResearcherId = request.WebOfScienceResearcherId,
             ScopusId = request.ScopusId
         });
-        if (normalization.RejectionReason is not null)
+        if (normalization.RejectionReason is not null && tcKimlikNo is null)
         {
             string details = normalization.Warnings.Count == 0
                 ? string.Empty
                 : " " + string.Join(" ", normalization.Warnings);
             throw new ArgumentException(normalization.RejectionReason + details);
         }
+        bool providerOwnershipConflict = await _dbContext.Researchers.AsNoTracking().AnyAsync(researcher =>
+            researcher.PersonelId != personelId &&
+            ((normalization.Input.Orcid != null && researcher.Orcid == normalization.Input.Orcid) ||
+             (normalization.Input.GoogleScholarId != null && researcher.GoogleScholarId == normalization.Input.GoogleScholarId) ||
+             (normalization.Input.WebOfScienceResearcherId != null &&
+                researcher.WebOfScienceResearcherId == normalization.Input.WebOfScienceResearcherId)));
+        if (providerOwnershipConflict)
+            throw new ArgumentException("Sağlayıcı kimliği farklı bir personel kaydıyla eşleşiyor.");
+        YoksisCollectResponse? yoksisResponse = null;
+        if (tcKimlikNo is not null)
+        {
+            if (_yoksisCollectionHandler is null)
+                throw new InvalidOperationException("YÖKSİS collection is not configured.");
+            yoksisResponse = await _yoksisCollectionHandler.CollectAsync(new()
+            {
+                PersonelId = personelId,
+                TcKimlikNo = tcKimlikNo
+            });
+            Researcher? discovered = await _dbContext.Researchers.AsNoTracking()
+                .SingleOrDefaultAsync(researcher => researcher.PersonelId == personelId);
+            if (discovered is not null)
+            {
+                normalization.Input.Orcid ??= discovered.Orcid;
+                normalization.Input.GoogleScholarId ??= discovered.GoogleScholarId;
+                normalization.Input.WebOfScienceResearcherId ??= discovered.WebOfScienceResearcherId;
+            }
+        }
+        bool hasProviderIdentifier = normalization.Input.Orcid is not null ||
+            normalization.Input.GoogleScholarId is not null || normalization.Input.WebOfScienceResearcherId is not null;
+        if (!hasProviderIdentifier)
+        {
+            Researcher? savedResearcher = await _dbContext.Researchers.AsNoTracking()
+                .SingleOrDefaultAsync(researcher => researcher.PersonelId == personelId);
+            return new()
+            {
+                Researcher = savedResearcher is null ? null : AcademicPerformanceDtoMapper.MapResearcher(savedResearcher),
+                IsSaved = yoksisResponse?.IsSaved == true,
+                YoksisFailedCategoryCount = yoksisResponse?.FailedCategoryCount ?? 0,
+                CollectedAt = DateTime.UtcNow,
+                Messages = yoksisResponse?.Messages ?? []
+            };
+        }
         ResearcherCollectRequest collectionRequest =
             ResearcherProviderInputNormalizer.ToCollectionRequest(normalization.Input);
-        collectionRequest.PersonelId = request.PersonelId.Trim();
+        collectionRequest.PersonelId = personelId;
+        collectionRequest.TcKimlikNo = tcKimlikNo;
         collectionRequest.ScopusId = string.IsNullOrWhiteSpace(request.ScopusId)
             ? null : request.ScopusId.Trim();
         ResearcherCollectResponse? collectionResponse = await _collectionHandler.CollectAsync(collectionRequest);
-        string? personelId = collectionResponse.Researcher?.PersonelId;
+        string? collectedPersonelId = collectionResponse.Researcher?.PersonelId;
 
-        if (collectionResponse.IsSaved && !string.IsNullOrWhiteSpace(personelId))
+        if (collectionResponse.IsSaved && !string.IsNullOrWhiteSpace(collectedPersonelId))
         {
             publicationCount = await _dbContext.PublicationSummaries
                 .AsNoTracking()
-                .CountAsync(summary => summary.PersonelId == personelId);
+                .CountAsync(summary => summary.PersonelId == collectedPersonelId);
         }
 
         return new AcademicDataResponse
         {
             Researcher = AcademicPerformanceDtoMapper.MapResearcher(collectionResponse.Researcher),
-            IsSaved = collectionResponse.IsSaved,
+            IsSaved = collectionResponse.IsSaved || yoksisResponse?.IsSaved == true,
             FailureCode = collectionResponse.FailureCode,
+            YoksisFailedCategoryCount = yoksisResponse?.FailedCategoryCount ?? 0,
             PublicationCount = publicationCount,
             DatabaseProvider = collectionResponse.DatabaseProvider,
             CollectedAt = DateTime.UtcNow,
-            Messages = collectionResponse.Messages
+            Messages = (yoksisResponse?.Messages ?? []).Concat(collectionResponse.Messages)
                 .Concat(normalization.Warnings.Select(warning => "[UYARI] " + warning)).ToList(),
             Warnings = normalization.Warnings
         };

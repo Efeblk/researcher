@@ -6,6 +6,8 @@ public sealed class BulkResearcherInput
 {
     [JsonPropertyName("PersonelID"), Newtonsoft.Json.JsonProperty("PersonelID")]
     public string PersonelId { get; set; } = string.Empty;
+    [JsonPropertyName("TcKimlikNo"), Newtonsoft.Json.JsonProperty("TcKimlikNo")]
+    public string? TcKimlikNo { get; set; } = null;
     [JsonPropertyName("ORCID"), Newtonsoft.Json.JsonProperty("ORCID")]
     public string? Orcid { get; set; } = null;
     [JsonPropertyName("ScholarID"), Newtonsoft.Json.JsonProperty("ScholarID")]

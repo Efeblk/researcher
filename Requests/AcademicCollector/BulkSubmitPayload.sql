@@ -13,6 +13,8 @@ SET @RequestBody = (
         JSON_QUERY((
             SELECT TOP (10)
                 CAST(p.PersonelID AS nvarchar(max)) AS PersonelID,
+                -- Dış kaynak KimlikNo adını kullanıyorsa: p.KimlikNo AS TcKimlikNo
+                p.TcKimlikNo,
                 p.ORCID,
                 p.ResearcherID,
                 p.ScopusID,
@@ -25,3 +27,8 @@ SET @RequestBody = (
 );
 
 SELECT @RequestBody AS RequestBody;
+
+-- Hazırlanmış Excel aktarım tablosu için aynı gövdeyi üretmek isterseniz yukarıdaki
+-- dbo.PersonelTest kaynağı yerine aşağıdaki eşlemeyi kullanın:
+-- FROM [import].[AkademikListe] AS p
+-- Beklenen normalize sütunlar: PersonelID, TcKimlikNo, ORCID, ResearcherID, ScopusID, ScholarID.

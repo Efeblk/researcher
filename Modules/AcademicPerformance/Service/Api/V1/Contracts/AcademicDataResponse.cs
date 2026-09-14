@@ -7,6 +7,7 @@ public sealed class AcademicDataResponse : ServiceResponse
     public AcademicResearcherDto? Researcher { get; set; } = null;
     public bool IsSaved { get; set; }
     public string? FailureCode { get; set; } = null;
+    public int YoksisFailedCategoryCount { get; set; }
     public int PublicationCount { get; set; }
     public string? DatabaseProvider { get; set; } = null;
     public DateTime CollectedAt { get; set; }

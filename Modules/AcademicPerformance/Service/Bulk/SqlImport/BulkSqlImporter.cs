@@ -30,9 +30,10 @@ public sealed class BulkSqlImporter(
             .ToDictionary(reader.GetName, index => index, StringComparer.OrdinalIgnoreCase);
         if (!columns.ContainsKey(source.PersonelIdColumn))
             throw new InvalidOperationException("The query must return the configured PersonelID column.");
-        if (!columns.ContainsKey(source.OrcidColumn) && !columns.ContainsKey(source.GoogleScholarIdColumn) &&
+        if (!columns.ContainsKey(source.TcKimlikNoColumn) && !columns.ContainsKey(source.OrcidColumn) &&
+            !columns.ContainsKey(source.GoogleScholarIdColumn) &&
             !columns.ContainsKey(source.WebOfScienceIdColumn))
-            throw new InvalidOperationException("The query must return at least one configured provider ID column.");
+            throw new InvalidOperationException("The query must return TcKimlikNo or at least one configured provider ID column.");
 
         List<BulkResearcherInput> rows = [];
         while (await reader.ReadAsync(cancellationToken))
@@ -52,6 +53,7 @@ public sealed class BulkSqlImporter(
         return new()
         {
             PersonelId = Read(source.PersonelIdColumn) ?? string.Empty,
+            TcKimlikNo = Read(source.TcKimlikNoColumn),
             Orcid = Read(source.OrcidColumn),
             GoogleScholarId = Read(source.GoogleScholarIdColumn),
             WebOfScienceId = Read(source.WebOfScienceIdColumn),

@@ -88,6 +88,34 @@ public sealed class BulkResearcherInputNormalizerTests
         Assert.Equal("raw-scopus-value", input.ScopusId);
     }
 
+    [Fact]
+    public void Normalize_ValidTcOnly_TrimsAndAcceptsRow()
+    {
+        var input = Input();
+        input.TcKimlikNo = "  " + new string('1', 11) + "  ";
+
+        var result = _normalizer.Normalize(input);
+
+        Assert.Equal(new string('1', 11), result.Input.TcKimlikNo);
+        Assert.Null(result.RejectionReason);
+    }
+
+    [Theory]
+    [InlineData("01234567890")]
+    [InlineData("123")]
+    [InlineData("1234567890A")]
+    public void Normalize_InvalidTc_RejectsWithoutEchoingValue(string value)
+    {
+        var input = Input(orcid: "0000-0002-1825-009X");
+        input.TcKimlikNo = value;
+
+        var result = _normalizer.Normalize(input);
+
+        Assert.Null(result.Input.TcKimlikNo);
+        Assert.NotNull(result.RejectionReason);
+        Assert.DoesNotContain(value, result.RejectionReason);
+    }
+
     private static BulkResearcherInput Input(string? orcid = null, string? scholar = null, string? wos = null) => new()
     {
         PersonelId = "synthetic-person", Orcid = orcid,

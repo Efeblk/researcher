@@ -136,6 +136,7 @@ public sealed class BulkCollectionService(
             if (row.Orcid is not null) Add(providerKeys, "orcid:" + row.Orcid, index);
             if (row.GoogleScholarId is not null) Add(providerKeys, "scholar:" + row.GoogleScholarId, index);
             if (row.WebOfScienceId is not null) Add(providerKeys, "wos:" + row.WebOfScienceId, index);
+            if (row.TcKimlikNo is not null) Add(providerKeys, "tc:" + row.TcKimlikNo, index);
         }
         foreach (List<int> indexes in personelKeys.Values.Concat(providerKeys.Values)
             .Where(value => value.Count > 1))
@@ -155,6 +156,6 @@ public sealed class BulkCollectionService(
         if (!string.IsNullOrWhiteSpace(input.Orcid)) identifiers.AddRange(["--orcid", input.Orcid]);
         if (!string.IsNullOrWhiteSpace(input.GoogleScholarId)) identifiers.AddRange(["--scholar", input.GoogleScholarId]);
         if (!string.IsNullOrWhiteSpace(input.WebOfScienceId)) identifiers.AddRange(["--wos", input.WebOfScienceId]);
-        return new() { Identifiers = identifiers };
+        return new() { Identifiers = identifiers, TcKimlikNo = input.TcKimlikNo };
     }
 }

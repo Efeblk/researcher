@@ -58,6 +58,7 @@ public sealed class ResearcherCollectionHandler
         ResearcherCollectResponse response = new();
         Researcher requestedResearcher = _identifierParser.Create(request);
         requestedResearcher.PersonelId = request.PersonelId.Trim();
+        requestedResearcher.TcKimlikNo = request.TcKimlikNo;
         requestedResearcher.ScopusId = NormalizeOptional(request.ScopusId);
         Researcher researcher = requestedResearcher;
 
