@@ -236,6 +236,44 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
     }
 
     [Fact]
+    public async Task ProviderStatus_HttpGet_ProviderErrorsRemainSanitizedAndIsolated()
+    {
+        using HttpClient upstream = new(new StubHttpHandler(request => request.RequestUri!.Host switch
+        {
+            "openalex.test" => Limited(),
+            "wos.test" => new(HttpStatusCode.Unauthorized),
+            _ => ValidResponse(request)
+        }));
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Logging.ClearProviders();
+        builder.Services.AddSingleton(CreateService(upstream));
+        builder.Services.AddControllers().AddApplicationPart(typeof(ProviderStatusEndpoint).Assembly);
+        await using var app = builder.Build();
+        app.MapControllers();
+        await app.StartAsync();
+        using HttpClient client = new() { BaseAddress = new Uri(app.Urls.Single()) };
+
+        using HttpResponseMessage response = await client.GetAsync(
+            "/Services/AcademicPerformance/V1/ProviderStatus");
+        response.EnsureSuccessStatusCode();
+        JsonElement root = await response.Content.ReadFromJsonAsync<JsonElement>();
+        JsonElement[] providers = root.GetProperty("providers").EnumerateArray().ToArray();
+        JsonElement openAlex = providers.Single(provider =>
+            provider.GetProperty("provider").GetString() == "OpenAlex");
+        Assert.Equal("RateLimited", openAlex.GetProperty("health").GetString());
+        Assert.Equal(0, Assert.Single(openAlex.GetProperty("quotas").EnumerateArray())
+            .GetProperty("remaining").GetDecimal());
+        JsonElement webOfScience = providers.Single(provider =>
+            provider.GetProperty("provider").GetString() == "WebOfScience");
+        Assert.Equal("Unauthorized", webOfScience.GetProperty("health").GetString());
+        Assert.Empty(webOfScience.GetProperty("quotas").EnumerateArray());
+        string json = root.GetRawText();
+        Assert.DoesNotContain("message", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("reason", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task GetAsync_CacheHitAfterQuotaExpiry_RebuildsRemainingUsageWithoutNewRequests()
     {
         using StubHttpHandler handler = new(request => request.RequestUri!.Host switch
