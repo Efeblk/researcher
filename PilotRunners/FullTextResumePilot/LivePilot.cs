@@ -8,14 +8,15 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using AcademicCollector.Analysis.Contracts;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleReviews;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries;
+using ResearcherAnalysisService.Products.ArticleReviews;
+using ResearcherAnalysisService.Products.ArticleSummaries;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using ResearcherAnalysisService.Products.Data;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -31,7 +32,7 @@ public static class LivePilot
     private const string AnalysisUrl = "http://127.0.0.1:5097";
     private const string CollectorUrl = "http://127.0.0.1:5197";
     private const string ServiceKey = "fulltext-resume-pilot-synthetic-service-key";
-    private const string Api = "/Services/AcademicPerformance/V1/";
+    private const string Api = AnalysisUrl + "/api/v1/products/";
     private const int MaximumCalls = 64;
     private const decimal MaximumSpendUsd = 2m;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
@@ -100,6 +101,7 @@ public static class LivePilot
             result["status"] = "hosts_started";
             await artifacts.WritePhaseAsync("hosts-started", result, budget.Snapshot());
             using HttpClient client = new() { BaseAddress = new(CollectorUrl), Timeout = TimeSpan.FromMinutes(12) };
+            client.DefaultRequestHeaders.Add("X-Analysis-Key", ServiceKey);
             using HttpClient analysisClient = new() { BaseAddress = new(AnalysisUrl), Timeout = TimeSpan.FromMinutes(12) };
             analysisClient.DefaultRequestHeaders.Add("X-Analysis-Key", ServiceKey);
             bool cachedProbePassed = result["citationProbeGate"]?["passed"]?.GetValue<bool>() == true;
@@ -554,14 +556,14 @@ public static class LivePilot
 
     private static async Task<bool> HasPersistedSummaryAsync(string connectionString, int canonicalWorkId)
     {
-        await using AcademicDbContext db = Database(connectionString);
+        await using AnalysisDbContext db = AnalysisDatabase(connectionString);
         return await db.CanonicalArticleAnalysisRuns.AsNoTracking().AnyAsync(value =>
             value.CanonicalWorkId == canonicalWorkId && value.SavedArticleSummary != null);
     }
 
     private static async Task<bool> HasCompletedReviewAsync(string connectionString, int canonicalWorkId)
     {
-        await using AcademicDbContext db = Database(connectionString);
+        await using AnalysisDbContext db = AnalysisDatabase(connectionString);
         return await db.CanonicalArticleReviewRuns.AsNoTracking().AnyAsync(value =>
             value.CanonicalWorkId == canonicalWorkId && value.ProcessedRoles == 4 && value.TotalRoles == 4);
     }
@@ -580,7 +582,7 @@ public static class LivePilot
     private static async Task<DatabaseAudit> AuditSummaryAsync(string connectionString, int canonicalWorkId,
         SourcePreflight expected, string expectedUrl)
     {
-        await using AcademicDbContext db = Database(connectionString);
+        await using AnalysisDbContext db = AnalysisDatabase(connectionString);
         CanonicalArticleAnalysisRun run = await db.CanonicalArticleAnalysisRuns.AsNoTracking()
             .Include(value => value.ArticleSourceSnapshot).ThenInclude(value => value!.Pages)
             .Include(value => value.ArticleSourceSnapshot).ThenInclude(value => value!.Spans)
@@ -625,7 +627,7 @@ public static class LivePilot
     private static async Task<DatabaseAudit> AuditReviewAsync(string connectionString, int canonicalWorkId,
         HashSet<Guid> usageIds)
     {
-        await using AcademicDbContext db = Database(connectionString);
+        await using AnalysisDbContext db = AnalysisDatabase(connectionString);
         CanonicalArticleReviewRun? run = await db.CanonicalArticleReviewRuns.AsNoTracking()
             .Include(value => value.ArticleSourceSnapshot).ThenInclude(value => value!.Pages)
             .Include(value => value.ArticleSourceSnapshot).ThenInclude(value => value!.Spans)
@@ -791,6 +793,9 @@ public static class LivePilot
     private static AcademicDbContext Database(string connectionString) => new(
         new DbContextOptionsBuilder<AcademicDbContext>().UseSqlServer(connectionString).Options);
 
+    private static AnalysisDbContext AnalysisDatabase(string connectionString) => new(
+        new DbContextOptionsBuilder<AnalysisDbContext>().UseSqlServer(connectionString).Options);
+
     private static async Task<(string, string)> CreateDatabaseAsync(string name)
     {
         ValidateDatabaseName(name);
@@ -844,7 +849,7 @@ public static class LivePilot
     private static async Task<JsonNode> CaptureFinalSqlDiagnosticsAsync(string connectionString)
     {
         List<UsageAttempt> usage = await ReadUsageAsync(connectionString);
-        await using AcademicDbContext db = Database(connectionString);
+        await using AnalysisDbContext db = AnalysisDatabase(connectionString);
         List<ArticleReviewWorkItem> workItems = await db.ArticleReviewWorkItems.AsNoTracking()
             .Include(value => value.Checkpoints).OrderBy(value => value.Id).ToListAsync();
         var summaryReports = await db.CanonicalArticleAnalysisRuns.AsNoTracking()
@@ -965,11 +970,7 @@ public static class LivePilot
         {
             start.Environment["ASPNETCORE_ENVIRONMENT"] = "Testing"; start.Environment["DOTNET_ENVIRONMENT"] = "Testing";
             start.Environment["ConnectionStrings__AcademicDatabase"] = connectionString;
-            start.Environment["AnalysisService__BaseUrl"] = AnalysisUrl; start.Environment["AnalysisService__ApiKey"] = ServiceKey;
-            start.Environment["ArticleSummary__OcrEnabled"] = "false";
-            start.Environment["ArticleSummaryAutomation__Enabled"] = "false"; start.Environment["ArticleSummaryAutomation__WorkerEnabled"] = "false";
-            start.Environment["PublicationMetrics__WorkerEnabled"] = "false"; start.Environment["ArticleEvaluation__WorkerEnabled"] = "false";
-            start.Environment["FacultyAssistant__WorkerEnabled"] = "false"; start.Environment["BulkCollection__WorkerEnabled"] = "false";
+            start.Environment["BulkCollection__WorkerEnabled"] = "false";
             foreach (string provider in new[] { "Orcid", "SearchApi", "OpenAlex", "WebOfScience", "Yoksis", "TrDizin", "Crossref", "Unpaywall", "SemanticScholar" })
                 start.Environment[$"ProviderRequestLimits__{provider}__Enabled"] = "false";
             foreach (string key in new[] { "SearchApi__ApiKey", "OpenAlex__ApiKey", "SemanticScholar__ApiKey", "WebOfScience__ApiKey",

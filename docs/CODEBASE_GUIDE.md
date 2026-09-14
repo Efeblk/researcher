@@ -1,73 +1,83 @@
 # Kod rehberi
 
-Uygulama iki bağımsız çalıştırılabilir projeden oluşur: Serenity tabanlı collector ve `ResearcherAnalysisService`. Ortak AI sözleşmeleri `ResearcherAnalysis.Contracts/` altındadır. İki servis aynı SQL Server veritabanını kullanır, fakat kendi migration grubunu ve sürüm geçmişini başlangıçta ayrı uygular; herhangi biri önce veya ikisi eşzamanlı başlatılabilir.
+Uygulama iki bağımsız .NET 10 projesinden oluşur. Academic Collector dış sağlayıcılardan veri toplar, normalize eder ve kanonik çekirdeği yönetir. `ResearcherAnalysisService` bütün analitik ürünlerin HTTP, kalıcılık ve worker sahibidir. Servisler aynı SQL Server veritabanını kullanır, fakat kendi migration grubunu ve sürüm geçmişini başlangıçta ayrı uygular; herhangi biri önce veya ikisi eşzamanlı başlatılabilir.
 
 ## Klasörler ve sınırlar
 
 ```text
-Program.cs                                  collector host, DI ve migration başlangıcı
-Host/                                       yalnız bu hosta ait servisler
+Program.cs                                      collector host, DI ve migration başlangıcı
+Host/                                           yalnız collector host servisleri
 Modules/AcademicPerformance/
-  Service/Api/V1/{Contracts,Endpoints}/     dış client sözleşmesi ve HTTP uçları
-  Service/Application/                     kullanım senaryoları ve DTO eşleme
-  Service/Researchers/                      model, toplama ve kalıcılık
-  Service/Works/                            ortak yayın modeli ve tekilleştirme
-  Service/Integrations/<Provider>/          sağlayıcı istemcileri ve ham modeller
-  Service/Integrations/RateLimiting/        SQL tabanlı hız/kota koordinasyonu
-  Service/{Bulk,ArticleSummaries,Analysis}/ toplu işler ve analiz iş akışları
-  Service/Data/Migrations/{Core,Providers}/ FluentMigrator değişiklikleri
-  WebClient/                                Serenity/Razor arayüzü ve UI adapter'ları
-  Background/                               kalıcı toplu kuyruk worker'ı
-AcademicCollectorDemo.Tests/                Unit, Integration, Infrastructure
+  Service/Api/V1/{Contracts,Endpoints}/         toplama, okuma, kanonik, bulk ve provider HTTP yüzeyi
+  Service/Application/                         collector kullanım senaryoları ve DTO eşleme
+  Service/Researchers/                          model, toplama ve kalıcılık
+  Service/Works/                                ortak yayın modeli, normalizasyon ve kanonikleştirme
+  Service/Integrations/<Provider>/              sağlayıcı istemcileri ve ham modeller
+  Service/Integrations/RateLimiting/            SQL tabanlı hız/kota koordinasyonu
+  Service/Bulk/                                 kuyruk işleme ve yapılandırılabilir SQL importu
+  Service/Data/Migrations/{Core,Providers}/     yalnız collector DDL'i; dbo.VersionInfo
+  WebClient/                                    Serenity/Razor arayüzü ve UI adapter'ları
+  Background/BulkCollectionWorker.cs            collector'ın tek kalıcı worker'ı
 ResearcherAnalysisService/
-  Program.cs                                analysis host, DI ve migration başlangıcı
-  Api/V1/                                   doğrudan, tam bağlamlı AI HTTP yüzeyi
-  Data/Migrations/                          Analysis Service kullanım defteri migration'ları
-  Requests/                                 doğrudan analysis HTTP örnekleri
-Requests/AcademicCollector/                 collector HTTP örnekleri
+  Program.cs                                    analysis host, DI ve migration başlangıcı
+  Api/V1/                                       stateless, tam bağlamlı AI HTTP yüzeyi
+  Products/Api/                                 kalıcı ürün sözleşmeleri ve controller'lar
+  Products/                                     analiz/özet/inceleme/metrik/bilgi/İK/fakülte akışları
+  Products/Data/                                AnalysisDbContext ve yazılabilir product entity'leri
+  SourceData/                                   aynı DB'deki collector tablolarının özel salt okunur modelleri
+  Background/                                   summary, metrics, evaluation ve faculty worker'ları
+  Data/Migrations/                              analysis/hr/faculty DDL'i; dbo.ResearcherAnalysisVersionInfo
+  Requests/                                     kalıcı ve stateless Analysis HTTP örnekleri
+ResearcherAnalysis.Contracts/                   stateless servis sözleşmeleri
+Requests/AcademicCollector/                     yalnız collector HTTP örnekleri
 ```
 
-Bağımlılık yönü `WebClient veya Api/V1/Endpoints → Application → Researchers/Works/Integrations → Data` şeklindedir. Dış client'lar yalnız V1 sözleşmelerini kullanmalı; EF entity'leri, sağlayıcı DTO'ları ve WebClient endpoint'leri dış sözleşmeye çıkarılmamalıdır. Sağlayıcıya özgü tipleri entegrasyon klasöründe tutun.
+Collector bağımlılık yönü `WebClient veya Api/V1/Endpoints → Application → Researchers/Works/Integrations → Data` biçimindedir. Analysis kalıcı ürünleri `Products/Api → Products workflows → Products/Data + SourceData` yönünü izler. Sağlayıcı DTO'larını, EF entity'lerini, yetkilendirme actor'larını veya İK alanlarını dış/grafik sözleşmelerine taşımayın.
 
-## Toplama ve veri katmanları
+## Toplama, analiz ve tablo sahipliği
 
-`AcademicPerformanceEndpoint`, isteği uygulama servisine iletir. `ResearcherCollectionHandler` kimlikleri doğrular, araştırmacıyı bulur, sağlayıcıları çağırır ve tek transaction içinde araştırmacıyı kaydedip ortak eserleri ve yayın özetlerini eşitler. YÖKSİS ayrı endpoint ve SOAP akışına sahiptir.
+`AcademicPerformanceEndpoint`, isteği collector uygulama servisine iletir. `ResearcherCollectionHandler` kimlikleri doğrular, sağlayıcıları çağırır ve bir transaction içinde araştırmacıyı, normalize eserleri, bibliyografik özetleri ve kanonik ilişkileri eşitler. Aynı transaction `core.CollectionChanges` sinyalini yazar. YÖKSİS ayrı endpoint ve SOAP akışına sahiptir; bulk worker aynı toplama uygulama servisini kullanır.
 
-| Katman | Amaç |
+| Sahip | Nesneler ve amaç |
 | --- | --- |
-| Sağlayıcı profil/eser tabloları | Ham alanları, yanıtları ve kaynağı korur; esas sağlayıcı kaydıdır. |
-| `core.AcademicWorks` / `AcademicWorkSources` | Sağlayıcı eserlerini ortak biçime ve kaynak ilişkisine taşır. |
-| `core.PublicationSummaries` | DOI; yoksa normalize başlık-yıl ile tekilleştirilmiş listeyi sunar. |
-| `core.PublicationDisplayApprovals` | Akademisyenin okul sitesinde gösterim seçimini saklar. |
-| Collector'ın `analysis.*` tabloları | Araştırmacı analizleri, makale özetleri, kanıtlar, değerlendirmeler ve kalıcı ürünleri saklar. |
-| Analysis Service `analysis.GeminiUsageAttempts` | Ücretli Gemini denemelerinin durum ve maliyet defterini saklar. |
-| `bulk.*` / `integrations.*` | Kuyruk ile sağlayıcı hız, kota ve durum koordinasyonunu saklar. |
+| Collector | `core.Researchers`, normalize eserler, `core.PublicationSummaries`, yayın seçimi, kanonik kimlik/gözlemler/üyelikler ve `core.CollectionChanges` |
+| Collector | ORCID, OpenAlex, Google Scholar, WOS, YÖKSİS, TR Dizin, Crossref ve Semantic Scholar ham/normalize sağlayıcı tabloları |
+| Collector | `bulk.*` kuyrukları ve `integrations.*` hız/kota/durum kayıtları |
+| Analysis Service | `analysis.*` araştırmacı/makale analizleri, immutable kanıt snapshot'ları, incelemeler, metrikler, değerlendirmeler, referans popülasyonları, kullanım ledger'ı ve `CollectionChangeReceipts` |
+| Analysis Service | `hr.*` kanıt dosyaları ve review action'ları; `faculty.*` bağlam ve asistan run'ları |
 
-Sağlayıcı metrikleri kolay raporlama için `core.Researchers` üzerinde nullable kolonlara da yansıtılır; sağlayıcı tabloları esas kaynaktır ve farklı sağlayıcıların metrikleri birleştirilmez. `PersonelID`, araştırmacının kurum anahtarıdır.
+`core.PublicationSummaries` bibliyografik normalizasyon çıktısıdır; AI özeti `analysis.ArticleSummaries` tablosudur. Her tablo tam bir DDL/yazma sahibine sahiptir. Servisler arası foreign key yoktur. Analysis tablolarındaki `PersonelID`, `CanonicalWorkId` ve `AcademicWorkId` mantıksal kaynak kimlikleridir; Analysis güncel ilişki ve uygunluğu aynı veritabanındaki salt okunur kaynak modelleriyle denetler. `AnalysisDbContext.SaveChanges` bu modellere yazmayı reddeder. Gerekli kanıtı kendi tablolarında immutable snapshot olarak tutar; collector tablolarını veya veritabanını aynalamaz.
 
-## Kanonik veri ve ürün yüzeyleri
+Collector migration'ları `dbo.VersionInfo`, Analysis migration'ları `dbo.ResearcherAnalysisVersionInfo` kullanır. Fresh Analysis-first yalnız Analysis nesnelerini, fresh Collector-first yalnız collector nesnelerini kurar. Uygulanmış legacy `dbo.VersionInfo` satırları upgrade sırasında korunur; Analysis final-schema baseline'ı mevcut analitik tabloları ve satırları değiştirmeden benimser. Tam envanter ve upgrade/offline kabul matrisi [servis ayrımı planındadır](SERVICE_SEPARATION_PLAN.md).
 
-Toplama, yayın özetlerini güncellemeden önce sağlayıcı eserlerini `core.CanonicalWorks`, araştırmacı üyelikleri ve kaynak gözlemleriyle uzlaştırır. Kanonik transaction bağımlı özet ve metrik işlerini planlar. `analysis.*` ayrıca değişmez makale kanıtlarını, uzman incelemelerini, değerlendirme denemelerini, metrik snapshot'larını, referans popülasyonu manifestlerini, İK dosyalarını ve fakülte asistanı çalıştırmalarını saklar. SQL Server esas kaynaktır; grafik dışa aktarımı ikinci bir production veritabanı değil yeniden üretilebilir bir kanıt paketidir.
+## HTTP ve worker yüzeyleri
 
-Desteklenen collector işlemleri `/Services/AcademicPerformance/V1/[action]` yolunu kullanır. Toplama işlemlerine ek olarak `ListCanonicalPublications`, `RebuildCanonicalPublications`, `GetResearcherPublicationMetrics`, `RefreshResearcherPublicationMetrics`, `SearchAcademicEvidence`, `GetReferencePopulation`, `ImportReferencePopulation` ve `ExportAcademicEvidenceGraph` ile [analiz hattındaki](ANALYSIS_PIPELINE.md) makale ve fakülte işlemleri bulunur. Ürün uçları özne verisini yüklemeden önce `IAcademicProductAccessService.AuthorizeAsync` çağırmalı ve yetkilendirilen özne kimliğini servise aktarmalıdır. Varsayılan uygulama kapalı kalır; consuming host güvenilir kimlik/kapsam uygulaması sağlamalıdır.
+Collector `http://localhost:5001/Services/AcademicPerformance/V1/[action]` altında şu sorumlulukları tutar:
 
-Analysis Service `/api/v1/` altında bağımsız bir service-to-service yüzey sunar. Bu uçlar `PersonelID` üzerinden SQL'den kaynak içerik çözmez; gerekli araştırmacı snapshot'ı, sayfalar, deterministik span'lar veya kanıt kataloğu istekte taşınır. Erişim `X-Analysis-Key` ile korunur. Collector kalıcı ürünleri orkestre ederken bu yüzeyi çağırabilir, ancak iki servis ayrı ayrı run ve publish edilebilir. Sağlayıcı DTO'larını, EF entity'lerini, yetkilendirme actor'larını ve İK alanlarını genel grafik/dışa aktarım sözleşmelerinden uzak tutun.
+- `Collect`, `GetResearcher`, `ListPublications`, `SavePublicationSelections`;
+- `ListCanonicalPublications`, `RebuildCanonicalPublications`;
+- `Bulk/{Submit,Status,ImportSql}`;
+- YÖKSİS, Semantic Scholar ve toplama sağlayıcısı `ProviderStatus` işlemleri.
 
-Kanonik kimlik için `Service/Works/{Models,Processing,Persistence}`, kanıt akışları için `Service/ArticleSummaries` ve `Service/ArticleReviews`, değerlendirme için `Service/Evaluations`, snapshot'lar için `Service/Metrics`, arama/dışa aktarım için `Service/Knowledge` ve `Service/GraphProjection`, İK kanıtı için `Service/HrDossiers`, asistan çalıştırmaları için `Service/FacultyAssistant`, yetkilendirme için `Service/ProductAccess` klasörlerinden başlayın. Ayrıntılı sözleşme ve sınırlar [kanonik veri](CANONICAL_ACADEMIC_DATA.md), [AI ürünleri](ACADEMIC_AI_PRODUCTS.md), [yayın metrikleri](PUBLICATION_METRICS.md) ve [veri/bilgi katmanı](DATA_KNOWLEDGE_LAYER.md) belgelerindedir.
+Analysis Service kalıcı ürünleri `http://localhost:5011/api/v1/products/[action]` altında sunar. Bunlar araştırmacı analizi, makale özeti/kanıtı/incelemesi, metrik, kanıt araması, referans popülasyonu, grafik dışa aktarımı, model değerlendirmesi, İK kanıt dosyası ve fakülte asistanıdır. `/health` dışındaki Analysis API uçları `X-Analysis-Key` servis erişim denetimini kullanır. Bilgi/grafik, değerlendirme, İK ve fakülte ürünlerinde `IAcademicProductAccessService` buna ek olarak veri okunmadan önce özneyi yetkilendirir; anahtar özne grant'i yerine geçmez. Varsayılan uygulama kapalıdır; deployment güvenilir kimlik ve kapsam adaptörü sağlamalıdır. Araştırmacı, makale ve metrik uyumluluk işlemleri mevcut kaynak ilişkisi kontrollerini korur. Kaynak şeması veya satırı henüz hazır değilse bağımlı ürün açık `503` verir.
+
+Stateless `/api/v1/*` uçları tam araştırmacı snapshot'ı, sayfalar, deterministik span'lar veya kanıt kataloğunu gövdede alır. Bunlar `PersonelID` üzerinden kaynak çözmez. Collector Analysis HTTP çağrısı veya AI sağlık proxy'si yapmaz.
+
+Collector'da yalnız `BulkCollectionWorker` bulunur. Analysis Service'teki `ArticleSummaryAutomationWorker`, `PublicationMetricsWorker`, `ArticleEvaluationWorker` ve `FacultyAssistantWorker`, collector'ın `core.CollectionChanges` sinyalini kendi `analysis.CollectionChangeReceipts` kaydıyla idempotent tüketir. Servislerden biri offline iken diğeri kendi alanında çalışmaya devam eder.
 
 ## Değişiklik noktaları
 
 | İhtiyaç | Başlangıç dosyası/klasörü |
 | --- | --- |
-| Kimlik ayrıştırma | `Service/Researchers/Collection/ResearcherIdentifierParser.cs` |
-| Sağlayıcı HTTP/parsing | `Service/Integrations/<Provider>/` |
-| YÖKSİS operasyonları | `Service/Integrations/Yoksis/Collection/YoksisOperationCatalog.cs` |
-| Yayın sınıflandırma/tekilleştirme | `Service/Works/Processing/` |
-| Dış API alanı | `Service/Api/V1/Contracts/` ve `AcademicPerformanceDtoMapper.cs` |
-| Web formu/paneller/grid | `WebClient/Pages/AcademicPerformance/` ve `WebClient/Publications/` |
-| Collector veritabanı | `Service/Data/Migrations/Core/` veya `Providers/` altında yeni migration; ayrıca EF modeli |
-| Analysis kullanım defteri | `ResearcherAnalysisService/Data/Migrations/` altında yeni migration |
+| Kimlik ayrıştırma ve dış toplama | `Modules/AcademicPerformance/Service/Researchers/Collection/` |
+| Sağlayıcı HTTP/parsing | `Modules/AcademicPerformance/Service/Integrations/<Provider>/` |
+| Yayın sınıflandırma/kanonikleştirme | `Modules/AcademicPerformance/Service/Works/` |
+| Collector dış API alanı | `Modules/AcademicPerformance/Service/Api/V1/` |
+| Collector veritabanı | `Modules/AcademicPerformance/Service/Data/Migrations/{Core,Providers}/` |
+| Kalıcı analiz API/iş akışı | `ResearcherAnalysisService/Products/Api/` ve ilgili `Products/` klasörü |
+| Salt okunur collector kaynak eşlemesi | `ResearcherAnalysisService/SourceData/` |
+| Analysis veritabanı | `ResearcherAnalysisService/Data/Migrations/` ve `Products/Data/` |
+| Stateless analiz/model adaptörü | `ResearcherAnalysisService/Api/V1/`, `Analysis/`, `Integrations/` |
+| Web formu/paneller/grid | `Modules/AcademicPerformance/WebClient/` |
 
-Migration sırasını her servisin kendi geçmişindeki benzersiz `[Migration(...)]` numarası belirler. Collector `dbo.VersionInfo`, Analysis Service `dbo.ResearcherAnalysisVersionInfo` kullanır. `Up()` ve bağımlılık sırasını gözeten `Down()` yazın, tablo adlarını şemayla niteleyin, tablo sahipliğini servisler arasında karıştırmayın ve uygulanmış migration'ları değiştirmeyin. Eski `PersonelID` öncesi veritabanları için ayrıca geçiş planı gerekir.
-
-Doğrulama komutları ve PR akışı [katkı rehberindedir](../CONTRIBUTING.md). Entegrasyon testleri izole SQL Server veritabanı ve sentetik sağlayıcı yanıtları kullanır. Üretilmiş `wwwroot/esm/` dosyaları yerine TypeScript kaynaklarını düzenleyin. Toplu akış için [toplu toplama](BULK_COLLECTION.md), AI akışları için [analiz hattı](ANALYSIS_PIPELINE.md), dış servis davranışı için [sağlayıcılar](PROVIDERS.md) belgesine bakın.
+Doğrulama komutları ve PR akışı [katkı rehberindedir](../CONTRIBUTING.md). Entegrasyon testleri izole SQL Server veritabanı ve sentetik sağlayıcı/model yanıtları kullanır; canlı veya ücretli çağrı yapmaz. Toplu akış için [toplu toplama](BULK_COLLECTION.md), analiz akışları için [analiz hattı](ANALYSIS_PIPELINE.md), dış servis davranışı için [sağlayıcılar](PROVIDERS.md) belgesine bakın.

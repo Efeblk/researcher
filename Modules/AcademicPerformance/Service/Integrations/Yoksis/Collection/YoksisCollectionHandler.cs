@@ -82,7 +82,7 @@ public sealed class YoksisCollectionHandler
                 isIncremental: request.UpdatedAfter.HasValue);
             if (_canonicalWorkSynchronizer is not null)
                 await _canonicalWorkSynchronizer.SyncAsync(
-                    researcher.PersonelId, scheduleArticleSummaries: true);
+                    researcher.PersonelId);
 
             response.PersonelId = researcher.PersonelId;
             response.ResearcherDisplayName = CreateDisplayName(researcher);

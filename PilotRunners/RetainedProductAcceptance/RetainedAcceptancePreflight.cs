@@ -7,8 +7,8 @@ using ResearcherAnalysisService.Configuration;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using AcademicCollectorDemo.Modules.AcademicPerformance.FacultyAssistant;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleReviews;
+using ResearcherAnalysisService.Products.FacultyAssistant;
+using ResearcherAnalysisService.Products.ArticleReviews;
 using AcademicCollector.Analysis.Contracts;
 
 namespace ServiceAcceptancePilot;

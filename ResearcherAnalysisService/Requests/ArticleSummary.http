@@ -1,0 +1,60 @@
+@baseUrl = http://localhost:5011
+@api = {{baseUrl}}/api/v1/products
+@analysisKey = REPLACE_WITH_SERVICE_API_KEY
+@personelId = P-1001
+@canonicalWorkId = 1
+@academicWorkId = 1
+@language = tr
+
+# canonicalWorkId = collector ListCanonicalPublications.Entities[].Id
+# academicWorkId = aynı kaydın Observations[].AcademicWorkId alanı
+# X-Analysis-Key gerekir; bu uyumluluk işlemleri ayrı ürün erişim adaptörünü kullanmaz.
+# Collector kaynak şeması veya gerekli kayıt hazır değilse bağımlı işlem 503 dönebilir.
+
+### 1. Otomatik özet işinin kuyruk ve sonuç durumunu oku [okuma]
+# Ön koşul: araştırmacı ile kanonik yayın arasında güncel ilişki. AI çağrısı veya kuyruk yazması yapmaz.
+POST {{api}}/GetArticleSummaryAutomationStatus
+Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
+
+{
+  "PersonelID": "{{personelId}}",
+  "CanonicalWorkId": {{canonicalWorkId}},
+  "Language": "{{language}}"
+}
+
+### 2. Son kaydedilmiş kanonik kanıtı oku [okuma]
+POST {{api}}/GetCanonicalArticleEvidence
+Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
+
+{
+  "PersonelID": "{{personelId}}",
+  "CanonicalWorkId": {{canonicalWorkId}},
+  "Language": "{{language}}",
+  "Skip": 0,
+  "Take": 100
+}
+
+### 3. Bir sağlayıcı gözleminin son kaydedilmiş özetini oku [okuma]
+POST {{api}}/GetArticleSummary
+Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
+
+{
+  "PersonelID": "{{personelId}}",
+  "AcademicWorkId": {{academicWorkId}},
+  "Language": "{{language}}"
+}
+
+### 4. İsteğe bağlı: özeti hemen yeniden üret ve kaydet [kaynak + AI çağrısı + yazma]
+# Her başarılı çağrı yeni bir çalışma üretir; otomatik kuyruğun yeniden kullanım davranışını kullanmaz.
+POST {{api}}/SummarizeArticle
+Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
+
+{
+  "PersonelID": "{{personelId}}",
+  "AcademicWorkId": {{academicWorkId}},
+  "Language": "{{language}}"
+}

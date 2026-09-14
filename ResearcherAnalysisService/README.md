@@ -1,10 +1,12 @@
 # Researcher Analysis Service
 
-`ResearcherAnalysisService`, .NET 10 ile çalışan bağımsız AI HTTP servisidir. `http://localhost:5011` üzerinde tam araştırmacı snapshot'larını, çıkarılmış makale metinlerini ve fakülte kanıt kataloglarını işler. `PersonelID` ile collector veritabanından içerik çekmez; gerekli bağlam doğrudan istek gövdesinde bulunmalıdır.
+`ResearcherAnalysisService`, .NET 10 ile çalışan bağımsız analiz HTTP servisidir. Araştırmacı ve makale analizleri, özetler, incelemeler, yayın metrikleri, akademik bilgi/grafik, model değerlendirmesi, İK kanıt dosyası ve fakülte asistanı akışlarının API, kalıcılık ve worker sahibi bu projedir. Collector yalnız kaynak veriyi toplar ve normalize eder.
 
 ## Kurulum ve çalıştırma
 
-Servis SQL Server kullanır. Yerel varsayılan `ConnectionStrings:UsageDatabase`, collector'ın `ConnectionStrings:AcademicDatabase` değeriyle aynı `AcademicCollectorDemo` LocalDB veritabanını gösterir; deployment'ta iki projeye aynı güvenli bağlantıyı ayrı ayrı verin. Veritabanı mevcut olduktan sonra collector'ı başlatmadan Analysis Service'i çalıştırabilirsiniz. Analysis Service başlangıçta `ResearcherAnalysisService/Data/Migrations` altındaki kendi migration'larını `dbo.ResearcherAnalysisVersionInfo` geçmişiyle uygular ve yalnız `analysis.GeminiUsageAttempts` tablosunun migration sahipliğini taşır. Aynı veritabanında collector kendi migration geçmişini bağımsız uygular; eşzamanlı başlangıç SQL uygulama kilidiyle koordine edilir.
+Servis SQL Server kullanır. Yerel `ConnectionStrings:UsageDatabase` varsayılanı collector'ın `ConnectionStrings:AcademicDatabase` değeriyle aynı `AcademicCollectorDemo` LocalDB veritabanını hedefler. Deployment'ta iki projeye aynı SQL veritabanı hedefini ayrı güvenli yapılandırmayla verin; servis hesapları ve izinleri farklı olabilir.
+
+Analysis Service başlangıçta `ResearcherAnalysisService/Data/Migrations` altındaki `202609140001`–`202609140017` migration serisini `dbo.ResearcherAnalysisVersionInfo` geçmişiyle uygular. `analysis`, `hr` ve `faculty` tablolarının DDL/yazma sahibi Analysis Service'tir; collector tablolarını oluşturmaz. Fresh veritabanında Analysis Service önce başlatılabilir: stateless uçlar çalışır, kaynak isteyen kalıcı uçlar açık `503` dönebilir ve worker'lar collector kaynakları hazır olana kadar bekler. Collector önce veya iki servis eşzamanlı da başlatılabilir.
 
 ```powershell
 dotnet restore ResearcherAnalysisService/ResearcherAnalysisService.csproj
@@ -20,9 +22,21 @@ dotnet build ResearcherAnalysisService/ResearcherAnalysisService.csproj
 dotnet publish ResearcherAnalysisService/ResearcherAnalysisService.csproj -c Release
 ```
 
+Repo kökünde aynı işlemler için `make run-analysis`, `make build-analysis` ve `make health-analysis` kullanılabilir.
+
+## Veritabanı ve veri akışı
+
+Analysis Service tek `AnalysisDbContext` içinde kendi yazılabilir entity'lerini ve aynı veritabanındaki collector tabloları için özel salt okunur kaynak modellerini eşler. `SaveChanges` kaynak modellerinde ekleme, değiştirme veya silmeyi reddeder. Servis collector tablolarını kopyalamaz; analiz kanıtı için gereken değişmez snapshot temsillerini kendi tablolarına yazar. Servisler arasında foreign key yoktur. `PersonelID`, `CanonicalWorkId` ve `AcademicWorkId` mantıksal kaynak referanslarıdır; güncel ilişki ve uygunluk salt okunur kaynak sorgularıyla denetlenir.
+
+Yeni analiz çalışmaları kanonik kaynak kümesinin kararlı kimlik özetini saklar. Collector tabloları temizlenip tamsayı kimlikleri yeniden kullanılsa bile farklı bir çalışmaya ait eski özet, inceleme veya kanıt güncel kabul edilmez. Bu alan eklenmeden önce kaydedilmiş ve kimliği güvenle türetilemeyen çalışmalar korunur, fakat yeniden üretilene kadar güncelliği `Unknown` olarak raporlanır.
+
+Collector başarılı normalizasyon transaction'ında `core.CollectionChanges` kaydı yazar. Analysis worker'ları bu kalıcı sinyali `analysis.CollectionChangeReceipts` ile idempotent işler ve özet/metrik işlerini kendi kuyruk tablolarına planlar. Collector offline iken Analysis Service mevcut normalize kaynaklardan ürün okuyup işleyebilir; Analysis Service offline iken collector sinyalleri kaybetmeden toplamaya devam eder.
+
+Startup migration açıkken Analysis hesabının kendi şema ve history nesneleri için DDL, kendi tabloları için okuma/yazma ve collector kaynakları için okuma yetkisine ihtiyacı vardır. Migration deployment tarafından dışarıda uygulanıyorsa çalışma hesabından DDL kaldırılabilir.
+
 ## Ayarlar ve erişim
 
-Yerel varsayılan araştırmacı raporu sağlayıcısı `Ollama`, modeli `qwen3:1.7b`, adresi `http://localhost:11434/` değeridir. Makale özeti, uzman incelemesi ve fakülte asistanı için kayıtlı varsayılan Gemini modelini kullanmak üzere anahtarı secret olarak verin:
+Yerel varsayılan araştırmacı raporu sağlayıcısı `Ollama`, modeli `qwen3:1.7b`, adresi `http://localhost:11434/` değeridir. Makale özeti, uzman incelemesi ve fakülte asistanı kayıtlı varsayılan `gemini-3.8-flash` modelini kullanır. Hosted Gemini üretimi için anahtarı secret olarak verin:
 
 ```powershell
 dotnet user-secrets set "Gemini:ApiKey" "<GEMINI_KEY>" --project ResearcherAnalysisService/ResearcherAnalysisService.csproj
@@ -31,19 +45,29 @@ dotnet user-secrets set "Gemini:ApiKey" "<GEMINI_KEY>" --project ResearcherAnaly
 dotnet user-secrets set "Ai:ApiKey" "<OPENAI_KEY>" --project ResearcherAnalysisService/ResearcherAnalysisService.csproj
 ```
 
-AI sağlayıcı, model, timeout ve context ayarlarının kayıtlı değerleri [appsettings.json](appsettings.json) içindedir. Değerlendirme varsayılanları [ArticleEvaluationOptions.cs](Configuration/ArticleEvaluationOptions.cs), sürümlü profil/model tanımları [ArticleEvaluationProfileCatalog.cs](Analysis/ArticleEvaluationProfileCatalog.cs) kaynak kodundadır; çalışırken geçerli parmak izi ve kullanılabilirlik için `GET /api/v1/evaluations/profiles` kullanın. Production'da bağlantıyı, `Service:ApiKey` değerini ve sağlayıcı sırlarını deployment secret'larıyla verin. Korunan API uçları `Authorization: Bearer` yerine `X-Analysis-Key` header'ı kullanır. Development'ta anahtar yoksa yalnız loopback erişimine izin verilir; başka ortamlarda eksik anahtar servisi uzaktan erişime kapatır.
+AI sağlayıcı, model, timeout ve context ayarlarının kayıtlı değerleri [appsettings.json](appsettings.json) içindedir. `AnalysisProducts`, `ArticleSummary`, `ArticleSummaryAutomation`, `FacultyAssistant`, `ArticleReview`, `ArticleEvaluation`, `PublicationMetrics` ve `CollectionChanges` bölümleri kalıcı ürün/worker ayarlarına; `Ai`, `Gemini` ve `Evaluation` stateless model yürütmesine aittir. Değerlendirme varsayılanları [ArticleEvaluationOptions.cs](Configuration/ArticleEvaluationOptions.cs), sürümlü profil/model tanımları [ArticleEvaluationProfileCatalog.cs](Analysis/ArticleEvaluationProfileCatalog.cs) kaynak kodundadır; çalışırken geçerli parmak izi ve kullanılabilirlik için `GET /api/v1/evaluations/profiles` kullanın. Collector'ın `academicsettings.json` dosyası bu ürün bölümlerini taşımaz; `ArticleMetadataEnrichment` collector kaynak zenginleştirmesi olarak kalır.
 
-Gemini üretim denemesi gönderilmeden önce kullanım kaydı `Pending` yazılır. Kullanım defteri erişilemiyorsa ücretli çağrı gönderilmez. Var olan `analysis.GeminiUsageAttempts` tablosu Analysis Service'in ayrı migration geçmişine güvenle benimsenir; mevcut kullanım satırları değiştirilmez.
+`/health` dışındaki Analysis API uçları `Authorization: Bearer` yerine `X-Analysis-Key` header'ını kullanır; değer `Service:ApiKey` ile yapılandırılır. Development'ta anahtar yoksa yalnız loopback erişimine izin verilir; diğer ortamlarda eksik anahtar uzaktan erişimi kapatır. Bilgi/grafik, değerlendirme, İK ve fakülte kalıcı ürünleri buna ek olarak `IAcademicProductAccessService` sınırını kullanır; servis anahtarı özne yetkisi yerine geçmez. Varsayılan ürün adaptörü kapalıdır: anonim istek `401`, kimliği doğrulanmış fakat eşlemesi yapılandırılmamış istek `503`, yetki reddi ise kayıt varlığını açığa çıkarmayan `404` alır. Güvenilir kimlik, actor ve `PersonelID` kapsamını deployment adaptörü sağlar; korunan ürünlerde `PersonelID` tek başına yetki değildir. Araştırmacı, makale ve metrik uyumluluk işlemleri mevcut kaynak ilişkisi kontrollerini korur, ayrıca ürün adaptörü çağırmaz.
 
-## Doğrudan API
+Gemini üretim denemesi gönderilmeden önce kullanım kaydı `Pending` yazılır. Kullanım defteri erişilemiyorsa ücretli çağrı gönderilmez. Migration baseline'ı mevcut analitik tabloları ve satırları değiştirmeden kendi geçmişine benimser; yeni kurulumda aynı final şemayı oluşturur.
 
-Çalıştırılabilir örnekler [Requests/README.md](Requests/README.md) dosyasındadır. Yüzeyler:
+## HTTP yüzeyleri
 
-- `POST /api/v1/analyze`: tam araştırmacı snapshot'ından rapor üretir.
-- `POST /api/v1/articles/summarize`: sayfa ve deterministik kaynak span'larından destekli özet üretir.
-- `POST /api/v1/articles/review` ve `/review/stages/*`: tam uzman incelemesi veya quote/dispatch aşamalarını çalıştırır.
-- `GET /api/v1/evaluations/profiles` ve `POST /api/v1/evaluations/execute`: sürümlü profilleri okur ve tam kaynakla değerlendirme çalıştırır.
-- `POST /api/v1/faculty-assistant`: kesin metin ve konum içeren kanıt kataloğundan yanıt üretir.
-- `GET /api/v1/internal/provider-status/gemini`: Gemini erişimini ve kaydedilmiş kullanım toplamını denetler; içerik üretmez.
+Kalıcı ürün işlemleri `POST /api/v1/products/[action]` altında bulunur:
 
-Collector'ın son kullanıcıya yönelik, kalıcı ve özne-yetkili ürün uçları `http://localhost:5001/Services/AcademicPerformance/V1/` altında kalır. Collector bunları yürütürken `AnalysisService:BaseUrl` ve `AnalysisService:ApiKey` ile bu servisi çağırabilir; doğrudan Analysis API çağrıları collector kaydı, kuyruğu veya ürün erişim denetimi oluşturmaz.
+- araştırmacı: `AnalyzeResearcher`, `GetResearcherAnalysis`, `GetResearcherSourceCoverage`;
+- makale: `SummarizeArticle`, `GetArticleSummary`, `GetArticleSummaryAutomationStatus`, `GetCanonicalArticleEvidence`, `ReviewCanonicalArticle`, `GetCanonicalArticleReview`;
+- metrik/bilgi: `GetResearcherPublicationMetrics`, `RefreshResearcherPublicationMetrics`, `SearchAcademicEvidence`, `GetReferencePopulation`, `ImportReferencePopulation`, `ExportAcademicEvidenceGraph`;
+- değerlendirme: `StartArticleEvaluation`, `GetArticleEvaluation`;
+- İK: `CreateHrEvidenceDossier`, `GetHrEvidenceDossier`, `AppendHrDossierReviewAction`, `ListHrDossierReviewActions`;
+- fakülte: `SaveFacultyAssistantContext`, `GetFacultyAssistantContext`, `StartFacultyAssistant`, `GetFacultyAssistantRun`.
+
+Mevcut tam bağlamlı stateless uçlar da korunur:
+
+- `POST /api/v1/analyze` tam araştırmacı snapshot'ından rapor üretir.
+- `POST /api/v1/articles/summarize`, `/review` ve `/review/stages/*` sayfa/span bağlamıyla çalışır.
+- `GET /api/v1/evaluations/profiles` ve `POST /api/v1/evaluations/execute` tam kaynakla değerlendirme çalıştırır.
+- `POST /api/v1/faculty-assistant` kesin metin ve konum içeren kanıt kataloğunu işler.
+- `GET /api/v1/internal/provider-status/gemini` Gemini erişimini ve kaydedilmiş kullanım toplamını denetler; içerik üretmez.
+
+Çalıştırılabilir kalıcı ve stateless örnekler [Requests/README.md](Requests/README.md) dosyasındadır. Collector örnekleri yalnız collector yüzeyinde [Requests/AcademicCollector](../Requests/AcademicCollector/README.md) altında tutulur.

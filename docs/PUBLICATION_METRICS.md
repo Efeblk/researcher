@@ -2,12 +2,12 @@
 
 `publication-metrics-v4` is a deterministic, precomputed snapshot of saved publication data, separately saved provider bibliometrics, bounded OpenAlex research context, explicit descriptive eligibility, reference-population readiness, and cross-provider consistency. It describes collected works and provider-specific saved values; it must not be presented as an institution-complete publication record, a cross-provider score, or a reference-population benchmark. Metric computation performs no provider or model call. The read action reads only refresh state and the last immutable snapshot; it never computes, schedules, parses, or scans source rows.
 
-Migration `202609110006` adds immutable `analysis.PublicationMetricSnapshots` rows and one durable `analysis.PublicationMetricsRefreshStates` row per scheduled researcher. Migration `202609110007` adds immutable typed `analysis.PublicationMetricProviderSnapshots` child rows, one for each provider in a snapshot, and makes saved OpenAlex author total columns nullable. Migration `202609110008` adds the regenerated one-to-one `core.AcademicWorkResearchContexts` rows and ranked `core.AcademicWorkTopics` children.
+Analysis-owned migrations add immutable `analysis.PublicationMetricSnapshots` rows and one durable `analysis.PublicationMetricsRefreshStates` row per scheduled researcher. They also add immutable typed `analysis.PublicationMetricProviderSnapshots` children, one for each provider in a snapshot. Collector-owned migration `202609110008` adds the regenerated one-to-one `core.AcademicWorkResearchContexts` rows and ranked `core.AcademicWorkTopics` children; Analysis reads those source rows without writing them.
 
-Call it with:
+Call the Analysis Service on port 5011 with:
 
 ```text
-POST /Services/AcademicPerformance/V1/GetResearcherPublicationMetrics
+POST /api/v1/products/GetResearcherPublicationMetrics
 { "PersonelID": "..." }
 ```
 
@@ -18,11 +18,11 @@ The response wrapper reports `RequestedRevision`, `ComputedRevision`, current/re
 An explicit refresh only schedules work and returns 202:
 
 ```text
-POST /Services/AcademicPerformance/V1/RefreshResearcherPublicationMetrics
+POST /api/v1/products/RefreshResearcherPublicationMetrics
 { "PersonelID": "..." }
 ```
 
-There is no synchronous fallback. Pausing `PublicationMetrics:WorkerEnabled` stops computation while stored snapshots remain readable.
+There is no synchronous fallback. Pausing `PublicationMetrics:WorkerEnabled` stops computation while stored snapshots remain readable. Runnable read and refresh requests are in [PublicationMetrics.http](../ResearcherAnalysisService/Requests/PublicationMetrics.http).
 
 ## Scope and counts
 
@@ -32,7 +32,7 @@ An in-scope canonical work must have all three of these current records for the 
 
 Snapshot `Data` includes `CatalogVersion`, `ComputedAt`, the valid year upper bound, and a `Definitions` entry for each returned measure. Each definition states its scope, formula, and denominator. The worker projects only fields and booleans needed by the calculation; provider payloads, abstract text, URLs, and other researchers' identifiers are not persisted in the result. Computation, immutable snapshot insertion, and revision acknowledgment run atomically in one short serializable transaction under the canonical write gate.
 
-Canonical reconciliation invalidates the requested researcher even when all works were removed. Saved Semantic Scholar source URLs and successful article-summary abstract/source metadata writes invalidate the affected owner in their existing transaction. A bounded default-on worker also discovers researchers without refresh state, including empty researchers. Catalog-version or UTC computation-year changes advance the desired target once and schedule a new snapshot. Failures use bounded exponential retry, store only a safe error, and never replace the last successful snapshot.
+Collector canonical reconciliation writes a durable `core.CollectionChanges` signal even when all works were removed. Analysis consumes that signal with an idempotent `analysis.CollectionChangeReceipts` row and invalidates the requested researcher's metrics. Analysis-owned source/summary changes invalidate the same owner in their own transaction. A bounded default-on Analysis worker also discovers researchers without refresh state, including empty researchers. Catalog-version or UTC computation-year changes advance the desired target once and schedule a new snapshot. Failures use bounded exponential retry, store only a safe error, and never replace the last successful snapshot.
 
 ## Year and category resolution
 
@@ -79,7 +79,7 @@ Downgrading migration `202609110007` restores the old nonnullable OpenAlex colum
 
 ## OpenAlex research context and normalization
 
-V4 parses only saved `AcademicWork.ProviderPayload` for the requested researcher's own current OpenAlex observations. Canonical reconciliation performs this SQL-only normalization inside its existing transaction and write gate. The publication-metrics worker repeats normalization before loading metric sources, so a v4 catalog rollover processes pre-existing raw payloads without a separate repair job. The stored read action never parses or writes. Other providers have no research-context adapter in this version.
+V4 uses the collector-owned `core.AcademicWorkResearchContexts` and `core.AcademicWorkTopics` rows for the requested researcher's own current OpenAlex observations. Collector canonical reconciliation performs the SQL-only provider-payload normalization inside its transaction and write gate. The Analysis publication-metrics worker reads the normalized context through private read-only source models; it never updates collector rows. The stored read action never parses, schedules, or writes. Other providers have no research-context adapter in this version.
 
 The normalized fields follow the official OpenAlex documentation for [work attributes](https://help.openalex.org/data/works/attributes/), [citation indicators](https://help.openalex.org/data/works/citations/), and [topics](https://help.openalex.org/data/topics/).
 

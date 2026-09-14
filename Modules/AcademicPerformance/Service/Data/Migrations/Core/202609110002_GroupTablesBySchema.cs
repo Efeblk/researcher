@@ -18,7 +18,6 @@ public sealed class GroupTablesBySchema : Migration
         ("crossref", ["CrossrefWorks"]),
         ("semanticscholar", ["SemanticScholarPapers", "SemanticScholarCitations",
             "SemanticScholarCitationContexts"]),
-        ("analysis", ["ArticleSummaries", "ResearcherAnalyses"]),
         ("bulk", ["BulkCollectionBatches", "BulkCollectionJobs"]),
         ("integrations", ["ProviderRequestBudgets", "ProviderStatusObservations"])
     ];

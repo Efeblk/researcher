@@ -1,0 +1,80 @@
+@baseUrl = http://localhost:5011
+@api = {{baseUrl}}/api/v1/products
+@analysisKey = REPLACE_WITH_SERVICE_API_KEY
+@personelId = P-1001
+@canonicalWorkId = 1
+@manifestVersion = synthetic-reference-v1
+
+# Gelişmiş bilgi, referans popülasyonu ve grafik örnekleri. canonicalWorkId değerlerini
+# collector ListCanonicalPublications.Entities[].Id alanından alın. Bu uçlar güvenilir ürün erişim adaptörü ister;
+# kimlik bilgisinin cookie/header biçimini kurulu adaptör belirler.
+# X-Analysis-Key servis erişimini açar, özne yetkisi yerine geçmez.
+# Varsayılan kurulum: anonim 401, kimliği doğrulanmış fakat adaptörü yapılandırılmamış istek 503.
+
+### 1. Kaydedilmiş akademik kanıtta ara [okuma]
+POST {{api}}/SearchAcademicEvidence
+Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
+
+{
+  "PersonelID": "{{personelId}}",
+  "Query": "bildirilen örnekleme yöntemi",
+  "CanonicalWorkIds": [{{canonicalWorkId}}],
+  "Take": 10
+}
+
+### 2. Kaydedilmiş referans popülasyonu manifestini oku [okuma]
+POST {{api}}/GetReferencePopulation
+Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
+
+{
+  "PersonelID": "{{personelId}}",
+  "ManifestVersion": "{{manifestVersion}}"
+}
+
+### 3. İsteğe bağlı: sentetik referans popülasyonu manifestini içe aktar [yazma]
+# approvedForInternalNormalization=false bilimsel onayın verilmediğini açıkça korur.
+POST {{api}}/ImportReferencePopulation
+Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
+
+{
+  "PersonelID": "{{personelId}}",
+  "ManifestVersion": "{{manifestVersion}}",
+  "CohortDefinition": "Yalnız sözleşme örneği için sentetik kohort.",
+  "EligibilityPolicyVersion": "synthetic-eligibility-v1",
+  "Provenance": "Sentetik istek örneği; üretim kaynağı değildir.",
+  "SamplingAndCoverage": "Yalnız sözleşmeyi göstermek için tek sentetik üye.",
+  "Review": {
+    "Reviewer": "synthetic-reviewer",
+    "ReviewedAt": "2026-09-14T00:00:00Z",
+    "Method": "Yalnız sözleşme incelemesi; bilimsel geçerlilik değerlendirilmedi.",
+    "ApprovedForInternalNormalization": false
+  },
+  "Members": [
+    {
+      "StableMemberId": "synthetic-member-1",
+      "ClassificationId": "synthetic-field-1",
+      "PublicationYear": 2025,
+      "WorkType": "article",
+      "Category": "Article",
+      "CitationCount": 0
+    }
+  ]
+}
+
+### 4. İsteğe bağlı: 20 kanonik yayın için yeniden üretilebilir grafik projeksiyonu oluştur [hesaplama]
+# İstek en az 20, en çok 50 CanonicalWorkId ister. Aşağıdaki 20 örnek değerin tamamını
+# bu PersonelID'ye ait gerçek ListCanonicalPublications kimlikleriyle değiştirin.
+POST {{api}}/ExportAcademicEvidenceGraph
+Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
+
+{
+  "PersonelID": "{{personelId}}",
+  "CanonicalWorkIds": [
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+    11, 12, 13, 14, 15, 16, 17, 18, 19, 20
+  ]
+}

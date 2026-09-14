@@ -3,7 +3,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using AcademicCollector.Analysis.Contracts;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
-using AcademicCollectorDemo.Modules.AcademicPerformance.FacultyAssistant;
+using ResearcherAnalysisService.Products.Api.Contracts;
+using ResearcherAnalysisService.Products.FacultyAssistant;
 using Microsoft.AspNetCore.Builder;
 using ResearcherAnalysisService.Analysis;
 
@@ -94,7 +95,7 @@ internal static partial class LiveBroaderServiceAcceptance
             AcademicEvidenceSearchResponse current = retrieval[item.Name];
             AcademicEvidenceSearchResponse frozen = JsonSerializer.Deserialize<AcademicEvidenceSearchResponse>(
                 v4Preflight["fixedQueryRetrieval"]![item.Name]!.ToJsonString(), JsonOptions)!;
-            return current.CatalogVersion == AcademicCollectorDemo.Modules.AcademicPerformance.Knowledge
+            return current.CatalogVersion == ResearcherAnalysisService.Products.Knowledge
                     .AcademicEvidenceSearchService.CatalogVersion &&
                 current.QueryHash == frozen.QueryHash && current.QueryPlanHash == frozen.QueryPlanHash &&
                 current.CorpusHash == frozen.CorpusHash && current.InputHash == frozen.InputHash &&
@@ -348,7 +349,7 @@ internal static partial class LiveBroaderServiceAcceptance
             Guid runId = sourceResult[$"faculty-{name}"]?["completed"]?["runId"]?
                 .GetValue<Guid>() ?? throw new InvalidOperationException($"Saved run ID is absent for {name}.");
             FacultyAssistantRunResponse saved = await PostAsync<FacultyAssistantRunResponse>(client,
-                "/Services/AcademicPerformance/V1/GetFacultyAssistantRun",
+                AnalysisUrl + "/api/v1/products/GetFacultyAssistantRun",
                 new GetFacultyAssistantRunRequest
                 {
                     PersonelId = BroaderAcceptanceHost.PrimarySubjectId,

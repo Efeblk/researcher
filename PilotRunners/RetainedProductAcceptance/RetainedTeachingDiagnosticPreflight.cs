@@ -1,8 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using AcademicCollector.Analysis.Contracts;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleReviews;
-using AcademicCollectorDemo.Modules.AcademicPerformance.FacultyAssistant;
+using ResearcherAnalysisService.Products.ArticleReviews;
+using ResearcherAnalysisService.Products.FacultyAssistant;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;

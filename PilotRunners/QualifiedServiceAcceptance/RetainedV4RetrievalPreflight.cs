@@ -1,9 +1,11 @@
 using System.Text.Json;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Knowledge;
+using ResearcherAnalysisService.Products.Api.Contracts;
+using ResearcherAnalysisService.Products.ArticleSummaries;
+using ResearcherAnalysisService.Products.Knowledge;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using ResearcherAnalysisService.Products.Data;
 
 namespace ServiceAcceptancePilot;
 
@@ -27,7 +29,7 @@ internal static class RetainedV4RetrievalPreflight
             throw new InvalidOperationException($"Retrieval preflight artifact already exists: {path}");
 
         (_, string connection) = FinalAcceptanceDatabase.Connections(DatabaseName);
-        await using var database = FinalAcceptanceDatabase.Open(connection);
+        await using var database = FinalAcceptanceDatabase.OpenAnalysis(connection);
         var before = await SourceIdentitiesAsync(database);
         AcademicEvidenceSearchService search = new(database,
             Options.Create(new ArticleSummaryAutomationOptions { PolicyVersion = "article-summary-v5" }));
@@ -98,7 +100,7 @@ internal static class RetainedV4RetrievalPreflight
             value.Section == intent) == true;
 
     private static async Task<List<SourceIdentity>> SourceIdentitiesAsync(
-        AcademicCollectorDemo.Modules.AcademicPerformance.Data.AcademicDbContext database) =>
+        AnalysisDbContext database) =>
         await database.ArticleSourceSnapshots.AsNoTracking().OrderBy(value => value.Id)
             .Select(value => new SourceIdentity(value.Id, value.CanonicalWorkId, value.ExtractedTextHash,
                 value.SourceKind, value.ExtractionVersion, value.Spans.Count))

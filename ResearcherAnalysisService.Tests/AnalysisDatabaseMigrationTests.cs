@@ -12,7 +12,7 @@ namespace ResearcherAnalysisService.Tests;
 public sealed class AnalysisDatabaseMigrationTests
 {
     [Fact]
-    public async Task Migration_FreshDatabase_CreatesOnlyOwnedTableAndHistoryAndIsIdempotent()
+    public async Task Migration_FreshDatabase_CreatesOnlyOwnedTablesAndHistoryAndIsIdempotent()
     {
         await using TemporaryDatabase database = await TemporaryDatabase.CreateAsync();
         await using ServiceProvider services = CreateServices(database.ConnectionString);
@@ -25,9 +25,25 @@ public sealed class AnalysisDatabaseMigrationTests
             FROM sys.tables
             ORDER BY 1;
             """);
-        Assert.Equal(["analysis.GeminiUsageAttempts", "dbo.ResearcherAnalysisVersionInfo"], tables);
+        Assert.Equal([
+            "analysis.ArticleEvaluationAttempts", "analysis.ArticleEvaluationCases",
+            "analysis.ArticleEvaluationResults", "analysis.ArticleEvaluationRuns",
+            "analysis.ArticleEvaluationWorkItems", "analysis.ArticleReviewStageCheckpoints",
+            "analysis.ArticleReviewWorkItems", "analysis.ArticleSourcePages",
+            "analysis.ArticleSourceSnapshots", "analysis.ArticleSourceSpans",
+            "analysis.ArticleSummaries", "analysis.ArticleSummaryAutomationJobs",
+            "analysis.CanonicalArticleAnalysisRuns", "analysis.CanonicalArticleClaimEvidence",
+            "analysis.CanonicalArticleClaims", "analysis.CanonicalArticleReviewEvidence",
+            "analysis.CanonicalArticleReviewFindings", "analysis.CanonicalArticleReviewRuns",
+            "analysis.CollectionChangeReceipts", "analysis.GeminiUsageAttempts",
+            "analysis.PublicationMetricProviderSnapshots", "analysis.PublicationMetricSnapshots",
+            "analysis.PublicationMetricsRefreshStates", "analysis.ReferencePopulationManifests",
+            "analysis.ReferencePopulationMembers", "analysis.ResearcherAnalyses",
+            "dbo.ResearcherAnalysisVersionInfo", "faculty.AssistantContextVersions",
+            "faculty.AssistantRuns", "hr.DossierReviewActions", "hr.EvidenceDossiers"
+        ], tables);
         Assert.Equal(1, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM [dbo].[ResearcherAnalysisVersionInfo] WHERE [Version]=202609140001"));
+            "SELECT COUNT(*) FROM [dbo].[ResearcherAnalysisVersionInfo] WHERE [Version]=202609140017"));
     }
 
     [Fact]

@@ -5,9 +5,9 @@ using System.Text;
 using System.Text.Encodings.Web;
 using AcademicCollectorDemo.Host;
 using AcademicCollectorDemo.Modules.AcademicPerformance;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries;
+using ResearcherAnalysisService.Products.ArticleSummaries;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ProductAccess;
+using ResearcherAnalysisService.Products.ProductAccess;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -62,12 +62,6 @@ internal static class BroaderAcceptanceHost
         builder.Services.AddAcademicPerformanceModule(builder.Configuration);
         builder.Services.RemoveAll<HttpClient>();
         builder.Services.AddSingleton(new HttpClient(new ProviderReplayHandler(audit)));
-        builder.Services.RemoveAll<SafeArticleFetcher>();
-        builder.Services.AddScoped(services => new SafeArticleFetcher(
-            services.GetRequiredService<IOptions<ArticleSummaryOptions>>(),
-            (_, _) => Task.FromResult(new HttpClient(new SourceReplayHandler(sourceDirectory, audit)))));
-        builder.Services.RemoveAll<IAcademicProductAccessService>();
-        builder.Services.AddSingleton<IAcademicProductAccessService, BroaderAcceptanceAccessService>();
         builder.Services.AddAuthentication("BroaderAcceptance")
             .AddScheme<AuthenticationSchemeOptions, BroaderAuthenticationHandler>(
                 "BroaderAcceptance", _ => { });
@@ -96,6 +90,7 @@ internal static class BroaderAcceptanceHost
     {
         WebApplication app = CreateLiveAnalysisApplication(
             database, url, budget, dispatchGate, capture, GeminiKey());
+        app.UseAuthentication();
         await app.StartAsync();
         return app;
     }
@@ -130,6 +125,10 @@ internal static class BroaderAcceptanceHost
                     ["Ai:TimeoutSeconds"] = "180"
                 });
                 builder.Logging.ClearProviders();
+                builder.Services.AddSingleton<IAcademicProductAccessService, BroaderAcceptanceAccessService>();
+                builder.Services.AddAuthentication("BroaderAcceptance")
+                    .AddScheme<AuthenticationSchemeOptions, BroaderAuthenticationHandler>(
+                        "BroaderAcceptance", _ => { });
                 builder.Services.AddSingleton(budget);
                 builder.Services.AddSingleton(dispatchGate);
                 builder.Services.AddSingleton(capture);
@@ -166,28 +165,14 @@ internal static class BroaderAcceptanceHost
         string database, string analysisUrl, string mode) => new()
     {
         ["ConnectionStrings:AcademicDatabase"] = database,
-        ["AnalysisService:BaseUrl"] = analysisUrl,
-        ["AnalysisService:ApiKey"] = ServiceKey,
         ["BulkCollection:WorkerEnabled"] = (mode == "bulk").ToString(),
         ["BulkCollection:PollSeconds"] = "1",
         ["BulkCollection:MaximumAttempts"] = "1",
-        ["ArticleSummaryAutomation:Enabled"] = "true",
-        ["ArticleSummaryAutomation:WorkerEnabled"] = (mode == "summary").ToString(),
-        ["ArticleSummaryAutomation:PollSeconds"] = "1",
-        ["ArticleSummaryAutomation:MaximumAttempts"] = "1",
-        ["PublicationMetrics:WorkerEnabled"] = (mode == "metrics").ToString(),
-        ["PublicationMetrics:PollSeconds"] = "1",
-        ["PublicationMetrics:MaximumAttempts"] = "1",
-        ["FacultyAssistant:WorkerEnabled"] = (mode == "faculty").ToString(),
-        ["FacultyAssistant:PollSeconds"] = "1",
-        ["FacultyAssistant:RequestTimeoutSeconds"] = "1800",
-        ["ArticleEvaluation:WorkerEnabled"] = "false",
         ["ProviderRequestLimits:Orcid:Enabled"] = "true",
         ["ProviderRequestLimits:TrDizin:Enabled"] = "false",
         ["ProviderRequestLimits:OpenAlex:Enabled"] = "false",
         ["ProviderRequestLimits:Crossref:Enabled"] = "false",
-        ["ProviderRequestLimits:SemanticScholar:Enabled"] = "false",
-        ["ArticleSummary:OcrEnabled"] = "false"
+        ["ProviderRequestLimits:SemanticScholar:Enabled"] = "false"
     };
 
     private sealed class ProviderReplayHandler(BroaderReplayAudit audit) : HttpMessageHandler

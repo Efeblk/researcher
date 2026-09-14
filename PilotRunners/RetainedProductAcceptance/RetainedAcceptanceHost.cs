@@ -5,9 +5,9 @@ using System.Text;
 using System.Text.Encodings.Web;
 using AcademicCollectorDemo.Host;
 using AcademicCollectorDemo.Modules.AcademicPerformance;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries;
+using ResearcherAnalysisService.Products.ArticleSummaries;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ProductAccess;
+using ResearcherAnalysisService.Products.ProductAccess;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -65,12 +65,6 @@ internal static class RetainedAcceptanceHost
         builder.Services.AddAcademicPerformanceModule(builder.Configuration);
         builder.Services.RemoveAll<HttpClient>();
         builder.Services.AddSingleton(new HttpClient(new ProviderReplayHandler(replayAudit)));
-        builder.Services.RemoveAll<SafeArticleFetcher>();
-        builder.Services.AddScoped(services => new SafeArticleFetcher(
-            services.GetRequiredService<IOptions<ArticleSummaryOptions>>(),
-            (_, _) => Task.FromResult(new HttpClient(new SourceReplayHandler(replayAudit)))));
-        builder.Services.RemoveAll<IAcademicProductAccessService>();
-        builder.Services.AddSingleton<IAcademicProductAccessService, AcceptanceAccessService>();
         builder.Services.AddAuthentication("Acceptance")
             .AddScheme<AuthenticationSchemeOptions, AcceptanceAuthenticationHandler>("Acceptance", _ => { });
         builder.Services.AddApplicationPartsTypeSource();
@@ -90,6 +84,7 @@ internal static class RetainedAcceptanceHost
         string database, string url, ServiceAcceptanceBudget budget, RetainedProviderCapture? capture = null)
     {
         WebApplication app = CreateLiveAnalysisApplication(database, url, budget, capture);
+        app.UseAuthentication();
         await app.StartAsync();
         return app;
     }
@@ -119,6 +114,9 @@ internal static class RetainedAcceptanceHost
                     ["Ai:ArticleFallbackChunkBytes"] = "10000", ["Ai:TimeoutSeconds"] = "180"
                 });
                 builder.Logging.ClearProviders();
+                builder.Services.AddSingleton<IAcademicProductAccessService, AcceptanceAccessService>();
+                builder.Services.AddAuthentication("Acceptance")
+                    .AddScheme<AuthenticationSchemeOptions, AcceptanceAuthenticationHandler>("Acceptance", _ => { });
                 builder.Services.AddSingleton(budget);
                 if (capture is not null) builder.Services.AddSingleton(capture);
                 builder.Services.AddTransient(_ => new RetainedBudgetHandler(budget, capture,
@@ -137,17 +135,9 @@ internal static class RetainedAcceptanceHost
         string database, string analysisUrl, string mode) => new()
     {
         ["ConnectionStrings:AcademicDatabase"] = database,
-        ["AnalysisService:BaseUrl"] = analysisUrl, ["AnalysisService:ApiKey"] = ServiceKey,
         ["BulkCollection:WorkerEnabled"] = (mode == "bulk").ToString(), ["BulkCollection:PollSeconds"] = "1",
         ["BulkCollection:MaximumAttempts"] = "1",
-        ["ArticleSummaryAutomation:Enabled"] = "true",
-        ["ArticleSummaryAutomation:WorkerEnabled"] = (mode == "summary").ToString(),
-        ["ArticleSummaryAutomation:PollSeconds"] = "1", ["ArticleSummaryAutomation:MaximumAttempts"] = "1",
-        ["PublicationMetrics:WorkerEnabled"] = (mode == "metrics").ToString(),
-        ["PublicationMetrics:PollSeconds"] = "1",
-        ["FacultyAssistant:WorkerEnabled"] = (mode == "faculty").ToString(),
-        ["FacultyAssistant:PollSeconds"] = "1", ["FacultyAssistant:RequestTimeoutSeconds"] = "1800",
-        ["ArticleEvaluation:WorkerEnabled"] = "false", ["ProviderRequestLimits:TrDizin:Enabled"] = "false",
+        ["ProviderRequestLimits:TrDizin:Enabled"] = "false",
         ["ProviderRequestLimits:Orcid:Enabled"] = "true", ["ProviderRequestLimits:OpenAlex:Enabled"] = "false",
         ["ProviderRequestLimits:Crossref:Enabled"] = "false",
         ["ProviderRequestLimits:SemanticScholar:Enabled"] = "false",

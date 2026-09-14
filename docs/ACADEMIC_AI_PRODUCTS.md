@@ -1,11 +1,12 @@
 # Academic AI products
 
-The V1 product APIs expose two separate authorization and persistence domains over saved academic evidence.
+The Analysis Service product APIs at `/api/v1/products/[action]` expose two separate authorization and persistence domains over saved academic evidence.
 They do not make personnel suitability or publication-quality decisions.
 
 ## Service access boundary
 
-Every product endpoint calls `IAcademicProductAccessService` before looking up the subject or product record.
+Every product endpoint first passes the Analysis `X-Analysis-Key` service-access filter and then calls
+`IAcademicProductAccessService` before looking up the subject or product record. The key never substitutes for subject authorization.
 The default implementation fails closed: anonymous callers receive `401`, and an authenticated caller receives
 `503` because no principal-to-scope or principal-to-`PersonelID` mapping is configured. The service/API deliverable
 ends at this generic access boundary. A consuming deployment may supply a trusted adapter, including a BYS adapter,
@@ -15,8 +16,8 @@ should be returned as the same `404` used for a missing subject, so the endpoint
 The access service issues an opaque authorization grant ID and a stable audit actor ID. The faculty worker stores
 that server-issued grant when it enqueues a run and reauthorizes it immediately before execution. Request bodies
 and headers never supply a trusted actor, role, or grant. Current canonical researcher associations remain required
-in addition to product authorization. Existing legacy V1 endpoints retain their existing behavior and are not made
-production-safe by this product access seam.
+in addition to product authorization. Collector exposes no duplicate product route. Runnable persistent HR/faculty requests
+are in [AcademicAiProducts.http](../ResearcherAnalysisService/Requests/AcademicAiProducts.http).
 
 ## HR evidence dossiers
 
@@ -75,7 +76,7 @@ authorized model input or private-context content.
 
 Generation currently supports Gemini only and uses `Ai:ArticleModel`, whose default is `gemini-3.8-flash`; it never
 uses the legacy researcher-profile `Ai:Provider`/`Ai:Model` route. Article summaries and the legacy one-shot review
-abstraction can use Ollama; the durable collector review stage requires Gemini usage attestation and rejects a non-Gemini
+abstraction can use Ollama; the durable Analysis Service review stage requires Gemini usage attestation and rejects a non-Gemini
 configuration. The faculty-assistant endpoint returns `503 ProviderUnavailable` before any outbound request because no
 Ollama faculty generator exists. `faculty-evidence-assistant-v10` follows the requested academic task within the fixed
 mode, evidence, access, and output rules and produces at most six items. Methods include explanation, sourced limitations
@@ -94,10 +95,10 @@ every request requirement is fulfilled; otherwise supported items are returned h
 Faculty generation defaults to one medium-thinking request. If it is explicitly configured to start at high and returns
 an exact-model, priced, attributable `OutputLimit` whose usage was durably recorded, it makes one identical medium request
 with the same 16,384-token ceiling. Every other failure stops without a generation retry. Fresh reports expose attempt IDs,
-thinking levels, outcomes, model, tokens, cost, source checks, repair, and coverage; the collector rejects inconsistent
+thinking levels, outcomes, model, tokens, cost, source checks, repair, and coverage; Analysis Service rejects inconsistent
 provenance. Source verification independently defaults to medium. Generation, up to six initial checks, one repair, up to
 two replacement checks, and final coverage use at most 11 dispatches by default or 12 with explicit high-generation
-recovery. The per-call timeout is 180 seconds and the collector's total outer bound defaults to 1,800 seconds; it does not
+recovery. The per-call timeout is 180 seconds and the Analysis workflow's total outer bound defaults to 1,800 seconds; it does not
 promise 11 complete maximum-length windows.
 When no item survives source verification, deterministic request coverage is `unanswered`, the outcome is
 `no_supported_items`, and no request-coverage call is made. If only the request-coverage call is unavailable, times out,

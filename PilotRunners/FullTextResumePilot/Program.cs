@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using AcademicCollector.Analysis.Contracts;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries;
+using ResearcherAnalysisService.Products.ArticleSummaries;
 using Microsoft.Extensions.Options;
 using ResearcherAnalysisService.Analysis;
 using ResearcherAnalysisService.Configuration;

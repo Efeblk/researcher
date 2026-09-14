@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
+using ResearcherAnalysisService.Products.Api.Contracts;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Data.SqlClient;
 
@@ -61,7 +62,7 @@ internal static class RetainedTeachingDiagnostic
                 RetainedTeachingBaselineAudit.ConnectionString, CollectorUrl, AnalysisUrl, "idle"))
             using (HttpClient client = Client(TimeSpan.FromSeconds(30)))
                 queued = await PostAsync<FacultyAssistantRunResponse>(client,
-                    "/Services/AcademicPerformance/V1/StartFacultyAssistant", request, HttpStatusCode.Accepted);
+                    AnalysisUrl + "/api/v1/products/StartFacultyAssistant", request, HttpStatusCode.Accepted);
             Require(!queued.Reused && queued.Status == "Pending", "The diagnostic did not create one fresh pending row.");
             result["request"] = Node(request); result["queued"] = Node(queued);
             await artifacts.WritePhaseAsync("teaching-queued", (JsonObject)result.DeepClone(), budget.Snapshot());
@@ -123,7 +124,7 @@ internal static class RetainedTeachingDiagnostic
         while (DateTimeOffset.UtcNow < deadline)
         {
             FacultyAssistantRunResponse response = await PostAsync<FacultyAssistantRunResponse>(client,
-                "/Services/AcademicPerformance/V1/GetFacultyAssistantRun",
+                AnalysisUrl + "/api/v1/products/GetFacultyAssistantRun",
                 new GetFacultyAssistantRunRequest { PersonelId = RetainedAcceptanceHost.SubjectId, RunId = runId });
             if (response.Status is "Completed" or "Failed" or "Interrupted") return response;
             await Task.Delay(500);
@@ -171,6 +172,7 @@ internal static class RetainedTeachingDiagnostic
     private static HttpClient Client(TimeSpan timeout)
     {
         HttpClient client = new() { BaseAddress = new(CollectorUrl), Timeout = timeout };
+        client.DefaultRequestHeaders.Add("X-Analysis-Key", RetainedAcceptanceHost.ServiceKey);
         client.DefaultRequestHeaders.Add(RetainedAcceptanceHost.Header, RetainedAcceptanceHost.HeaderValue);
         return client;
     }

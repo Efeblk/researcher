@@ -3,9 +3,7 @@ using System.Data.Common;
 using System.Security.Cryptography;
 using System.Text;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Metrics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -16,26 +14,18 @@ public sealed class CanonicalWorkSynchronizer
     private const int ApplicationLockTimeoutMilliseconds = 15000;
 
     private readonly AcademicDbContext _dbContext;
-    private readonly ArticleSummaryAutomationScheduler? _articleSummaryScheduler;
-    private readonly PublicationMetricsRefreshScheduler? _publicationMetricsScheduler;
     private readonly AcademicWorkResearchContextSynchronizer? _researchContextSynchronizer;
 
     public CanonicalWorkSynchronizer(
-        AcademicDbContext dbContext,
-        ArticleSummaryAutomationScheduler? articleSummaryScheduler = null,
-        PublicationMetricsRefreshScheduler? publicationMetricsScheduler = null,
-        AcademicWorkResearchContextSynchronizer? researchContextSynchronizer = null)
+        AcademicDbContext dbContext, AcademicWorkResearchContextSynchronizer? researchContextSynchronizer = null)
     {
         _dbContext = dbContext;
-        _articleSummaryScheduler = articleSummaryScheduler;
-        _publicationMetricsScheduler = publicationMetricsScheduler;
         _researchContextSynchronizer = researchContextSynchronizer;
     }
 
     public async Task<CanonicalWorkSyncResult> SyncAsync(
         string personelId,
-        CancellationToken cancellationToken = default,
-        bool scheduleArticleSummaries = false)
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(personelId))
             throw new ArgumentException("PersonelID is required.", nameof(personelId));
@@ -181,13 +171,33 @@ public sealed class CanonicalWorkSynchronizer
             }
 
             await _dbContext.SaveChangesAsync(cancellationToken);
-            if (_publicationMetricsScheduler is not null)
-                await _publicationMetricsScheduler.ScheduleAsync(personelId, cancellationToken);
-            if (scheduleArticleSummaries && _articleSummaryScheduler is not null)
+            _dbContext.CollectionChanges.Add(new()
             {
-                await _articleSummaryScheduler.ScheduleAsync(
-                    affectedCanonicalWorks.Select(work => work.Id), cancellationToken);
+                EventId = Guid.NewGuid(),
+                ChangeKind = "ResearcherCollected",
+                PersonelId = personelId,
+                OccurredAtUtc = synchronizedAt
+            });
+            foreach (CanonicalWork canonical in affectedCanonicalWorks.Where(work => work.Id != 0))
+            {
+                int? academicWorkId = currentObservations
+                    .Where(observation => observation.CanonicalWorkId == canonical.Id ||
+                        ReferenceEquals(observation.CanonicalWork, canonical))
+                    .Select(observation => (int?)observation.AcademicWorkId)
+                    .Concat(existingObservations.Where(observation => observation.CanonicalWorkId == canonical.Id)
+                        .Select(observation => (int?)observation.AcademicWorkId))
+                    .FirstOrDefault();
+                _dbContext.CollectionChanges.Add(new()
+                {
+                    EventId = Guid.NewGuid(),
+                    ChangeKind = "CanonicalWorkChanged",
+                    PersonelId = personelId,
+                    CanonicalWorkId = canonical.Id,
+                    AcademicWorkId = academicWorkId,
+                    OccurredAtUtc = synchronizedAt
+                });
             }
+            await _dbContext.SaveChangesAsync(cancellationToken);
             if (ownedTransaction is not null)
                 await ownedTransaction.CommitAsync(cancellationToken);
 

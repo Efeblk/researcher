@@ -123,12 +123,14 @@ public sealed class ProviderStatusSummaryMapperTests
         Assert.Equal("Disabled", Map(provider).Health);
     }
 
-    [Fact]
-    public void Map_GeminiSpending_PreservesOnlySanitizedAggregate()
+    [Theory]
+    [InlineData("Gemini")]
+    [InlineData("AnalysisService")]
+    public void Map_AnalysisProviderSpending_DoesNotExposeAggregate(string providerName)
     {
         ProviderStatusDto provider = new()
         {
-            Provider = "Gemini",
+            Provider = providerName,
             Status = "Healthy",
             Transport = new() { ObservedAt = Now.AddSeconds(-1), ExpiresAt = Now.AddSeconds(30) },
             Spending = new()
@@ -139,14 +141,7 @@ public sealed class ProviderStatusSummaryMapperTests
             }
         };
 
-        ProviderSpendingSummaryDto spending = Map(provider).Spending!;
-
-        Assert.True(spending.Available);
-        Assert.Equal("USD", spending.Currency);
-        Assert.Equal("paidStandardEstimate", spending.Kind);
-        Assert.Equal(2, spending.RequestCount);
-        Assert.Equal(0.003m, spending.EstimatedTotalUsd);
-        Assert.Equal("gemini-3.8-flash", Assert.Single(spending.Last3).Model);
+        Assert.Null(Map(provider).Spending);
     }
 
     [Fact]

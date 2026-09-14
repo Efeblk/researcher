@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries.Enrichment;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Enrichment;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;

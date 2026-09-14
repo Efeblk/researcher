@@ -4,10 +4,12 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using AcademicCollector.Analysis.Contracts;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries;
+using ResearcherAnalysisService.Products.Api.Contracts;
+using ResearcherAnalysisService.Products.ArticleSummaries;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
+using ResearcherAnalysisService.Products.Data;
 
 namespace ServiceAcceptancePilot;
 
@@ -62,7 +64,7 @@ internal static class LiveServiceAcceptance
             int adamId;
             int footballId;
             int[] workIds;
-            await using (AcademicDbContext db = ServiceAcceptanceRehearsal.Database(database))
+            await using (AnalysisDbContext db = ServiceAcceptanceRehearsal.Database(database))
             {
                 var identities = await db.CanonicalResearcherWorks.Where(value => value.PersonelId == ServiceAcceptanceHost.SubjectId)
                     .Select(value => new { value.CanonicalWorkId, value.CanonicalWork!.NormalizedDoi,
@@ -89,7 +91,7 @@ internal static class LiveServiceAcceptance
                 CollectorUrl, AnalysisUrl, "metrics", replay))
             using (HttpClient client = Client())
             {
-                _ = await PostNodeAsync(client, "/Services/AcademicPerformance/V1/RefreshResearcherPublicationMetrics",
+                _ = await PostNodeAsync(client, AnalysisUrl + "/api/v1/products/RefreshResearcherPublicationMetrics",
                     new { PersonelID = ServiceAcceptanceHost.SubjectId });
                 JsonObject metrics = await PollMetricsAsync(client);
                 result["metrics"] = metrics;
@@ -107,14 +109,14 @@ internal static class LiveServiceAcceptance
             using (HttpClient client = Client(true))
             {
                 context = await PostAsync<FacultyAssistantContextResponse>(client,
-                    "/Services/AcademicPerformance/V1/SaveFacultyAssistantContext", new { PersonelID = ServiceAcceptanceHost.SubjectId,
+                    AnalysisUrl + "/api/v1/products/SaveFacultyAssistantContext", new { PersonelID = ServiceAcceptanceHost.SubjectId,
                         ExpectedVersion = 0, Context = new { Language = "tr", ResearchGoals = new[] { "Yöntem karşılaştırması" },
                             Courses = new[] { "Makine öğrenmesi" }, TeachingAudience = "Lisansüstü" } });
                 dossier = await PostAsync<HrEvidenceDossierResponse>(client,
-                    "/Services/AcademicPerformance/V1/CreateHrEvidenceDossier", new { PersonelID = ServiceAcceptanceHost.SubjectId,
+                    AnalysisUrl + "/api/v1/products/CreateHrEvidenceDossier", new { PersonelID = ServiceAcceptanceHost.SubjectId,
                         PublicationMetricSnapshotId = snapshotId, CanonicalWorkIds = workIds, Language = "tr" });
                 dossierRead = await PostAsync<HrEvidenceDossierResponse>(client,
-                    "/Services/AcademicPerformance/V1/GetHrEvidenceDossier", new { PersonelID = ServiceAcceptanceHost.SubjectId,
+                    AnalysisUrl + "/api/v1/products/GetHrEvidenceDossier", new { PersonelID = ServiceAcceptanceHost.SubjectId,
                         dossier.DossierId });
                 if (JsonSerializer.Serialize(dossier, JsonOptions) != JsonSerializer.Serialize(dossierRead, JsonOptions))
                     throw new InvalidOperationException("HR dossier create/read typed payloads differ.");
@@ -181,6 +183,7 @@ internal static class LiveServiceAcceptance
     private static HttpClient Client(bool authenticated = false)
     {
         HttpClient value = new() { BaseAddress = new(CollectorUrl), Timeout = TimeSpan.FromSeconds(340) };
+        value.DefaultRequestHeaders.Add("X-Analysis-Key", ServiceAcceptanceHost.ServiceKey);
         if (authenticated) value.DefaultRequestHeaders.Add(ServiceAcceptanceHost.Header, ServiceAcceptanceHost.HeaderValue);
         return value;
     }
@@ -193,7 +196,7 @@ internal static class LiveServiceAcceptance
     }
     private static async Task WaitForSummariesAsync(string connection, int[] ids)
     {
-        for (int i = 0; i < 1200; i++) { await using AcademicDbContext db = ServiceAcceptanceRehearsal.Database(connection);
+        for (int i = 0; i < 1200; i++) { await using AnalysisDbContext db = ServiceAcceptanceRehearsal.Database(connection);
             string[] states = await db.ArticleSummaryAutomationJobs.AsNoTracking().Where(value => ids.Contains(value.CanonicalWorkId))
                 .Select(value => value.Status).ToArrayAsync();
             if (states.Length == 2 && states.All(value => value == ArticleSummaryAutomationJobStatus.Succeeded)) return;
@@ -205,7 +208,7 @@ internal static class LiveServiceAcceptance
         for (int i = 0; i < 120; i++)
         {
             ResearcherPublicationMetricsStatusResponse value = await PostAsync<ResearcherPublicationMetricsStatusResponse>(client,
-                "/Services/AcademicPerformance/V1/GetResearcherPublicationMetrics", new { PersonelID = ServiceAcceptanceHost.SubjectId });
+                AnalysisUrl + "/api/v1/products/GetResearcherPublicationMetrics", new { PersonelID = ServiceAcceptanceHost.SubjectId });
             if (value.Status == "Current" && value.SnapshotId.HasValue && value.Data is not null &&
                 value.RequestedRevision == value.ComputedRevision && !value.IsStale)
                 return JsonSerializer.SerializeToNode(value, JsonOptions)!.AsObject();
@@ -219,14 +222,14 @@ internal static class LiveServiceAcceptance
         await using WebApplication host = await ServiceAcceptanceHost.StartCollectorAsync(root, database, CollectorUrl, AnalysisUrl, "faculty", replay);
         using HttpClient client = Client(true);
         for (int i = 0; i < 700; i++) { FacultyAssistantRunResponse value = await PostAsync<FacultyAssistantRunResponse>(client,
-            "/Services/AcademicPerformance/V1/GetFacultyAssistantRun", new { PersonelID = ServiceAcceptanceHost.SubjectId, RunId = id });
+            AnalysisUrl + "/api/v1/products/GetFacultyAssistantRun", new { PersonelID = ServiceAcceptanceHost.SubjectId, RunId = id });
             if (value.Status == "Completed") return value; if (value.Status is "Failed" or "Interrupted")
                 throw new InvalidOperationException($"Faculty ended {value.Status}: {value.ErrorCode}"); await Task.Delay(500); }
         throw new TimeoutException("Faculty worker timed out.");
     }
     private static Task<FacultyAssistantRunResponse> StartFacultyAsync(HttpClient client, Guid id, string mode,
         string query, int[] works, int version) => PostAsync<FacultyAssistantRunResponse>(client,
-        "/Services/AcademicPerformance/V1/StartFacultyAssistant", new { PersonelID = ServiceAcceptanceHost.SubjectId,
+        AnalysisUrl + "/api/v1/products/StartFacultyAssistant", new { PersonelID = ServiceAcceptanceHost.SubjectId,
             ClientRequestId = id, Mode = mode, Language = "tr", Query = query, CanonicalWorkIds = works, Take = 10, ContextVersion = version });
     private static object FacultyAudit(FacultyAssistantRunResponse value) => new { value.RunId, value.Status,
         value.AttemptCount, value.Report?.Outcome, value.Report?.Model, verificationModel = value.Report?.Verification.Model,
@@ -234,7 +237,7 @@ internal static class LiveServiceAcceptance
         provenance = value.Retrieval.Evidence.SelectMany(item => item.MatchProvenance ?? []).Select(item => item.Kind).Distinct() };
     private static async Task<JsonNode> SummaryAuditAsync(string connection, int[] ids)
     {
-        await using AcademicDbContext db = ServiceAcceptanceRehearsal.Database(connection);
+        await using AnalysisDbContext db = ServiceAcceptanceRehearsal.Database(connection);
         var rows = await db.CanonicalArticleAnalysisRuns.AsNoTracking().Include(value => value.ArticleSourceSnapshot)
             .ThenInclude(value => value!.Pages).Where(value => ids.Contains(value.CanonicalWorkId)).OrderBy(value => value.CanonicalWorkId).ToListAsync();
         string[] hashes = rows.Select(value => value.ArticleSourceSnapshot!.ExtractedTextHash).Order().ToArray();
@@ -248,7 +251,7 @@ internal static class LiveServiceAcceptance
     }
     private static async Task<JsonNode> SqlAuditAsync(string connection)
     {
-        await using AcademicDbContext db = ServiceAcceptanceRehearsal.Database(connection);
+        await using AnalysisDbContext db = ServiceAcceptanceRehearsal.Database(connection);
         return JsonSerializer.SerializeToNode(new { researchers = await db.Researchers.CountAsync(), works = await db.AcademicWorks.CountAsync(),
             canonicalWorks = await db.CanonicalWorks.CountAsync(), summaryRuns = await db.CanonicalArticleAnalysisRuns.CountAsync(),
             metricSnapshots = await db.PublicationMetricSnapshots.CountAsync(), dossiers = await db.HrEvidenceDossiers.CountAsync(),
@@ -256,7 +259,7 @@ internal static class LiveServiceAcceptance
     }
     private static async Task<JsonNode> DeepAuditAsync(string connection, ServiceAcceptanceBudgetSnapshot ledger)
     {
-        await using AcademicDbContext db = ServiceAcceptanceRehearsal.Database(connection);
+        await using AnalysisDbContext db = ServiceAcceptanceRehearsal.Database(connection);
         var summaries = await db.CanonicalArticleAnalysisRuns.AsNoTracking().Include(value => value.ArticleSourceSnapshot)
             .ThenInclude(value => value!.Spans).Include(value => value.ArticleSourceSnapshot).ThenInclude(value => value!.Pages)
             .Include(value => value.SavedArticleSummary).OrderBy(value => value.Id).ToListAsync();

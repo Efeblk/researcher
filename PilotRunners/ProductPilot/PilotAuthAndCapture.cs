@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using AcademicCollector.Analysis.Contracts;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ProductAccess;
+using ResearcherAnalysisService.Products.ProductAccess;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

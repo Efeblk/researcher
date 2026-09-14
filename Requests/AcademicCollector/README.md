@@ -1,27 +1,19 @@
 # Academic Collector HTTP örnekleri
 
-Bu klasördeki her `.http` dosyası Visual Studio veya REST Client ile bağımsız çalışır ve collector'ın `http://localhost:5001` yüzeyini kullanır. Dosya başındaki örnek değişkenleri kendi eşleşen test kayıtlarınızla değiştirin; gerçek API anahtarı, T.C. kimlik numarası veya başka bir sır kaydetmeyin. Güncel collector sözleşmeleri `Modules/AcademicPerformance/Service/Api/V1/Contracts` altındadır.
+Bu klasördeki her `.http` dosyası Visual Studio veya REST Client ile bağımsız çalışır ve collector'ın `http://localhost:5001` yüzeyini kullanır. Örnek değişkenleri kendi test kayıtlarınızla değiştirin; gerçek API anahtarı, T.C. kimlik numarası veya başka bir sırrı repoya kaydetmeyin. Güncel collector sözleşmeleri `Modules/AcademicPerformance/Service/Api/V1/Contracts` altındadır.
 
 ## Normal test yolu
 
-1. [AcademicPerformance.http](AcademicPerformance.http) ile uygulama sağlığını, [ProviderStatus.http](ProviderStatus.http) ile sağlayıcı durumunu denetleyin.
-2. Bir yol seçin: tek araştırmacı için `AcademicPerformance.http` içindeki `Collect`, toplu iş için [BulkCollection.http](BulkCollection.http). Aynı kişiyi iki yoldan da göndermek gerekmez.
-3. `AcademicPerformance.http` ile kaydedilmiş araştırmacıyı, yayın özetlerini ve kanonik yayınları okuyun.
-4. [PublicationMetrics.http](PublicationMetrics.http) ile metrik durumunu, [ArticleSummary.http](ArticleSummary.http) ile otomatik özet kuyruğunu ve kaydedilmiş sonucu okuyun. Elle üretim çağrıları ayrıca işaretlenmiştir.
-5. İK ve fakülte ürünü gerekiyorsa [AcademicAiProducts.http](AcademicAiProducts.http) dosyasına geçin. [ArticleReview.http](ArticleReview.http) isteğe bağlı destek akışıdır. Eski uyumluluk analizi [ResearcherAnalysis.http](ResearcherAnalysis.http), model değerlendirmesi [ArticleEvaluation.http](ArticleEvaluation.http), ileri bilgi/referans/grafik örnekleri [AcademicKnowledge.http](AcademicKnowledge.http) içinde tutulur. Yayın seçimi, Semantic Scholar ve YÖKSİS örnekleri `AcademicPerformance.http` sonunda bulunur.
+1. [AcademicPerformance.http](AcademicPerformance.http) ile uygulama sağlığını, [ProviderStatus.http](ProviderStatus.http) ile yalnız toplama sağlayıcılarının durumunu denetleyin.
+2. Tek araştırmacı için `AcademicPerformance.http` içindeki `Collect` işlemini veya toplu iş için [BulkCollection.http](BulkCollection.http) dosyasını kullanın.
+3. `AcademicPerformance.http` ile kaydedilmiş araştırmacıyı, bibliyografik yayın özetlerini ve kanonik yayınları okuyun. Yayın seçimi, Semantic Scholar ve YÖKSİS örnekleri de bu dosyadadır.
 
 | Kimlik | Nereden alınır | Nerede kullanılır |
 | --- | --- | --- |
 | `publicationId` | `ListPublications.Entities[].Id` | Yalnız `SavePublicationSelections.PublicationIds` |
-| `canonicalWorkId` | `ListCanonicalPublications.Entities[].Id` | Özet otomasyonu, kanonik kanıt/inceleme, gerçek değerlendirme vakası, bilgi/grafik, İK ve fakülte ürünleri |
-| `academicWorkId` | Aynı kanonik kaydın `Observations[].AcademicWorkId` alanı | Eski elle özet üretimi/okuması ve Semantic Scholar yayın/atıf filtreleri |
+| `canonicalWorkId` | `ListCanonicalPublications.Entities[].Id` | Analysis Service'in özet, inceleme, değerlendirme, bilgi, İK ve fakülte ürünleri |
+| `academicWorkId` | Aynı kanonik kaydın `Observations[].AcademicWorkId` alanı | Semantic Scholar yayın/atıf filtreleri ve Analysis Service'in gözlem tabanlı özet ürünleri |
 
-Tekil toplama çağrısı yanıt verince o kişinin toplama işi bitmiştir. Toplu akışta `Bulk/Status` yanıtındaki `Counts` araştırmacı toplama işlerini sayar; makale özetlerinin tamamlandığını göstermez. `IsComplete`, başarısız/kısmi/reddedilmiş son durumları da tamamlanmış sayar; bu nedenle `Counts` ve `Jobs` birlikte incelenmelidir. Örneğin 10 kişi, 10 makale veya 10 özet anlamına gelmez; her kişinin yayın sayısı farklıdır.
+Tekil toplama çağrısı yanıt verince o kişinin toplama işi bitmiştir. Toplu akışta `Bulk/Status` yanıtındaki `Counts` araştırmacı toplama işlerini sayar; Analysis Service işlerinin tamamlandığını göstermez. `IsComplete`, başarısız, kısmi veya reddedilmiş son durumları da tamamlanmış sayabilir; `Counts` ve `Jobs` alanlarını birlikte inceleyin.
 
-`ArticleSummaryAutomation:Enabled=true` ve `WorkerEnabled=false` olduğunda toplama, görünür özet kuyruk kayıtlarını oluşturmaya devam eder; yeni kaynak indirme ve AI çalışması başlamaz. Ayar, başlamış bir denemeyi iptal etmez. `WorkerEnabled=true` yapıldığında bekleyen işler işlenir.
-
-Collector'ın AI orkestrasyon uçları `http://localhost:5001` altında kalır ve kalıcı ürün kayıtlarını, kuyrukları ve özne yetkilendirmesini yönetir. Arkada `ResearcherAnalysisService` çağrısı yapılabilmesi için `AnalysisService:BaseUrl` ve gerekiyorsa `AnalysisService:ApiKey` yapılandırılır. Analiz servisinin doğrudan, tam bağlamlı API örnekleri ayrı olarak [ResearcherAnalysisService/Requests](../../ResearcherAnalysisService/Requests/README.md) altındadır.
-
-`ArticleEvaluation.http`, `AcademicKnowledge.http` ve `AcademicAiProducts.http` güvenilir bir ürün erişim adaptörü ister. Adaptörün BYS olması zorunlu değildir; kimlik bilgisinin biçimini kurulu adaptör belirler. Varsayılan kurulumda anonim istek `401`, kimliği doğrulanmış istek ise adaptör yapılandırılmadığı için `503` alır. Yetki reddi, kayıt varlığını açığa çıkarmamak için `404` döner.
-
-`clientRequestId`, aynı yetkili aktör + `PersonelID` kapsamında aynı istek gövdesiyle tekrarlandığında idempotent yeniden kullanım sağlar; farklı girdi için yeni UUID üretin. Fakülte bağlamı güncellemesinde `expectedVersion`, son okunan `Version` olmalıdır. `forceRegeneration=true` ve açık yenileme çağrıları yeni sürüm/çalışma üretebilir; önce ilgili dosyadaki yorumları okuyun.
+Collector AI üretimi, analitik ürün kaydı veya analitik worker çalıştırmaz. Toplama ve normalizasyon aynı SQL veritabanına `core.CollectionChanges` sinyali yazar; Analysis Service kendi receipt kaydıyla bu sinyali bağımsız işler. Kalıcı analiz ürünlerinin 5011 örnekleri [Researcher Analysis Service Requests](../../ResearcherAnalysisService/Requests/README.md) altındadır. Collector kapalıyken mevcut normalize veri üzerindeki Analysis ürünleri; Analysis Service kapalıyken collector toplama, bulk, kanonik okuma ve sağlayıcı durumu çalışmaya devam eder.

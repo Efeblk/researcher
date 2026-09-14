@@ -1,4 +1,4 @@
-using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries.Enrichment;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Enrichment;
 
 namespace AcademicCollectorDemo.Tests.Unit;
 

@@ -1,6 +1,6 @@
 # Sağlayıcılar
 
-Bu belge entegrasyonların sabit kapsamını özetler. Fiyat, kota ve paketler değişebilir; production ayarından önce bağlantılı resmî kaynak ve gerçek hesap ekranı doğrulanmalıdır. Uygulama varsayılanları için [`academicsettings.json`](../academicsettings.json) esas alınır.
+Bu belge collector'ın akademik veri entegrasyonlarının sabit kapsamını özetler. Fiyat, kota ve paketler değişebilir; production ayarından önce bağlantılı resmî kaynak ve gerçek hesap ekranı doğrulanmalıdır. Collector varsayılanları için [`academicsettings.json`](../academicsettings.json) esas alınır. Analysis Service'in AI sağlayıcıları ve model ayarları [kendi README dosyasında](../ResearcherAnalysisService/README.md) açıklanır.
 
 | Sağlayıcı | Projedeki kapsam | Temel sınır |
 | --- | --- | --- |
@@ -12,7 +12,7 @@ Bu belge entegrasyonların sabit kapsamını özetler. Fiyat, kota ve paketler d
 | TR Dizin | Tam ORCID eşleşmeli yazar ve yayın | Yayımlanmış kota doğrulanmamıştır. |
 | Crossref | DOI metaverisi/atıf ve pozitif-negatif önbellek | Araştırmacı girdi alanı değildir; polite pool için iletişim e-postası önerilir. |
 | Semantic Scholar | DOI metaverisi, atıf bağlamları, TLDR ve açık PDF adayı | Atıf yapan eserler araştırmacının yayın listesine eklenmez. |
-| Unpaywall | Makale analizi için DOI ile açık erişim kaynak adayı | Yalnız geçerli `Unpaywall:Email` yapılandırıldığında çağrılır. |
+| Unpaywall | Collector metadata zenginleştirmesinde DOI ile açık erişim kaynak adayı | Yalnız geçerli `Unpaywall:Email` yapılandırıldığında çağrılır; Analysis Service kaydedilmiş adayı salt okunur kullanır. |
 
 ORCID toplaması OpenAlex ve TR Dizin'i de tetikler; DOI bulunan ortak eserler Crossref ve Semantic Scholar ile zenginleştirilebilir. Sağlayıcı metrikleri kaynak adıyla ayrı tutulur. ResearchGate/Academia.edu scraping'i ve Scopus toplaması kapsam dışıdır.
 

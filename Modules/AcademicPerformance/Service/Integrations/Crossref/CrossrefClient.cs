@@ -1,6 +1,6 @@
 using System.Net;
 using System.Text.Json;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries.Enrichment;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Enrichment;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;

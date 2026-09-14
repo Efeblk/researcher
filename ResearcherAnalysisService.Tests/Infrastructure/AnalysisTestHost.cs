@@ -18,7 +18,7 @@ internal sealed class AnalysisTestHost(WebApplication application, HttpClient cl
         bool configureAccessKey = true, string environment = "Testing", HttpMessageHandler? geminiHandler = null,
         IReadOnlyDictionary<string, string?>? settings = null, IGeminiUsageRepository? usageRepository = null,
         IArticleReviewGenerator? reviewGenerator = null, IArticleReviewVerifier? reviewVerifier = null,
-        HttpMessageHandler? evaluationHandler = null)
+        HttpMessageHandler? evaluationHandler = null, string? usageDatabase = null)
     {
         WebApplication application = Program.CreateApplication(["--environment", environment], builder =>
         {
@@ -28,8 +28,17 @@ internal sealed class AnalysisTestHost(WebApplication application, HttpClient cl
             {
                 ["Urls"] = "http://127.0.0.1:0",
                 ["DatabaseMigrations:Enabled"] = "false",
+                ["ConnectionStrings:UsageDatabase"] =
+                    usageDatabase ?? (@"Server=(localdb)\MSSQLLocalDB;Database=ResearcherAnalysisStatelessTests;" +
+                    "Integrated Security=true;Encrypt=true;TrustServerCertificate=true"),
                 ["Service:ApiKey"] = configureAccessKey ? "synthetic-service-key" : null,
-                ["Gemini:ApiKey"] = geminiHandler is null ? null : "synthetic-gemini-key"
+                ["Gemini:ApiKey"] = geminiHandler is null ? null : "synthetic-gemini-key",
+                ["CollectionChanges:WorkerEnabled"] = "false",
+                ["ArticleSummaryAutomation:Enabled"] = "false",
+                ["ArticleSummaryAutomation:WorkerEnabled"] = "false",
+                ["PublicationMetrics:WorkerEnabled"] = "false",
+                ["ArticleEvaluation:WorkerEnabled"] = "false",
+                ["FacultyAssistant:WorkerEnabled"] = "false"
             };
             if (settings is not null)
                 foreach ((string key, string? value) in settings)

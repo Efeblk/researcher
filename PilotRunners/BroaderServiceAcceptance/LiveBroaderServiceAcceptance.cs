@@ -7,14 +7,16 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using AcademicCollector.Analysis.Contracts;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries;
+using ResearcherAnalysisService.Products.Api.Contracts;
+using ResearcherAnalysisService.Products.ArticleSummaries;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
-using AcademicCollectorDemo.Modules.AcademicPerformance.FacultyAssistant;
-using AcademicCollectorDemo.Modules.AcademicPerformance.HrDossiers;
+using ResearcherAnalysisService.Products.FacultyAssistant;
+using ResearcherAnalysisService.Products.HrDossiers;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using ResearcherAnalysisService.Products.Data;
 using ResearcherAnalysisService.Analysis;
 using ResearcherAnalysisService.Integrations.Gemini;
 
@@ -143,11 +145,11 @@ internal static partial class LiveBroaderServiceAcceptance
             using (HttpClient client = Client())
             {
                 fineSummary = await PostAsync<SavedArticleSummaryResponse>(client,
-                    "/Services/AcademicPerformance/V1/GetArticleSummary",
+                    AnalysisUrl + "/api/v1/products/GetArticleSummary",
                     new ArticleSummaryRequest { PersonelID = BroaderAcceptanceHost.PrimarySubjectId,
                         AcademicWorkId = works.FineAcademicWorkId, Language = "tr" });
                 reproducibilitySummary = await PostAsync<SavedArticleSummaryResponse>(client,
-                    "/Services/AcademicPerformance/V1/GetArticleSummary",
+                    AnalysisUrl + "/api/v1/products/GetArticleSummary",
                     new ArticleSummaryRequest { PersonelID = BroaderAcceptanceHost.PrimarySubjectId,
                         AcademicWorkId = works.ReproducibilityAcademicWorkId, Language = "tr" });
             }
@@ -166,11 +168,11 @@ internal static partial class LiveBroaderServiceAcceptance
             using (HttpClient client = Client())
             {
                 _ = await PostAsync<ResearcherPublicationMetricsStatusResponse>(client,
-                    "/Services/AcademicPerformance/V1/RefreshResearcherPublicationMetrics",
+                    AnalysisUrl + "/api/v1/products/RefreshResearcherPublicationMetrics",
                     new ResearcherPublicationMetricsRequest { PersonelId = BroaderAcceptanceHost.PrimarySubjectId },
                     HttpStatusCode.Accepted);
                 _ = await PostAsync<ResearcherPublicationMetricsStatusResponse>(client,
-                    "/Services/AcademicPerformance/V1/RefreshResearcherPublicationMetrics",
+                    AnalysisUrl + "/api/v1/products/RefreshResearcherPublicationMetrics",
                     new ResearcherPublicationMetricsRequest { PersonelId = BroaderAcceptanceHost.SecondarySubjectId },
                     HttpStatusCode.Accepted);
                 primaryMetrics = await PollMetricsAsync(client, BroaderAcceptanceHost.PrimarySubjectId);
@@ -188,7 +190,7 @@ internal static partial class LiveBroaderServiceAcceptance
             using (HttpClient client = Client(authenticated: true))
             {
                 context = await PostAsync<FacultyAssistantContextResponse>(client,
-                    "/Services/AcademicPerformance/V1/SaveFacultyAssistantContext",
+                    AnalysisUrl + "/api/v1/products/SaveFacultyAssistantContext",
                     new SaveFacultyAssistantContextRequest
                     {
                         PersonelId = BroaderAcceptanceHost.PrimarySubjectId,
@@ -203,7 +205,7 @@ internal static partial class LiveBroaderServiceAcceptance
                         }
                     });
                 dossier = await PostAsync<HrEvidenceDossierResponse>(client,
-                    "/Services/AcademicPerformance/V1/CreateHrEvidenceDossier",
+                    AnalysisUrl + "/api/v1/products/CreateHrEvidenceDossier",
                     new CreateHrEvidenceDossierRequest
                     {
                         PersonelId = BroaderAcceptanceHost.PrimarySubjectId,
@@ -212,7 +214,7 @@ internal static partial class LiveBroaderServiceAcceptance
                         Language = "tr"
                     });
                 HttpCapture denied = await CaptureAsync(client,
-                    "/Services/AcademicPerformance/V1/SearchAcademicEvidence",
+                    AnalysisUrl + "/api/v1/products/SearchAcademicEvidence",
                     new AcademicEvidenceSearchRequest
                     {
                         PersonelId = BroaderAcceptanceHost.SecondarySubjectId,
@@ -351,7 +353,7 @@ internal static partial class LiveBroaderServiceAcceptance
         foreach (FacultyCase item in selectedCases ?? Cases)
         {
             results[item.Name] = await PostAsync<AcademicEvidenceSearchResponse>(client,
-                "/Services/AcademicPerformance/V1/SearchAcademicEvidence",
+                AnalysisUrl + "/api/v1/products/SearchAcademicEvidence",
                 new AcademicEvidenceSearchRequest
                 {
                     PersonelId = BroaderAcceptanceHost.PrimarySubjectId,
@@ -361,14 +363,14 @@ internal static partial class LiveBroaderServiceAcceptance
                 });
         }
         results["diagnostic-fine-anchor"] = await PostAsync<AcademicEvidenceSearchResponse>(client,
-            "/Services/AcademicPerformance/V1/SearchAcademicEvidence", new AcademicEvidenceSearchRequest
+            AnalysisUrl + "/api/v1/products/SearchAcademicEvidence", new AcademicEvidenceSearchRequest
             {
                 PersonelId = BroaderAcceptanceHost.PrimarySubjectId,
                 Query = "randomly treatment control observed weeks fine delays",
                 CanonicalWorkIds = [works.FineCanonicalWorkId], Take = 10
             });
         results["diagnostic-reproducibility-anchor"] = await PostAsync<AcademicEvidenceSearchResponse>(client,
-            "/Services/AcademicPerformance/V1/SearchAcademicEvidence", new AcademicEvidenceSearchRequest
+            AnalysisUrl + "/api/v1/products/SearchAcademicEvidence", new AcademicEvidenceSearchRequest
             {
                 PersonelId = BroaderAcceptanceHost.PrimarySubjectId,
                 Query = "quasi-random journals replication significance confidence interval",
@@ -403,7 +405,7 @@ internal static partial class LiveBroaderServiceAcceptance
         using (HttpClient client = Client(authenticated: true))
         {
             start = await CaptureAsync(client,
-                "/Services/AcademicPerformance/V1/StartFacultyAssistant", request);
+                AnalysisUrl + "/api/v1/products/StartFacultyAssistant", request);
             if (start.Status == HttpStatusCode.Accepted)
                 queued = JsonSerializer.Deserialize<FacultyAssistantRunResponse>(start.Body, JsonOptions)!;
         }
@@ -480,17 +482,17 @@ internal static partial class LiveBroaderServiceAcceptance
             if (execution.Completed is null)
             {
                 HttpCapture repeated = await CaptureAsync(client,
-                    "/Services/AcademicPerformance/V1/StartFacultyAssistant", execution.Request);
+                    AnalysisUrl + "/api/v1/products/StartFacultyAssistant", execution.Request);
                 Require(repeated.Status == HttpStatusCode.UnprocessableEntity,
                     "A deterministic no-evidence replay changed status.");
                 results.Add(Node(new { execution.Case.Name, repeatedStatus = (int)repeated.Status }));
                 continue;
             }
             FacultyAssistantRunResponse replayed = await PostAsync<FacultyAssistantRunResponse>(client,
-                "/Services/AcademicPerformance/V1/StartFacultyAssistant", execution.Request,
+                AnalysisUrl + "/api/v1/products/StartFacultyAssistant", execution.Request,
                 HttpStatusCode.Accepted);
             FacultyAssistantRunResponse read = await PostAsync<FacultyAssistantRunResponse>(client,
-                "/Services/AcademicPerformance/V1/GetFacultyAssistantRun",
+                AnalysisUrl + "/api/v1/products/GetFacultyAssistantRun",
                 new GetFacultyAssistantRunRequest
                 {
                     PersonelId = BroaderAcceptanceHost.PrimarySubjectId,
@@ -499,7 +501,7 @@ internal static partial class LiveBroaderServiceAcceptance
             StartFacultyAssistantRequest changed = Clone(execution.Request);
             changed.Query += " değişti";
             HttpCapture conflict = await CaptureAsync(client,
-                "/Services/AcademicPerformance/V1/StartFacultyAssistant", changed);
+                AnalysisUrl + "/api/v1/products/StartFacultyAssistant", changed);
             Require(replayed.Reused && Equivalent(replayed.Report, execution.Completed.Report) &&
                 Equivalent(read, execution.Completed) && conflict.Status == HttpStatusCode.Conflict,
                 $"Faculty replay contract failed for {execution.Case.Name}.");
@@ -512,7 +514,7 @@ internal static partial class LiveBroaderServiceAcceptance
         ServiceAcceptanceBudgetSnapshot budget, WorkSet works, IReadOnlyList<FacultyExecution> executions,
         int baselineCalls = 0, decimal baselineCostUsd = 0m)
     {
-        await using AcademicDbContext db = Open(database);
+        await using AnalysisDbContext db = OpenAnalysis(database);
         List<CanonicalArticleAnalysisRun> runs = await db.CanonicalArticleAnalysisRuns.AsNoTracking()
             .Include(value => value.ArticleSourceSnapshot).ThenInclude(value => value!.Pages)
             .Include(value => value.ArticleSourceSnapshot).ThenInclude(value => value!.Spans)
@@ -600,7 +602,7 @@ internal static partial class LiveBroaderServiceAcceptance
 
     private static async Task AuditSummarySourcesAsync(string database, WorkSet works)
     {
-        await using AcademicDbContext db = Open(database);
+        await using AnalysisDbContext db = OpenAnalysis(database);
         List<CanonicalArticleAnalysisRun> runs = await db.CanonicalArticleAnalysisRuns.AsNoTracking()
             .Include(value => value.ArticleSourceSnapshot).ThenInclude(value => value!.Pages)
             .Include(value => value.ArticleSourceSnapshot).ThenInclude(value => value!.Spans)
@@ -669,7 +671,7 @@ internal static partial class LiveBroaderServiceAcceptance
         DateTimeOffset deadline = DateTimeOffset.UtcNow.AddMinutes(30);
         while (DateTimeOffset.UtcNow < deadline)
         {
-            await using AcademicDbContext db = Open(database);
+            await using AnalysisDbContext db = OpenAnalysis(database);
             var jobs = await db.ArticleSummaryAutomationJobs.AsNoTracking()
                 .Where(value => workIds.Contains(value.CanonicalWorkId))
                 .Select(value => new { value.CanonicalWorkId, value.Status, value.LastOutcomeCode }).ToListAsync();
@@ -690,7 +692,7 @@ internal static partial class LiveBroaderServiceAcceptance
         while (DateTimeOffset.UtcNow < deadline)
         {
             HttpCapture capture = await CaptureAsync(client,
-                "/Services/AcademicPerformance/V1/GetResearcherPublicationMetrics",
+                AnalysisUrl + "/api/v1/products/GetResearcherPublicationMetrics",
                 new ResearcherPublicationMetricsRequest { PersonelId = personelId });
             if (capture.Status == HttpStatusCode.OK)
                 return JsonSerializer.Deserialize<ResearcherPublicationMetricsStatusResponse>(capture.Body, JsonOptions)!;
@@ -707,7 +709,7 @@ internal static partial class LiveBroaderServiceAcceptance
         while (DateTimeOffset.UtcNow < deadline)
         {
             FacultyAssistantRunResponse response = await PostAsync<FacultyAssistantRunResponse>(client,
-                "/Services/AcademicPerformance/V1/GetFacultyAssistantRun",
+                AnalysisUrl + "/api/v1/products/GetFacultyAssistantRun",
                 new GetFacultyAssistantRunRequest
                 { PersonelId = BroaderAcceptanceHost.PrimarySubjectId, RunId = runId });
             if (response.Status == "Completed") return response;
@@ -828,6 +830,7 @@ internal static partial class LiveBroaderServiceAcceptance
     {
         HttpClient client = new() { BaseAddress = new(CollectorUrl),
             Timeout = timeout ?? TimeSpan.FromSeconds(30) };
+        client.DefaultRequestHeaders.Add("X-Analysis-Key", BroaderAcceptanceHost.ServiceKey);
         if (authenticated)
             client.DefaultRequestHeaders.Add(BroaderAcceptanceHost.Header,
                 BroaderAcceptanceHost.HeaderValue);
@@ -894,6 +897,9 @@ internal static partial class LiveBroaderServiceAcceptance
 
     private static AcademicDbContext Open(string connection) => new(
         new DbContextOptionsBuilder<AcademicDbContext>().UseSqlServer(connection).Options);
+
+    private static AnalysisDbContext OpenAnalysis(string connection) => new(
+        new DbContextOptionsBuilder<AnalysisDbContext>().UseSqlServer(connection).Options);
 
     private static async Task CreateDatabaseAsync(string masterConnection, string name)
     {

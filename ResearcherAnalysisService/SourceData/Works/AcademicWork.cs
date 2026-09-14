@@ -1,0 +1,64 @@
+using System.Text.Json.Serialization;
+using ResearcherAnalysisService.SourceData.Researchers;
+
+namespace ResearcherAnalysisService.SourceData.Works;
+
+public sealed class AcademicWork
+{
+    public int Id { get; set; }
+    public string PersonelId { get; set; } = string.Empty;
+
+    [JsonIgnore]
+    public Researcher? Researcher { get; set; } = null;
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public AcademicWorkProvider Provider { get; set; } = AcademicWorkProvider.Orcid;
+
+    public string? ProviderWorkId { get; set; } = null;
+    public string? Title { get; set; } = null;
+    public int? PublicationYear { get; set; } = null;
+    public DateTime? PublicationDate { get; set; } = null;
+    public string? Doi { get; set; } = null;
+    public string? RawType { get; set; } = null;
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public AcademicWorkCategory Category { get; set; } = AcademicWorkCategory.Unknown;
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public AcademicWorkCategorySource CategorySource { get; set; } =
+        AcademicWorkCategorySource.Unknown;
+
+    public int? CitedByCount { get; set; } = null;
+    public int? ReferencedWorksCount { get; set; } = null;
+    public string? Authors { get; set; } = null;
+    public string? Institutions { get; set; } = null;
+    public string? Abstract { get; set; } = null;
+    public string? Keywords { get; set; } = null;
+    public string? Topics { get; set; } = null;
+    public string? Language { get; set; } = null;
+    public string? Publication { get; set; } = null;
+    public string? Volume { get; set; } = null;
+    public string? Issue { get; set; } = null;
+    public string? FirstPage { get; set; } = null;
+    public string? LastPage { get; set; } = null;
+    public string? Link { get; set; } = null;
+    public string? SourceId { get; set; } = null;
+    public string? SourceName { get; set; } = null;
+    public string? SourceType { get; set; } = null;
+    public bool? IsOpenAccess { get; set; } = null;
+    public string? OpenAccessStatus { get; set; } = null;
+    public bool? HasFullText { get; set; } = null;
+    public string? FullTextUrl { get; set; } = null;
+    public List<AcademicWorkSource> Sources { get; set; } = [];
+    public string? License { get; set; } = null;
+    public string? Version { get; set; } = null;
+    public bool? IsRetracted { get; set; } = null;
+    public string? ProviderPayload { get; set; } = null;
+    public DateTime SyncedAt { get; set; }
+
+    [JsonIgnore]
+    public CanonicalWorkObservation? CanonicalObservation { get; set; } = null;
+
+    [JsonIgnore]
+    public AcademicWorkResearchContext? ResearchContext { get; set; } = null;
+}

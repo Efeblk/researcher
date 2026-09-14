@@ -97,7 +97,7 @@ public sealed class ProviderStatusServiceTests(SqlServerFixture fixture)
               ["OpenAlex:ApiKey"] = "synthetic-openalex-key" }).Build();
 
     private static ProviderStatusService Service(HttpMessageHandler handler, IConfiguration configuration) =>
-        new(new HttpClient(handler), new UnusedClientFactory(), configuration);
+        new(new HttpClient(handler), configuration);
 
     private sealed class CountingHandler : HttpMessageHandler
     {
