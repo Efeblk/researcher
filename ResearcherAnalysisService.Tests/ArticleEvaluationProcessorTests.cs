@@ -349,8 +349,11 @@ public sealed class ArticleEvaluationProcessorTests(AnalysisProductSqlServerFixt
     private static async Task AddLargeAnalysisRunAsync(AnalysisDbContext database,
         SyntheticCanonicalSource source)
     {
-        string firstText = new('x', 3_000);
-        string secondText = new('y', 3_000);
+        List<ArticlePage> pages = Enumerable.Range(1, 9)
+            .Select(page => new ArticlePage(page, new string((char)('a' + page), 500)))
+            .ToList();
+        List<ArticleSourceSpan> spans = pages.Select(page => new ArticleSourceSpan(
+            $"src-{page.PageNumber}", page.PageNumber, 0, page.Text.Length, page.Text)).ToList();
         ArticleSourceSnapshot snapshot = new()
         {
             CanonicalWorkId = source.CanonicalWorkId,
@@ -358,32 +361,21 @@ public sealed class ArticleEvaluationProcessorTests(AnalysisProductSqlServerFixt
             SourceKind = "abstract",
             ExtractionVersion = "synthetic-v1",
             CreatedAt = DateTimeOffset.UtcNow,
-            Pages =
-            [
-                new() { Ordinal = 0, PageNumber = 1, Text = firstText },
-                new() { Ordinal = 1, PageNumber = 2, Text = secondText }
-            ],
-            Spans =
-            [
-                new()
-                {
-                    Ordinal = 0,
-                    SourceId = "src-1",
-                    PageNumber = 1,
-                    StartOffset = 0,
-                    EndOffset = firstText.Length,
-                    Text = firstText
-                },
-                new()
-                {
-                    Ordinal = 1,
-                    SourceId = "src-2",
-                    PageNumber = 2,
-                    StartOffset = 0,
-                    EndOffset = secondText.Length,
-                    Text = secondText
-                }
-            ]
+            Pages = pages.Select((page, ordinal) => new ArticleSourcePageSnapshot
+            {
+                Ordinal = ordinal,
+                PageNumber = page.PageNumber,
+                Text = page.Text
+            }).ToList(),
+            Spans = spans.Select((span, ordinal) => new ArticleSourceSpanSnapshot
+            {
+                Ordinal = ordinal,
+                SourceId = span.SourceId,
+                PageNumber = span.PageNumber,
+                StartOffset = span.StartOffset,
+                EndOffset = span.EndOffset,
+                Text = span.Text
+            }).ToList()
         };
         database.Add(new CanonicalArticleAnalysisRun
         {
@@ -400,13 +392,9 @@ public sealed class ArticleEvaluationProcessorTests(AnalysisProductSqlServerFixt
                 ExtractionVersion = snapshot.ExtractionVersion,
                 SnapshotJson = JsonSerializer.Serialize(new SummarizeArticleRequest("en", "abstract",
                     snapshot.ExtractedTextHash, snapshot.ExtractionVersion,
-                    [new(1, firstText), new(2, secondText)], 2, false, null)
+                    pages, pages.Count, false, null)
                 {
-                    SourceSpans =
-                    [
-                        new("src-1", 1, 0, firstText.Length, firstText),
-                        new("src-2", 2, 0, secondText.Length, secondText)
-                    ]
+                    SourceSpans = spans
                 }),
                 ReportJson = "{}"
             },
@@ -420,9 +408,9 @@ public sealed class ArticleEvaluationProcessorTests(AnalysisProductSqlServerFixt
             ExtractionMethod = "abstract",
             ProcessedChunks = 1,
             TotalChunks = 1,
-            ProcessedPages = 2,
-            TextBearingPages = 2,
-            TotalPages = 2,
+            ProcessedPages = pages.Count,
+            TextBearingPages = pages.Count,
+            TotalPages = pages.Count,
             OmissionReasonsJson = "[]",
             VerificationStatus = "automatically_checked",
             VerificationModel = "synthetic",
