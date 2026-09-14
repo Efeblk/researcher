@@ -16,6 +16,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using AcademicCollectorDemo.Modules.AcademicPerformance.ProductAccess;
+using System.Security.Claims;
 
 namespace AcademicCollectorDemo.Tests.Integration;
 
@@ -41,7 +43,7 @@ public sealed class ArticleEvaluationProcessorTests(SqlServerFixture fixture)
             Options.Create(new AcademicCollectorDemo.Modules.AcademicPerformance.Evaluations.ArticleEvaluationOptions()));
         int before = await database.ArticleEvaluationRuns.CountAsync();
 
-        await Assert.ThrowsAsync<ArticleEvaluationValidationException>(() => scheduler.EnqueueAsync(new()
+        await Assert.ThrowsAsync<ArticleEvaluationValidationException>(() => scheduler.EnqueueAsync(Grant(personelId), new()
         {
             ProfileIds = [constrained.ProfileId], PersonelId = personelId,
             RealCases = [new() { CanonicalWorkId = canonicalWorkId, Language = "en" }]
@@ -74,6 +76,24 @@ public sealed class ArticleEvaluationProcessorTests(SqlServerFixture fixture)
     }
 
     [Fact]
+    public async Task ProcessNext_AuthorizationRevoked_FailsBeforeProviderUse()
+    {
+        using IServiceScope scope = fixture.Services.CreateScope();
+        AcademicDbContext database = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        ArticleEvaluationWorkItem item = await SeedCalibrationAsync(database, FingerprintA);
+        StubHttpHandler handler = new(_ => throw new InvalidOperationException(
+            "Revoked authorization must precede provider access."));
+
+        Assert.True(await Processor(scope, database, handler, new DenyingAccess()).ProcessNextAsync(default));
+
+        database.ChangeTracker.Clear();
+        ArticleEvaluationWorkItem saved = await database.ArticleEvaluationWorkItems.SingleAsync(value => value.Id == item.Id);
+        Assert.Equal(ArticleEvaluationStatus.Failed, saved.Status);
+        Assert.Equal("AccessRevoked", saved.OutcomeCode);
+        Assert.Equal(0, handler.RequestCount);
+    }
+
+    [Fact]
     public async Task ProcessNext_RealCaseAssociationMissing_DoesNotContactAnalysisService()
     {
         using IServiceScope scope = fixture.Services.CreateScope();
@@ -102,7 +122,7 @@ public sealed class ArticleEvaluationProcessorTests(SqlServerFixture fixture)
     {
         using IServiceScope scope = fixture.Services.CreateScope();
         AcademicDbContext database = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
-        ArticleEvaluationRun run = Run(null, false);
+        ArticleEvaluationRun run = Run("evaluation-owner", false);
         run.Status = ArticleEvaluationStatus.Running;
         ArticleEvaluationCase evaluationCase = Case(run, "dependency", ArticleEvaluationTaskKinds.Review);
         ArticleEvaluationWorkItem failed = Item(evaluationCase, Profile(FingerprintA), ArticleEvaluationTaskKinds.Review);
@@ -184,11 +204,12 @@ public sealed class ArticleEvaluationProcessorTests(SqlServerFixture fixture)
     }
 
     private static ArticleEvaluationProcessor Processor(IServiceScope scope, AcademicDbContext database,
-        StubHttpHandler handler) => new(database, new(new HttpClient(handler)
+        StubHttpHandler handler, IAcademicProductAccessService? access = null) => new(database, new(new HttpClient(handler)
         {
             BaseAddress = new Uri("http://127.0.0.1/")
         }, Options.Create(new AnalysisServiceOptions())),
         scope.ServiceProvider.GetRequiredService<CanonicalWorkSynchronizer>(),
+        access ?? new AllowingAccess(),
         NullLogger<ArticleEvaluationProcessor>.Instance);
 
     private static async Task<ArticleEvaluationWorkItem> SeedCalibrationAsync(AcademicDbContext database,
@@ -200,7 +221,7 @@ public sealed class ArticleEvaluationProcessorTests(SqlServerFixture fixture)
             definition.Snapshot.ExtractionVersion, "article-evaluation-policy-v1", pages, 1, true,
             "Synthetic calibration excerpt; controlled source-reading only.")
         { SourceSpans = ArticleSourceCatalog.Create(pages) };
-        ArticleEvaluationRun run = Run(null, false);
+        ArticleEvaluationRun run = Run("evaluation-owner", false);
         ArticleEvaluationCase evaluationCase = Case(run, "calibration", ArticleEvaluationTaskKinds.Calibration);
         evaluationCase.SourceSnapshotJson = JsonSerializer.Serialize(source, JsonOptions);
         evaluationCase.SourceHash = source.SourceHash;
@@ -217,15 +238,39 @@ public sealed class ArticleEvaluationProcessorTests(SqlServerFixture fixture)
         return item;
     }
 
-    private static ArticleEvaluationRun Run(string? owner, bool real) => new()
+    private static ArticleEvaluationRun Run(string owner, bool real) => new()
     {
-        RunId = Guid.NewGuid(), OwnerPersonelId = owner, IncludesRealCases = real,
+        RunId = Guid.NewGuid(), OwnerPersonelId = owner, ActorAuditId = "evaluation-actor",
+        AuthorizationGrantId = "evaluation-grant", IncludesRealCases = real,
         Status = ArticleEvaluationStatus.Pending, DatasetVersion = ArticleEvaluationCalibrationCatalog.DatasetVersion,
         EvaluatorVersion = "test-v1", PolicyVersion = "article-evaluation-policy-v1",
         ProfilesJson = JsonSerializer.Serialize(new[] { Profile(FingerprintA) }, JsonOptions),
         TotalCases = 1, TotalWorkItems = 1, WorstCaseModelCalls = 1,
         CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow
     };
+
+    private static AcademicProductAccessGrant Grant(string personelId) =>
+        new("evaluation-grant", "evaluation-actor", personelId, AcademicProductOperation.ArticleEvaluationStart);
+
+    private sealed class AllowingAccess : IAcademicProductAccessService
+    {
+        public Task<AcademicProductAccessGrant> AuthorizeAsync(ClaimsPrincipal principal,
+            AcademicProductAccessRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<AcademicProductAccessGrant> ReauthorizeAsync(AcademicProductAccessGrant persistedGrant,
+            CancellationToken cancellationToken) => Task.FromResult(persistedGrant);
+    }
+
+    private sealed class DenyingAccess : IAcademicProductAccessService
+    {
+        public Task<AcademicProductAccessGrant> AuthorizeAsync(ClaimsPrincipal principal,
+            AcademicProductAccessRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<AcademicProductAccessGrant> ReauthorizeAsync(AcademicProductAccessGrant persistedGrant,
+            CancellationToken cancellationToken) => throw new AcademicProductAccessDeniedException();
+    }
 
     private static ArticleEvaluationCase Case(ArticleEvaluationRun run, string id, string kind)
     {

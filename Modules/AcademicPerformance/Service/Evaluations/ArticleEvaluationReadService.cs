@@ -3,6 +3,7 @@ using AcademicCollector.Analysis.Contracts;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using Microsoft.EntityFrameworkCore;
+using AcademicCollectorDemo.Modules.AcademicPerformance.ProductAccess;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Evaluations;
 
@@ -11,12 +12,14 @@ public sealed class ArticleEvaluationReadService(AcademicDbContext database)
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public async Task<AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts.ArticleEvaluationResponse?> GetAsync(
+        AcademicProductAccessGrant grant,
         GetArticleEvaluationRequest request,
         CancellationToken cancellationToken)
     {
         ArticleEvaluationRun? run = await database.ArticleEvaluationRuns.AsNoTracking()
             .SingleOrDefaultAsync(value => value.RunId == request.RunId, cancellationToken);
-        if (run is null || !await CanReadAsync(run, request.PersonelId?.Trim(), cancellationToken))
+        if (run is null || run.OwnerPersonelId != grant.SubjectPersonelId ||
+            !await CanReadAsync(run, grant.SubjectPersonelId, cancellationToken))
             return null;
 
         List<ArticleEvaluationCase> cases = await database.ArticleEvaluationCases.AsNoTracking()
@@ -46,7 +49,7 @@ public sealed class ArticleEvaluationReadService(AcademicDbContext database)
             "Calibration measures controlled source-reading against synthetic text. It does not validate scientific accuracy, real-article omission recall, or suitability for personnel decisions.");
     }
 
-    private async Task<bool> CanReadAsync(ArticleEvaluationRun run, string? personelId,
+    private async Task<bool> CanReadAsync(ArticleEvaluationRun run, string personelId,
         CancellationToken cancellationToken)
     {
         if (!run.IncludesRealCases)

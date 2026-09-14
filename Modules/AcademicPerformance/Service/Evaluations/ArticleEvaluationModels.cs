@@ -19,6 +19,8 @@ public sealed class ArticleEvaluationRun
     public long Id { get; set; }
     public Guid RunId { get; set; }
     public string? OwnerPersonelId { get; set; } = null;
+    public string ActorAuditId { get; set; } = string.Empty;
+    public string AuthorizationGrantId { get; set; } = string.Empty;
     public string Status { get; set; } = ArticleEvaluationStatus.Pending;
     public string DatasetVersion { get; set; } = string.Empty;
     public string EvaluatorVersion { get; set; } = string.Empty;

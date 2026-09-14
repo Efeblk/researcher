@@ -7,6 +7,7 @@ using AcademicCollector.Analysis.Contracts;
 using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleReviews;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
+using AcademicCollectorDemo.Modules.AcademicPerformance.ProductAccess;
 using Microsoft.EntityFrameworkCore;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Evaluations;
@@ -15,6 +16,7 @@ public sealed class ArticleEvaluationProcessor(
     AcademicDbContext database,
     ArticleEvaluationServiceClient client,
     CanonicalWorkSynchronizer canonicalWorkSynchronizer,
+    IAcademicProductAccessService access,
     ILogger<ArticleEvaluationProcessor> logger)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -32,7 +34,23 @@ public sealed class ArticleEvaluationProcessor(
 
         try
         {
-            if (claimed.OwnerPersonelId is not null &&
+            if (string.IsNullOrWhiteSpace(claimed.OwnerPersonelId))
+            {
+                await FinishFailureAsync(claimed, "AccessRevoked",
+                    "Authorization is no longer available.", null, cancellationToken);
+                return true;
+            }
+            AcademicProductAccessGrant persisted = new(claimed.AuthorizationGrantId, claimed.ActorAuditId,
+                claimed.OwnerPersonelId, AcademicProductOperation.ArticleEvaluationStart);
+            AcademicProductAccessGrant currentGrant = await access.ReauthorizeAsync(persisted, cancellationToken);
+            if (currentGrant.SubjectPersonelId != claimed.OwnerPersonelId ||
+                currentGrant.ActorAuditId != claimed.ActorAuditId)
+            {
+                await FinishFailureAsync(claimed, "AccessRevoked",
+                    "Authorization is no longer available.", null, cancellationToken);
+                return true;
+            }
+            if (claimed.CanonicalWorkId.HasValue &&
                 !await HasCurrentAssociationAsync(claimed.OwnerPersonelId, claimed.CanonicalWorkId!.Value, cancellationToken))
             {
                 await FinishFailureAsync(claimed, "AssociationLost",
@@ -83,6 +101,14 @@ public sealed class ArticleEvaluationProcessor(
             await FinishFailureAsync(claimed, "NoFindings",
                 "Blind cross-check was skipped because the successful dependency retained no findings.",
                 null, CancellationToken.None, ArticleEvaluationStatus.Skipped);
+        }
+        catch (Exception exception) when (exception is AcademicProductAccessUnavailableException or
+            AcademicProductUnauthenticatedException or AcademicProductAccessDeniedException)
+        {
+            string code = exception is AcademicProductAccessUnavailableException
+                ? "AuthorizationUnavailable" : "AccessRevoked";
+            await FinishFailureAsync(claimed, code,
+                "Authorization is no longer available.", null, CancellationToken.None);
         }
         catch (Exception exception)
         {
@@ -176,7 +202,8 @@ public sealed class ArticleEvaluationProcessor(
             selected.Case.SourceSnapshotJson, selected.Case.RequestPayloadJson,
             selected.Case.ExpectedVerdictsJson, selected.Phase, selected.ProfileId,
             selected.ProfileFingerprint, selected.ProfileSnapshotJson,
-            selected.ExecutionToken!.Value, selected.Case.Run.OwnerPersonelId);
+            selected.ExecutionToken!.Value, selected.Case.Run.OwnerPersonelId,
+            selected.Case.Run.ActorAuditId, selected.Case.Run.AuthorizationGrantId);
     }
 
     private async Task<BuiltRequest> BuildRequestAsync(ClaimedItem item, CancellationToken cancellationToken)
@@ -252,7 +279,7 @@ public sealed class ArticleEvaluationProcessor(
         attempt.CostStatus = cost.Status;
         attempt.ErrorCode = response.ErrorCode;
         attempt.ErrorMessage = FailureMessage(response.Failure);
-        if (claimed.OwnerPersonelId is not null &&
+        if (claimed.CanonicalWorkId.HasValue && claimed.OwnerPersonelId is not null &&
             !await HasCurrentAssociationAsync(claimed.OwnerPersonelId, claimed.CanonicalWorkId!.Value, cancellationToken))
         {
             await MarkFailureAsync(item, claimed, "AssociationLost",
@@ -458,7 +485,7 @@ public sealed class ArticleEvaluationProcessor(
         long WorkItemId, long AttemptId, long RunId, int? CanonicalWorkId, long? BaseAnalysisRunId,
         string SourceSnapshotJson, string RequestPayloadJson, string? ExpectedVerdictsJson,
         string Phase, string ProfileId, string ProfileFingerprint, string ProfileSnapshotJson,
-        Guid Token, string? OwnerPersonelId);
+        Guid Token, string? OwnerPersonelId, string ActorAuditId, string AuthorizationGrantId);
 }
 
 public sealed class ArticleEvaluationNoInputException : Exception { }
