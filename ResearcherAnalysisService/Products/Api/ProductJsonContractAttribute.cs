@@ -8,11 +8,21 @@ namespace ResearcherAnalysisService.Products.Api;
 [AttributeUsage(AttributeTargets.Class)]
 internal sealed class ProductJsonContractAttribute : Attribute, IResultFilter
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
+    private const long MaximumSafeInteger = 9_007_199_254_740_992L;
+    private static readonly JsonSerializerOptions SerializerOptions = CreateSerializerOptions();
+
+    internal static JsonSerializerOptions CreateSerializerOptions()
     {
-        PropertyNamingPolicy = null,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-    };
+        JsonSerializerOptions options = new(JsonSerializerDefaults.Web)
+        {
+            PropertyNamingPolicy = null,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            NumberHandling = JsonNumberHandling.AllowReadingFromString |
+                JsonNumberHandling.AllowNamedFloatingPointLiterals
+        };
+        options.Converters.Add(new SafeInt64JsonConverter());
+        return options;
+    }
 
     public void OnResultExecuting(ResultExecutingContext context)
     {
@@ -32,5 +42,25 @@ internal sealed class ProductJsonContractAttribute : Attribute, IResultFilter
 
     public void OnResultExecuted(ResultExecutedContext context)
     {
+    }
+
+    private sealed class SafeInt64JsonConverter : JsonConverter<long>
+    {
+        public override long Read(ref Utf8JsonReader reader, Type typeToConvert,
+            JsonSerializerOptions options) => reader.TokenType switch
+        {
+            JsonTokenType.Number => reader.GetInt64(),
+            JsonTokenType.String when long.TryParse(reader.GetString(), out long value) => value,
+            _ => throw new JsonException("Expected a 64-bit integer or its decimal string representation.")
+        };
+
+        public override void Write(Utf8JsonWriter writer, long value,
+            JsonSerializerOptions options)
+        {
+            if (value is >= -MaximumSafeInteger and <= MaximumSafeInteger)
+                writer.WriteNumberValue(value);
+            else
+                writer.WriteStringValue(value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
     }
 }

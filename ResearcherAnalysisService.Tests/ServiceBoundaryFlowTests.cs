@@ -9,6 +9,7 @@ using ResearcherAnalysisService.Analysis;
 using ResearcherAnalysisService.Configuration;
 using ResearcherAnalysisService.Data;
 using ResearcherAnalysisService.Products.Api.Contracts;
+using ResearcherAnalysisService.Products.Api;
 using ResearcherAnalysisService.Products.ArticleSummaries;
 using ResearcherAnalysisService.Products.Data;
 using ResearcherAnalysisService.Products.Metrics;
@@ -21,6 +22,30 @@ namespace ResearcherAnalysisService.Tests;
 
 public sealed class ServiceBoundaryFlowTests
 {
+    [Fact]
+    public void ProductResponses_PreserveSafeInt64SerializationInNestedAndNullableValues()
+    {
+        string json = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            Data = new
+            {
+                Safe = 9_007_199_254_740_992L,
+                Unsafe = 9_007_199_254_740_993L,
+                Maximum = long.MaxValue,
+                NullableMaximum = (long?)long.MaxValue,
+                Missing = (long?)null
+            }
+        }, ProductJsonContractAttribute.CreateSerializerOptions());
+
+        using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(json);
+        System.Text.Json.JsonElement data = document.RootElement.GetProperty("Data");
+        Assert.Equal(System.Text.Json.JsonValueKind.Number, data.GetProperty("Safe").ValueKind);
+        Assert.Equal("9007199254740993", data.GetProperty("Unsafe").GetString());
+        Assert.Equal(long.MaxValue.ToString(), data.GetProperty("Maximum").GetString());
+        Assert.Equal(long.MaxValue.ToString(), data.GetProperty("NullableMaximum").GetString());
+        Assert.False(data.TryGetProperty("Missing", out _));
+    }
+
     [Fact]
     public async Task ProductResponses_PreservePascalCaseWhileStatelessApiRemainsCamelCase()
     {
