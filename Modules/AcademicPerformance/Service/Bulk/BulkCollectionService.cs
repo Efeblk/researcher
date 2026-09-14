@@ -127,20 +127,22 @@ public sealed class BulkCollectionService(
     private static HashSet<int> FindConflicts(IReadOnlyList<BulkNormalizationResult> rows)
     {
         HashSet<int> conflicts = [];
-        Dictionary<string, List<int>> keys = new(StringComparer.Ordinal);
+        Dictionary<string, List<int>> personelKeys = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, List<int>> providerKeys = new(StringComparer.Ordinal);
         for (int index = 0; index < rows.Count; index++)
         {
             BulkResearcherInput row = rows[index].Input;
-            Add("personel:" + row.PersonelId, index);
-            if (row.Orcid is not null) Add("orcid:" + row.Orcid, index);
-            if (row.GoogleScholarId is not null) Add("scholar:" + row.GoogleScholarId, index);
-            if (row.WebOfScienceId is not null) Add("wos:" + row.WebOfScienceId, index);
+            Add(personelKeys, row.PersonelId, index);
+            if (row.Orcid is not null) Add(providerKeys, "orcid:" + row.Orcid, index);
+            if (row.GoogleScholarId is not null) Add(providerKeys, "scholar:" + row.GoogleScholarId, index);
+            if (row.WebOfScienceId is not null) Add(providerKeys, "wos:" + row.WebOfScienceId, index);
         }
-        foreach (List<int> indexes in keys.Values.Where(value => value.Count > 1))
+        foreach (List<int> indexes in personelKeys.Values.Concat(providerKeys.Values)
+            .Where(value => value.Count > 1))
             foreach (int index in indexes) conflicts.Add(index);
         return conflicts;
 
-        void Add(string key, int index)
+        static void Add(Dictionary<string, List<int>> keys, string key, int index)
         {
             if (!keys.TryGetValue(key, out List<int>? indexes)) keys[key] = indexes = [];
             indexes.Add(index);

@@ -1,4 +1,8 @@
-# Synthetic examples. WorkerEnabled is false by default.
+# Synthetic examples. BulkCollection:WorkerEnabled is true by default.
+# For a staged 2–3-row pilot, keep it false while preparing the payload, then set it true only
+# when the user starts collection. Keep ArticleSummaryAutomation:Enabled=true and
+# ArticleSummaryAutomation:WorkerEnabled=false so collection queues visible summary jobs without
+# executing source/model work. No request in this file runs automatically.
 # Generate a new BatchId for each new batch; reuse it only for identical input.
 @bulk = http://localhost:5001/Services/AcademicPerformance/V1/Bulk
 @batchId = a3700086-8ad7-4871-becf-0fbd2ce586e3

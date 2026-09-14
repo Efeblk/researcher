@@ -23,19 +23,21 @@ public static class GeminiUsagePricing
         valid &= TryOptionalCount(usage, "totalTokenCount", null, out long? total);
         valid &= TryOptionalCount(usage, "toolUsePromptTokenCount", 0, out long? toolUse);
 
+        bool attributionValid = valid && prompt.HasValue && candidates.HasValue && cached.HasValue &&
+            thoughts.HasValue && toolUse == 0 && cached <= prompt &&
+            TrySum(prompt.Value, candidates.Value, thoughts.Value, out long calculated) &&
+            (!total.HasValue || total.Value == calculated);
         string? pricingVersion = null;
         decimal? estimate = null;
         string pricedModel = returnedModel ?? requestedModel;
-        if (valid && prompt.HasValue && candidates.HasValue && cached.HasValue && thoughts.HasValue &&
-            toolUse == 0 && cached <= prompt &&
-            TrySum(prompt.Value, candidates.Value, thoughts.Value, out long calculated) &&
-            (!total.HasValue || total.Value == calculated) &&
+        if (attributionValid &&
             TryGetRates(pricedModel, startedAt, out decimal inputRate, out decimal cachedRate,
                 out decimal outputRate, out pricingVersion))
         {
-            decimal uncachedTokens = prompt.Value - cached.Value;
-            decimal outputTokens = candidates.Value + thoughts.Value;
-            decimal calculatedEstimate = decimal.Round((uncachedTokens * inputRate + cached.Value * cachedRate +
+            decimal uncachedTokens = prompt.GetValueOrDefault() - cached.GetValueOrDefault();
+            decimal outputTokens = candidates.GetValueOrDefault() + thoughts.GetValueOrDefault();
+            decimal calculatedEstimate = decimal.Round((uncachedTokens * inputRate +
+                cached.GetValueOrDefault() * cachedRate +
                 outputTokens * outputRate) / 1_000_000m, 9, MidpointRounding.AwayFromZero);
             if (calculatedEstimate <= 9_999_999_999.999999999m)
                 estimate = calculatedEstimate;
@@ -43,6 +45,7 @@ public static class GeminiUsagePricing
 
         return new()
         {
+            UsageValidForAttribution = attributionValid,
             Outcome = outcome, HttpStatus = httpStatus, ReturnedModel = returnedModel,
             PromptTokenCount = prompt, CachedTokenCount = cached, CandidateTokenCount = candidates,
             ThoughtTokenCount = thoughts, TotalTokenCount = total,
@@ -50,7 +53,7 @@ public static class GeminiUsagePricing
         };
     }
 
-    private static bool TryGetRates(string model, DateTime startedAt, out decimal input,
+    public static bool TryGetRates(string model, DateTime startedAt, out decimal input,
         out decimal cached, out decimal output, out string? version)
     {
         input = cached = output = 0;

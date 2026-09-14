@@ -28,13 +28,14 @@ dotnet user-secrets set "Yoksis:Username" "<KULLANICI>"
 dotnet user-secrets set "Yoksis:Password" "<ŞİFRE>"
 ```
 
-Hazır örnekler [`Requests/`](Requests/) klasöründedir. Temel V1 uçları `/Services/AcademicPerformance/V1/` altında `Collect`, `GetResearcher`, `ListPublications`, `SavePublicationSelections` ve `Yoksis/Collect` işlemlerini sunar. Uzun toplama işleri için kalıcı kuyruk kullanılabilir.
+Examples are in [`Requests/`](Requests/). Collector V1 actions under `/Services/AcademicPerformance/V1/` cover collection and publication selection plus canonical publications, automated article summaries/reviews/evaluations, publication metrics, academic-evidence search, reference populations, evidence graph export, HR evidence dossiers, and the faculty assistant. Durable SQL Server workers process collection, summary, evaluation, metrics, and assistant jobs and are enabled by default; verify budgets, models, quotas, and access settings before deployment.
 
 ## Belgeler
 
 - [Kod rehberi](docs/CODEBASE_GUIDE.md): klasörler, istek akışı, veri katmanları ve doğrulama.
 - [Toplu toplama](docs/BULK_COLLECTION.md): giriş, kuyruk, hız sınırı ve kurtarma.
-- [Makale ve araştırmacı analizi](docs/ANALYSIS_PIPELINE.md): AI servisinin sözleşmesi, kaynak edinme ve kanıt doğrulama.
+- [Analysis pipeline](docs/ANALYSIS_PIPELINE.md): service contracts, automation, source acquisition, review, evaluation, and usage budgets.
+- [Canonical data](docs/CANONICAL_ACADEMIC_DATA.md), [AI products](docs/ACADEMIC_AI_PRODUCTS.md), [publication metrics](docs/PUBLICATION_METRICS.md), and the [data/knowledge layer](docs/DATA_KNOWLEDGE_LAYER.md): detailed product contracts and boundaries.
 - [Sağlayıcılar](docs/PROVIDERS.md): entegrasyon kapsamı, durum/kota anlamları ve resmî başvurular.
 - [Katkı rehberi](CONTRIBUTING.md): dal, PR ve test akışı.
 

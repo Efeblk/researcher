@@ -63,4 +63,7 @@ public sealed class Researcher
 
     [JsonIgnore]
     public List<PublicationDisplayApproval>? PublicationDisplayApprovals { get; set; } = null;
+
+    [JsonIgnore]
+    public List<CanonicalResearcherWork>? CanonicalWorks { get; set; } = null;
 }

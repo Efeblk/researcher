@@ -10,4 +10,10 @@ public interface IAcademicPerformanceApplicationService
         AcademicPublicationListRequest request);
     Task<AcademicPublicationSelectionResponse> SavePublicationSelectionsAsync(
         AcademicPublicationSelectionRequest request);
+    Task<CanonicalPublicationListResponse> ListCanonicalPublicationsAsync(
+        CanonicalPublicationListRequest request,
+        CancellationToken cancellationToken = default);
+    Task<CanonicalPublicationRebuildResponse> RebuildCanonicalPublicationsAsync(
+        CanonicalPublicationRebuildRequest request,
+        CancellationToken cancellationToken = default);
 }

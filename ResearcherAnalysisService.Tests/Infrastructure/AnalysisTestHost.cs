@@ -16,7 +16,9 @@ internal sealed class AnalysisTestHost(WebApplication application, HttpClient cl
 
     public static async Task<AnalysisTestHost> StartAsync(IResearcherReportGenerator? generator = null,
         bool configureAccessKey = true, string environment = "Testing", HttpMessageHandler? geminiHandler = null,
-        IReadOnlyDictionary<string, string?>? settings = null, IGeminiUsageRepository? usageRepository = null)
+        IReadOnlyDictionary<string, string?>? settings = null, IGeminiUsageRepository? usageRepository = null,
+        IArticleReviewGenerator? reviewGenerator = null, IArticleReviewVerifier? reviewVerifier = null,
+        HttpMessageHandler? evaluationHandler = null)
     {
         WebApplication application = Program.CreateApplication(["--environment", environment], builder =>
         {
@@ -40,9 +42,22 @@ internal sealed class AnalysisTestHost(WebApplication application, HttpClient cl
                 builder.Services.RemoveAll<IResearcherReportGenerator>();
                 builder.Services.AddSingleton(generator);
             }
+            if (reviewGenerator is not null)
+            {
+                builder.Services.RemoveAll<IArticleReviewGenerator>();
+                builder.Services.AddSingleton(reviewGenerator);
+            }
+            if (reviewVerifier is not null)
+            {
+                builder.Services.RemoveAll<IArticleReviewVerifier>();
+                builder.Services.AddSingleton(reviewVerifier);
+            }
             if (geminiHandler is not null)
                 builder.Services.AddHttpClient<GeminiArticleClient>()
                     .ConfigurePrimaryHttpMessageHandler(() => geminiHandler);
+            if (evaluationHandler is not null)
+                builder.Services.AddHttpClient("ArticleEvaluationProvider")
+                    .ConfigurePrimaryHttpMessageHandler(() => evaluationHandler);
         });
         await application.StartAsync();
         string address = application.Services.GetRequiredService<IServer>()

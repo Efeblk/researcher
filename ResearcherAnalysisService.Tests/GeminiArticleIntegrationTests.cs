@@ -67,12 +67,12 @@ public sealed class GeminiArticleIntegrationTests
     }
 
     [Fact]
-    public async Task Generate_MaxTokens_FailsAsIncomplete()
+    public async Task Generate_MaxTokens_FailsAsOutputLimit()
     {
         using StubHandler handler = new((_, _) => Task.FromResult(Response("{}", "MAX_TOKENS")));
         InvalidAnalysisException exception = await Assert.ThrowsAsync<InvalidAnalysisException>(() =>
             Summary(handler).GenerateAsync("en", "pdf", [Span()], default));
-        Assert.Equal(AnalysisFailure.IncompleteOutput, exception.Reason);
+        Assert.Equal(AnalysisFailure.OutputLimit, exception.Reason);
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public sealed class GeminiArticleIntegrationTests
     }
 
     [Fact]
-    public async Task Verify_ValidResponse_UsesOverrideModelAndNeighborGrounding()
+    public async Task Verify_ValidResponse_UsesOverrideModelAndOnlyItemCitations()
     {
         using StubHandler handler = new(async (request, _) =>
         {
@@ -141,11 +141,18 @@ public sealed class GeminiArticleIntegrationTests
             using JsonDocument body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
             string input = body.RootElement.GetProperty("contents")[0].GetProperty("parts")[0]
                 .GetProperty("text").GetString()!;
-            Assert.Contains("\"citedEvidence\":true", input);
-            Assert.Contains("\"citedEvidence\":false", input);
+            using JsonDocument inputDocument = JsonDocument.Parse(input);
+            JsonElement item = inputDocument.RootElement.GetProperty("items")[0];
+            Assert.Equal("c1", item.GetProperty("claim").GetProperty("claimId").GetString());
+            Assert.Equal("src-1", Assert.Single(item.GetProperty("sources").EnumerateArray())
+                .GetProperty("sourceId").GetString());
+            Assert.DoesNotContain("Context.", input);
+            Assert.DoesNotContain("Qualification.", input);
+            Assert.DoesNotContain("citedEvidence", input);
             Assert.Contains("no more than 500 characters", body.RootElement.GetProperty("systemInstruction")
                 .GetProperty("parts")[0].GetProperty("text").GetString());
-            return Response("{\"verdicts\":[{\"claimId\":\"c1\",\"verdict\":\"supported\",\"reason\":\"Direct support.\"}]}");
+            return Response("{\"verdicts\":[{\"claimId\":\"c1\",\"verdict\":\"supported\",\"reason\":\"Direct support.\"}]}",
+                modelVersion: "gemini-verifier");
         });
         AiOptions settings = new() { ArticleVerifierModel = "gemini-verifier" };
         GeminiArticleClaimVerifier verifier = Verifier(handler, settings);
@@ -236,6 +243,90 @@ public sealed class GeminiArticleIntegrationTests
     }
 
     [Fact]
+    public async Task SummarizeEndpoint_QualificationGating_AdmitsClearProseBesideGarbledMathAndExcludesOmission()
+    {
+        IReadOnlyList<ArticlePage> pages =
+        [
+            new(1, "The theorem assumes bounded gradients and bounded iterates, with gamma_t = 1/t. " +
+                "An unrelated extracted equation is damaged: R(T) = [garbled sigma layout]."),
+            new(2, "Under these assumptions, the authors prove that method M has sublinear regret.")
+        ];
+        IReadOnlyList<ArticleSourceSpan> spans = ArticleSourceCatalog.Create(pages);
+        ArticleSourceSpan assumptions = spans.Single(value => value.PageNumber == 1);
+        ArticleSourceSpan conclusion = spans.Single(value => value.PageNumber == 2);
+        int calls = 0;
+        string? generationInstructions = null;
+        string? generationInput = null;
+        string? verificationInstructions = null;
+        string? verificationInputJson = null;
+        using StubHandler handler = new(async (request, _) =>
+        {
+            calls++;
+            using JsonDocument body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            string instructions = body.RootElement.GetProperty("systemInstruction")
+                .GetProperty("parts")[0].GetProperty("text").GetString()!;
+            string input = body.RootElement.GetProperty("contents")[0]
+                .GetProperty("parts")[0].GetProperty("text").GetString()!;
+            if (calls == 1)
+            {
+                generationInstructions = instructions;
+                generationInput = input;
+                return Response("{\"purpose\":[],\"methods\":[],\"data\":[],\"findings\":[" +
+                    "{\"claimId\":\"c1\",\"text\":\"M yöntemi alt-doğrusal pişmanlığı garanti eder.\"," +
+                    $"\"sourceIds\":[\"{conclusion.SourceId}\"]}}," +
+                    "{\"claimId\":\"c2\",\"text\":\"Yazarlar, sınırlı gradyanlar, sınırlı iteratlar ve " +
+                    "gamma_t = 1/t koşulları altında M yöntemi için alt-doğrusal pişmanlık kanıtlamaktadır.\"," +
+                    $"\"sourceIds\":[\"{assumptions.SourceId}\",\"{conclusion.SourceId}\"]}}],\"limitations\":[]}}");
+            }
+
+            verificationInstructions = instructions;
+            verificationInputJson = input;
+            return Response("{\"verdicts\":[" +
+                "{\"claimId\":\"chunk-1:c1\",\"verdict\":\"unsupported\"," +
+                "\"reason\":\"The claim omits the theorem conditions.\"}," +
+                "{\"claimId\":\"chunk-1:c2\",\"verdict\":\"supported\"," +
+                "\"reason\":\"Clear prose supports the conditions and scoped conclusion.\"}]}");
+        });
+        await using AnalysisTestHost host = await AnalysisTestHost.StartAsync(geminiHandler: handler);
+        SummarizeArticleRequest request = new("tr", "pdf", "conditional-fixture-hash",
+            "synthetic-v1", pages, pages.Count, false, null) { SourceSpans = spans };
+
+        using HttpResponseMessage response = await host.Client.PostAsJsonAsync(
+            "/api/v1/articles/summarize", request);
+
+        Assert.True(response.StatusCode == HttpStatusCode.OK,
+            $"Unexpected HTTP {(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
+        ArticleSummaryReport report = (await response.Content.ReadFromJsonAsync<ArticleSummaryReport>())!;
+        ArticleClaim finding = Assert.Single(report.Sections.Findings);
+        Assert.Contains("sınırlı gradyanlar", finding.Text);
+        Assert.Equal("automatically_checked", report.Verification!.Status);
+        Assert.Equal(1, report.Coverage.SupportedClaims);
+        Assert.Equal(1, report.Coverage.UnsupportedClaims);
+        Assert.Equal(0, report.Coverage.UncertainClaims);
+        Assert.Equal("article-summary-source-ids-v6", report.PromptVersion);
+        Assert.Equal("article-claim-verification-v6", report.Verification.PromptVersion);
+        Assert.Equal(2, calls);
+        Assert.Contains("restrictive condition", generationInstructions);
+        Assert.Contains("must not weaken or omit required conditions", generationInstructions);
+        Assert.Contains("unconditional guarantee", generationInstructions);
+        Assert.Contains("requested language", generationInstructions);
+        Assert.Contains("\"language\":\"tr\"", generationInput);
+        Assert.Contains("Compare qualification and scope", verificationInstructions);
+        Assert.Contains("both directions", verificationInstructions);
+        Assert.Contains("independently clear prose", verificationInstructions);
+        Assert.Contains("formula reconstruction", verificationInstructions);
+        Assert.Contains("remains forbidden", verificationInstructions);
+        using JsonDocument verificationInput = JsonDocument.Parse(verificationInputJson!);
+        JsonElement broadItem = verificationInput.RootElement.GetProperty("items")[0];
+        Assert.Equal(conclusion.SourceId, Assert.Single(broadItem.GetProperty("sources").EnumerateArray())
+            .GetProperty("sourceId").GetString());
+        JsonElement qualifiedItem = verificationInput.RootElement.GetProperty("items")[1];
+        string[] qualifiedSources = qualifiedItem.GetProperty("sources").EnumerateArray()
+            .Select(value => value.GetProperty("sourceId").GetString()!).ToArray();
+        Assert.Equal([assumptions.SourceId, conclusion.SourceId], qualifiedSources);
+    }
+
+    [Fact]
     public async Task Generate_UsageInsertFailure_DoesNotSendPaidRequest()
     {
         int sends = 0;
@@ -307,6 +398,56 @@ public sealed class GeminiArticleIntegrationTests
         Assert.NotNull(completion.EstimatedUsd);
     }
 
+    [Theory]
+    [InlineData("missing_model", null, true)]
+    [InlineData("mismatched_model", "gemini-other", false)]
+    [InlineData("malformed_usage", "gemini-3.8-flash", false)]
+    public async Task Generate_ResponseAttestationFailure_FailsClosedAndPreservesObservedUsage(
+        string variant, string? expectedReturnedModel, bool expectedKnownCost)
+    {
+        int sends = 0;
+        using StubHandler handler = new((_, _) =>
+        {
+            sends++;
+            object response = variant switch
+            {
+                "missing_model" => new
+                {
+                    candidates = new[] { new { content = new { parts = new[] { new { text = "{}" } } }, finishReason = "STOP" } },
+                    usageMetadata = new { promptTokenCount = 100, candidatesTokenCount = 20, totalTokenCount = 120 }
+                },
+                "mismatched_model" => new
+                {
+                    candidates = new[] { new { content = new { parts = new[] { new { text = "{}" } } }, finishReason = "STOP" } },
+                    usageMetadata = new { promptTokenCount = 100, candidatesTokenCount = 20, totalTokenCount = 120 },
+                    modelVersion = "gemini-other"
+                },
+                _ => new
+                {
+                    candidates = new[] { new { content = new { parts = new[] { new { text = "{}" } } }, finishReason = "STOP" } },
+                    usageMetadata = new { promptTokenCount = 100, candidatesTokenCount = 20, totalTokenCount = 121 },
+                    modelVersion = "gemini-3.8-flash"
+                }
+            };
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(response)
+            });
+        });
+        TestGeminiUsageRepository usage = new();
+
+        InvalidAnalysisException exception = await Assert.ThrowsAsync<InvalidAnalysisException>(() =>
+            GenerateAsync(Client(handler, usage)));
+
+        Assert.Equal(AnalysisFailure.InvalidJson, exception.Reason);
+        Assert.Equal(1, sends);
+        GeminiUsageCompletion completion = Assert.Single(usage.Entries).Completion!;
+        Assert.Equal("InvalidJson", completion.Outcome);
+        Assert.Equal(expectedReturnedModel, completion.ReturnedModel);
+        Assert.Equal(expectedKnownCost, completion.EstimatedUsd.HasValue);
+        Assert.NotEqual("Success", completion.Outcome);
+    }
+
     [Fact]
     public async Task Generate_RejectedRequest_TracksStatusWithoutProviderBody()
     {
@@ -328,7 +469,7 @@ public sealed class GeminiArticleIntegrationTests
 
     [Theory]
     [InlineData("invalid-json", "InvalidJson")]
-    [InlineData("{\"modelVersion\":\"gemini-3.8-flash\",\"candidates\":[]}", "InvalidResponse")]
+    [InlineData("{\"modelVersion\":\"gemini-3.8-flash\",\"candidates\":[]}", "InvalidJson")]
     public async Task Generate_InvalidJsonOrMissingUsage_TracksUnknownAttempt(string responseBody,
         string expectedOutcome)
     {
@@ -409,16 +550,17 @@ public sealed class GeminiArticleIntegrationTests
 
     private static Task<GeminiArticleResult> GenerateAsync(GeminiArticleClient client,
         CancellationToken cancellationToken = default) => client.GenerateAsync("gemini-3.8-flash",
-        "Synthetic instructions.", "Synthetic input.", new JsonObject(), 512, cancellationToken);
+        "Synthetic instructions.", "Synthetic input.", new JsonObject(), 512, "high", cancellationToken);
 
-    private static HttpResponseMessage Response(string answer, string finishReason = "STOP") =>
+    private static HttpResponseMessage Response(string answer, string finishReason = "STOP",
+        string modelVersion = "gemini-3.8-flash") =>
         new(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(new
             {
                 candidates = new[] { new { content = new { parts = new[] { new { text = answer } } }, finishReason } },
                 usageMetadata = new { promptTokenCount = 100, candidatesTokenCount = 20, totalTokenCount = 120 },
-                modelVersion = "gemini-3.8-flash"
+                modelVersion
             })
         };
 

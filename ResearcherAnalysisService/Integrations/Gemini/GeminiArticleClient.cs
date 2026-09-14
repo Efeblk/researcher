@@ -1,4 +1,5 @@
 using System.Net;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -11,7 +12,9 @@ using ResearcherAnalysisService.Configuration;
 namespace ResearcherAnalysisService.Integrations.Gemini;
 
 public sealed class GeminiArticleClient(HttpClient client, IOptions<AiOptions> aiOptions,
-    IOptions<GeminiOptions> geminiOptions, IGeminiUsageRepository usageRepository)
+    IOptions<GeminiOptions> geminiOptions, IGeminiUsageRepository usageRepository,
+    ArticleEvaluationAttemptRecorder? attemptRecorder = null,
+    ArticleReviewDispatchContext? reviewDispatchContext = null)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -73,7 +76,18 @@ public sealed class GeminiArticleClient(HttpClient client, IOptions<AiOptions> a
     }
 
     public async Task<GeminiArticleResult> GenerateAsync(string model, string instructions, string input,
-        JsonObject schema, int maxOutputTokens, CancellationToken cancellationToken)
+        JsonObject schema, int maxOutputTokens, string thinkingLevel, CancellationToken cancellationToken)
+    {
+        GeminiArticleInvocationResult invocation = await GenerateAttemptAsync(model, instructions, input,
+            schema, maxOutputTokens, thinkingLevel, cancellationToken);
+        if (invocation.Result is not null)
+            return invocation.Result;
+        throw new InvalidAnalysisException(invocation.Failure ?? AnalysisFailure.InvalidReport);
+    }
+
+    public async Task<GeminiArticleInvocationResult> GenerateAttemptAsync(string model, string instructions,
+        string input, JsonObject schema, int maxOutputTokens, string thinkingLevel,
+        CancellationToken cancellationToken)
     {
         AiOptions settings = aiOptions.Value;
         string? apiKey = geminiOptions.Value.ApiKey;
@@ -81,20 +95,7 @@ public sealed class GeminiArticleClient(HttpClient client, IOptions<AiOptions> a
             throw new AnalysisUnavailableException("Article analysis is not configured to use Gemini.");
         if (string.IsNullOrWhiteSpace(apiKey))
             throw new AnalysisUnavailableException("Configure Gemini:ApiKey with user secrets.");
-        object body = new
-        {
-            systemInstruction = new { parts = new[] { new { text = instructions } } },
-            contents = new[] { new { role = "user", parts = new[] { new { text = input } } } },
-            generationConfig = new
-            {
-                temperature = 0,
-                maxOutputTokens,
-                responseMimeType = "application/json",
-                responseJsonSchema = schema,
-                thinkingConfig = new { thinkingLevel = "high", includeThoughts = false }
-            }
-        };
-        string serializedBody = JsonSerializer.Serialize(body, JsonOptions);
+        string serializedBody = CreateSerializedBody(instructions, input, schema, maxOutputTokens, thinkingLevel);
         if (Encoding.UTF8.GetByteCount(serializedBody) > settings.ArticleContextTokens - maxOutputTokens - 512)
             throw new AnalysisInputTooLargeException();
         string escapedModel = Uri.EscapeDataString(model);
@@ -104,7 +105,7 @@ public sealed class GeminiArticleClient(HttpClient client, IOptions<AiOptions> a
             Content = new StringContent(serializedBody, Encoding.UTF8, "application/json")
         };
         message.Headers.Add("x-goog-api-key", apiKey);
-        Guid attemptId = Guid.NewGuid();
+        Guid attemptId = reviewDispatchContext?.AttemptId ?? Guid.NewGuid();
         DateTime startedAt = DateTime.UtcNow;
         using (CancellationTokenSource beginTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
         {
@@ -124,6 +125,12 @@ public sealed class GeminiArticleClient(HttpClient client, IOptions<AiOptions> a
         }
 
         GeminiUsageCompletion completion = new() { Outcome = "Unknown" };
+        GeminiArticleResult? result = null;
+        AnalysisFailure? failure = null;
+        ExceptionDispatchInfo? delayedException = null;
+        bool usagePersisted = false;
+        using ArticleEvaluationAttemptRecorder.Attempt? providerAttempt =
+            attemptRecorder?.Begin("Gemini", model);
         try
         {
             using HttpResponseMessage response = await client.SendAsync(message, cancellationToken);
@@ -158,6 +165,11 @@ public sealed class GeminiArticleClient(HttpClient client, IOptions<AiOptions> a
             {
                 JsonElement root = document.RootElement;
                 completion = GeminiUsagePricing.Parse(root, model, startedAt, httpStatus, "InvalidResponse");
+                if (!string.Equals(completion.ReturnedModel, model, StringComparison.Ordinal) ||
+                    !completion.UsageValidForAttribution ||
+                    string.Equals(model, "gemini-3.8-flash", StringComparison.Ordinal) &&
+                    (completion.EstimatedUsd is null || string.IsNullOrWhiteSpace(completion.PricingVersion)))
+                    throw new InvalidAnalysisException(AnalysisFailure.InvalidJson);
                 try
                 {
                     JsonElement candidates = root.GetProperty("candidates");
@@ -166,7 +178,7 @@ public sealed class GeminiArticleClient(HttpClient client, IOptions<AiOptions> a
                     JsonElement candidate = candidates[0];
                     string? finishReason = candidate.GetProperty("finishReason").GetString();
                     if (finishReason == "MAX_TOKENS")
-                        throw new InvalidAnalysisException(AnalysisFailure.IncompleteOutput);
+                        throw new InvalidAnalysisException(AnalysisFailure.OutputLimit);
                     if (finishReason != "STOP")
                         throw new InvalidAnalysisException(AnalysisFailure.InvalidJson);
                     int promptTokens = root.GetProperty("usageMetadata").GetProperty("promptTokenCount").GetInt32();
@@ -182,7 +194,7 @@ public sealed class GeminiArticleClient(HttpClient client, IOptions<AiOptions> a
                     if (string.IsNullOrWhiteSpace(answer))
                         throw new InvalidAnalysisException(AnalysisFailure.IncompleteOutput);
                     completion = completion with { Outcome = "Success" };
-                    return new(answer, completion.ReturnedModel ?? settings.ArticleModel);
+                    result = new(answer, completion.ReturnedModel!);
                 }
                 catch (Exception exception) when (exception is JsonException or KeyNotFoundException or
                     InvalidOperationException)
@@ -191,34 +203,122 @@ public sealed class GeminiArticleClient(HttpClient client, IOptions<AiOptions> a
                 }
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException exception)
         {
             completion = completion with
             {
                 Outcome = cancellationToken.IsCancellationRequested ? "Cancelled" : "Timeout"
             };
-            throw;
+            delayedException = ExceptionDispatchInfo.Capture(exception);
         }
-        catch (HttpRequestException)
+        catch (InvalidAnalysisException exception)
+        {
+            completion = completion with { Outcome = OutcomeFor(exception.Reason) };
+            failure = exception.Reason;
+        }
+        catch (HttpRequestException exception)
         {
             if (completion.Outcome != "Rejected")
                 completion = completion with { Outcome = "NetworkFailure" };
-            throw;
+            delayedException = ExceptionDispatchInfo.Capture(exception);
+        }
+        catch (Exception exception)
+        {
+            delayedException = ExceptionDispatchInfo.Capture(exception);
         }
         finally
         {
+            providerAttempt?.Complete(AttemptStatus(completion.Outcome), AttemptErrorCode(completion.Outcome),
+                ToEvaluationUsage(completion));
             using CancellationTokenSource completionTimeout = new(TimeSpan.FromSeconds(5));
             try
             {
                 await usageRepository.CompleteAsync(attemptId, DateTime.UtcNow, completion,
                     completionTimeout.Token);
+                usagePersisted = true;
+                reviewDispatchContext?.Capture(completion);
             }
             catch (Exception)
             {
                 // The durable Pending row intentionally remains an unknown-cost attempt.
             }
         }
+        delayedException?.Throw();
+        return new(result, failure, completion, usagePersisted) { AttemptId = attemptId };
     }
+
+    public static string CreateSerializedBody(string instructions, string input, JsonObject schema,
+        int maxOutputTokens, string thinkingLevel)
+    {
+        object body = new
+        {
+            systemInstruction = new { parts = new[] { new { text = instructions } } },
+            contents = new[] { new { role = "user", parts = new[] { new { text = input } } } },
+            generationConfig = new
+            {
+                temperature = 0,
+                maxOutputTokens,
+                responseMimeType = "application/json",
+                responseJsonSchema = schema,
+                thinkingConfig = new { thinkingLevel, includeThoughts = false }
+            }
+        };
+        return JsonSerializer.Serialize(body, JsonOptions);
+    }
+
+    private static ArticleEvaluationUsage ToEvaluationUsage(GeminiUsageCompletion completion)
+    {
+        if (!completion.UsageValidForAttribution)
+            return new(ReturnedModel: completion.ReturnedModel);
+        long? output = null;
+        if (completion.CandidateTokenCount.HasValue && completion.ThoughtTokenCount.HasValue)
+        {
+            try { output = checked(completion.CandidateTokenCount.Value + completion.ThoughtTokenCount.Value); }
+            catch (OverflowException) { output = null; }
+        }
+        return new(completion.ReturnedModel, ToInt(completion.PromptTokenCount), ToInt(output),
+            ToInt(completion.CachedTokenCount), null, ToInt(completion.ThoughtTokenCount),
+            completion.EstimatedUsd, completion.PricingVersion);
+    }
+
+    private static int? ToInt(long? value) => value is >= 0 and <= int.MaxValue ? (int)value.Value : null;
+
+    private static string AttemptStatus(string outcome) => outcome switch
+    {
+        "Success" => "completed",
+        "Cancelled" => "cancelled",
+        "Timeout" => "timed_out",
+        _ => "failed"
+    };
+
+    private static string? AttemptErrorCode(string outcome) => outcome switch
+    {
+        "Success" => null,
+        "Cancelled" => "cancelled",
+        "Timeout" => "timeout",
+        "OutputLimit" => "output_limit",
+        "IncompleteOutput" => "incomplete_output",
+        "InvalidJson" => "invalid_json",
+        "InvalidEvidence" => "invalid_evidence",
+        "InvalidResponse" => "invalid_provider_response",
+        "Rejected" => "provider_rejected",
+        "NetworkFailure" => "provider_failure",
+        _ => "provider_failure"
+    };
+
+    private static string OutcomeFor(AnalysisFailure reason) => reason switch
+    {
+        AnalysisFailure.OutputLimit => "OutputLimit",
+        AnalysisFailure.IncompleteOutput => "IncompleteOutput",
+        AnalysisFailure.InvalidJson => "InvalidJson",
+        AnalysisFailure.InvalidEvidence => "InvalidEvidence",
+        _ => "InvalidResponse"
+    };
 }
 
 public sealed record GeminiArticleResult(string Json, string Model);
+public sealed record GeminiArticleInvocationResult(GeminiArticleResult? Result, AnalysisFailure? Failure,
+    GeminiUsageCompletion Completion, bool UsagePersisted)
+{
+    public Guid AttemptId { get; init; }
+}

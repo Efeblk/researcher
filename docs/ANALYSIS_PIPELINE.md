@@ -33,6 +33,14 @@ dotnet run --project ResearcherAnalysisService --launch-profile http
 
 `ConnectionStrings:UsageDatabase` için varsayılan/fallback yoktur. Collector önce başlatılıp migration'lar uygulanmalıdır. User-secrets örnekleri yerel geliştirme içindir; production değerlerini environment/deployment secret ile verin. AI sağlayıcısını değiştirmek için ilgili `Ai:Provider`, model ve makale sağlayıcı ayarlarını da güvenli deployment yapılandırmasında belirtin.
 
+## Durable product workflows and defaults
+
+The collector exposes the following POST actions under `/Services/AcademicPerformance/V1/`: `GetArticleSummaryAutomationStatus`, `GetCanonicalArticleEvidence`, `ReviewCanonicalArticle`, `GetCanonicalArticleReview`, `StartArticleEvaluation`, `GetArticleEvaluation`, `SaveFacultyAssistantContext`, `GetFacultyAssistantContext`, `StartFacultyAssistant`, `GetFacultyAssistantRun`, `CreateHrEvidenceDossier`, `GetHrEvidenceDossier`, `AppendHrDossierReviewAction`, and `ListHrDossierReviewActions`. Canonical publication, metric, search, reference-population, and graph actions are summarized in the [codebase guide](CODEBASE_GUIDE.md); exact payloads are in [`Requests/`](../Requests/).
+
+`ArticleSummaryAutomation`, `ArticleEvaluation`, `PublicationMetrics`, `FacultyAssistant`, and `BulkCollection` workers are enabled in the checked-in defaults and poll every five seconds. Automatic summaries retry at most three times; evaluations allow a 330-second request; faculty answers allow 1,800 seconds. A canonical article review admits at most 24 provider calls, USD 1.00 estimated spend, 100,000 source bytes, and 600 seconds. These are operational guards rather than provider quota or billing guarantees. Review the authoritative [`academicsettings.json`](../academicsettings.json) before deployment.
+
+The durable collector-orchestrated article path uses Gemini and records attributable attempts in `ConnectionStrings:UsageDatabase`; that connection has no fallback and must point to the migrated academic database. The analysis service defaults to local Ollama for researcher analysis, while article generation defaults to `gemini-3.8-flash`. Configure hosted credentials with secrets. Outside Development, the analysis service fails closed without `Service:ApiKey`, and the collector must send the same value through `AnalysisService:ApiKey`. Collector product endpoints authorize the requested subject before product-data reads; `DevelopmentPermissionService` remains development-only and must be replaced by BYS authorization for production.
+
 ## Makale özeti
 
 `SummarizeArticle` isteği `PersonelID`, o araştırmacıya ait `AcademicWorkId` ve isteğe bağlı dili alır. `GetArticleSummary` son başarılı sonucu AI çağrısı olmadan döndürür. Ayrıntılı örnekler [`Requests/ArticleSummary.http`](../Requests/ArticleSummary.http) dosyasındadır.

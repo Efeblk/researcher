@@ -24,6 +24,44 @@
     "MaximumOcrDimensionPixels": 10000,
     "TesseractPath": "tesseract"
   },
+  "ArticleSummaryAutomation": {
+    "Enabled": true,
+    "WorkerEnabled": true,
+    "Language": "tr",
+    "PollSeconds": 5,
+    "RetrySeconds": 60,
+    "MaximumAttempts": 3,
+    "PolicyVersion": "article-summary-v5"
+  },
+  "FacultyAssistant": {
+    "WorkerEnabled": true,
+    "PollSeconds": 5,
+    "RequestTimeoutSeconds": 1800,
+    "RetrievalPolicyVersion": "faculty-assistant-retrieval-v1"
+  },
+  "ArticleReview": {
+    "PolicyVersion": "article-specialist-review-policy-v5",
+    "TotalTimeoutSeconds": 600,
+    "MaximumSourceBytes": 100000,
+    "MaximumProviderCalls": 24,
+    "MaximumSpendUsd": 1.0
+  },
+  "ArticleEvaluation": {
+    "WorkerEnabled": true,
+    "PollSeconds": 5,
+    "RequestTimeoutSeconds": 330,
+    "MaximumSourceBytes": 100000,
+    "EvaluatorVersion": "article-evaluator-v1",
+    "PolicyVersion": "article-evaluation-policy-v1"
+  },
+  "PublicationMetrics": {
+    "WorkerEnabled": true,
+    "PollSeconds": 5,
+    "RetrySeconds": 30,
+    "MaximumAttempts": 3,
+    "BatchSize": 20,
+    "CatalogVersion": "publication-metrics-v4"
+  },
   "ArticleMetadataEnrichment": {
     "PositiveCacheMinutes": 1440,
     "NegativeCacheMinutes": 60,
@@ -61,7 +99,7 @@
     "MaxAgeHours": 24
   },
   "BulkCollection": {
-    "WorkerEnabled": false,
+    "WorkerEnabled": true,
     "MaximumBatchSize": 10000,
     "MaximumAttempts": 3,
     "PollSeconds": 5,

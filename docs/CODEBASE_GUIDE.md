@@ -40,6 +40,14 @@ Bağımlılık yönü `WebClient veya Api/V1/Endpoints → Application → Resea
 
 Sağlayıcı metrikleri kolay raporlama için `core.Researchers` üzerinde nullable kolonlara da yansıtılır; sağlayıcı tabloları esas kaynaktır ve farklı sağlayıcıların metrikleri birleştirilmez. `PersonelID`, araştırmacının kurum anahtarıdır.
 
+## Canonical data and product surfaces
+
+Collection reconciles provider works into `core.CanonicalWorks`, researcher memberships, and source observations before it updates publication summaries. The canonical transaction schedules dependent summary and metric work. `analysis.*` now also stores immutable article evidence, specialist reviews, evaluation attempts, metric snapshots, reference-population manifests, HR dossiers, and faculty-assistant runs. SQL Server remains authoritative; graph export is a reproducible evidence bundle rather than a second production database.
+
+All supported collector actions use `/Services/AcademicPerformance/V1/[action]`. Besides the collection actions, the surface includes `ListCanonicalPublications`, `RebuildCanonicalPublications`, `GetResearcherPublicationMetrics`, `RefreshResearcherPublicationMetrics`, `SearchAcademicEvidence`, `GetReferencePopulation`, `ImportReferencePopulation`, and `ExportAcademicEvidenceGraph`, plus the article and faculty actions listed in the [analysis pipeline](ANALYSIS_PIPELINE.md). Public product reads must call `IAcademicProductAccess.AuthorizeAsync` before loading subject data and must pass the authorized subject identifier onward. Keep provider DTOs, EF entities, authorization actors, and HR fields out of public graph/export contracts.
+
+Start in `Service/Works/{Models,Processing,Persistence}` for canonical identity, `Service/ArticleSummaries` and `Service/ArticleReviews` for evidence workflows, `Service/Evaluations` for evaluation, `Service/Metrics` for snapshots, `Service/Knowledge` and `Service/GraphProjection` for retrieval/export, `Service/HrDossiers` for HR evidence, `Service/FacultyAssistant` for assistant runs, and `Service/ProductAccess` for authorization. The detailed contracts and limits live in [canonical data](CANONICAL_ACADEMIC_DATA.md), [AI products](ACADEMIC_AI_PRODUCTS.md), [publication metrics](PUBLICATION_METRICS.md), and [data/knowledge layer](DATA_KNOWLEDGE_LAYER.md).
+
 ## Değişiklik noktaları
 
 | İhtiyaç | Başlangıç dosyası/klasörü |

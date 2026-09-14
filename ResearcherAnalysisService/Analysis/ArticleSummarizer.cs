@@ -22,7 +22,8 @@ public sealed class ArticleSummarizer(IArticleSummaryGenerator generator, IArtic
             results.Add(await GenerateAndVerify(request, catalog, catalog, "chunk-1", cancellationToken));
         }
         catch (AnalysisInputTooLargeException) { }
-        catch (InvalidAnalysisException exception) when (exception.Reason == AnalysisFailure.IncompleteOutput) { }
+        catch (InvalidAnalysisException exception) when (exception.Reason is
+            AnalysisFailure.IncompleteOutput or AnalysisFailure.OutputLimit) { }
 
         if (results.Count == 0)
         {
@@ -73,7 +74,7 @@ public sealed class ArticleSummarizer(IArticleSummaryGenerator generator, IArtic
             return [await verifier.VerifyAsync(language, candidates.Select(x => x.Claim).ToList(), catalog, cancellationToken)];
         }
         catch (Exception exception) when (exception is AnalysisInputTooLargeException ||
-            exception is InvalidAnalysisException { Reason: AnalysisFailure.IncompleteOutput })
+            exception is InvalidAnalysisException { Reason: AnalysisFailure.IncompleteOutput or AnalysisFailure.OutputLimit })
         {
             if (candidates.Count == 1)
                 return [new([new(candidates[0].Claim.ClaimId, "uncertain", BudgetReason)],
@@ -92,7 +93,7 @@ public sealed class ArticleSummarizer(IArticleSummaryGenerator generator, IArtic
     {
         try { results.Add(await GenerateAndVerify(request, spans, catalog, chunkId, cancellationToken)); }
         catch (Exception exception) when (exception is AnalysisInputTooLargeException ||
-            exception is InvalidAnalysisException { Reason: AnalysisFailure.IncompleteOutput })
+            exception is InvalidAnalysisException { Reason: AnalysisFailure.IncompleteOutput or AnalysisFailure.OutputLimit })
         {
             if (spans.Count < 2) throw new InvalidAnalysisException(AnalysisFailure.IncompleteOutput);
             int middle = spans.Count / 2;
@@ -183,7 +184,8 @@ public sealed class ArticleSummarizer(IArticleSummaryGenerator generator, IArtic
         ArticleCoverage coverage = new(results.Count, results.Count, request.Pages.Count, request.Pages.Count,
             request.TotalSourcePages, omitted, request.IsPartial || omitted > 0 || supported.Count == 0, scope)
         {
-            CandidateClaims = checkedClaims.Count, AutomaticallyCheckedClaims = checkedClaims.Count,
+            CandidateClaims = checkedClaims.Count,
+            AutomaticallyCheckedClaims = checkedClaims.Count - budgetUnverified,
             SupportedClaims = supported.Count, UnsupportedClaims = unsupported, UncertainClaims = uncertain,
             DuplicateOrCappedClaims = duplicateOrCapped, BudgetUnverifiedClaims = budgetUnverified,
             OmissionReasons = reasons
@@ -198,6 +200,7 @@ public sealed class ArticleSummarizer(IArticleSummaryGenerator generator, IArtic
                 "html" => "html",
                 _ => "abstract"
             },
+            SourceFidelity = ArticleSourceFidelity.Create(request.SourceKind, request.ExtractionVersion),
             Verification = new(status, string.Join(",", results.Select(x => x.Verification.Model).Distinct()),
                 results[0].Verification.PromptVersion,
                 results.Select(x => x.Generated.Model).Intersect(results.Select(x => x.Verification.Model),

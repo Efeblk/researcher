@@ -34,7 +34,7 @@ Manuel akış örnekleri [`Requests/BulkCollection.http`](../Requests/BulkCollec
 
 Birincil akışta dış sistem kendi verisini sorgulayıp `Submit` çağırır; uygulamanın kaynak veritabanı erişimine ihtiyacı yoktur. `ImportSql` kullanılacaksa `ConnectionStrings:BulkSource` yalnız gerekli `SELECT` yetkisine sahip hesap olmalı, sorgu `BulkSqlSource:Query` ile deployment sırasında sabitlenmelidir.
 
-Worker ve SQL içe aktarma kayıtlı varsayılanlarda kapalıdır. Etkin durum ve tüm seçeneklerin kaynağı [`academicsettings.json`](../academicsettings.json) dosyasıdır. Worker'ı açtıktan veya hız ayarını değiştirdikten sonra hostu yeniden başlatın; `Status.WorkerEnabled` etkin değeri gösterir.
+The worker is enabled in checked-in defaults; SQL import is disabled. Effective settings are authoritative in [`academicsettings.json`](../academicsettings.json). Restart the host after changing worker or rate settings; `Status.WorkerEnabled` reports the active value.
 
 `ProviderRequestLimits:<Provider>` altında `Enabled`, `MinimumIntervalMilliseconds` ve `DailyRequestLimit` bulunur. SQL tabanlı sayaç, cooldown ve uygulama kilitleri aynı veritabanını kullanan instance'lar arasında paylaşılır. Bunlar sağlayıcının gerçek hesap kotasını ölçmez; başka uygulamaların kullanımını göremez. Her sayfa ve ayrıntı çağrısı bütçe tüketir, önbellekten karşılanan kayıt tüketmez. SearchApi desteklenir ancak varsayılan ayarda kapalıdır; gerçek plan ve kalan kota doğrulanmadan açılmamalıdır.
 
