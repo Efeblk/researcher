@@ -37,7 +37,9 @@ public sealed class ArticleEvaluationServiceClient(ResearcherAnalysisService.Ana
         { throw new ArticleEvaluationPreflightException((HttpStatusCode)exception.StatusCode); }
         Validate(result, profile, payload);
         return result;
-    }private static void Validate(
+    }
+
+    private static void Validate(
         AcademicCollector.Analysis.Contracts.ArticleEvaluationResponse result,
         ArticleEvaluationProfile profile,
         ArticleEvaluationRequest request)
