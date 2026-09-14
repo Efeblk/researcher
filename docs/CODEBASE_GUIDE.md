@@ -1,142 +1,57 @@
-# Codebase guide
+# Kod rehberi
 
-This application collects academic profiles and publications, combines duplicate publications, and lets a researcher choose which publications appear on a school website.
+Uygulama iki çalıştırılabilir projeden oluşur: Serenity tabanlı toplayıcı ve bağımsız `ResearcherAnalysisService`. Ortak AI sözleşmeleri `ResearcherAnalysis.Contracts/` altındadır. SQL Server şeması FluentMigrator ile yönetilir.
 
-Open `AcademicCollectorDemo.sln` to work with both the collector and the independent `ResearcherAnalysisService`.
-The latter accepts JSON snapshots for AI reporting and has no database or collector project reference.
-The collector's `Service/Analysis/` builds those snapshots and saves reports in SQL Server.
-The ID-only `AnalyzeResearcher` and `GetResearcherAnalysis` endpoints generate/save and retrieve
-reports respectively. Both applications reference the DTO library `ResearcherAnalysis.Contracts/`.
-See [Researcher analysis](RESEARCHER_ANALYSIS.md) for its contract, setup, and current integration boundary.
-See [Provider status](PROVIDER_STATUS.md) for compact health and verified quota reporting, including
-the collector-to-analysis-service Gemini check.
-
-## Start with these files
-
-1. `Program.cs` sets up the web host, registers services, and runs migrations.
-2. `Modules/AcademicPerformance/Service/Application/AcademicPerformanceApplicationService.cs` exposes the main use cases: collect data, retrieve a researcher, list publications, and save selections.
-3. `Modules/AcademicPerformance/Service/Researchers/Collection/ResearcherCollectionHandler.cs` shows the collection workflow and database transaction.
-4. `Modules/AcademicPerformance/WebClient/Pages/AcademicPerformance/AcademicPerformancePage.ts` connects the browser form to the services and publication grid.
-
-Paths below are relative to the repository root. Within the module, C# namespaces omit the physical `Service` folder: for example, `Service/Works/Models` uses `AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models`.
-
-## Folder map
+## Klasörler ve sınırlar
 
 ```text
-Program.cs                         Application startup
-Host/                              Services needed by this standalone host
+Program.cs                                  host, DI ve migration başlangıcı
+Host/                                       yalnız bu hosta ait servisler
 Modules/AcademicPerformance/
-  Service/
-    Api/V1/
-      Contracts/                   Public request and response types
-      Endpoints/                   Supported HTTP API entry points
-    Application/                   Use cases and entity-to-API mapping
-    Bulk/                          Persistent batch queue and configurable SQL import
-    Researchers/
-      Collection/                  Parse identifiers and collect provider data
-      Models/                      Shared researcher data
-      Persistence/                 Find and save researchers
-    Integrations/
-      Orcid/                       ORCID client, profile, and work types
-      GoogleScholar/               Google Scholar integration
-      OpenAlex/                    Provider profile and raw works
-      TrDizin/                     Exact-ORCID author/publication collection
-      Crossref/                    DOI-only enrichment and positive/negative cache
-      WebOfScience/                Web of Science integration
-      Yoksis/
-        Collection/                SOAP operation catalog and collection workflow
-        Persistence/               Save records and normalize YÖKSİS works
-    Works/
-      Models/                      Normalized works, summaries, and approvals
-      Processing/                  Categorization, synchronization, deduplication
-    Data/                          EF context, registration, and SQL migrations
-  WebClient/
-    Contracts/                     Browser and UI-adapter request/response types
-    Endpoints/                     Serenity UI adapters
-    Pages/AcademicPerformance/     Page markup, orchestration, and summary panels
-    Publications/                  Publication grid and Serenity metadata
-  Background/                      Bulk queue worker and future scheduled jobs
-AcademicCollectorDemo.Tests/
-  Unit/                            Identifier parsing and browser storage tests
-  Integration/                     Provider, persistence, and endpoint tests
-  Infrastructure/                  Shared SQL fixture, host, and fake HTTP handler
-Requests/                          Example HTTP requests
-docs/                              Architecture, setup, and workflow notes
-wwwroot/esm/                       Generated browser bundles; edit TypeScript sources
+  Service/Api/V1/{Contracts,Endpoints}/     dış client sözleşmesi ve HTTP uçları
+  Service/Application/                     kullanım senaryoları ve DTO eşleme
+  Service/Researchers/                      model, toplama ve kalıcılık
+  Service/Works/                            ortak yayın modeli ve tekilleştirme
+  Service/Integrations/<Provider>/          sağlayıcı istemcileri ve ham modeller
+  Service/Integrations/RateLimiting/        SQL tabanlı hız/kota koordinasyonu
+  Service/{Bulk,ArticleSummaries,Analysis}/ toplu işler ve analiz iş akışları
+  Service/Data/Migrations/{Core,Providers}/ FluentMigrator değişiklikleri
+  WebClient/                                Serenity/Razor arayüzü ve UI adapter'ları
+  Background/                               kalıcı toplu kuyruk worker'ı
+AcademicCollectorDemo.Tests/                Unit, Integration, Infrastructure
+ResearcherAnalysisService/                  bağımsız AI HTTP servisi
+Requests/                                   manuel HTTP örnekleri
 ```
 
-## Follow a collection request
+Bağımlılık yönü `WebClient veya Api/V1/Endpoints → Application → Researchers/Works/Integrations → Data` şeklindedir. Dış client'lar yalnız V1 sözleşmelerini kullanmalı; EF entity'leri, sağlayıcı DTO'ları ve WebClient endpoint'leri dış sözleşmeye çıkarılmamalıdır. Sağlayıcıya özgü tipleri entegrasyon klasöründe tutun.
 
-The V1 endpoint accepts an `AcademicDataCollectRequest` and calls the application service. The application service normalizes narrowly recognized ORCID, Google Scholar, and Web of Science export forms without changing the request object, then converts the valid subset into the internal collection request. Invalid optional fields and unsupported Scopus IDs are returned as safe `Warnings`; when no supported identifier remains, collection stops before provider calls.
+## Toplama ve veri katmanları
 
-`ResearcherCollectionHandler` parses identifiers, finds an existing researcher if one matches, and asks `ResearcherCollectionService` to collect provider data. Provider integrations handle HTTP responses and caching. The handler then saves the researcher, synchronizes normalized works, and rebuilds publication summaries inside a database transaction.
+`AcademicPerformanceEndpoint`, isteği uygulama servisine iletir. `ResearcherCollectionHandler` kimlikleri doğrular, araştırmacıyı bulur, sağlayıcıları çağırır ve tek transaction içinde araştırmacıyı kaydedip ortak eserleri ve yayın özetlerini eşitler. YÖKSİS ayrı endpoint ve SOAP akışına sahiptir.
 
-`AcademicPerformanceDtoMapper` turns the saved models into public response DTOs. It only maps data; database queries and workflow decisions stay in the application service.
-
-YÖKSİS has its own collection handler and SOAP operation catalog under `Integrations/Yoksis`. Its persistence code converts supported records into the same shared work model.
-
-## Understand the data layers
-
-| Type of data | Purpose |
+| Katman | Amaç |
 | --- | --- |
-| Provider profiles and works | Preserve provider-specific fields and provenance. Each provider owns its types. |
-| `AcademicWork` | Represent publications from supported providers in a common format. |
-| `PublicationSummary` | Present one publication after deduplication, using DOI or normalized title and year. |
-| `PublicationDisplayApproval` | Store the researcher's choice to display a summary on the school website. |
+| Sağlayıcı profil/eser tabloları | Ham alanları, yanıtları ve kaynağı korur; esas sağlayıcı kaydıdır. |
+| `core.AcademicWorks` / `AcademicWorkSources` | Sağlayıcı eserlerini ortak biçime ve kaynak ilişkisine taşır. |
+| `core.PublicationSummaries` | DOI; yoksa normalize başlık-yıl ile tekilleştirilmiş listeyi sunar. |
+| `core.PublicationDisplayApprovals` | Akademisyenin okul sitesinde gösterim seçimini saklar. |
+| `analysis.*` | Araştırmacı analizleri, makale özetleri ve Gemini kullanım defterini saklar. |
+| `bulk.*` / `integrations.*` | Kuyruk ile sağlayıcı hız, kota ve durum koordinasyonunu saklar. |
 
-OpenAlex provider profile and raw works remain stored separately, while normalized OpenAlex works enter the shared publication list and DOI/title-year deduplication. Public V1 DTOs are separate from EF entities and UI-only contracts.
+Sağlayıcı metrikleri kolay raporlama için `core.Researchers` üzerinde nullable kolonlara da yansıtılır; sağlayıcı tabloları esas kaynaktır ve farklı sağlayıcıların metrikleri birleştirilmez. `PersonelID`, araştırmacının kurum anahtarıdır.
 
-Provider metrics are also materialized as nullable columns on `core.Researchers` for simple reporting by `PersonelID`. The provider profile tables remain the source of truth. For example:
+## Değişiklik noktaları
 
-```sql
-SELECT PersonelID, WosCitationCount, WosHIndex,
-       OpenAlexCitationCount, OpenAlexHIndex, OpenAlexI10Index,
-       ScholarCitationCount, ScholarHIndex, ScholarI10Index
-FROM [core].[Researchers]
-WHERE PersonelID = @PersonelID;
-```
-
-SQL Server tables are grouped by responsibility: shared researcher and publication data in
-`core`; provider data in `orcid`, `googlescholar`, `openalex`, `wos`, `yoksis`, `trdizin`,
-`crossref`, and `semanticscholar`; saved AI results in `analysis`; queue data in `bulk`; and
-provider coordination state in `integrations`. The `dbo` schema is reserved for migration
-bookkeeping. Migration `202609110001` creates the Gemini usage ledger, then migration `202609110002` transfers all 28 application tables without recreating them.
-
-## Find the right file for a change
-
-| What you want to change | Start here |
+| İhtiyaç | Başlangıç dosyası/klasörü |
 | --- | --- |
-| Accepted researcher identifiers | `Service/Researchers/Collection/ResearcherIdentifierParser.cs` |
-| A provider's HTTP request or response parsing | `Service/Integrations/<Provider>/<Provider>Client.cs` |
-| A provider's profile or publication fields | The type-named profile/work files in that provider folder |
-| YÖKSİS operations to collect | `Service/Integrations/Yoksis/Collection/YoksisOperationCatalog.cs` |
-| Publication categories | `Service/Works/Processing/AcademicWorkCategorizer.cs` |
-| Publication deduplication | `Service/Works/Processing/PublicationSummarySynchronizer.cs` |
-| A public API field | `Service/Api/V1/Contracts/`, then `AcademicPerformanceDtoMapper.cs` |
-| Form submission and loading states | `WebClient/Pages/AcademicPerformance/AcademicPerformancePage.ts` |
-| Profile and comparison panel rendering | `WebClient/Pages/AcademicPerformance/ResearcherSummaryPanels.ts` |
-| Grid columns, checkboxes, and selection loading | `WebClient/Publications/PublicationSummaryGrid.ts` |
-| Remembered provider identifiers | `WebClient/Pages/AcademicPerformance/ProviderIdentifiers.ts` |
-| Database schema | Add a migration under `Service/Data/Migrations/Core` or `Providers` |
+| Kimlik ayrıştırma | `Service/Researchers/Collection/ResearcherIdentifierParser.cs` |
+| Sağlayıcı HTTP/parsing | `Service/Integrations/<Provider>/` |
+| YÖKSİS operasyonları | `Service/Integrations/Yoksis/Collection/YoksisOperationCatalog.cs` |
+| Yayın sınıflandırma/tekilleştirme | `Service/Works/Processing/` |
+| Dış API alanı | `Service/Api/V1/Contracts/` ve `AcademicPerformanceDtoMapper.cs` |
+| Web formu/paneller/grid | `WebClient/Pages/AcademicPerformance/` ve `WebClient/Publications/` |
+| Veritabanı | `Service/Data/Migrations/Core/` veya `Providers/` altında yeni migration; ayrıca EF modeli |
 
-## Naming and boundaries
+Migration sırasını klasör değil benzersiz `[Migration(...)]` numarası belirler. `Up()` ve bağımlılık sırasını gözeten `Down()` yazın, tablo adlarını şemayla niteleyin ve uygulanmış migration'ları değiştirmeyin. Eski `PersonelID` öncesi veritabanları için ayrıca geçiş planı gerekir.
 
-Use filenames matching their main C# type. Keep provider-specific models with their provider. A `Client` talks to an external service; a `Repository` finds or saves database entities; a `Synchronizer` reconciles collected data with stored records; a `Mapper` converts representations.
-
-Keep local variables near their first use. Name them for their role, such as `researchButton` or `publicationSummaryCount`. Extract a file when it has a separate responsibility, rather than splitting a method just to meet a line limit.
-
-The browser page owns orchestration. The grid reports selection changes through callbacks, and the summary-panel module renders provider details. This keeps those components understandable without relying on page-level global functions.
-
-## Validate a change
-
-```powershell
-dotnet test AcademicCollectorDemo.Tests/AcademicCollectorDemo.Tests.csproj
-npm run typecheck
-npm test
-```
-
-Integration tests use synthetic provider responses and an isolated SQL Server database. They use Windows LocalDB or `ACADEMIC_TEST_SQLSERVER`, never the application's database settings. Browser storage tests run with Node through `npm test`.
-
-Follow [CONTRIBUTING.md](../CONTRIBUTING.md) to create a branch, open a PR, and check CI before merging.
-
-For SQL query imports, bulk jobs, and provider pacing, see [Bulk collection](BULK_COLLECTION.md).
+Doğrulama komutları ve PR akışı [katkı rehberindedir](../CONTRIBUTING.md). Entegrasyon testleri izole SQL Server veritabanı ve sentetik sağlayıcı yanıtları kullanır. Üretilmiş `wwwroot/esm/` dosyaları yerine TypeScript kaynaklarını düzenleyin. Toplu akış için [toplu toplama](BULK_COLLECTION.md), AI akışları için [analiz hattı](ANALYSIS_PIPELINE.md), dış servis davranışı için [sağlayıcılar](PROVIDERS.md) belgesine bakın.
