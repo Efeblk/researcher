@@ -1,0 +1,82 @@
+@baseUrl = http://localhost:5011
+@analysisKey = REPLACE_WITH_SERVICE_API_KEY
+@ollamaSettingsFingerprint = REPLACE_WITH_OLLAMA_QWEN_PROFILE_FINGERPRINT
+
+### 1. Sürüm ve kullanılabilirlik dahil değerlendirme profillerini oku [okuma]
+# @name evaluationProfiles
+GET {{baseUrl}}/api/v1/evaluations/profiles
+Accept: application/json
+X-Analysis-Key: {{analysisKey}}
+
+### 2. Ollama/Qwen profiliyle tek kontrollü iddiayı kalibre et [yerel Ollama üretimi]
+# Önce 1. isteği çalıştırın ve ollama-qwen-baseline kaydının settingsFingerprint değerini yukarıya yapıştırın.
+# GET yanıtındaki configured, yalnız güvenli loopback adresini doğrular. Execute için qwen3.8:27b-q4_K_M
+# modelinin 25b843619e944cd0ae6069f94ff4e5e26a16e109ccbc0a66a0f05979ed70098 digest'iyle kurulu olması gerekir.
+POST {{baseUrl}}/api/v1/evaluations/execute
+Content-Type: application/json
+Accept: application/json
+X-Analysis-Key: {{analysisKey}}
+
+{
+  "profileId": "ollama-qwen-baseline",
+  "taskKind": "calibration",
+  "expectedSettingsFingerprint": "{{ollamaSettingsFingerprint}}",
+  "source": {
+    "language": "en",
+    "sourceKind": "pdf",
+    "sourceHash": "15675f8dd97b0587f577ccae9a3a080586d9829df718bb59e33f483ce6871fd1",
+    "extractionVersion": "manual-pdf-v1",
+    "policyVersion": "article-specialist-review-policy-v5",
+    "pages": [{ "pageNumber": 1, "text": "The study enrolled 40 participants and reports a mean of 4.2 units." }],
+    "totalSourcePages": 1,
+    "isPartial": false,
+    "scopeReason": null,
+    "sourceSpans": [
+      {
+        "sourceId": "src-1-0-28e3865db3a44714",
+        "pageNumber": 1,
+        "startOffset": 0,
+        "endOffset": 67,
+        "text": "The study enrolled 40 participants and reports a mean of 4.2 units."
+      }
+    ]
+  },
+  "calibrationClaims": [
+    {
+      "claimId": "claim-1",
+      "text": "The sample includes 40 participants.",
+      "section": "data",
+      "sourceIds": ["src-1-0-28e3865db3a44714"]
+    }
+  ]
+}
+
+### 3. Tam kanıt kataloğuyla fakülte asistanını çağır [ücretli Gemini üretimi]
+# PersonelID veya CanonicalWorkId tek başına yeterli değildir; kesin metin ve konum gövdede taşınır.
+# Bu örnekteki 64 adet "a", servis tarafından yeniden hesaplanmayan sentetik ve opaque katalog kimliğidir.
+POST {{baseUrl}}/api/v1/faculty-assistant
+Content-Type: application/json
+Accept: application/json
+X-Analysis-Key: {{analysisKey}}
+
+{
+  "mode": "OwnPaperMethods",
+  "language": "en",
+  "query": "Explain the reported sample and identify one limitation for a methods discussion.",
+  "privateContext": "Prepare a concise discussion prompt for a graduate seminar.",
+  "evidence": [
+    {
+      "evidenceId": "work:1:snapshot:1:span:1",
+      "canonicalWorkId": 1,
+      "sourceSpanId": 1,
+      "sourceId": "src-1-0-28e3865db3a44714",
+      "pageNumber": 1,
+      "startOffset": 0,
+      "endOffset": 67,
+      "exactText": "The study enrolled 40 participants and reports a mean of 4.2 units.",
+      "sourceKind": "pdf",
+      "isPartial": false
+    }
+  ],
+  "evidenceCatalogHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}

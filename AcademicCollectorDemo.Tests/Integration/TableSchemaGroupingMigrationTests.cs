@@ -118,7 +118,7 @@ public sealed class TableSchemaGroupingMigrationTests(SqlServerFixture fixture)
             "analysis.CanonicalArticleClaimEvidence", "analysis.CanonicalArticleClaims",
             "analysis.CanonicalArticleReviewEvidence", "analysis.CanonicalArticleReviewFindings",
             "analysis.CanonicalArticleReviewRuns",
-            "analysis.GeminiUsageAttempts", "analysis.PublicationMetricProviderSnapshots",
+            "analysis.PublicationMetricProviderSnapshots",
             "analysis.PublicationMetricSnapshots",
             "analysis.PublicationMetricsRefreshStates", "analysis.ReferencePopulationManifests",
             "analysis.ReferencePopulationMembers", "analysis.ResearcherAnalyses",

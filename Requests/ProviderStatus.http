@@ -1,2 +1,0 @@
-GET http://localhost:5001/Services/AcademicPerformance/V1/ProviderStatus
-Accept: application/json

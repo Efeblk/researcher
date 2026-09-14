@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using ResearcherAnalysisService.Analysis;
 using ResearcherAnalysisService.Api;
 using ResearcherAnalysisService.Configuration;
+using ResearcherAnalysisService.Data;
 using ResearcherAnalysisService.Integrations.OpenAi;
 using ResearcherAnalysisService.Integrations.Ollama;
 using ResearcherAnalysisService.Integrations.Gemini;
@@ -115,6 +116,12 @@ public static class Program
                 ? services.GetRequiredService<OllamaReportGenerator>()
                 : services.GetRequiredService<OpenAiReportGenerator>());
         configure?.Invoke(builder);
+
+        if (builder.Configuration.GetValue("DatabaseMigrations:Enabled", true))
+        {
+            builder.Services.AddAnalysisDatabaseMigrations(builder.Configuration);
+            builder.Services.AddHostedService<AnalysisDatabaseMigrationHostedService>();
+        }
 
         WebApplication application = builder.Build();
         application.UseExceptionHandler(new ExceptionHandlerOptions

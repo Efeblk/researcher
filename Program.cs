@@ -90,7 +90,7 @@ public static class Program
 
             application.Services.CleanAcademicDatabase();
             Console.WriteLine(
-                "Uygulama tabloları ve verileri veritabanından kaldırıldı.");
+                "Collector tabloları ve verileri veritabanından kaldırıldı.");
             return;
         }
 

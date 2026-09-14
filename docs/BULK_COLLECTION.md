@@ -28,7 +28,7 @@ Her satır zorunlu, benzersiz `PersonelID` ile isteğe bağlı `ORCID`, `Researc
 
 Normalizasyon yalnız tanınan ORCID/WoS/Scholar URL ve yazım biçimlerini kabul eder; tahmin, doldurma veya alanlar arası taşıma yapmaz. Özgün satır denetim için, kanonik kopya worker için saklanır. Geçersiz alanlar diğer geçerli sağlayıcıları engellemez. Kimliksiz, tekrarlı `PersonelID` içeren veya aynı sağlayıcı kimliğini farklı personele bağlayan satırlar `Rejected` olur. Aynı `BatchId` ve aynı sıralı içerik idempotenttir; farklı içerik reddedilir.
 
-Manuel akış örnekleri [`Requests/BulkCollection.http`](../Requests/BulkCollection.http) ve [`Requests/BulkSubmitPayload.sql`](../Requests/BulkSubmitPayload.sql) dosyalarındadır.
+Manuel akış örnekleri [BulkCollection.http](../Requests/AcademicCollector/BulkCollection.http) ve [BulkSubmitPayload.sql](../Requests/AcademicCollector/BulkSubmitPayload.sql) dosyalarındadır.
 
 ## SQL içe aktarma ve worker
 

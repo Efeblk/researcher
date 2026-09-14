@@ -6,6 +6,7 @@
     <UserSecretsId>researcher-analysis-service-7ee882b9-4273-45ec-9928-a42501ff4f15</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="FluentMigrator.Runner.SqlServer" Version="8.0.1" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.3" />
     <ProjectReference Include="../ResearcherAnalysis.Contracts/ResearcherAnalysis.Contracts.csproj" />
   </ItemGroup>

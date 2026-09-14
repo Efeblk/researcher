@@ -1,0 +1,21 @@
+@baseUrl = http://localhost:5001
+@api = {{baseUrl}}/Services/AcademicPerformance/V1
+@personelId = P-1001
+
+### 1. Son kaydedilmiş metrik sürümünü ve yenileme durumunu oku [okuma, AI yok]
+# HTTP 202 ve Data=null ilk hesaplamanın beklediğini gösterir; bu istek hesaplama kuyruğu oluşturmaz.
+POST {{api}}/GetResearcherPublicationMetrics
+Content-Type: application/json
+
+{
+  "PersonelID": "{{personelId}}"
+}
+
+### 2. İsteğe bağlı: yeni metrik sürümünü kuyruğa al [kuyruk yazması, AI yok]
+# HTTP 202 döner. Worker tamamlayana kadar eski Data, Status=Stale ile görülebilir.
+POST {{api}}/RefreshResearcherPublicationMetrics
+Content-Type: application/json
+
+{
+  "PersonelID": "{{personelId}}"
+}

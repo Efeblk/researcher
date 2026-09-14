@@ -27,6 +27,7 @@ internal sealed class AnalysisTestHost(WebApplication application, HttpClient cl
             Dictionary<string, string?> configuration = new()
             {
                 ["Urls"] = "http://127.0.0.1:0",
+                ["DatabaseMigrations:Enabled"] = "false",
                 ["Service:ApiKey"] = configureAccessKey ? "synthetic-service-key" : null,
                 ["Gemini:ApiKey"] = geminiHandler is null ? null : "synthetic-gemini-key"
             };

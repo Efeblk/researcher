@@ -1,6 +1,7 @@
 -- 1) Bu sorguyu kaynak veritabanında, SSMS üzerinden çalıştırın.
--- 2) Sonuçtaki tek JSON hücresini BulkCollection.http içindeki Submit gövdesine yapıştırın.
--- 3) İlk denemeden sonra TOP (10) ifadesini kaldırarak 2.980 satırı gönderebilirsiniz.
+-- 2) Sonuçtaki BatchId ve Researchers içeren tek JSON hücresini BulkCollection.http içindeki
+--    Submit gövdesinin tamamı olarak yapıştırın; aynı BatchId ile Status isteğini çalıştırın.
+-- 3) İlk denemeden sonra TOP (10) sayısını ihtiyaca göre artırın; tek batch en çok 10.000 satır alır.
 -- Sorgu yalnızca okur; kaynak değerleri kırpmaz veya değiştirmez.
 
 DECLARE @BatchId uniqueidentifier = NEWID();

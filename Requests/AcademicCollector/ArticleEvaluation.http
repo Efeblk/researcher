@@ -1,0 +1,51 @@
+@baseUrl = http://localhost:5001
+@api = {{baseUrl}}/Services/AcademicPerformance/V1
+@personelId = P-1001
+@canonicalWorkId = 1
+@evaluationRunId = 11111111-1111-1111-1111-111111111111
+
+# Bu uçlar güvenilir ürün erişim adaptörü ister; kimlik bilgisinin cookie/header biçimini kurulu adaptör belirler.
+# Varsayılan kurulum: anonim 401, kimliği doğrulanmış fakat adaptörü yapılandırılmamış istek 503.
+# PersonelID sentetik kalibrasyon dahil her başlatma ve okuma isteğinde zorunludur.
+
+### 1. Yerel modelle kontrollü kalibrasyonu kuyruğa al [AI kuyruğu + yazma]
+# Yanıttaki RunId değerini evaluationRunId değişkenine kopyalayın.
+POST {{api}}/StartArticleEvaluation
+Content-Type: application/json
+
+{
+  "PersonelID": "{{personelId}}",
+  "ProfileIds": ["ollama-qwen-baseline"],
+  "RealCases": [],
+  "EnableBlindCrossCheck": false
+}
+
+### 2. İsteğe bağlı: gerçek kayıt ve iki modelle benchmark kuyruğa al [AI kuyruğu + yazma]
+# canonicalWorkId için aynı dilde başarılı kanonik makale analizi ve değişmez kaynak anlık görüntüsü gerekir.
+# İki profilli çapraz kontrol Gemini'ı birçok kez çağırabilir ve ücret doğurabilir.
+POST {{api}}/StartArticleEvaluation
+Content-Type: application/json
+
+{
+  "PersonelID": "{{personelId}}",
+  "ProfileIds": ["gemini-baseline", "ollama-qwen-baseline"],
+  "RealCases": [
+    {
+      "CanonicalWorkId": {{canonicalWorkId}},
+      "Language": "tr"
+    }
+  ],
+  "EnableBlindCrossCheck": true
+}
+
+### 3. Kalıcı ilerlemeyi ve sonuç sayfasını oku [okuma]
+# Başlatma yanıtındaki RunId ve aynı PersonelID kullanılmalıdır; model çağrısı yapmaz.
+POST {{api}}/GetArticleEvaluation
+Content-Type: application/json
+
+{
+  "RunId": "{{evaluationRunId}}",
+  "PersonelID": "{{personelId}}",
+  "Skip": 0,
+  "Take": 50
+}

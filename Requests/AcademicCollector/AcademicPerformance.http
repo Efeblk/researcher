@@ -1,0 +1,109 @@
+# Temel V1 akışı. Her istek tek başına çalıştırılabilir; önce değişkenleri düzenleyin.
+# Sağlayıcı çağrıları uzun sürebilir. Visual Studio REST timeout değerini gerekirse 300 saniyeye çıkarın.
+
+@baseUrl = http://localhost:5001
+@api = {{baseUrl}}/Services/AcademicPerformance/V1
+@personelId = P-1001
+@orcid = 0000-0002-1825-0097
+@publicationId = 1
+@academicWorkId = 1
+@tcKimlikNo = TC_KIMLIK_NUMARASINI_BURAYA_YAZ
+
+### 1. Uygulama sağlığını oku [okuma]
+GET {{baseUrl}}/
+Accept: application/json
+
+### 2. Tek bir araştırmacıyı ORCID ile topla [sağlayıcı çağrısı + yazma]
+# Toplu toplama kullanacaksanız bu adımı atlayıp BulkCollection.http dosyasına geçin.
+POST {{api}}/Collect
+Content-Type: application/json
+
+{
+  "PersonelID": "{{personelId}}",
+  "ORCID": "{{orcid}}"
+}
+
+### 3. Kaydedilmiş araştırmacıyı oku [okuma]
+# Ön koşul: aynı PersonelID ile başarılı tekil veya toplu toplama.
+POST {{api}}/GetResearcher
+Content-Type: application/json
+
+{
+  "PersonelID": "{{personelId}}"
+}
+
+### 4. Kaydedilmiş yayın özetlerini listele [okuma]
+# Entities[].Id, yalnız SavePublicationSelections isteğindeki PublicationIds değeridir.
+POST {{api}}/ListPublications
+Content-Type: application/json
+
+{
+  "PersonelID": "{{personelId}}",
+  "ApprovedOnly": false,
+  "Skip": 0,
+  "Take": 100
+}
+
+### 5. Kanonik yayınları ve sağlayıcı gözlemlerini listele [okuma]
+# Entities[].Id bir CanonicalWorkId; aynı kaydın Observations[].AcademicWorkId alanı AcademicWorkId'dir.
+POST {{api}}/ListCanonicalPublications
+Content-Type: application/json
+
+{
+  "PersonelID": "{{personelId}}",
+  "SearchText": null,
+  "Skip": 0,
+  "Take": 100
+}
+
+### 6. İsteğe bağlı: okulda gösterilecek yayınları kaydet [yazma]
+# publicationId, 4. istekteki Entities[].Id değeridir. Liste, mevcut seçimin tamamının yerine geçer.
+POST {{api}}/SavePublicationSelections
+Content-Type: application/json
+
+{
+  "PersonelID": "{{personelId}}",
+  "PublicationIds": [{{publicationId}}]
+}
+
+### 7. İsteğe bağlı: kaydedilmiş Semantic Scholar verisini listele [okuma]
+# academicWorkId, 5. istekteki Entities[].Observations[].AcademicWorkId değeridir.
+POST {{api}}/ListSemanticScholarPapers
+Content-Type: application/json
+
+{
+  "PersonelID": "{{personelId}}",
+  "AcademicWorkId": {{academicWorkId}},
+  "Skip": 0,
+  "Take": 100
+}
+
+### 8. İsteğe bağlı: bir yayının kaydedilmiş atıflarını listele [okuma]
+POST {{api}}/ListSemanticScholarCitations
+Content-Type: application/json
+
+{
+  "PersonelID": "{{personelId}}",
+  "AcademicWorkId": {{academicWorkId}},
+  "Skip": 0,
+  "Take": 100
+}
+
+### 9. İsteğe bağlı: Semantic Scholar verisini yenile [sağlayıcı çağrısı + yazma]
+# Ön koşul: DOI içeren kaydedilmiş yayın. Yanıttaki HasPendingWork=true ise çağrı güvenle tekrarlanabilir.
+POST {{api}}/CollectSemanticScholar
+Content-Type: application/json
+
+{
+  "PersonelID": "{{personelId}}"
+}
+
+### 10. İsteğe bağlı: YÖKSİS verilerini topla [sağlayıcı çağrısı + yazma]
+# Gerçek T.C. kimlik numarasını dosyaya kaydetmeyin veya Git'e eklemeyin.
+POST {{api}}/Yoksis/Collect
+Content-Type: application/json
+
+{
+  "PersonelID": "{{personelId}}",
+  "TcKimlikNo": "{{tcKimlikNo}}"
+}
