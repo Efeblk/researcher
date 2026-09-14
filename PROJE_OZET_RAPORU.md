@@ -131,7 +131,6 @@ Bir araştırmacıyı toplamak, aşağıdaki dış çağrıların birden fazlas�
 | [ ] | Gemini | Makale özeti için ücretli API anahtarı user-secret ile verilecek; gerçek makalelerde kalite ve maliyet henüz tam benchmark edilmedi. |
 | [ ] | Tesseract OCR | OCR kullanılacak hostta Tesseract ile `eng` ve `tur` dil verileri isteğe bağlı kurulacak; yol gerekirse `ArticleSummary:TesseractPath` ile ayarlanacak. |
 | [ ] | Unpaywall | Entegrasyon kullanılacaksa isteğe bağlı `Unpaywall:Email` değeri kişisel varsayılan eklenmeden user-secret veya güvenli deployment ayarıyla verilecek. |
-| [ ] | Scite | Yalnızca araştırma konusu; entegrasyon uygulanmadı ve production sağlayıcısı olarak sayılmıyor. |
 
 ## API Planları, Fiyat ve Hız
 

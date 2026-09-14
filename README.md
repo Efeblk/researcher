@@ -1,10 +1,8 @@
 # Akademik Performans Modülü
 
-Bulk processing: [SQL import, queue worker, and provider limits](docs/BULK_COLLECTION.md).
+Başlangıç noktaları: [kod tabanı rehberi](docs/CODEBASE_GUIDE.md), [sistem planı](docs/AI_SYSTEM_PLAN.md), [kanonik veri ve bilgi katmanı](docs/DATA_KNOWLEDGE_LAYER.md), [HR ve fakülte ürünleri](docs/ACADEMIC_AI_PRODUCTS.md) ve [toplu veri toplama rehberi](docs/BULK_COLLECTION.md).
 
-Provider citation metrics are available directly on each `Researchers` row for reporting. The provider profile tables remain the source of truth; see [the SQL example and field details](docs/CODEBASE_GUIDE.md#understand-the-data-layers).
-
-Start here: [Codebase guide](docs/CODEBASE_GUIDE.md) — folders, request flow, and where to make changes.
+Sağlayıcı atıf metrikleri raporlama için `Researchers` satırlarında da bulunur; kaynak kayıtlar sağlayıcı profil tablolarıdır. Veri katmanları ve örnek SQL için [kod tabanı rehberine](docs/CODEBASE_GUIDE.md#understand-the-data-layers) bakın.
 
 Resmî ORCID Public API, SearchApi Google Scholar Author API, Clarivate Web of
 Science Starter API v1 ve YÖKSİS OzgecmisV2 SOAP servisi üzerinden akademik veri
@@ -19,11 +17,19 @@ gösterilmesine izin verdiği yayınları ayrıca seçer.
 2. ORCID profil/faaliyetleri, ORCID ile eşleşen OpenAlex profil ve yayınları,
    Google Scholar profil/metrik/yayınları ve Web of Science yayın/atıf verileri
    bağımsız olarak alınır.
-3. Eserler DOI'ye; DOI yoksa normalize başlık ve yıla göre tekilleştirilir.
-4. Sade yayın kayıtları Serenity grid'inde gösterilir.
+3. Sağlayıcı eserleri ortak `AcademicWork` kayıtlarına dönüştürülür. Eski Serenity yayın listesi DOI veya normalize başlık-yıla göre araştırmacı içinde tekilleştirilir; kanonik katman DOI-backed eserleri araştırmacılar arasında birleştirir ve çözülemeyen eserlerde kaynak kimliğini korur.
+4. Sade `PublicationSummary` kayıtları Serenity grid'inde gösterilir; kanonik kayıtlar metrik, kanıt ve analiz iş akışlarının kimliğini taşır.
 5. **Okulda Göster** seçimleri `PublicationDisplayApprovals` tablosuna kaydedilir.
 
-PDF indirilmez; sağlayıcıların sunduğu DOI ve yayın bağlantıları saklanır.
+Tekil ve toplu toplama aynı kanonik kayıtları üretir. Varsayılan açık özet işçisi yeni veya değişen
+kayıtları SQL kuyruğundan işler; yapılandırma ile kapatıldığında işler kaybolmaz ve daha sonra devam
+eder. Özetler ayrıca `SummarizeArticle` ile elle yenilenebilir. Yayın metrikleri, kanıta bağlı uzman
+incelemesi, HR kanıt dosyası ve fakülte asistanı aynı kaydedilmiş kanonik veri ve kaynak anlık
+görüntülerini kullanır. HTTP örnekleri [makale özeti](Requests/ArticleSummary.http),
+[uzman incelemesi](Requests/ArticleReview.http), [yayın metrikleri](Requests/PublicationMetrics.http)
+ve [HR/fakülte ürünleri](Requests/AcademicAiProducts.http) dosyalarındadır.
+
+Veri toplama adımı PDF indirmez; sağlayıcıların sunduğu DOI ve yayın bağlantılarını saklar. Makale özeti ayrıca çalıştığında kayıtlı bağlantı, DOI açılış sayfası veya açık erişim adayı üzerinden sınırlı kaynak edinimi yapabilir ve çıkardığı sayfa/span anlık görüntülerini kanıt olarak saklar.
 OpenAlex profil ve ham yayın verileri sağlayıcı tablolarında korunur; yayınlar ayrıca
 ortak yayın listesine katılır. Web arayüzündeki sağlayıcı karşılaştırma tablosu ORCID,
 Google Scholar, OpenAlex ve Web of Science yayın/atıf metriklerini yan yana gösterir.
@@ -36,7 +42,7 @@ Yeni web, mobil, BYS ve başvuru client'ları veritabanı varlıklarına bağlı
 Serenity UI endpoint'leri yerine sürümlü `V1` sözleşmesini kullanmalıdır.
 Endpoint'ler ince bir HTTP katmanıdır; mevcut WebClient ve ileride eklenecek
 sunucu zamanlayıcısı da aynı `IAcademicPerformanceApplicationService` iş akışını
-kullanmalıdır. Bütün bileşenler şimdilik tek proje ve tek process içindedir.
+kullanmalıdır. Kolektör, Serenity arayüzü, SQL kuyruk işçileri ve kalıcılık ana hostta çalışır. Model tabanlı analiz ayrı `ResearcherAnalysisService` sürecinde çalışır; iki uygulama yalnız ortak `ResearcherAnalysis.Contracts` sözleşmelerini paylaşır.
 
 ```text
 Web / mobil / BYS / başvuru client'ları
@@ -45,10 +51,10 @@ Web / mobil / BYS / başvuru client'ları
    Services/AcademicPerformance/V1/*
                 │
                 ▼
- IAcademicPerformanceApplicationService
+ IAcademicPerformanceApplicationService / ürün iş akışları
                 │
                 ▼
- ORCID / OpenAlex / Google Scholar / Web of Science / EF Core
+ Sağlayıcılar / SQL Server / ResearcherAnalysisService
 ```
 
 | İşlem | Serenity endpoint | Amaç |
@@ -130,15 +136,56 @@ döndürdüğü Araştırmacı ID bu alanın yerine kaydedilmez.
 - Node.js 18 veya üzeri
 - SQL Server; Windows geliştirme ortamında SQL Server Express LocalDB yeterlidir
 
+Yalnız kolektörü çalıştırmak için önce veritabanını oluşturun. Kolektör ilk başlangıçta gerekli
+FluentMigrator şemalarını uygular:
+
 ```powershell
 dotnet restore AcademicCollectorDemo.sln
 sqllocaldb start MSSQLLocalDB
 sqlcmd -S "(localdb)\MSSQLLocalDB" -E -Q "IF DB_ID(N'AcademicCollectorDemo') IS NULL EXEC(N'CREATE DATABASE [AcademicCollectorDemo]')"
-dotnet run
+dotnet run --project AcademicCollectorDemo.csproj
 ```
 
 Veritabanını yalnız ilk kurulumda oluşturun. Sonraki şema değişikliklerini
 uygulama başlangıcında FluentMigrator uygular.
+
+Gemini tabanlı özet, uzman incelemesi ve fakülte asistanı için bağımsız analiz servisini de
+çalıştırın. Analiz servisinin kullanım defteri, kolektörün migration uyguladığı aynı SQL
+veritabanındaki `analysis.GeminiUsageAttempts` tablosunu kullanmalıdır. Anahtarları kaynak dosyaya
+yazmayın; iki proje için User Secrets kullanın:
+
+```powershell
+dotnet user-secrets set "Gemini:ApiKey" "<GEMINI_API_KEY>" --project ResearcherAnalysisService/ResearcherAnalysisService.csproj
+dotnet user-secrets set "ConnectionStrings:UsageDatabase" "<ACADEMIC_SQL_CONNECTION_STRING>" --project ResearcherAnalysisService/ResearcherAnalysisService.csproj
+dotnet user-secrets set "Service:ApiKey" "<SHARED_INTERNAL_SERVICE_KEY>" --project ResearcherAnalysisService/ResearcherAnalysisService.csproj
+dotnet user-secrets set "AnalysisService:ApiKey" "<SHARED_INTERNAL_SERVICE_KEY>" --project AcademicCollectorDemo.csproj
+```
+
+Deployment ortamındaki karşılıklar kolektör için `ConnectionStrings__AcademicDatabase`,
+`AnalysisService__BaseUrl` ve `AnalysisService__ApiKey`; analiz servisi için
+`ConnectionStrings__UsageDatabase`, `Gemini__ApiKey` ve `Service__ApiKey` değişkenleridir.
+İki bağlantı dizesi aynı migration uygulanmış akademik veritabanını göstermelidir.
+
+İki süreci ayrı terminallerde açık tutun. `AnalysisService:BaseUrl` varsayılan olarak analiz
+servisinin `http://localhost:5011/` adresini gösterir:
+
+```powershell
+dotnet run --project AcademicCollectorDemo.csproj
+```
+
+```powershell
+dotnet run --project ResearcherAnalysisService/ResearcherAnalysisService.csproj --launch-profile http
+```
+
+`http://localhost:5001/` kolektörün, `http://localhost:5011/health` analiz servisinin sağlık
+yanıtıdır. Sağlık yanıtı yalnız sürecin çalıştığını gösterir; Gemini kimliği, ortak kullanım
+veritabanı ve uçtan uca analiz için ilgili ürün isteğini veya sağlayıcı durum endpoint'ini ayrıca
+doğrulayın. Uzak veya Development dışı çalıştırmada eşleşen servis anahtarı zorunludur; anahtarı
+tarayıcıya vermeyin.
+
+The completed backend acceptance evidence is recorded in
+[`docs/SERVICE_ACCEPTANCE_20260914_FINAL.md`](docs/SERVICE_ACCEPTANCE_20260914_FINAL.md). The delivery worktree is
+`researcher-canonical-data` on `feature/canonical-academic-data`; the coordination checkout on `main` remains unchanged.
 
 Çalışan uygulamayı durdurduktan sonra geliştirme veritabanındaki migration
 tablolarını ve bütün uygulama verilerini silmek için:
@@ -169,7 +216,11 @@ dotnet build AcademicCollectorDemo.sln
 
 Visual Studio'da `AcademicCollectorDemo.sln` dosyasını açın. Ayrı çalışan AI analiz API'si
 `ResearcherAnalysisService` projesindedir; varsayılan adresi `http://localhost:5011`.
-Kurulum, istek sözleşmesi ve kapsam: [Araştırmacı analizi](docs/RESEARCHER_ANALYSIS.md).
+Eski araştırmacı raporu sözleşmesi [Araştırmacı analizi](docs/RESEARCHER_ANALYSIS.md), güncel
+makale, HR ve fakülte sözleşmeleri [HR ve fakülte ürünleri](docs/ACADEMIC_AI_PRODUCTS.md)
+belgesindedir. HR ve fakülte endpoint'leri bu repoda varsayılan olarak kapalıdır; bir tüketen
+deployment güvenilir `IAcademicProductAccessService` eşlemesini sağlamadan anonim çağrılar `401`,
+kimliği doğrulanmış çağrılar `503` alır.
 
 ## Veri toplama komutları
 

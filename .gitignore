@@ -9,3 +9,17 @@ TestResults/
 coverage/
 .DS_Store
 /Requests/personel-test-data.sql
+
+# Local paid-pilot and service-acceptance evidence
+/docs/benchmarks/
+/docs/fulltext-citation-alignment-pilot-*/
+/docs/product-pilot-*/
+/docs/service-acceptance-*/
+/docs/broader-service-acceptance-*/
+/docs/*-result.json
+/docs/*-audit.json
+/docs/*-manifest.json
+/docs/*-validation.json
+/docs/**/*.pdf
+/PilotRunners/**/*.json
+/PilotRunners/**/*.pending-*

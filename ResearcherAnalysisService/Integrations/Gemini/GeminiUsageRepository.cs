@@ -71,12 +71,19 @@ public sealed class GeminiUsageRepository(IConfiguration configuration) : IGemin
             command.CommandTimeout = 5;
             command.CommandText = """
                 SELECT MIN(StartedAt),COUNT_BIG(*),
-                    COALESCE(SUM(CASE WHEN EstimatedUsd IS NULL THEN CAST(1 AS bigint) ELSE CAST(0 AS bigint) END),0),
+                    COALESCE(SUM(CASE WHEN EstimatedUsd IS NULL OR ReturnedModel IS NULL OR
+                        ReturnedModel COLLATE Latin1_General_100_BIN2 <> RequestedModel COLLATE Latin1_General_100_BIN2
+                        THEN CAST(1 AS bigint) ELSE CAST(0 AS bigint) END),0),
                     CASE WHEN COUNT_BIG(*)=0 THEN CAST(0 AS decimal(19,9))
-                         WHEN SUM(CASE WHEN EstimatedUsd IS NULL THEN 1 ELSE 0 END)=0 THEN SUM(EstimatedUsd)
+                         WHEN SUM(CASE WHEN EstimatedUsd IS NULL OR ReturnedModel IS NULL OR
+                            ReturnedModel COLLATE Latin1_General_100_BIN2 <> RequestedModel COLLATE Latin1_General_100_BIN2
+                            THEN 1 ELSE 0 END)=0 THEN SUM(EstimatedUsd)
                          ELSE NULL END
                 FROM [analysis].[GeminiUsageAttempts];
-                SELECT TOP (3) StartedAt,COALESCE(ReturnedModel,RequestedModel),EstimatedUsd
+                SELECT TOP (3) StartedAt,COALESCE(ReturnedModel,RequestedModel),
+                    CASE WHEN ReturnedModel IS NOT NULL AND
+                        ReturnedModel COLLATE Latin1_General_100_BIN2 = RequestedModel COLLATE Latin1_General_100_BIN2
+                        THEN EstimatedUsd ELSE NULL END
                 FROM [analysis].[GeminiUsageAttempts]
                 ORDER BY StartedAt DESC,AttemptId DESC;
                 """;

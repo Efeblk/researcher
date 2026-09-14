@@ -1,15 +1,25 @@
 # Researcher analysis service
 
 `ResearcherAnalysisService` is a separate .NET 10 HTTP application in `AcademicCollectorDemo.sln`.
-It accepts a caller-supplied researcher snapshot and returns a structured research
-profile and abstract writing review. It runs without SQL Server, Serenity, or Node.js.
+It hosts the legacy researcher-snapshot report described in this document as well as the current
+article-summary, specialist-review, evaluation, and faculty-assistant analysis APIs. The legacy
+route accepts a caller-supplied snapshot and returns a structured research profile and abstract
+writing review. That Ollama-backed route can run without SQL Server, Serenity, or Node.js.
 
 For per-publication full-text and abstract summaries, see [Article summaries](ARTICLE_SUMMARIES.md).
+For the current HR and faculty product boundary, see [Academic AI products](ACADEMIC_AI_PRODUCTS.md).
+
+This researcher-level report is an opt-in legacy compatibility route. Its generation uses the independent
+`Ai:Provider`/`Ai:Model` configuration, which defaults to local Qwen. It is not part of the HR dossier or faculty-assistant
+generation flow; those products use saved canonical evidence and the article/faculty Gemini path described in
+[Academic AI products](ACADEMIC_AI_PRODUCTS.md).
 
 The collector creates snapshots from saved SQL Server records and stores successful
-reports with their exact input snapshots. The AI service itself remains stateless.
-There is no page report button, analysis queue, embedding index, web crawling,
-full-text retrieval, or PDF upload in this version.
+legacy reports with their exact input snapshots. The analysis service does not store those legacy
+reports. Gemini-backed article and faculty calls are different: they durably record every usage
+attempt in the migrated SQL `analysis.GeminiUsageAttempts` table before returning an accepted
+result. The legacy researcher-report route has no page report button, analysis queue, embedding
+index, web crawling, full-text retrieval, or PDF upload.
 
 ## Generate/save and retrieve by PersonelID
 
@@ -17,7 +27,7 @@ Use the requests in [AcademicPerformance.http](../Requests/AcademicPerformance.h
 
 | Collector endpoint | Behavior |
 | --- | --- |
-| `POST /Services/AcademicPerformance/V1/AnalyzeResearcher` | Load saved data, create a snapshot, call the AI service, and save a new report. |
+| `POST /Services/AcademicPerformance/V1/AnalyzeResearcher` | Opt-in legacy route: load saved data, create a snapshot, call the independently configured researcher model, and save a new report. |
 | `POST /Services/AcademicPerformance/V1/GetResearcherAnalysis` | Return the latest saved report without calling the AI service or providers. |
 | `POST /Services/AcademicPerformance/V1/GetResearcherSourceCoverage` | Return current saved evidence availability without calling the AI service or providers. |
 
@@ -42,7 +52,7 @@ Missing researchers/reports return 404; invalid IDs return 400; no usable public
 returns 422. Upstream failure returns 502 (with `AnalysisServiceStatus`), unavailable
 service 503, and timeout 504. No automatic retries generate duplicate reports.
 
-Collector settings are under `AnalysisService` in `academicsettings.json`:
+Settings for this legacy collector client are under `AnalysisService` in `academicsettings.json`:
 `BaseUrl` defaults to `http://localhost:5011/`, `Language` to `en`,
 `MaximumPublications` to 10, `MaximumTextBytes` to 2500, and `TimeoutSeconds` to 240.
 If the AI service requires `Service:ApiKey`, set the matching collector
@@ -75,6 +85,14 @@ references that library, not the AI web application.
 4. To run the collector instead, select `AcademicCollectorDemo` as the startup project.
    Both applications can also be started using Visual Studio's multiple startup projects settings.
 
+Run the collector first against a pre-created SQL database so its startup migrations create the
+application and Gemini-usage schemas. For current Gemini-backed routes, configure
+`Gemini:ApiKey` and `ConnectionStrings:UsageDatabase` in the `ResearcherAnalysisService` User
+Secrets; the usage connection must target the migrated database. Configure matching
+`Service:ApiKey` and collector `AnalysisService:ApiKey` values for remote or non-development
+traffic. The complete two-process commands and secret names are in the repository
+[README](../README.md#gereksinimler-ve-çalıştırma).
+
 The analysis port is in `ResearcherAnalysisService/Properties/launchSettings.json` and
 `ResearcherAnalysisService/appsettings.json`. Change both if 5011 is occupied.
 
@@ -84,8 +102,11 @@ From the repository root:
 dotnet run --project ResearcherAnalysisService --launch-profile http
 ```
 
-Health only confirms that the HTTP service is running. Analysis uses a local Ollama
-model by default; no paid AI API key or subscription is required.
+Health only confirms that the HTTP service is running. The legacy researcher-report route uses a
+local Ollama model by default and requires no paid API key. Current article summaries, specialist
+reviews, and faculty assistance default to exact `gemini-3.8-flash`; they require the Gemini key
+and SQL usage connection described above. The collector owns their durable jobs and saved product
+outputs, so both processes must remain running for automatic work.
 
 ## Local setup for an M2 Mac with 8 GB RAM
 

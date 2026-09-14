@@ -222,22 +222,10 @@ public sealed class PublicationSummarySynchronizer
 
     private static string? NormalizeDoi(string? doi)
     {
-        string? normalized = doi?.Trim().ToLowerInvariant();
+        string? normalized = AcademicDoiNormalizer.Normalize(doi);
         if (string.IsNullOrWhiteSpace(normalized))
             return null;
-
-        if (normalized.StartsWith("doi:", StringComparison.Ordinal))
-            normalized = normalized[4..].Trim();
-
-        foreach (string prefix in new[] { "https://doi.org/", "http://doi.org/", "https://dx.doi.org/", "http://dx.doi.org/" })
-        {
-            if (normalized.StartsWith(prefix, StringComparison.Ordinal))
-            {
-                normalized = normalized[prefix.Length..].Trim();
-                break;
-            }
-        }
-        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+        return normalized;
     }
 
     private static string NormalizeTitle(string? title)

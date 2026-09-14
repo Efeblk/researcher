@@ -1,4 +1,4 @@
-﻿# Academic Performance V1 API için çalıştırılabilir örnekler.
+# Academic Performance V1 API için çalıştırılabilir örnekler.
 # Önce uygulamayı başlatın, değişkenleri düzenleyin ve istediğiniz isteğin
 # üzerindeki "Send Request" bağlantısını kullanın.
 # Sağlayıcı toplama çağrıları 20 saniyeyi aşabilir. Visual Studio'da:
@@ -15,6 +15,8 @@
 @researcherId = A-1009-2008
 @personelId = 00123-A
 @publicationId = 1
+@canonicalWorkId = 1
+@evaluationRunId = 00000000-0000-0000-0000-000000000000
 @tcKimlikNo = TC_KIMLIK_NUMARASINI_BURAYA_YAZ
 
 ### Uygulamanın çalıştığını kontrol et
@@ -131,7 +133,9 @@ Content-Type: application/json
 }
 
 ### V1 API: Generate and save a researcher analysis
-# Requires the collector, analysis service (5011), and Ollama. Uses saved data; no provider refresh.
+# Opt-in legacy compatibility route. It is separate from the HR/faculty product flow and follows
+# the independent Ai:Provider/Ai:Model settings (local Qwen by default).
+# Requires the collector, analysis service (5011), and the configured researcher model. Uses saved data; no provider refresh.
 # Every successful call creates a new report and preserves previous reports.
 # Response: { Id, SavedAt, Report }. Report contains model, prompt version, coverage and findings.
 # 404: researcher missing; 422: no usable saved publications; 502/503/504: analysis failed, no report saved.
@@ -151,6 +155,64 @@ Content-Type: application/json
 {
   "PersonelID": "{{personelId}}"
 }
+
+### V1 API: Yalnızca yerel Qwen ile küçük kontrollü kalibrasyonu kuyruğa al
+# Her değerlendirme otomatik olarak 4 İngilizce + 2 Türkçe sentetik vaka ve
+# sınıf başına 6 olmak üzere 18 kontrollü kaynak-okuma iddiası içerir.
+# Beklenen yanıtlar modele gönderilmez. Bu örnek ücretli bulut profili kullanmaz.
+# Bu istek 6 vaka, 6 iş öğesi ve en çok 6 model çağrısı oluşturur.
+# Response: HTTP 202 StartArticleEvaluationResponse. Dönen RunId değerini
+# yukarıdaki evaluationRunId değişkenine kopyalayarak ilerlemeyi okuyun.
+POST {{api}}/StartArticleEvaluation
+Content-Type: application/json
+
+{
+  "ProfileIds": [
+    "ollama-qwen-baseline"
+  ],
+  "RealCases": [],
+  "EnableBlindCrossCheck": false
+}
+
+### V1 API: Gemini + yerel Qwen temel çiftini gerçek vaka ve kör çapraz kontrolle kuyruğa al
+# canonicalWorkId için bu PersonelID'ye bağlı, aynı dilde başarılı bir kanonik
+# makale analizi ve değişmez kaynak anlık görüntüsü önceden bulunmalıdır.
+# Her iki profil bağımsız inceleme yapar; ikinci profil ilk profilin bulgularını
+# ayrıca opak kimliklerle çapraz kontrol eder. Yeni kaynak verisi toplanmaz.
+# Tek gerçek vakalı bu istek 7 vaka, 15 iş öğesi ve en çok 32 model çağrısıdır.
+POST {{api}}/StartArticleEvaluation
+Content-Type: application/json
+
+{
+  "ProfileIds": [
+    "gemini-baseline",
+    "ollama-qwen-baseline"
+  ],
+  "PersonelID": "{{personelId}}",
+  "RealCases": [
+    {
+      "CanonicalWorkId": {{canonicalWorkId}},
+      "Language": "tr"
+    }
+  ],
+  "EnableBlindCrossCheck": true
+}
+
+### V1 API: Kalıcı değerlendirme ilerlemesini ve sonuçlarını sayfalı oku
+# Gerçek vaka içeren çalışmalarda başlangıç isteğindeki aynı PersonelID zorunludur.
+# Bu okuma model veya sağlayıcı çağrısı yapmaz. Bilimsel doğruluk ve gerçek makale
+# eksik-bulgu yakalama oranı uzman referansı olmadığı için null/NotValidated kalır.
+POST {{api}}/GetArticleEvaluation
+Content-Type: application/json
+
+{
+  "RunId": "{{evaluationRunId}}",
+  "PersonelID": "{{personelId}}",
+  "Skip": 0,
+  "Take": 50
+}
+
+# Bu sürümde değerlendirme iptal uç noktası uygulanmamıştır.
 
 ### V1 API: Okulda gösterilecek yayınları kaydet
 # Response: AcademicPublicationSelectionResponse (örnek 3)

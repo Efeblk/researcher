@@ -87,6 +87,39 @@ public sealed class PublicationSummarySynchronizerTests(SqlServerFixture fixture
         Assert.True(await db.PublicationDisplayApprovals.AnyAsync(x => x.PublicationSummaryId == summary.Id));
     }
 
+    [Fact]
+    public async Task SyncAsync_ChainedDoiWrappers_PreservesSummaryIdentityAndSelection()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        var researcher = new Researcher { PersonelId = "test-" + Guid.NewGuid().ToString("N") };
+        db.Researchers.Add(researcher);
+        var work = Work(researcher.PersonelId, "Wrapped DOI", "doi: https://doi.org/10.1234/ABC");
+        db.AcademicWorks.Add(work);
+        await db.SaveChangesAsync();
+        var synchronizer = new PublicationSummarySynchronizer(db);
+        await synchronizer.SyncAsync(researcher.PersonelId);
+        var summary = await db.PublicationSummaries.SingleAsync(x => x.PersonelId == researcher.PersonelId);
+        int originalId = summary.Id;
+        db.PublicationDisplayApprovals.Add(new()
+        {
+            PersonelId = researcher.PersonelId,
+            PublicationSummaryId = summary.Id,
+            ApprovedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        work.Doi = "https://doi.org/doi:10.1234/abc";
+        await db.SaveChangesAsync();
+        await synchronizer.SyncAsync(researcher.PersonelId);
+
+        db.ChangeTracker.Clear();
+        summary = await db.PublicationSummaries.SingleAsync(x => x.PersonelId == researcher.PersonelId);
+        Assert.Equal(originalId, summary.Id);
+        Assert.Equal("10.1234/abc", summary.Doi);
+        Assert.True(await db.PublicationDisplayApprovals.AnyAsync(x => x.PublicationSummaryId == originalId));
+    }
+
     private static AcademicWork Work(string researcherId, string? title, string? doi) => new()
     {
         PersonelId = researcherId, Title = title, Doi = doi, PublicationYear = 2025,

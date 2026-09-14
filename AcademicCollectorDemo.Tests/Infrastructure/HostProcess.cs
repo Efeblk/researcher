@@ -7,9 +7,25 @@ namespace AcademicCollectorDemo.Tests.Infrastructure;
 public sealed class HostProcess : IDisposable
 {
     private readonly Process _process;
+    private readonly System.Collections.Concurrent.ConcurrentQueue<string> _output = new();
     public HttpClient Client { get; }
+    public string Output => string.Join(Environment.NewLine, _output);
 
-    public HostProcess(string connectionString, string? analysisBaseUrl = null)
+    public HostProcess(
+        string connectionString,
+        string? analysisBaseUrl = null,
+        bool? bulkWorkerEnabled = false,
+        bool disablePublicationEnrichmentProviders = false,
+        bool articleSummaryAutomationEnabled = false,
+        bool articleSummaryAutomationWorkerEnabled = false,
+        int? articleSummaryAutomationPollSeconds = null,
+        int? articleSummaryAutomationRetrySeconds = null,
+        bool publicationMetricsWorkerEnabled = false,
+        int? publicationMetricsPollSeconds = null,
+        int? publicationMetricsRetrySeconds = null,
+        int? publicationMetricsBatchSize = null,
+        bool articleEvaluationWorkerEnabled = false,
+        int? articleEvaluationPollSeconds = null)
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
@@ -31,9 +47,59 @@ public sealed class HostProcess : IDisposable
         start.Environment["ASPNETCORE_ENVIRONMENT"] = "Testing";
         start.Environment["DOTNET_ENVIRONMENT"] = "Testing";
         start.Environment["ConnectionStrings__AcademicDatabase"] = connectionString;
+        start.Environment["ArticleSummaryAutomation__Enabled"] =
+            articleSummaryAutomationEnabled.ToString();
+        start.Environment["ArticleSummaryAutomation__WorkerEnabled"] =
+            articleSummaryAutomationWorkerEnabled.ToString();
+        if (articleSummaryAutomationPollSeconds.HasValue)
+            start.Environment["ArticleSummaryAutomation__PollSeconds"] =
+                articleSummaryAutomationPollSeconds.Value.ToString();
+        if (articleSummaryAutomationRetrySeconds.HasValue)
+            start.Environment["ArticleSummaryAutomation__RetrySeconds"] =
+                articleSummaryAutomationRetrySeconds.Value.ToString();
+        start.Environment["PublicationMetrics__WorkerEnabled"] =
+            publicationMetricsWorkerEnabled.ToString();
+        if (publicationMetricsPollSeconds.HasValue)
+            start.Environment["PublicationMetrics__PollSeconds"] =
+                publicationMetricsPollSeconds.Value.ToString();
+        if (publicationMetricsRetrySeconds.HasValue)
+            start.Environment["PublicationMetrics__RetrySeconds"] =
+                publicationMetricsRetrySeconds.Value.ToString();
+        if (publicationMetricsBatchSize.HasValue)
+            start.Environment["PublicationMetrics__BatchSize"] =
+                publicationMetricsBatchSize.Value.ToString();
+        start.Environment["ArticleEvaluation__WorkerEnabled"] = articleEvaluationWorkerEnabled.ToString();
+        start.Environment["FacultyAssistant__WorkerEnabled"] = "false";
+        start.Environment["AnalysisService__ApiKey"] = "";
+        start.Environment["SearchApi__ApiKey"] = "";
+        start.Environment["OpenAlex__ApiKey"] = "";
+        start.Environment["SemanticScholar__ApiKey"] = "";
+        start.Environment["WebOfScience__ApiKey"] = "";
+        start.Environment["Yoksis__Username"] = "";
+        start.Environment["Yoksis__Password"] = "";
+        if (articleEvaluationPollSeconds.HasValue)
+            start.Environment["ArticleEvaluation__PollSeconds"] = articleEvaluationPollSeconds.Value.ToString();
+        if (bulkWorkerEnabled.HasValue)
+        {
+            start.Environment["BulkCollection__WorkerEnabled"] =
+                bulkWorkerEnabled.Value.ToString();
+        }
+        else
+        {
+            start.Environment.Remove("BulkCollection__WorkerEnabled");
+        }
+        if (disablePublicationEnrichmentProviders)
+        {
+            start.Environment["ProviderRequestLimits__OpenAlex__Enabled"] = "false";
+            start.Environment["ProviderRequestLimits__Crossref__Enabled"] = "false";
+            start.Environment["ProviderRequestLimits__SemanticScholar__Enabled"] = "false";
+            start.Environment["Unpaywall__Email"] = "";
+        }
         if (analysisBaseUrl is not null)
             start.Environment["AnalysisService__BaseUrl"] = analysisBaseUrl;
         _process = Process.Start(start) ?? throw new InvalidOperationException("Host did not start.");
+        _process.OutputDataReceived += (_, eventArgs) => { if (eventArgs.Data is not null) _output.Enqueue(eventArgs.Data); };
+        _process.ErrorDataReceived += (_, eventArgs) => { if (eventArgs.Data is not null) _output.Enqueue(eventArgs.Data); };
         _process.BeginOutputReadLine();
         _process.BeginErrorReadLine();
     }

@@ -17,8 +17,8 @@ public sealed class OpenAlexProfile
     public string OpenAlexAuthorId { get; set; } = string.Empty;
     public string? DisplayName { get; set; } = null;
     public string? LastKnownInstitution { get; set; } = null;
-    public int WorksCount { get; set; }
-    public int CitedByCount { get; set; }
+    public int? WorksCount { get; set; } = null;
+    public int? CitedByCount { get; set; } = null;
     public int? HIndex { get; set; } = null;
     public int? I10Index { get; set; } = null;
     public decimal? TwoYearMeanCitedness { get; set; } = null;

@@ -3,6 +3,7 @@ using System.Text.Json;
 using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries.Enrichment;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
 using Microsoft.Extensions.Configuration;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref;
 
@@ -45,17 +46,7 @@ public sealed class CrossrefClient(HttpClient httpClient, IConfiguration configu
     }
 
     public static string NormalizeDoi(string? value)
-    {
-        string result = (value ?? string.Empty).Trim();
-        foreach (string prefix in new[] { "https://doi.org/", "http://doi.org/", "https://dx.doi.org/", "http://dx.doi.org/", "doi:" })
-        {
-            if (result.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                result = result[prefix.Length..];
-            }
-        }
-        return result.Trim().ToLowerInvariant();
-    }
+        => AcademicDoiNormalizer.Normalize(value);
 
     private static string? Text(JsonElement value, string name) => value.TryGetProperty(name, out JsonElement item) && item.ValueKind == JsonValueKind.String ? item.GetString() : null;
     private static int? Int(JsonElement value, string name) => value.TryGetProperty(name, out JsonElement item) &&

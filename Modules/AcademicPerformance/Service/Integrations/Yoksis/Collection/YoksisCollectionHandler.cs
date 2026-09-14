@@ -23,6 +23,7 @@ public sealed class YoksisCollectionHandler
     private readonly ResearcherRepository _researcherRepository;
     private readonly PublicationSummarySynchronizer _summarySynchronizer;
     private readonly AcademicDbContext _dbContext;
+    private readonly CanonicalWorkSynchronizer? _canonicalWorkSynchronizer;
 
     public YoksisCollectionHandler(
         YoksisCollectionService collectionService,
@@ -30,7 +31,8 @@ public sealed class YoksisCollectionHandler
         YoksisAcademicWorkSynchronizer workSynchronizer,
         ResearcherRepository researcherRepository,
         PublicationSummarySynchronizer summarySynchronizer,
-        AcademicDbContext dbContext)
+        AcademicDbContext dbContext,
+        CanonicalWorkSynchronizer? canonicalWorkSynchronizer = null)
     {
         _collectionService = collectionService;
         _recordSynchronizer = recordSynchronizer;
@@ -38,6 +40,7 @@ public sealed class YoksisCollectionHandler
         _researcherRepository = researcherRepository;
         _summarySynchronizer = summarySynchronizer;
         _dbContext = dbContext;
+        _canonicalWorkSynchronizer = canonicalWorkSynchronizer;
     }
 
     public async Task<YoksisCollectResponse> CollectAsync(
@@ -57,6 +60,11 @@ public sealed class YoksisCollectionHandler
         {
             await using IDbContextTransaction transaction =
                 await _dbContext.Database.BeginTransactionAsync();
+            if (_canonicalWorkSynchronizer is not null)
+            {
+                await _canonicalWorkSynchronizer.AcquireWriteGateAsync();
+                await _canonicalWorkSynchronizer.AcquireResearcherLockAsync(personelId);
+            }
 
             Researcher? requestedResearcher = CreateResearcher(response);
             requestedResearcher.PersonelId = personelId;
@@ -72,6 +80,9 @@ public sealed class YoksisCollectionHandler
                 researcher.PersonelId,
                 response,
                 isIncremental: request.UpdatedAfter.HasValue);
+            if (_canonicalWorkSynchronizer is not null)
+                await _canonicalWorkSynchronizer.SyncAsync(
+                    researcher.PersonelId, scheduleArticleSummaries: true);
 
             response.PersonelId = researcher.PersonelId;
             response.ResearcherDisplayName = CreateDisplayName(researcher);

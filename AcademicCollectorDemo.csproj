@@ -8,7 +8,7 @@
     <SerenityUsings>false</SerenityUsings>
     <TypeScriptCompileBlocked>true</TypeScriptCompileBlocked>
     <TypeScriptNoEmitOnError>false</TypeScriptNoEmitOnError>
-    <DefaultItemExcludes>$(DefaultItemExcludes);ResearcherAnalysisService/**;ResearcherAnalysisService.Tests/**;ResearcherAnalysis.Contracts/**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);ResearcherAnalysisService/**;ResearcherAnalysisService.Tests/**;ResearcherAnalysis.Contracts/**;PilotRunners/**</DefaultItemExcludes>
     <GenerateComputedBuildStaticWebAssetsDependsOn>RunTSBuild;$(GenerateComputedBuildStaticWebAssetsDependsOn)</GenerateComputedBuildStaticWebAssetsDependsOn>
   </PropertyGroup>
 
@@ -46,6 +46,10 @@
     <Compile Remove="ResearcherAnalysis.Contracts\**\*" />
     <Content Remove="ResearcherAnalysis.Contracts\**\*" />
     <None Remove="ResearcherAnalysis.Contracts\**\*" />
+    <!-- Live pilots are separately built, explicit opt-in tools. -->
+    <Compile Remove="PilotRunners\**\*" />
+    <Content Remove="PilotRunners\**\*" />
+    <None Remove="PilotRunners\**\*" />
   </ItemGroup>
 
   <Target Name="NpmInstall" Condition="!Exists('node_modules\@serenity-is\tsbuild\package.json')">

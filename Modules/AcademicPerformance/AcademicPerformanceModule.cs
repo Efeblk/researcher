@@ -14,15 +14,25 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Pers
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.SemanticScholar;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Knowledge;
+using AcademicCollectorDemo.Modules.AcademicPerformance.GraphProjection;
+using AcademicCollectorDemo.Modules.AcademicPerformance.ProductAccess;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Persistence;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Persistence;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Metrics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Analysis;
 using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries;
 using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries.Enrichment;
+using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleReviews;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Evaluations;
+using AcademicCollectorDemo.Modules.AcademicPerformance.HrDossiers;
+using AcademicCollectorDemo.Modules.AcademicPerformance.FacultyAssistant;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance;
 
@@ -44,8 +54,46 @@ public static class AcademicPerformanceModule
             client.MaxResponseContentBufferSize = 1024 * 1024;
         }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
         services.AddScoped<ResearcherAnalysisWorkflow>();
+        services.TryAddSingleton<IAcademicProductAccessService, UnconfiguredAcademicProductAccessService>();
+        services.AddScoped<HrEvidenceDossierService>();
+        services.AddOptions<FacultyAssistantOptions>().Bind(configuration.GetSection("FacultyAssistant"))
+            .ValidateDataAnnotations();
+        services.AddScoped<FacultyAssistantContextService>();
+        services.AddScoped<FacultyAssistantScheduler>();
+        services.AddScoped<FacultyAssistantProcessor>();
+        services.AddScoped<FacultyAssistantReadService>();
+        services.AddHttpClient<FacultyAssistantServiceClient>((provider, client) =>
+        {
+            AnalysisServiceOptions analysis = provider.GetRequiredService<IOptions<AnalysisServiceOptions>>().Value;
+            FacultyAssistantOptions assistant = provider.GetRequiredService<IOptions<FacultyAssistantOptions>>().Value;
+            client.BaseAddress = new Uri(analysis.BaseUrl.TrimEnd('/') + "/");
+            client.Timeout = TimeSpan.FromSeconds(assistant.RequestTimeoutSeconds);
+            client.MaxResponseContentBufferSize = 4 * 1024 * 1024;
+        }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+        services.AddHostedService<FacultyAssistantWorker>();
         services.AddArticleExtraction(configuration);
         services.AddScoped<ArticleSummaryWorkflow>();
+        services.AddOptions<ArticleSummaryAutomationOptions>()
+            .Bind(configuration.GetSection("ArticleSummaryAutomation"))
+            .ValidateDataAnnotations();
+        services.AddScoped<ArticleSummaryAutomationScheduler>();
+        services.AddScoped<ArticleSummaryAutomationProcessor>();
+        services.AddScoped<ArticleSummaryAutomationStatusService>();
+        services.AddHostedService<ArticleSummaryAutomationWorker>();
+        services.AddOptions<PublicationMetricsOptions>()
+            .Bind(configuration.GetSection("PublicationMetrics"))
+            .ValidateDataAnnotations();
+        services.TryAddSingleton<TimeProvider>(TimeProvider.System);
+        services.AddScoped<PublicationMetricsRefreshScheduler>();
+        services.AddScoped<PublicationMetricSourceLoader>();
+        services.AddScoped<IPublicationMetricsComputer, PublicationMetricsComputer>();
+        services.AddScoped<PublicationMetricsProcessor>();
+        services.AddScoped<PublicationMetricsReadService>();
+        services.AddScoped<PublicationMetricsRefreshService>();
+        services.AddScoped<ReferencePopulationManifestService>();
+        services.AddHostedService<PublicationMetricsWorker>();
+        services.AddScoped<IAcademicEvidenceSearchService, AcademicEvidenceSearchService>();
+        services.AddScoped<AcademicGraphProjectionService>();
         services.AddHttpClient<ArticleSummaryServiceClient>((provider, client) =>
         {
             AnalysisServiceOptions analysis = provider.GetRequiredService<IOptions<AnalysisServiceOptions>>().Value;
@@ -96,6 +144,35 @@ public static class AcademicPerformanceModule
 
         services.AddScoped<ResearcherRepository>();
         services.AddScoped<AcademicWorkSynchronizer>();
+        services.AddScoped<AcademicWorkResearchContextSynchronizer>();
+        services.AddScoped<CanonicalWorkSynchronizer>();
+        services.AddScoped<CanonicalWorkQueryService>();
+        services.AddScoped<CanonicalArticleEvidenceQueryService>();
+        services.AddOptions<ArticleReviewOptions>().Bind(configuration.GetSection("ArticleReview"))
+            .ValidateDataAnnotations();
+        services.AddScoped<ArticleReviewWorkflow>();
+        services.AddHttpClient<ArticleReviewServiceClient>((provider, client) =>
+        {
+            AnalysisServiceOptions analysis = provider.GetRequiredService<IOptions<AnalysisServiceOptions>>().Value;
+            ArticleReviewOptions review = provider.GetRequiredService<IOptions<ArticleReviewOptions>>().Value;
+            client.BaseAddress = new Uri(analysis.BaseUrl.TrimEnd('/') + "/");
+            client.Timeout = TimeSpan.FromSeconds(review.TotalTimeoutSeconds);
+            client.MaxResponseContentBufferSize = 4 * 1024 * 1024;
+        }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+        services.AddOptions<ArticleEvaluationOptions>().Bind(configuration.GetSection("ArticleEvaluation"))
+            .ValidateDataAnnotations();
+        services.AddScoped<ArticleEvaluationScheduler>();
+        services.AddScoped<ArticleEvaluationProcessor>();
+        services.AddScoped<ArticleEvaluationReadService>();
+        services.AddHttpClient<ArticleEvaluationServiceClient>((provider, client) =>
+        {
+            AnalysisServiceOptions analysis = provider.GetRequiredService<IOptions<AnalysisServiceOptions>>().Value;
+            ArticleEvaluationOptions evaluation = provider.GetRequiredService<IOptions<ArticleEvaluationOptions>>().Value;
+            client.BaseAddress = new Uri(analysis.BaseUrl.TrimEnd('/') + "/");
+            client.Timeout = TimeSpan.FromSeconds(evaluation.RequestTimeoutSeconds);
+            client.MaxResponseContentBufferSize = 4 * 1024 * 1024;
+        }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+        services.AddHostedService<ArticleEvaluationWorker>();
         services.AddScoped<PublicationSummarySynchronizer>();
         services.AddScoped<ResearcherCollectionService>();
         services.AddScoped<ResearcherCollectionHandler>();

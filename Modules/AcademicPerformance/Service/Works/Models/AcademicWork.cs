@@ -55,4 +55,10 @@ public sealed class AcademicWork
     public bool? IsRetracted { get; set; } = null;
     public string? ProviderPayload { get; set; } = null;
     public DateTime SyncedAt { get; set; }
+
+    [JsonIgnore]
+    public CanonicalWorkObservation? CanonicalObservation { get; set; } = null;
+
+    [JsonIgnore]
+    public AcademicWorkResearchContext? ResearchContext { get; set; } = null;
 }

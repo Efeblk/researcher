@@ -8,6 +8,8 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using Microsoft.EntityFrameworkCore;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Persistence;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Application;
 
@@ -20,15 +22,21 @@ public sealed class AcademicPerformanceApplicationService :
     private readonly ResearcherCollectionHandler _collectionHandler;
     private readonly AcademicDbContext _dbContext;
     private readonly ResearcherProviderInputNormalizer _inputNormalizer;
+    private readonly CanonicalWorkQueryService _canonicalWorkQueryService;
+    private readonly CanonicalWorkSynchronizer _canonicalWorkSynchronizer;
 
     public AcademicPerformanceApplicationService(
         ResearcherCollectionHandler collectionHandler,
         AcademicDbContext dbContext,
-        ResearcherProviderInputNormalizer inputNormalizer)
+        ResearcherProviderInputNormalizer inputNormalizer,
+        CanonicalWorkQueryService? canonicalWorkQueryService = null,
+        CanonicalWorkSynchronizer? canonicalWorkSynchronizer = null)
     {
         _collectionHandler = collectionHandler;
         _dbContext = dbContext;
         _inputNormalizer = inputNormalizer;
+        _canonicalWorkQueryService = canonicalWorkQueryService ?? new CanonicalWorkQueryService(dbContext);
+        _canonicalWorkSynchronizer = canonicalWorkSynchronizer ?? new CanonicalWorkSynchronizer(dbContext);
     }
 
     public async Task<AcademicDataResponse> CollectAsync(
@@ -246,11 +254,49 @@ public sealed class AcademicPerformanceApplicationService :
         };
     }
 
+    public async Task<CanonicalPublicationListResponse> ListCanonicalPublicationsAsync(
+        CanonicalPublicationListRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        Researcher researcher = await ResolveResearcherAsync(
+            request.PersonelId,
+            request.Orcid,
+            request.GoogleScholarId,
+            request.WebOfScienceResearcherId,
+            cancellationToken);
+        return await _canonicalWorkQueryService.ListAsync(
+            researcher.PersonelId, request, cancellationToken);
+    }
+
+    public async Task<CanonicalPublicationRebuildResponse> RebuildCanonicalPublicationsAsync(
+        CanonicalPublicationRebuildRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        string personelId = request.PersonelId?.Trim() ?? string.Empty;
+        if (personelId.Length == 0 || personelId.Length > 200 ||
+            !await _dbContext.Researchers.AsNoTracking()
+                .AnyAsync(researcher => researcher.PersonelId == personelId, cancellationToken))
+        {
+            throw new ArgumentException("Akademisyen kaydı bulunamadı.");
+        }
+
+        CanonicalWorkSyncResult result = await _canonicalWorkSynchronizer.SyncAsync(
+            personelId, cancellationToken);
+        return new()
+        {
+            PersonelId = personelId,
+            CanonicalWorkCount = result.CanonicalWorkCount,
+            ObservationCount = result.ObservationCount,
+            AssociationCount = result.AssociationCount
+        };
+    }
+
     private async Task<Researcher> ResolveResearcherAsync(
         string? personelId,
         string? orcid,
         string? googleScholarId,
-        string? webOfScienceResearcherId)
+        string? webOfScienceResearcherId,
+        CancellationToken cancellationToken = default)
     {
         IQueryable<Researcher> query = _dbContext.Researchers
             .AsNoTracking()
@@ -285,7 +331,7 @@ public sealed class AcademicPerformanceApplicationService :
             query = query.Where(researcher =>
                 researcher.WebOfScienceResearcherId == normalizedResearcherId);
         }
-        return await query.FirstOrDefaultAsync()
+        return await query.FirstOrDefaultAsync(cancellationToken)
             ?? throw new ArgumentException("Akademisyen kaydı bulunamadı.");
     }
 

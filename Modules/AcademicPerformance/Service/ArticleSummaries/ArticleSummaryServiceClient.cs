@@ -25,8 +25,11 @@ public sealed class ArticleSummaryServiceClient(HttpClient client, IOptions<Anal
             report.Coverage.IsPartial != (snapshot.IsPartial || report.Coverage.SelectedClaimsOmitted > 0 ||
                 report.Verification?.Status == "insufficient_evidence") ||
             snapshot.IsPartial && string.IsNullOrWhiteSpace(report.Coverage.ScopeReason) ||
+            report.SourceFidelity != ArticleSourceFidelity.Create(snapshot.SourceKind, snapshot.ExtractionVersion) ||
             !ValidVerification(report) || !ValidSections(report.Sections, snapshot) ||
-            string.IsNullOrWhiteSpace(report.Model) || string.IsNullOrWhiteSpace(report.PromptVersion))
+            !HasBoundedText(report.Model, 200) || !HasBoundedText(report.PromptVersion, 100) ||
+            !HasOptionalBoundedText(report.Coverage.ScopeReason, 4000) ||
+            !HasOptionalBoundedText(report.Verification?.Limitation, 4000))
             throw new JsonException("The article report does not match the source snapshot.");
         return report with { ExtractionMethod = GetExtractionMethod(snapshot.SourceKind, snapshot.ExtractionVersion) };
     }
@@ -43,7 +46,8 @@ public sealed class ArticleSummaryServiceClient(HttpClient client, IOptions<Anal
     {
         IReadOnlyList<ArticleClaim>?[] groups = [sections.Purpose, sections.Methods, sections.Data, sections.Findings, sections.Limitations];
         return groups.All(group => group is not null && group.Count <= 12 && group.All(claim => claim is not null &&
-            !string.IsNullOrWhiteSpace(claim.Text) && claim.Text.Length <= 1200 && claim.Evidence is not null && claim.Evidence.Count is > 0 and <= 2 &&
+            !string.IsNullOrWhiteSpace(claim.Text) && claim.Text.Length <= 1200 &&
+            HasOptionalBoundedText(claim.ClaimId, 200) && claim.Evidence is not null && claim.Evidence.Count is > 0 and <= 2 &&
             claim.Evidence.All(evidence => evidence is not null && !string.IsNullOrWhiteSpace(evidence.Quote) &&
                 evidence.Quote.Length <= 550 && evidence.SourceId is not null &&
                 evidence.StartOffset is >= 0 && evidence.EndOffset > evidence.StartOffset &&
@@ -58,16 +62,24 @@ public sealed class ArticleSummaryServiceClient(HttpClient client, IOptions<Anal
         int claims = new[] { report.Sections.Purpose, report.Sections.Methods, report.Sections.Data,
             report.Sections.Findings, report.Sections.Limitations }.Sum(x => x.Count);
         return report.Verification is
-            { Status: "automatically_checked" or "insufficient_evidence", Model.Length: > 0, PromptVersion.Length: > 0 } &&
-            coverage.CandidateClaims is >= 0 && coverage.AutomaticallyCheckedClaims == coverage.CandidateClaims &&
+            { Status: "automatically_checked" or "insufficient_evidence" } verification &&
+            HasBoundedText(verification.Model, 200) && HasBoundedText(verification.PromptVersion, 100) &&
+            coverage.CandidateClaims is >= 0 && coverage.BudgetUnverifiedClaims is >= 0 &&
+            coverage.AutomaticallyCheckedClaims == coverage.CandidateClaims - coverage.BudgetUnverifiedClaims &&
             coverage.SupportedClaims is >= 0 && coverage.UnsupportedClaims is >= 0 && coverage.UncertainClaims is >= 0 &&
             coverage.CandidateClaims == coverage.SupportedClaims + coverage.UnsupportedClaims + coverage.UncertainClaims &&
             coverage.DuplicateOrCappedClaims is >= 0 &&
-            coverage.BudgetUnverifiedClaims is >= 0 && coverage.BudgetUnverifiedClaims <= coverage.UncertainClaims &&
+            coverage.BudgetUnverifiedClaims <= coverage.UncertainClaims &&
             coverage.SelectedClaimsOmitted == coverage.UnsupportedClaims + coverage.UncertainClaims + coverage.DuplicateOrCappedClaims &&
             claims == coverage.SupportedClaims - coverage.DuplicateOrCappedClaims &&
             coverage.OmissionReasons is not null &&
             (report.Verification.Status == "automatically_checked" && claims > 0 && coverage.SupportedClaims > 0 ||
              report.Verification.Status == "insufficient_evidence" && claims == 0 && coverage.SupportedClaims == 0);
     }
+
+    private static bool HasBoundedText(string? value, int maximumLength) =>
+        !string.IsNullOrWhiteSpace(value) && value.Length <= maximumLength;
+
+    private static bool HasOptionalBoundedText(string? value, int maximumLength) =>
+        value is null || value.Length <= maximumLength;
 }

@@ -3,12 +3,15 @@ using System.Text.Json;
 using AcademicCollectorDemo.Modules.AcademicPerformance;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Application;
+using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Background;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Bulk;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Bulk.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Bulk.SqlImport;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -133,12 +136,28 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
         var request = new BulkCollectionSubmitRequest { BatchId = Guid.NewGuid(), Researchers =
         [
             new() { PersonelId = "same-person", Orcid = "0000-0002-1825-009X" },
-            new() { PersonelId = "same-person", WebOfScienceId = "A-4321-2020" }
+            new() { PersonelId = "SAME-PERSON", WebOfScienceId = "A-4321-2020" }
         ]};
 
         var result = await scope.ServiceProvider.GetRequiredService<BulkCollectionService>().SubmitAsync(request);
 
         Assert.Equal(2, result.Counts[BulkJobStatus.Rejected]);
+        Assert.Equal(["same-person", "SAME-PERSON"], result.Jobs.Select(value => value.PersonelId));
+    }
+
+    [Fact]
+    public async Task SubmitAsync_ScholarIdsRemainCaseSensitive()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var request = new BulkCollectionSubmitRequest { BatchId = Guid.NewGuid(), Researchers =
+        [
+            new() { PersonelId = "scholar-case-a", GoogleScholarId = "AbCdEfGhIjKl" },
+            new() { PersonelId = "scholar-case-b", GoogleScholarId = "abcdefghijkl" }
+        ]};
+
+        var result = await scope.ServiceProvider.GetRequiredService<BulkCollectionService>().SubmitAsync(request);
+
+        Assert.Equal(2, result.Counts[BulkJobStatus.Pending]);
     }
 
     [Fact]
@@ -274,6 +293,106 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
         {
             await worker.StopAsync(default);
         }
+    }
+
+    [Fact]
+    public async Task HostedWorker_DefaultEnabled_ResumesSubmittedJobAndCreatesCanonicalPublication()
+    {
+        string personelId = "hosted-canonical-" + Guid.NewGuid().ToString("N");
+        const string researcherId = "D-7392-2098";
+        string doi = "10.7200/bulk-" + Guid.NewGuid().ToString("N");
+        Guid batchId = Guid.NewGuid();
+        await using (AsyncServiceScope seedScope = fixture.Services.CreateAsyncScope())
+        {
+            AcademicDbContext db = seedScope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+            await DeferExistingJobsAsync(db);
+            db.Researchers.Add(new Researcher
+            {
+                PersonelId = personelId,
+                WebOfScienceResearcherId = researcherId,
+                WebOfScienceProfile = new WebOfScienceProfile
+                {
+                    PersonelId = personelId,
+                    LastUpdatedAt = DateTime.UtcNow,
+                    DocumentsCount = 1,
+                    DocumentPagesJson = """{"WOS":[{}],"WOK":[{}]}""",
+                    Works = [new WebOfScienceWork
+                    {
+                        Uid = "WOS:hosted-canonical",
+                        Title = "Hosted bulk canonical publication",
+                        Doi = doi,
+                        PublicationYear = 2026,
+                        WorkTypes = "Article",
+                        RawDataJson = "{}"
+                    }]
+                }
+            });
+            await db.SaveChangesAsync();
+        }
+
+        using (var submitHost = new HostProcess(
+            fixture.ConnectionString,
+            disablePublicationEnrichmentProviders: true))
+        {
+            await submitHost.WaitUntilReadyAsync();
+            using HttpResponseMessage submit = await submitHost.Client.PostAsJsonAsync(
+                "/Services/AcademicPerformance/V1/Bulk/Submit",
+                new
+                {
+                    BatchId = batchId,
+                    Researchers = new[]
+                    {
+                        new { PersonelID = personelId, ResearcherID = researcherId }
+                    }
+                });
+            submit.EnsureSuccessStatusCode();
+            JsonElement submitBody = await submit.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.False(submitBody.GetProperty("WorkerEnabled").GetBoolean());
+            Assert.Equal(1, submitBody.GetProperty("Counts").GetProperty("Pending").GetInt32());
+        }
+
+        using var workerHost = new HostProcess(
+            fixture.ConnectionString,
+            bulkWorkerEnabled: null,
+            disablePublicationEnrichmentProviders: true,
+            articleSummaryAutomationEnabled: true,
+            articleSummaryAutomationWorkerEnabled: false);
+        await workerHost.WaitUntilReadyAsync();
+        JsonElement statusBody = default;
+        for (int attempt = 0; attempt < 100; attempt++)
+        {
+            using HttpResponseMessage status = await workerHost.Client.PostAsJsonAsync(
+                "/Services/AcademicPerformance/V1/Bulk/Status", new { BatchId = batchId });
+            status.EnsureSuccessStatusCode();
+            statusBody = await status.Content.ReadFromJsonAsync<JsonElement>();
+            if (statusBody.GetProperty("IsComplete").GetBoolean())
+                break;
+            await Task.Delay(200);
+        }
+        Assert.True(statusBody.GetProperty("WorkerEnabled").GetBoolean());
+        Assert.True(statusBody.GetProperty("IsComplete").GetBoolean(), statusBody.GetRawText());
+        Assert.Equal(BulkJobStatus.Succeeded,
+            statusBody.GetProperty("Jobs")[0].GetProperty("Status").GetString());
+
+        using HttpResponseMessage canonical = await workerHost.Client.PostAsJsonAsync(
+            "/Services/AcademicPerformance/V1/ListCanonicalPublications",
+            new { PersonelID = personelId, SearchText = "HTTPS://DOI.ORG/" + doi.ToUpperInvariant() });
+        canonical.EnsureSuccessStatusCode();
+        JsonElement canonicalBody = await canonical.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(1, canonicalBody.GetProperty("TotalCount").GetInt32());
+        JsonElement publication = canonicalBody.GetProperty("Entities")[0];
+        Assert.Equal(doi, publication.GetProperty("NormalizedDoi").GetString());
+        Assert.Equal("WebOfScience", publication.GetProperty("Observations")[0]
+            .GetProperty("Provider").GetString());
+        Assert.Equal(1, publication.GetProperty("KnownResearcherCount").GetInt32());
+        await using AsyncServiceScope queueScope = fixture.Services.CreateAsyncScope();
+        AcademicDbContext queueDatabase = queueScope.ServiceProvider
+            .GetRequiredService<AcademicDbContext>();
+        Assert.True(await queueDatabase.ArticleSummaryAutomationJobs.AsNoTracking().AnyAsync(job =>
+            job.CanonicalWork!.NormalizedDoi == doi && job.Language == "tr" &&
+            job.Status == ArticleSummaryAutomationJobStatus.Pending));
+        await queueDatabase.ArticleSummaryAutomationJobs.Where(job =>
+            job.CanonicalWork!.NormalizedDoi == doi).ExecuteDeleteAsync();
     }
 
     [Fact]
@@ -460,6 +579,7 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
         var settings = extra ?? [];
         settings["ConnectionStrings:AcademicDatabase"] = fixture.ConnectionString;
         settings.TryAdd("BulkCollection:MaximumAttempts", "2");
+        settings.TryAdd("BulkCollection:WorkerEnabled", "false");
         IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
         ServiceCollection services = new();
         services.AddLogging();
@@ -504,5 +624,7 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
         public Task<AcademicDataResponse> GetResearcherAsync(AcademicResearcherRequest request) => throw new NotSupportedException();
         public Task<AcademicPublicationListResponse> ListPublicationsAsync(AcademicPublicationListRequest request) => throw new NotSupportedException();
         public Task<AcademicPublicationSelectionResponse> SavePublicationSelectionsAsync(AcademicPublicationSelectionRequest request) => throw new NotSupportedException();
+        public Task<CanonicalPublicationListResponse> ListCanonicalPublicationsAsync(CanonicalPublicationListRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<CanonicalPublicationRebuildResponse> RebuildCanonicalPublicationsAsync(CanonicalPublicationRebuildRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }

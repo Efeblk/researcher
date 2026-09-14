@@ -21,20 +21,13 @@ public sealed class GeminiArticleClaimVerifier(GeminiArticleClient client, IOpti
     public async Task<GeneratedVerificationBatch> VerifyAsync(string language, IReadOnlyList<GeneratedArticleClaim> claims,
         IReadOnlyList<ArticleSourceSpan> sourceSpans, CancellationToken cancellationToken)
     {
-        HashSet<string> cited = claims.SelectMany(x => x.SourceIds).ToHashSet(StringComparer.Ordinal);
-        HashSet<int> indexes = [];
-        for (int i = 0; i < sourceSpans.Count; i++)
-            if (cited.Contains(sourceSpans[i].SourceId))
-                for (int context = Math.Max(0, i - 1); context <= Math.Min(sourceSpans.Count - 1, i + 1); context++)
-                    indexes.Add(context);
-        var sources = indexes.Order().Select(i => new { sourceSpans[i].SourceId, sourceSpans[i].PageNumber,
-            sourceSpans[i].Text, citedEvidence = cited.Contains(sourceSpans[i].SourceId) });
-        string input = JsonSerializer.Serialize(new { language, claims, sources }, JsonOptions);
+        string input = ArticleVerificationInput.CreateClaims(language, claims, sourceSpans);
         string model = string.IsNullOrWhiteSpace(options.Value.ArticleVerifierModel)
             ? options.Value.ArticleModel : options.Value.ArticleVerifierModel;
         GeminiArticleResult result = await client.GenerateAsync(model, ArticleVerificationPrompt.Instructions, input,
             ArticleVerificationPrompt.CreateSchema(claims.Select(x => x.ClaimId)),
-            options.Value.ArticleVerifierMaxOutputTokens, cancellationToken);
+            options.Value.ArticleVerifierMaxOutputTokens, options.Value.ArticleVerifierThinkingLevel,
+            cancellationToken);
         try
         {
             VerificationEnvelope envelope = JsonSerializer.Deserialize<VerificationEnvelope>(result.Json, JsonOptions)
