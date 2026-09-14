@@ -9,7 +9,7 @@ JSON veya operatörün sabit SQL sorgusu → doğrulama → bulk kuyruğu
 
 ## Girdi ve API
 
-Her satır zorunlu, benzersiz `PersonelID` ile isteğe bağlı `ORCID`, `ResearcherID` (Web of Science), `ScholarID` ve `ScopusID` alanlarını taşır. En az bir desteklenen kimlik gerekir. Scopus henüz toplanmaz; değer denetim amacıyla saklanır ve uyarı üretir. YÖKSİS toplu akışta yoktur.
+Her satır zorunlu, benzersiz `PersonelID` ile isteğe bağlı `ORCID`, `ResearcherID` (Web of Science), `ScholarID`, `ScopusID` ve `TcKimlikNo` alanlarını taşır. En az bir desteklenen kimlik gerekir. Scopus henüz toplanmaz; değer denetim amacıyla saklanır ve uyarı üretir. `TcKimlikNo` sağlandığında YÖKSİS de ortak toplama akışında çalışır.
 
 ```json
 {
@@ -36,9 +36,9 @@ Birincil akışta dış sistem kendi verisini sorgulayıp `Submit` çağırır; 
 
 Worker kayıtlı varsayılanlarda etkin, SQL içe aktarma kapalıdır. Etkin ayarların kaynağı [`academicsettings.json`](../academicsettings.json) dosyasıdır. Worker veya hız ayarlarını değiştirdikten sonra hostu yeniden başlatın; `Status.WorkerEnabled` etkin değeri gösterir.
 
-`ProviderRequestLimits:<Provider>` altında `Enabled`, `MinimumIntervalMilliseconds` ve `DailyRequestLimit` bulunur. SQL tabanlı sayaç, cooldown ve uygulama kilitleri aynı veritabanını kullanan instance'lar arasında paylaşılır. Bunlar sağlayıcının gerçek hesap kotasını ölçmez; başka uygulamaların kullanımını göremez. Her sayfa ve ayrıntı çağrısı bütçe tüketir, önbellekten karşılanan kayıt tüketmez. SearchApi desteklenir ancak varsayılan ayarda kapalıdır; gerçek plan ve kalan kota doğrulanmadan açılmamalıdır.
+`ProviderRequestLimits:<Provider>` altında `Enabled`, `MinimumIntervalMilliseconds`, `DailyRequestLimit` ve isteğe bağlı `RateLimitCooldownSeconds` bulunur. SQL tabanlı sayaç, cooldown ve uygulama kilitleri aynı veritabanını kullanan instance'lar arasında paylaşılır. Bunlar sağlayıcının gerçek hesap kotasını ölçmez; başka uygulamaların kullanımını göremez. Her sayfa ve ayrıntı çağrısı bütçe tüketir, önbellekten karşılanan kayıt tüketmez. OpenAlex için yapılandırılmış API anahtarı 10.000 istek/gün yerel güvenlik tavanını etkinleştirir; anahtar yoksa etkili yerel tavan 1.000'dir. Bu sayaç OpenAlex'in kredi tabanlı gerçek günlük bütçesi veya hesap hakkı değildir; anahtarın sağladığı günlük bütçe artışı [OpenAlex kimlik doğrulama belgelerinde](https://help.openalex.org/api/authentication) açıklanır. YÖKSİS çağrıları varsayılan olarak beş saniye aralıklıdır; HTTP 429 yanıtı en az beş dakikalık ortak cooldown oluşturur ve daha uzun `Retry-After` değeri korunur. SearchApi desteklenir ancak varsayılan ayarda kapalıdır; gerçek plan ve kalan kota doğrulanmadan açılmamalıdır.
 
-`Retry-After` ve geçici hatalar ortak cooldown oluşturur. Yerel kota/cooldown ertelemeleri retry hakkını tüketmeden işi kuyruğa döndürür; diğer geçici hatalar sınırlı üstel geri çekilme kullanır. 408/429 dışındaki 4xx yanıtları otomatik tekrar edilmez.
+`Retry-After` ve geçici hatalar ortak cooldown oluşturur. Kategori veya kalıcılık hatası eşlik etmeyen, bütünüyle yerel kota/cooldown ertelemeleri retry hakkını tüketmeden işi kuyruğa döndürür; diğer geçici hatalar sınırlı üstel geri çekilme kullanır. 408/429 dışındaki 4xx yanıtları otomatik tekrar edilmez.
 
 ## Durum ve kurtarma
 
