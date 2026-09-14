@@ -2,6 +2,7 @@ using System.Data;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
+using ResearcherAnalysisService.Analysis;
 using ResearcherAnalysisService.Products.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -229,11 +230,11 @@ public sealed class ArticleSummaryAutomationProcessor(
         if (exception is ArticleSummaryAutomationInputChangedException changedInput)
             return new("SourceChanged", "The source changed before analysis; the current source will be retried.",
                 true, false, changedInput.CurrentInputHash);
-        if (exception is JsonException)
+        if (exception is JsonException or InvalidAnalysisException)
             return new("InvalidReport",
                 "The analysis service returned an invalid report; no automatic retry was made because remote cost may be unknown.",
                 false, true, null);
-        if (exception is HttpRequestException)
+        if (exception is HttpRequestException or AnalysisUnavailableException or AnalysisInputTooLargeException)
             return new("RemoteFailure",
                 "The analysis request failed; no automatic retry was made because remote cost may be unknown.",
                 false, true, null);

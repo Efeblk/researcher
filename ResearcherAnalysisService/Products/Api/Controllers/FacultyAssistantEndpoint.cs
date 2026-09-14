@@ -7,6 +7,7 @@ using ResearcherAnalysisService.Api;
 namespace ResearcherAnalysisService.Products.Api.Controllers;
 
 [ApiController]
+[ResearcherAnalysisService.Products.Api.ProductJsonContract]
 [ServiceFilter<AnalysisAccessFilter>]
 [Route("api/v1/products/[action]")]
 public sealed class FacultyAssistantEndpoint : ControllerBase

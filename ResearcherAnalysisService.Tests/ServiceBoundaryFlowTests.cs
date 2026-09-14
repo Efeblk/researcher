@@ -15,11 +15,43 @@ using ResearcherAnalysisService.Products.Metrics;
 using ResearcherAnalysisService.SourceData;
 using ResearcherAnalysisService.SourceData.Researchers;
 using ResearcherAnalysisService.SourceData.Works;
+using ResearcherAnalysisService.Tests.Infrastructure;
 
 namespace ResearcherAnalysisService.Tests;
 
 public sealed class ServiceBoundaryFlowTests
 {
+    [Fact]
+    public async Task ProductResponses_PreservePascalCaseWhileStatelessApiRemainsCamelCase()
+    {
+        await using AnalysisTestHost host = await AnalysisTestHost.StartAsync(settings:
+            new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:UsageDatabase"] =
+                    "Server=127.0.0.1,1;Database=ProductJsonContract;User ID=synthetic;Password=synthetic;" +
+                    "Encrypt=true;TrustServerCertificate=true;Connect Timeout=1",
+                ["CollectionChanges:WorkerEnabled"] = "false",
+                ["ArticleSummaryAutomation:Enabled"] = "false",
+                ["ArticleSummaryAutomation:WorkerEnabled"] = "false",
+                ["PublicationMetrics:WorkerEnabled"] = "false",
+                ["ArticleEvaluation:WorkerEnabled"] = "false",
+                ["FacultyAssistant:WorkerEnabled"] = "false"
+            });
+
+        using HttpResponseMessage product = await host.Client.PostAsync(
+            "/api/v1/products/GetResearcherPublicationMetrics",
+            new StringContent("{}", System.Text.Encoding.UTF8, "application/json"));
+        string productJson = await product.Content.ReadAsStringAsync();
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, product.StatusCode);
+        Assert.Contains("\"Message\":", productJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"message\":", productJson, StringComparison.Ordinal);
+
+        using HttpResponseMessage health = await host.Client.GetAsync("/health");
+        string healthJson = await health.Content.ReadAsStringAsync();
+        Assert.Contains("\"service\":", healthJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"Service\":", healthJson, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task SourceProjections_RejectSyncAndAsyncWrites_ButOwnedRowsSave()
     {
