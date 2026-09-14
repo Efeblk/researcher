@@ -994,6 +994,8 @@ public sealed class AcademicDbContext : DbContext
             entity.HasKey(value => value.Id);
             entity.Property(value => value.OwnerPersonelId).HasColumnName("OwnerPersonelID").HasMaxLength(200)
                 .UseCollation("Latin1_General_100_BIN2");
+            entity.Property(value => value.ActorAuditId).HasMaxLength(200);
+            entity.Property(value => value.AuthorizationGrantId).HasMaxLength(400);
             entity.Property(value => value.Status).HasMaxLength(40);
             entity.Property(value => value.DatasetVersion).HasMaxLength(100).UseCollation("Latin1_General_100_BIN2");
             entity.Property(value => value.EvaluatorVersion).HasMaxLength(100).UseCollation("Latin1_General_100_BIN2");

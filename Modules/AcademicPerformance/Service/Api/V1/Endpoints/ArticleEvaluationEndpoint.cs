@@ -3,6 +3,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Evaluations;
 using Microsoft.AspNetCore.Mvc;
 using Serenity.Services;
+using AcademicCollectorDemo.Modules.AcademicPerformance.ProductAccess;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Endpoints;
 
@@ -12,18 +13,26 @@ public sealed class ArticleEvaluationEndpoint : ServiceEndpoint
     [HttpPost]
     public async Task<ActionResult<StartArticleEvaluationResponse>> StartArticleEvaluation(
         [FromBody] StartArticleEvaluationRequest request,
+        [FromServices] IAcademicProductAccessService access,
         [FromServices] ArticleEvaluationScheduler scheduler,
         CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
         try
         {
-            StartArticleEvaluationResponse response = await scheduler.EnqueueAsync(request, cancellationToken);
+            AcademicProductAccessGrant grant = await access.AuthorizeAsync(User,
+                new(AcademicProductOperation.ArticleEvaluationStart, request.PersonelId.Trim()),
+                cancellationToken);
+            StartArticleEvaluationResponse response = await scheduler.EnqueueAsync(grant, request, cancellationToken);
             return StatusCode(StatusCodes.Status202Accepted, response);
         }
         catch (ArticleEvaluationValidationException exception)
         {
             return UnprocessableEntity(new { Message = exception.Message });
+        }
+        catch (Exception exception) when (IsAccessFailure(exception))
+        {
+            return AcademicProductEndpoint.Error(exception);
         }
         catch (HttpRequestException)
         {
@@ -40,14 +49,29 @@ public sealed class ArticleEvaluationEndpoint : ServiceEndpoint
     [HttpPost]
     public async Task<ActionResult<AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts.ArticleEvaluationResponse>> GetArticleEvaluation(
         [FromBody] GetArticleEvaluationRequest request,
+        [FromServices] IAcademicProductAccessService access,
         [FromServices] ArticleEvaluationReadService reader,
         CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid || request.RunId == Guid.Empty) return BadRequest(ModelState);
-        AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts.ArticleEvaluationResponse? response =
-            await reader.GetAsync(request, cancellationToken);
-        return response is null
-            ? NotFound(new { Message = "No accessible article evaluation run was found." })
-            : Ok(response);
+        try
+        {
+            AcademicProductAccessGrant grant = await access.AuthorizeAsync(User,
+                new(AcademicProductOperation.ArticleEvaluationRead, request.PersonelId.Trim()),
+                cancellationToken);
+            AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts.ArticleEvaluationResponse? response =
+                await reader.GetAsync(grant, request, cancellationToken);
+            return response is null
+                ? NotFound(new { Message = "No accessible article evaluation run was found." })
+                : Ok(response);
+        }
+        catch (Exception exception) when (IsAccessFailure(exception))
+        {
+            return AcademicProductEndpoint.Error(exception);
+        }
     }
+
+    private static bool IsAccessFailure(Exception exception) => exception is
+        AcademicProductAccessUnavailableException or AcademicProductUnauthenticatedException or
+        AcademicProductAccessDeniedException;
 }

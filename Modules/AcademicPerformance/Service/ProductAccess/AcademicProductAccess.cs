@@ -15,7 +15,9 @@ public enum AcademicProductOperation
     HrDossierCreate,
     HrDossierRead,
     HrReviewActionAppend,
-    HrReviewActionRead
+    HrReviewActionRead,
+    ArticleEvaluationStart,
+    ArticleEvaluationRead
 }
 
 public sealed record AcademicProductAccessRequest(

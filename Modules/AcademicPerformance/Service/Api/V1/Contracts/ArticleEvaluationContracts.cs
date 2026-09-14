@@ -7,8 +7,8 @@ public sealed class StartArticleEvaluationRequest
     [Required, MinLength(1), MaxLength(3)]
     public List<string> ProfileIds { get; set; } = [];
 
-    [StringLength(200)]
-    public string? PersonelId { get; set; } = null;
+    [Required, StringLength(200, MinimumLength = 1)]
+    public string PersonelId { get; set; } = string.Empty;
 
     [MaxLength(3)]
     public List<ArticleEvaluationRealCaseRequest> RealCases { get; set; } = [];
@@ -29,8 +29,8 @@ public sealed class GetArticleEvaluationRequest
 {
     public Guid RunId { get; set; }
 
-    [StringLength(200)]
-    public string? PersonelId { get; set; } = null;
+    [Required, StringLength(200, MinimumLength = 1)]
+    public string PersonelId { get; set; } = string.Empty;
 
     [Range(0, int.MaxValue)]
     public int Skip { get; set; }

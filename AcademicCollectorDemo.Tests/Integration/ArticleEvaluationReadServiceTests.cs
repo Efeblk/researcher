@@ -6,6 +6,7 @@ using AcademicCollectorDemo.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using ApiContracts = AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
+using AcademicCollectorDemo.Modules.AcademicPerformance.ProductAccess;
 
 namespace AcademicCollectorDemo.Tests.Integration;
 
@@ -41,9 +42,9 @@ public sealed class ArticleEvaluationReadServiceTests(SqlServerFixture fixture)
 
             ArticleEvaluationReadService reader = new(database);
             ApiContracts.ArticleEvaluationResponse completedResponse = (await reader.GetAsync(
-                new ApiContracts.GetArticleEvaluationRequest { RunId = completedRunId }, default))!;
+                Grant(), new ApiContracts.GetArticleEvaluationRequest { RunId = completedRunId }, default))!;
             ApiContracts.ArticleEvaluationResponse pendingResponse = (await reader.GetAsync(
-                new ApiContracts.GetArticleEvaluationRequest { RunId = pendingRunId }, default))!;
+                Grant(), new ApiContracts.GetArticleEvaluationRequest { RunId = pendingRunId }, default))!;
 
             Assert.Equal(6, completedResponse.Aggregate.ScheduledClaims);
             Assert.Equal(3, completedResponse.Aggregate.FailedClaims);
@@ -70,6 +71,32 @@ public sealed class ArticleEvaluationReadServiceTests(SqlServerFixture fixture)
     }
 
     [Fact]
+    public async Task GetAsync_OtherAuthorizedSubject_ReturnsNoRun()
+    {
+        Guid runId = Guid.NewGuid();
+        using IServiceScope scope = fixture.Services.CreateScope();
+        AcademicDbContext database = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        try
+        {
+            ArticleEvaluationRun run = Run(runId, ArticleEvaluationStatus.Pending, [Profile(ProfileA)]);
+            Item(Case(run), ProfileA);
+            run.TotalWorkItems = 1;
+            database.Add(run);
+            await database.SaveChangesAsync();
+
+            ArticleEvaluationReadService reader = new(database);
+            AcademicProductAccessGrant other = new("other-grant", "other-actor", "other-subject",
+                AcademicProductOperation.ArticleEvaluationRead);
+            Assert.Null(await reader.GetAsync(other,
+                new ApiContracts.GetArticleEvaluationRequest { RunId = runId }, default));
+        }
+        finally
+        {
+            await CleanupAsync(database, runId);
+        }
+    }
+
+    [Fact]
     public async Task GetAsync_PartialCostAttempt_DoesNotReportKnownCost()
     {
         Guid runId = Guid.NewGuid();
@@ -88,7 +115,7 @@ public sealed class ArticleEvaluationReadServiceTests(SqlServerFixture fixture)
             await database.SaveChangesAsync();
 
             ApiContracts.ArticleEvaluationResponse response = (await new ArticleEvaluationReadService(database)
-                .GetAsync(new ApiContracts.GetArticleEvaluationRequest { RunId = runId }, default))!;
+                .GetAsync(Grant(), new ApiContracts.GetArticleEvaluationRequest { RunId = runId }, default))!;
 
             Assert.Equal(0.01m, response.Aggregate.EstimatedCostUsd);
             Assert.Equal("Partial", response.Aggregate.CostStatus);
@@ -127,7 +154,7 @@ public sealed class ArticleEvaluationReadServiceTests(SqlServerFixture fixture)
 
             ApiContracts.ArticleEvaluationProfileAggregateDto profile = Assert.Single(
                 (await new ArticleEvaluationReadService(database).GetAsync(
-                    new ApiContracts.GetArticleEvaluationRequest { RunId = runId }, default))!.ProfileAggregates);
+                    Grant(), new ApiContracts.GetArticleEvaluationRequest { RunId = runId }, default))!.ProfileAggregates);
 
             Assert.NotEqual("Known", profile.TokenStatus);
             Assert.Null(profile.InputTokens);
@@ -143,6 +170,9 @@ public sealed class ArticleEvaluationReadServiceTests(SqlServerFixture fixture)
         IReadOnlyList<ArticleEvaluationProfile> profiles) => new()
     {
         RunId = runId,
+        OwnerPersonelId = "evaluation-owner",
+        ActorAuditId = "evaluation-actor",
+        AuthorizationGrantId = "evaluation-grant",
         Status = status,
         DatasetVersion = "test-dataset-v1",
         EvaluatorVersion = "test-evaluator-v1",
@@ -154,6 +184,9 @@ public sealed class ArticleEvaluationReadServiceTests(SqlServerFixture fixture)
         UpdatedAt = DateTimeOffset.UtcNow,
         CompletedAt = status == ArticleEvaluationStatus.Pending ? null : DateTimeOffset.UtcNow
     };
+
+    private static AcademicProductAccessGrant Grant() => new("evaluation-grant", "evaluation-actor",
+        "evaluation-owner", AcademicProductOperation.ArticleEvaluationRead);
 
     private static ArticleEvaluationCase Case(ArticleEvaluationRun run)
     {

@@ -167,6 +167,7 @@ POST {{api}}/StartArticleEvaluation
 Content-Type: application/json
 
 {
+  "PersonelID": "{{personelId}}",
   "ProfileIds": [
     "ollama-qwen-baseline"
   ],

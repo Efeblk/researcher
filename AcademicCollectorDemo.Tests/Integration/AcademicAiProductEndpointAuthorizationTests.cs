@@ -51,6 +51,14 @@ public sealed class AcademicAiProductEndpointAuthorizationTests(SqlServerFixture
             ("GetFacultyAssistantRun", new GetFacultyAssistantRunRequest
             {
                 PersonelId = "missing-subject", RunId = Guid.NewGuid()
+            }),
+            ("StartArticleEvaluation", new StartArticleEvaluationRequest
+            {
+                PersonelId = "missing-subject", ProfileIds = ["paid-profile"]
+            }),
+            ("GetArticleEvaluation", new GetArticleEvaluationRequest
+            {
+                PersonelId = "missing-subject", RunId = Guid.NewGuid()
             })
         ];
 

@@ -8,6 +8,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using AcademicCollectorDemo.Modules.AcademicPerformance.ProductAccess;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Evaluations;
 
@@ -19,6 +20,7 @@ public sealed class ArticleEvaluationScheduler(
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public async Task<StartArticleEvaluationResponse> EnqueueAsync(
+        AcademicProductAccessGrant grant,
         StartArticleEvaluationRequest request,
         CancellationToken cancellationToken)
     {
@@ -26,8 +28,6 @@ public sealed class ArticleEvaluationScheduler(
         if (profileIds.Any(value => value.Length is < 1 or > 100) ||
             profileIds.Distinct(StringComparer.Ordinal).Count() != profileIds.Count)
             throw new ArticleEvaluationValidationException("Choose one to three distinct profile IDs.");
-        if (request.RealCases.Count > 0 && string.IsNullOrWhiteSpace(request.PersonelId))
-            throw new ArticleEvaluationValidationException("Real cases require one explicit owning PersonelID.");
         if (request.EnableBlindCrossCheck && profileIds.Count < 2)
             throw new ArticleEvaluationValidationException("Blind cross-check requires at least two profiles.");
         if (request.RealCases.Select(value => (value.CanonicalWorkId, value.Language.Trim()))
@@ -68,7 +68,9 @@ public sealed class ArticleEvaluationScheduler(
         ArticleEvaluationRun run = new()
         {
             RunId = publicRunId,
-            OwnerPersonelId = request.RealCases.Count == 0 ? null : request.PersonelId!.Trim(),
+            OwnerPersonelId = grant.SubjectPersonelId,
+            ActorAuditId = grant.ActorAuditId,
+            AuthorizationGrantId = grant.AuthorizationGrantId,
             DatasetVersion = ArticleEvaluationCalibrationCatalog.DatasetVersion,
             EvaluatorVersion = options.Value.EvaluatorVersion.Trim(),
             PolicyVersion = options.Value.PolicyVersion.Trim(),
