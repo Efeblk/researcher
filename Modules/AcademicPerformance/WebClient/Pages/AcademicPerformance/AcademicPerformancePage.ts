@@ -1,4 +1,5 @@
 import { addLocalText, serviceRequest } from "@serenity-is/corelib";
+import type { ServiceResponse } from "@serenity-is/corelib";
 import type { ResearcherCollectResponse, YoksisCollectResponse } from "../../Contracts/AcademicPerformanceContracts";
 import { PublicationSummaryGrid } from "../../Publications/PublicationSummaryGrid";
 import { restoreProviderIdentifiers } from "./ProviderIdentifiers";
@@ -11,6 +12,10 @@ import {
 } from "./ResearcherSummaryPanels";
 
 const providerIdentifierStorageKey = "AcademicPerformance.ProviderIdentifiers.v1";
+
+interface ResolvePersonelIdResponse extends ServiceResponse {
+    PersonelID: string;
+}
 
 const form = document.querySelector<HTMLFormElement>("#ResearcherSearchForm");
 const researchButton = document.querySelector<HTMLButtonElement>("#ResearchButton");
@@ -129,6 +134,19 @@ function getErrorMessage(error: unknown) {
     return error instanceof Error ? error.message : String(error);
 }
 
+async function resolvePersonelId() {
+    const response = await serviceRequest<ResolvePersonelIdResponse>(
+        "AcademicPerformance/WebClient/ResolvePersonelId",
+        {
+            ORCID: valueOf("Orcid") || undefined,
+            ScholarID: valueOf("GoogleScholarId") || undefined,
+            ResearcherID: valueOf("WebOfScienceResearcherId") || undefined,
+            TcKimlikNo: valueOf("TcKimlikNo") || undefined
+        });
+
+    return response.PersonelID;
+}
+
 form?.addEventListener("submit", async event => {
     event.preventDefault();
     if (researchBusy)
@@ -140,12 +158,6 @@ form?.addEventListener("submit", async event => {
         valueOf("WebOfScienceResearcherId")
     ].filter(Boolean);
     const tcKimlikNo = valueOf("TcKimlikNo");
-    const personelId = valueOf("PersonelId");
-
-    if (!personelId) {
-        showStatus("error", "PersonelID girin.");
-        return;
-    }
 
     if (!identifiers.length && !tcKimlikNo) {
         showStatus(
@@ -172,6 +184,7 @@ form?.addEventListener("submit", async event => {
     showStatus("info", "Akademik sağlayıcılar araştırılıyor. Bu işlem biraz sürebilir...");
 
     try {
+        const personelId = await resolvePersonelId();
         const statusMessages: string[] = [];
         const errors: string[] = [];
         let hasSuccessfulResult = false;
