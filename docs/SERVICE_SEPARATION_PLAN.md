@@ -87,5 +87,3 @@ Mevcut stateless generation uçları (`/api/v1/analyze`, `/api/v1/articles/*`, `
 - Şema envanteri testinde her tablo tam bir DDL/yazma sahibine aittir; Analysis DbContext/modeli collector yazma operasyonu içermez, collector assembly/DI/API/worker ağacında analitik ürün tipi kalmaz.
 - HTTP örnekleri collector ve Analysis klasörlerine yeni host/prefix'e göre ayrılır; değişkenler genişletildiğinde JSON geçerlidir, salt okuma ve ücretli/worker yazma ön koşulları açıktır. Dokümanlarda collector'ın analitik ürün veya AI proxy sahibi olduğu eski anlatım kalmaz.
 - Model ve sonuç değişmezliği sentetik fixture'larla doğrulanır; hiçbir otomatik kontrol canlı veya ücretli sağlayıcı çağrısı yapmaz.
-
-Bu plan yalnız kabul sınırını tanımlar. Salt okunur kaynak modellerinin sınıf ve ayar adları core uygulama diff'i kesinleşince belgelerde gerçek isimleriyle güncellenecektir.
