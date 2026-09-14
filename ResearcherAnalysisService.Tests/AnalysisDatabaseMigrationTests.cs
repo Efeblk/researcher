@@ -140,7 +140,8 @@ public sealed class AnalysisDatabaseMigrationTests
             string databaseName = "AnalysisMigrationTests_" + Guid.NewGuid().ToString("N");
             SqlConnectionStringBuilder connection = new(
                 Environment.GetEnvironmentVariable("ACADEMIC_TEST_SQLSERVER") ??
-                @"Server=(localdb)\MSSQLLocalDB;Integrated Security=true;TrustServerCertificate=true");
+                @"Server=(localdb)\MSSQLLocalDB;Integrated Security=true;Encrypt=true;TrustServerCertificate=true");
+            connection.Encrypt = SqlConnectionEncryptOption.Mandatory;
             connection.InitialCatalog = "master";
             string masterConnectionString = connection.ConnectionString;
             await using SqlConnection master = new(masterConnectionString);

@@ -18,7 +18,8 @@ public sealed class AnalysisSqlServerFixture : IAsyncLifetime
     {
         SqlConnectionStringBuilder connection = new(
             Environment.GetEnvironmentVariable("ACADEMIC_TEST_SQLSERVER") ??
-            @"Server=(localdb)\MSSQLLocalDB;Integrated Security=true;TrustServerCertificate=true");
+            @"Server=(localdb)\MSSQLLocalDB;Integrated Security=true;Encrypt=true;TrustServerCertificate=true");
+        connection.Encrypt = SqlConnectionEncryptOption.Mandatory;
         connection.InitialCatalog = "master";
         _masterConnectionString = connection.ConnectionString;
         await using SqlConnection master = new(_masterConnectionString);

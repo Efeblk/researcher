@@ -14,7 +14,8 @@ public sealed class MigrationOwnershipTests
         string databaseName = "CollectorOwnershipTests_" + Guid.NewGuid().ToString("N");
         SqlConnectionStringBuilder connection = new(
             Environment.GetEnvironmentVariable("ACADEMIC_TEST_SQLSERVER") ??
-            @"Server=(localdb)\MSSQLLocalDB;Integrated Security=true;TrustServerCertificate=true");
+            @"Server=(localdb)\MSSQLLocalDB;Integrated Security=true;Encrypt=true;TrustServerCertificate=true");
+        connection.Encrypt = SqlConnectionEncryptOption.Mandatory;
         connection.InitialCatalog = "master";
         string masterConnectionString = connection.ConnectionString;
         await CreateDatabaseAsync(masterConnectionString, databaseName);
