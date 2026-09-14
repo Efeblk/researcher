@@ -61,6 +61,49 @@ public sealed class YoksisPersistenceTests(SqlServerFixture fixture)
     }
 
     [Fact]
+    public async Task CollectAsync_TcOwnedByOtherPersonnel_RejectsBeforeHttp()
+    {
+        int requestCount = 0;
+        string tcKimlikNo = new('5', 11);
+        IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:AcademicDatabase"] = fixture.ConnectionString,
+                ["BulkCollection:WorkerEnabled"] = "false",
+                ["Yoksis:Username"] = Guid.NewGuid().ToString("N"),
+                ["Yoksis:Password"] = Guid.NewGuid().ToString("N")
+            }).Build();
+        ServiceCollection services = new();
+        services.AddLogging();
+        services.AddSingleton(configuration);
+        services.AddAcademicPerformanceModule(configuration);
+        services.AddSingleton(new HttpClient(new StubHttpHandler(_ =>
+        {
+            requestCount++;
+            return StubHttpHandler.Json("<Envelope />");
+        })));
+        await using ServiceProvider provider = services.BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+        var database = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        database.Researchers.Add(new Researcher
+        {
+            PersonelId = "test-owner-" + Guid.NewGuid().ToString("N"),
+            TcKimlikNo = tcKimlikNo
+        });
+        await database.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<ArgumentException>(() => scope.ServiceProvider
+            .GetRequiredService<IAcademicPerformanceApplicationService>()
+            .CollectAsync(new()
+            {
+                PersonelId = "test-other-" + Guid.NewGuid().ToString("N"),
+                TcKimlikNo = tcKimlikNo
+            }));
+
+        Assert.Equal(0, requestCount);
+    }
+
+    [Fact]
     public async Task CollectAsync_IncrementalEmptyResponse_PreservesExistingRecordsAndSelections()
     {
         using var scope = fixture.Services.CreateScope();
