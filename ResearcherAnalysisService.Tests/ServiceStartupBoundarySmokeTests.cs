@@ -1,12 +1,60 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net.Sockets;
+using System.Reflection;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+using ResearcherAnalysisService.Products.Data;
 
 namespace ResearcherAnalysisService.Tests;
 
 public sealed class ServiceStartupBoundarySmokeTests
 {
+    private const string AnalysisHistoryTable = "dbo.ResearcherAnalysisVersionInfo";
+    private const string CollectorHistoryTable = "dbo.VersionInfo";
+
+    private static readonly string[] CollectorBusinessTables =
+    [
+        "bulk.BulkCollectionBatches", "bulk.BulkCollectionJobs",
+        "core.AcademicWorkResearchContexts", "core.AcademicWorks", "core.AcademicWorkSources",
+        "core.AcademicWorkTopics", "core.CanonicalResearcherWorks", "core.CanonicalWorkObservations",
+        "core.CanonicalWorks", "core.CollectionChanges", "core.PublicationDisplayApprovals",
+        "core.PublicationSummaries", "core.Researchers", "crossref.CrossrefWorks",
+        "googlescholar.GoogleScholarProfiles", "googlescholar.GoogleScholarWorks",
+        "integrations.ProviderRequestBudgets", "integrations.ProviderStatusObservations",
+        "openalex.OpenAlexProfiles", "openalex.OpenAlexWorks", "orcid.OrcidProfiles", "orcid.OrcidWorks",
+        "semanticscholar.SemanticScholarCitationContexts", "semanticscholar.SemanticScholarCitations",
+        "semanticscholar.SemanticScholarPapers", "trdizin.TrDizinProfiles", "trdizin.TrDizinWorks",
+        "wos.WebOfSciencePeerReviews", "wos.WebOfScienceProfiles", "wos.WebOfScienceWorks",
+        "yoksis.YoksisRecords"
+    ];
+
+    private static readonly string[] AnalysisBusinessTables =
+    [
+        "analysis.ArticleEvaluationAttempts", "analysis.ArticleEvaluationCases",
+        "analysis.ArticleEvaluationResults", "analysis.ArticleEvaluationRuns",
+        "analysis.ArticleEvaluationWorkItems", "analysis.ArticleReviewStageCheckpoints",
+        "analysis.ArticleReviewWorkItems", "analysis.ArticleSourcePages",
+        "analysis.ArticleSourceSnapshots", "analysis.ArticleSourceSpans", "analysis.ArticleSummaries",
+        "analysis.ArticleSummaryAutomationJobs", "analysis.CanonicalArticleAnalysisRuns",
+        "analysis.CanonicalArticleClaimEvidence", "analysis.CanonicalArticleClaims",
+        "analysis.CanonicalArticleReviewEvidence", "analysis.CanonicalArticleReviewFindings",
+        "analysis.CanonicalArticleReviewRuns", "analysis.CollectionChangeReceipts",
+        "analysis.GeminiUsageAttempts", "analysis.PublicationMetricProviderSnapshots",
+        "analysis.PublicationMetricSnapshots", "analysis.PublicationMetricsRefreshStates",
+        "analysis.ReferencePopulationManifests", "analysis.ReferencePopulationMembers",
+        "analysis.ResearcherAnalyses", "faculty.AssistantContextVersions", "faculty.AssistantRuns",
+        "hr.DossierReviewActions", "hr.EvidenceDossiers"
+    ];
+
+    private static readonly long[] AnalysisMigrationVersions =
+    [
+        202609140001, 202609140002, 202609140003, 202609140004, 202609140005,
+        202609140006, 202609140007, 202609140008, 202609140009, 202609140010,
+        202609140011, 202609140012, 202609140013, 202609140014, 202609140015,
+        202609140016, 202609140017
+    ];
+
     [ServiceBoundarySmokeFact]
     public async Task Hosts_MigrateSharedDatabaseInEitherOrderAndConcurrently()
     {
@@ -40,10 +88,14 @@ public sealed class ServiceStartupBoundarySmokeTests
         {
             case StartupOrder.CollectorFirst:
                 await collector.StartAndWaitAsync("/");
+                await AssertTablesAsync(database,
+                    [.. CollectorBusinessTables, CollectorHistoryTable]);
                 await analysis.StartAndWaitAsync("/health");
                 break;
             case StartupOrder.AnalysisFirst:
                 await analysis.StartAndWaitAsync("/health");
+                await AssertTablesAsync(database,
+                    [.. AnalysisBusinessTables, AnalysisHistoryTable]);
                 await collector.StartAndWaitAsync("/");
                 break;
             case StartupOrder.Concurrent:
@@ -54,17 +106,56 @@ public sealed class ServiceStartupBoundarySmokeTests
                 throw new ArgumentOutOfRangeException(nameof(order));
         }
 
-        Assert.Equal(1, await database.CountAsync(
-            "SELECT COUNT(*) FROM sys.tables WHERE schema_id=SCHEMA_ID('dbo') AND name='VersionInfo'"));
-        Assert.Equal(1, await database.CountAsync(
-            "SELECT COUNT(*) FROM sys.tables WHERE schema_id=SCHEMA_ID('dbo') AND name='ResearcherAnalysisVersionInfo'"));
-        Assert.Equal(1, await database.CountAsync(
-            "SELECT COUNT(*) FROM sys.tables WHERE schema_id=SCHEMA_ID('analysis') AND name='GeminiUsageAttempts'"));
-        Assert.Equal(1, await database.CountAsync(
-            "SELECT COUNT(*) FROM sys.tables WHERE schema_id=SCHEMA_ID('core') AND name='Researchers'"));
-        Assert.Equal(1, await database.CountAsync(
-            "SELECT COUNT(*) FROM [dbo].[ResearcherAnalysisVersionInfo] WHERE [Version]=202609140001"));
+        Assert.Equal(31, CollectorBusinessTables.Length);
+        Assert.Equal(30, AnalysisBusinessTables.Length);
+        Assert.Equal(61, CollectorBusinessTables.Length + AnalysisBusinessTables.Length);
+        await AssertTablesAsync(database,
+            [.. CollectorBusinessTables, .. AnalysisBusinessTables, CollectorHistoryTable, AnalysisHistoryTable]);
+        Assert.Equal(AnalysisMigrationVersions, await database.QueryInt64sAsync(
+            "SELECT [Version] FROM [dbo].[ResearcherAnalysisVersionInfo] ORDER BY [Version]"));
+
+        if (order == StartupOrder.CollectorFirst)
+            await AssertSourceProjectionQueriesAsync(database.ConnectionString);
     }
+
+    private static async Task AssertTablesAsync(TemporaryDatabase database, string[] expected)
+    {
+        string[] actual = await database.QueryStringsAsync("""
+            SELECT CONCAT(SCHEMA_NAME(schema_id), '.', name)
+            FROM sys.tables;
+            """);
+        Assert.Equal(expected.OrderBy(value => value, StringComparer.Ordinal),
+            actual.OrderBy(value => value, StringComparer.Ordinal));
+    }
+
+    private static async Task AssertSourceProjectionQueriesAsync(string connectionString)
+    {
+        DbContextOptions<AnalysisDbContext> options = new DbContextOptionsBuilder<AnalysisDbContext>()
+            .UseSqlServer(connectionString)
+            .Options;
+        await using AnalysisDbContext database = new(options);
+        MethodInfo queryMethod = typeof(ServiceStartupBoundarySmokeTests).GetMethod(
+            nameof(QuerySourceProjectionAsync), BindingFlags.NonPublic | BindingFlags.Static)!;
+        Type[] sourceEntityTypes = database.Model.GetEntityTypes()
+            .Where(entity => entity.GetTableName() is not null &&
+                entity.GetSchema() is not ("analysis" or "hr" or "faculty"))
+            .Select(entity => entity.ClrType)
+            .Distinct()
+            .OrderBy(type => type.FullName, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.NotEmpty(sourceEntityTypes);
+        foreach (Type sourceEntityType in sourceEntityTypes)
+        {
+            Task query = (Task)queryMethod.MakeGenericMethod(sourceEntityType)
+                .Invoke(null, [database])!;
+            await query;
+        }
+    }
+
+    private static async Task QuerySourceProjectionAsync<TEntity>(AnalysisDbContext database)
+        where TEntity : class =>
+        await database.Set<TEntity>().AsNoTracking().Take(1).ToListAsync();
 
     private static int AvailablePort()
     {
@@ -126,17 +217,17 @@ public sealed class ServiceStartupBoundarySmokeTests
             if (analysis)
             {
                 start.Environment["ConnectionStrings__UsageDatabase"] = connectionString;
-            }
-            else
-            {
-                start.Environment["ConnectionStrings__AcademicDatabase"] = connectionString;
-                start.Environment["AnalysisService__BaseUrl"] = "http://127.0.0.1:1/";
-                start.Environment["BulkCollection__WorkerEnabled"] = "false";
+                start.Environment["CollectionChanges__WorkerEnabled"] = "false";
                 start.Environment["ArticleSummaryAutomation__Enabled"] = "false";
                 start.Environment["ArticleSummaryAutomation__WorkerEnabled"] = "false";
                 start.Environment["PublicationMetrics__WorkerEnabled"] = "false";
                 start.Environment["ArticleEvaluation__WorkerEnabled"] = "false";
                 start.Environment["FacultyAssistant__WorkerEnabled"] = "false";
+            }
+            else
+            {
+                start.Environment["ConnectionStrings__AcademicDatabase"] = connectionString;
+                start.Environment["BulkCollection__WorkerEnabled"] = "false";
             }
             return new(new Process { StartInfo = start }, url);
         }
@@ -226,13 +317,30 @@ public sealed class ServiceStartupBoundarySmokeTests
             return new(databaseName, masterConnectionString, connection.ConnectionString);
         }
 
-        public async Task<int> CountAsync(string sql)
+        public async Task<string[]> QueryStringsAsync(string sql)
         {
+            List<string> values = [];
             await using SqlConnection connection = new(ConnectionString);
             await connection.OpenAsync();
             await using SqlCommand command = connection.CreateCommand();
             command.CommandText = sql;
-            return Convert.ToInt32(await command.ExecuteScalarAsync());
+            await using SqlDataReader reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                values.Add(reader.GetString(0));
+            return values.ToArray();
+        }
+
+        public async Task<long[]> QueryInt64sAsync(string sql)
+        {
+            List<long> values = [];
+            await using SqlConnection connection = new(ConnectionString);
+            await connection.OpenAsync();
+            await using SqlCommand command = connection.CreateCommand();
+            command.CommandText = sql;
+            await using SqlDataReader reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                values.Add(reader.GetInt64(0));
+            return values.ToArray();
         }
 
         public async ValueTask DisposeAsync()
