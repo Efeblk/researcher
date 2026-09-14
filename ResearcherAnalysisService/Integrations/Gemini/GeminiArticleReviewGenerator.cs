@@ -10,7 +10,7 @@ using ResearcherAnalysisService.Configuration;
 namespace ResearcherAnalysisService.Integrations.Gemini;
 
 public sealed class GeminiArticleReviewGenerator(GeminiArticleClient client, IOptions<AiOptions> options)
-    : IArticleReviewGenerator
+    : IArticleReviewRecoveryGenerator
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {

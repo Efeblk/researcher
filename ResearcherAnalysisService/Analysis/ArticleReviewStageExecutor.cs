@@ -107,9 +107,9 @@ public sealed class ArticleReviewStageExecutor(
             pass = await generator.GenerateAsync(request.Role, request.Source.Language,
                 request.Source.SourceKind, request.Source.SourceSpans!, cancellationToken);
         }
-        else if (generator is GeminiArticleReviewGenerator geminiGenerator)
+        else if (generator is IArticleReviewRecoveryGenerator recoveryGenerator)
         {
-            pass = await geminiGenerator.GenerateAsync(request.Role, request.Source.Language,
+            pass = await recoveryGenerator.GenerateAsync(request.Role, request.Source.Language,
                 request.Source.SourceKind, request.Source.SourceSpans!, request.GenerationThinkingLevel,
                 cancellationToken);
         }

@@ -1,12 +1,15 @@
 using System.Net;
 using System.Text.Json;
 using AcademicCollector.Analysis.Contracts;
+using ResearcherAnalysisService.Analysis;
 
 namespace ResearcherAnalysisService.Products.ArticleReviews;
 
 public sealed class ArticleReviewServiceClient(ResearcherAnalysisService.Analysis.ArticleReviewer reviewer,
     ResearcherAnalysisService.Analysis.ArticleReviewStageExecutor executor)
 {
+    private const string StageFailureMessage =
+        "Article review stage failed; no partial report was saved.";
     private static readonly string[] Roles = ["method", "quantitative", "claim_evidence", "teaching"];
 
     public async Task<ArticleReviewReport> ReviewAsync(
@@ -19,28 +22,91 @@ public sealed class ArticleReviewServiceClient(ResearcherAnalysisService.Analysi
     }
 
     public Task<ArticleReviewRuntimeConfiguration> GetConfigurationAsync(CancellationToken cancellationToken) =>
-        Task.FromResult(executor.GetConfiguration());
+        ExecuteControlAsync(() => executor.GetConfiguration());
 
     public Task<ArticleReviewStageQuote> QuoteAsync(ArticleReviewStageQuoteRequest request,
-        CancellationToken cancellationToken) => Task.FromResult(executor.Quote(request));
+        CancellationToken cancellationToken) => ExecuteControlAsync(() => executor.Quote(request));
 
     public Task<ArticleReviewGenerationStageResult> GenerateAsync(ArticleReviewStageDispatchRequest request,
-        CancellationToken cancellationToken) => executor.GenerateAsync(request, cancellationToken);
+        CancellationToken cancellationToken) => ExecuteStageAsync(
+            request, "generation", () => executor.GenerateAsync(request, cancellationToken), cancellationToken);
 
     public Task<ArticleReviewVerificationStageResult> VerifyAsync(ArticleReviewStageDispatchRequest request,
-        CancellationToken cancellationToken) => executor.VerifyAsync(request, cancellationToken);
-    private static bool ValidStageError(AnalysisErrorResponse error) =>
-        HasBoundedText(error.Message, 1000) && error.ErrorCode is
-            "output_limit" or "incomplete_output" or "invalid_json" or "invalid_evidence" or
-            "invalid_provider_response" or "provider_failure" or "provider_unavailable" or "timeout" &&
-        (error.Failure is null || KnownFailureReason(error.Failure.Reason) &&
-            error.Failure.Stage is null or "generation" or "verification" &&
-            error.Failure.Role is null or "method" or "quantitative" or "claim_evidence" or "teaching") &&
-        (error.ProviderAttempt is null || error.ProviderAttempt.AttemptId != Guid.Empty &&
-            HasBoundedText(error.ProviderAttempt.Outcome, 40) &&
-            (error.ProviderAttempt.ReturnedModel is null || HasBoundedText(error.ProviderAttempt.ReturnedModel, 200)) &&
-            error.ProviderAttempt.EstimatedCostUsd is null or >= 0 &&
-            (error.ProviderAttempt.PricingVersion is null || HasBoundedText(error.ProviderAttempt.PricingVersion, 100)));
+        CancellationToken cancellationToken) => ExecuteStageAsync(
+            request, "verification", () => executor.VerifyAsync(request, cancellationToken), cancellationToken);
+
+    private async Task<T> ExecuteStageAsync<T>(ArticleReviewStageDispatchRequest request, string stage,
+        Func<Task<T>> execute, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await execute();
+        }
+        catch (AnalysisInputTooLargeException)
+        {
+            throw new ArticleReviewInputTooLargeException();
+        }
+        catch (AnalysisUnavailableException)
+        {
+            throw StageFailure(HttpStatusCode.ServiceUnavailable, "provider_unavailable",
+                StageFailureMessage, request);
+        }
+        catch (InvalidAnalysisException exception)
+        {
+            string code = InvalidAnalysisException.CodeFor(exception.Reason);
+            throw StageFailure(HttpStatusCode.BadGateway, code,
+                StageFailureMessage, request,
+                new(code, exception.Stage ?? stage, exception.Role ?? request.Role));
+        }
+        catch (HttpRequestException)
+        {
+            throw StageFailure(HttpStatusCode.BadGateway, "provider_failure",
+                StageFailureMessage, request);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw StageFailure(HttpStatusCode.GatewayTimeout, "timeout",
+                StageFailureMessage, request,
+                new("timeout", stage, request.Role));
+        }
+    }
+
+    private static Task<T> ExecuteControlAsync<T>(Func<T> execute)
+    {
+        try
+        {
+            return Task.FromResult(execute());
+        }
+        catch (AnalysisInputTooLargeException)
+        {
+            throw new ArticleReviewInputTooLargeException();
+        }
+        catch (AnalysisUnavailableException)
+        {
+            throw new ArticleReviewAnalysisException(HttpStatusCode.ServiceUnavailable,
+                StageFailureMessage, "provider_unavailable", null);
+        }
+        catch (InvalidAnalysisException exception)
+        {
+            string code = InvalidAnalysisException.CodeFor(exception.Reason);
+            throw new ArticleReviewAnalysisException(HttpStatusCode.BadGateway,
+                StageFailureMessage, code, new(code, exception.Stage, exception.Role));
+        }
+    }
+
+    private ArticleReviewAnalysisException StageFailure(HttpStatusCode statusCode, string errorCode,
+        string message, ArticleReviewStageDispatchRequest request,
+        AnalysisFailureDetail? failure = null)
+    {
+        ArticleReviewProviderAttempt? attempt = executor.LastAttempt();
+        if (attempt is null || attempt.AttemptId != request.AttemptId ||
+            !HasBoundedText(attempt.Outcome, 40) ||
+            attempt.ReturnedModel is not null && !HasBoundedText(attempt.ReturnedModel, 200) ||
+            attempt.EstimatedCostUsd is < 0 ||
+            attempt.PricingVersion is not null && !HasBoundedText(attempt.PricingVersion, 100))
+            attempt = null;
+        return new(statusCode, message, errorCode, failure, attempt);
+    }
 
     internal static void Validate(ArticleReviewReport report, ReviewArticleRequest snapshot)
     {
