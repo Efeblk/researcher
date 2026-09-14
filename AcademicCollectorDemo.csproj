@@ -13,16 +13,17 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="AngleSharp" Version="1.8.0" />
+    <PackageReference Include="AngleSharp" Version="1.8.1" />
     <ProjectReference Include="ResearcherAnalysis.Contracts/ResearcherAnalysis.Contracts.csproj" />
     <PackageReference Include="FluentMigrator.Runner.SqlServer" Version="8.0.1" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" />
     <PackageReference Include="PdfPig" Version="0.1.16" />
     <PackageReference Include="PDFtoImage" Version="5.4.0" />
-    <PackageReference Include="Serenity.Assets" Version="10.5.0" />
-    <PackageReference Include="Serenity.Corelib" Version="10.5.0" />
-    <PackageReference Include="Serenity.Extensions" Version="10.5.0" />
-    <PackageReference Include="Serenity.Net.Web" Version="10.5.0" />
+    <PackageReference Include="Serenity.Assets" Version="10.5.1" />
+    <PackageReference Include="Serenity.Corelib" Version="10.5.1" />
+    <PackageReference Include="Serenity.Extensions" Version="10.5.1" />
+    <PackageReference Include="Serenity.Net.Web" Version="10.5.1" />
   </ItemGroup>
 
   <ItemGroup>
