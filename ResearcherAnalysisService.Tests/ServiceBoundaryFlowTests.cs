@@ -5,7 +5,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using ResearcherAnalysisService.Analysis;
+using ResearcherAnalysisService.Configuration;
 using ResearcherAnalysisService.Data;
+using ResearcherAnalysisService.Products.Api.Contracts;
 using ResearcherAnalysisService.Products.ArticleSummaries;
 using ResearcherAnalysisService.Products.Data;
 using ResearcherAnalysisService.Products.Metrics;
@@ -88,17 +91,44 @@ public sealed class ServiceBoundaryFlowTests
         Assert.Equal(2, await database.PublicationMetricsRefreshStates.CountAsync());
         Assert.Equal(2, await database.ArticleSummaryAutomationJobs.CountAsync());
 
+        PublicationMetricsProcessor metricsProcessor = new(database, new SyntheticMetricsComputer(),
+            new AnalysisSourceLock(database),
+            new StaticOptionsMonitor<PublicationMetricsOptions>(new() { BatchSize = 10 }),
+            TimeProvider.System);
+        Assert.Equal(2, await metricsProcessor.ProcessBatchAsync());
+        Assert.Equal(2, await database.PublicationMetricSnapshots.CountAsync());
+
+        int generatedSummaries = 0;
+        ArticleSummaryWorkflow automaticWorkflow = CreateSummaryWorkflow(
+            database, automationEnabled: true, () => generatedSummaries++);
+        long[] jobIds = await database.ArticleSummaryAutomationJobs.AsNoTracking()
+            .OrderBy(value => value.CanonicalWorkId).Select(value => value.Id).ToArrayAsync();
+        foreach (long jobId in jobIds)
+        {
+            database.ChangeTracker.Clear();
+            ArticleSummaryAutomationJob job = await database.ArticleSummaryAutomationJobs
+                .SingleAsync(value => value.Id == jobId);
+            Guid token = Guid.NewGuid();
+            job.Status = ArticleSummaryAutomationJobStatus.Running;
+            job.RunningInputHash = job.DesiredInputHash;
+            job.RunningPolicyVersion = job.DesiredPolicyVersion;
+            job.ExecutionToken = token;
+            job.AttemptGeneration++;
+            job.Attempts++;
+            await database.SaveChangesAsync();
+            await automaticWorkflow.SummarizeAutomaticAsync(new(
+                job.Id, job.CanonicalWorkId, job.Language, job.RunningInputHash,
+                job.RunningPolicyVersion, token), CancellationToken.None);
+        }
+        Assert.Equal(2, generatedSummaries);
+        Assert.Equal(2, await database.CanonicalArticleAnalysisRuns.CountAsync());
+
         ArticleSummaryAutomationJob originalJob = await database.ArticleSummaryAutomationJobs
             .SingleAsync(value => value.CanonicalWorkId == 101);
         string originalIdentity = originalJob.DesiredInputHash;
-        CanonicalArticleAnalysisRun oldRun = CreateHistoricalRun(originalIdentity);
-        database.CanonicalArticleAnalysisRuns.Add(oldRun);
-        await database.SaveChangesAsync();
-        originalJob.LastSuccessfulAnalysisRunId = oldRun.Id;
-        originalJob.ProcessedInputHash = originalIdentity;
-        originalJob.ProcessedPolicyVersion = originalJob.DesiredPolicyVersion;
-        originalJob.Status = ArticleSummaryAutomationJobStatus.Succeeded;
-        await database.SaveChangesAsync();
+        CanonicalArticleAnalysisRun oldRun = await database.CanonicalArticleAnalysisRuns.AsNoTracking()
+            .SingleAsync(value => value.CanonicalWorkId == 101);
+        Assert.Equal(originalIdentity, oldRun.SourceIdentityHash);
 
         Guid unsupported = Guid.NewGuid();
         Guid laterSupported = Guid.NewGuid();
@@ -139,6 +169,21 @@ public sealed class ServiceBoundaryFlowTests
         Assert.Contains("SourceIdentityChanged", freshness.Reasons);
         Assert.Null(await new CanonicalArticleEvidenceQueryService(database).GetLatestAsync(
             "person-1", 101, "tr", 0, 20, CancellationToken.None));
+
+        int manualGenerations = 0;
+        ArticleSummaryWorkflow manualWorkflow = CreateSummaryWorkflow(
+            database, automationEnabled: false, () => manualGenerations++);
+        Assert.NotNull(await manualWorkflow.SummarizeAsync(
+            "person-1", 1, "tr", CancellationToken.None));
+        Assert.Equal(1, manualGenerations);
+        CanonicalArticleEvidenceResponse? currentEvidence =
+            await new CanonicalArticleEvidenceQueryService(database).GetLatestAsync(
+                "person-1", 101, "tr", 0, 20, CancellationToken.None);
+        Assert.NotNull(currentEvidence);
+        Assert.NotEqual(oldRun.Id, currentEvidence.AnalysisRunId);
+        Assert.Equal(ArticleSummaryAutomationJobStatus.Pending,
+            (await database.ArticleSummaryAutomationJobs.AsNoTracking()
+                .SingleAsync(value => value.CanonicalWorkId == 101)).Status);
     }
 
     private static AcademicWork Work(int id, string personelId, string providerWorkId, string doi) => new()
@@ -170,46 +215,71 @@ public sealed class ServiceBoundaryFlowTests
         TimeProvider.System,
         NullLogger<CollectionChangeProcessor>.Instance);
 
-    private static CanonicalArticleAnalysisRun CreateHistoricalRun(string sourceIdentityHash)
+    private static ArticleSummaryWorkflow CreateSummaryWorkflow(
+        AnalysisDbContext database,
+        bool automationEnabled,
+        Action generated)
     {
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        return new()
+        IOptions<ArticleSummaryOptions> summaryOptions = Options.Create(new ArticleSummaryOptions
         {
-            CanonicalWorkId = 101,
-            SourceIdentityHash = sourceIdentityHash,
-            ArticleSourceSnapshot = new()
+            OcrEnabled = false
+        });
+        ArticleSummarizer summarizer = new(new SyntheticSummaryGenerator(generated),
+            new SyntheticClaimVerifier(), Options.Create(new AiOptions()));
+        return new(database, new SafeArticleFetcher(summaryOptions),
+            new ArticlePdfExtractor(summaryOptions), new ArticleHtmlExtractor(summaryOptions),
+            new ArticleSummaryServiceClient(summarizer), summaryOptions,
+            new AnalysisSourceLock(database),
+            new StaticOptionsMonitor<ArticleSummaryAutomationOptions>(new()
             {
-                CanonicalWorkId = 101,
-                ExtractedTextHash = new string('a', 64),
-                SourceKind = "abstract",
-                ExtractionVersion = "synthetic-v1",
-                CreatedAt = now
-            },
-            SavedArticleSummary = new()
+                Enabled = automationEnabled,
+                WorkerEnabled = automationEnabled
+            }));
+    }
+
+    private sealed class SyntheticSummaryGenerator(Action generated) : IArticleSummaryGenerator
+    {
+        public Task<GeneratedArticleChunk> GenerateAsync(string language, string sourceKind,
+            IReadOnlyList<AcademicCollector.Analysis.Contracts.ArticleSourceSpan> sourceSpans,
+            CancellationToken cancellationToken)
+        {
+            generated();
+            GeneratedArticleClaim claim = new("claim-1", "Synthetic supported finding.",
+                [sourceSpans[0].SourceId]);
+            return Task.FromResult(new GeneratedArticleChunk(
+                new([], [], [], [claim], []), "synthetic", "synthetic-v1"));
+        }
+    }
+
+    private sealed class SyntheticClaimVerifier : IArticleClaimVerifier
+    {
+        public Task<GeneratedVerificationBatch> VerifyAsync(string language,
+            IReadOnlyList<GeneratedArticleClaim> claims,
+            IReadOnlyList<AcademicCollector.Analysis.Contracts.ArticleSourceSpan> sourceSpans,
+            CancellationToken cancellationToken) => Task.FromResult(new GeneratedVerificationBatch(
+                claims.Select(claim => new GeneratedClaimVerdict(
+                    claim.ClaimId, "supported", "Synthetic exact source match.")).ToList(),
+                "synthetic", "synthetic-verify-v1"));
+    }
+
+    private sealed class SyntheticMetricsComputer : IPublicationMetricsComputer
+    {
+        public Task<PublicationMetricComputation> ComputeAsync(string personelId, string catalogVersion,
+            DateTime computedAt, CancellationToken cancellationToken)
+        {
+            ResearcherAnalysisService.Products.Api.Contracts.ResearcherPublicationMetricsResponse response = new()
             {
-                AcademicWorkId = 1,
-                OriginalAcademicWorkId = 1,
-                PersonelId = "person-1",
-                SavedAt = now,
-                SourceHash = new string('a', 64),
-                SourceKind = "abstract",
-                ExtractionVersion = "synthetic-v1",
-                SnapshotJson = "{}",
-                ReportJson = "{}"
-            },
-            AnalyzedAt = now,
-            SourceAcquiredAt = now,
-            SourceOrigin = "Synthetic",
-            Language = "tr",
-            PolicyVersion = "article-summary-v5",
-            Model = "synthetic",
-            PromptVersion = "synthetic-v1",
-            ExtractionMethod = "synthetic",
-            OmissionReasonsJson = "[]",
-            VerificationStatus = "automatically_checked",
-            VerificationModel = "synthetic",
-            VerificationPromptVersion = "synthetic-v1"
-        };
+                PersonelId = personelId,
+                Catalog = "Synthetic",
+                CatalogVersion = catalogVersion,
+                ResultLabel = "Synthetic",
+                ComputedAt = computedAt,
+                ValidYearUpperBound = computedAt.Year,
+                CanonicalWorkCount = 1,
+                ProviderObservationCount = 1
+            };
+            return Task.FromResult(new PublicationMetricComputation(response, "{}"));
+        }
     }
 
     private sealed class StaticOptionsMonitor<T>(T value) : IOptionsMonitor<T>
@@ -345,6 +415,10 @@ public sealed class ServiceBoundaryFlowTests
 
         private const string SourceContractSql = """
             IF SCHEMA_ID(N'core') IS NULL EXEC(N'CREATE SCHEMA [core] AUTHORIZATION [dbo]');
+            CREATE TABLE [core].[Researchers]
+            (
+                [PersonelID] nvarchar(200) NOT NULL PRIMARY KEY
+            );
             CREATE TABLE [core].[AcademicWorks]
             (
                 [Id] int NOT NULL PRIMARY KEY, [PersonelID] nvarchar(200) NOT NULL,
@@ -396,6 +470,7 @@ public sealed class ServiceBoundaryFlowTests
             """;
 
         private const string SeedSql = """
+            INSERT INTO [core].[Researchers] ([PersonelID]) VALUES (N'person-1'),(N'person-2');
             INSERT INTO [core].[AcademicWorks]
                 ([Id],[PersonelID],[Provider],[ProviderWorkId],[Title],[Doi],[Category],[CategorySource],[Abstract],[SyncedAt])
             VALUES
