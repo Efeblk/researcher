@@ -27,6 +27,10 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
                 """{"tomcatUp":true,"dbConnectionOk":true,"readOnlyDbConnectionOk":true,"overallOk":true}"""),
             "search.test" => Account(request),
             "openalex.test" => Limited(),
+            "scopus.test" => new(HttpStatusCode.Unauthorized)
+            {
+                Content = new StringContent("{\"error\":\"raw-secret\"}")
+            },
             "wos.test" => new(HttpStatusCode.Unauthorized),
             "yoksis.test" => new(HttpStatusCode.OK) { Content = new StringContent(
                 "<definitions xmlns='http://schemas.xmlsoap.org/wsdl/'/>") },
@@ -39,7 +43,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         using HttpClient client = new(handler);
         ProviderStatusService service = CreateService(client);
         var responses = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => service.GetAsync(default)));
-        Assert.Equal(9, handler.RequestCount);
+        Assert.Equal(10, handler.RequestCount);
         Assert.All(responses, response => Assert.Same(responses[0], response));
         var providers = responses[0].Providers.ToDictionary(provider => provider.Provider);
         Assert.Equal("Healthy", providers["Orcid"].Status);
@@ -50,6 +54,8 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         Assert.Equal("RateLimited", providers["OpenAlex"].Status);
         Assert.NotNull(providers["OpenAlex"].RetryAt);
         Assert.Equal("credits", providers["OpenAlex"].ProviderQuotas[0].Unit);
+        Assert.Equal("Unauthorized", providers["Scopus"].Status);
+        Assert.DoesNotContain("raw-secret", JsonSerializer.Serialize(providers["Scopus"]));
         Assert.Equal("Unauthorized", providers["WebOfScience"].Status);
         Assert.Equal("Unavailable", providers["WebOfScience"].RemainingUsage.Status);
         Assert.Equal("Reachable", providers["Yoksis"].Status);
@@ -70,7 +76,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         using HttpClient client = new(handler);
         ProviderStatusResponse response = await CreateService(client, false).GetAsync(default);
         Assert.Equal(5, handler.RequestCount);
-        Assert.Equal(4, response.Providers.Count(provider => provider.Status == "NotConfigured"));
+        Assert.Equal(5, response.Providers.Count(provider => provider.Status == "NotConfigured"));
         Assert.All(response.Providers.Where(provider => provider.Status == "NotConfigured"),
             provider => Assert.Equal("Unavailable", provider.RemainingUsage.Status));
         Assert.All(response.Providers.Where(provider => provider.Status != "NotConfigured"),
@@ -163,6 +169,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         {
             "search.test" => Account(request),
             "openalex.test" => OpenAlexWithQuotaHeaders(),
+            "scopus.test" => ScopusWithQuotaHeaders(),
             "wos.test" => WebOfScienceWithQuotaHeaders(),
             "trdizin.test" => TrDizin(request),
             "crossref.test" => Crossref(request),
@@ -187,7 +194,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         JsonElement root = document.RootElement;
         Assert.Equal(["providers"], root.EnumerateObject().Select(property => property.Name));
         JsonElement[] providers = root.GetProperty("providers").EnumerateArray().ToArray();
-        Assert.Equal(9, providers.Length);
+        Assert.Equal(10, providers.Length);
         Assert.All(providers, provider => Assert.Equal(["provider", "health", "quotas"],
             provider.EnumerateObject().Select(property => property.Name)));
         JsonElement quota = providers.Single(provider =>
@@ -210,6 +217,13 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         Assert.Equal("credits", openAlexQuota.GetProperty("unit").GetString());
         Assert.Equal("daily", openAlexQuota.GetProperty("period").GetString());
         Assert.NotEqual(JsonValueKind.Null, openAlexQuota.GetProperty("resetsAt").ValueKind);
+
+        JsonElement scopusQuota = Assert.Single(providers.Single(provider =>
+            provider.GetProperty("provider").GetString() == "Scopus")
+            .GetProperty("quotas").EnumerateArray());
+        Assert.Equal(20000, scopusQuota.GetProperty("limit").GetDecimal());
+        Assert.Equal(12345, scopusQuota.GetProperty("remaining").GetDecimal());
+        Assert.Equal("weekly", scopusQuota.GetProperty("period").GetString());
 
         JsonElement[] wosQuotas = providers.Single(provider =>
             provider.GetProperty("provider").GetString() == "WebOfScience")
@@ -375,6 +389,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
             ["Orcid:ApiBaseUrl"] = "https://orcid.test/v3.0/" + Guid.NewGuid().ToString("N"),
             ["SearchApi:ApiBaseUrl"] = "https://search.test/api/v1/search",
             ["OpenAlex:ApiBaseUrl"] = "https://openalex.test",
+            ["Scopus:ApiBaseUrl"] = "https://scopus.test/content",
             ["WebOfScience:ApiBaseUrl"] = "https://wos.test/v1",
             ["Yoksis:ServiceUrl"] = "https://yoksis.test/ws",
             ["TrDizin:ApiBaseUrl"] = "https://trdizin.test",
@@ -387,7 +402,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         settings["ProviderRequestLimits:SearchApi:Enabled"] = searchApiEnabled.ToString();
         settings["ProviderRequestLimits:Unpaywall:Enabled"] = unpaywallEnabled.ToString();
         if (credentials)
-            foreach (string key in new[] { "SearchApi:ApiKey", "WebOfScience:ApiKey", "Yoksis:Username", "Yoksis:Password" })
+            foreach (string key in new[] { "SearchApi:ApiKey", "Scopus:ApiKey", "Scopus:InstToken", "WebOfScience:ApiKey", "Yoksis:Username", "Yoksis:Password" })
                 settings[key] = "synthetic";
         if (credentials)
         {
@@ -414,6 +429,17 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         response.Headers.Add("X-RateLimit-Limit", "900");
         response.Headers.Add("X-RateLimit-Remaining", "321");
         response.Headers.Add("X-RateLimit-Reset", "3600");
+        return response;
+    }
+
+    private static HttpResponseMessage ScopusWithQuotaHeaders()
+    {
+        HttpResponseMessage response = StubHttpHandler.Json(
+            """{"search-results":{"opensearch:totalResults":"0","entry":[]}}""");
+        response.Headers.Add("X-RateLimit-Limit", "20000");
+        response.Headers.Add("X-RateLimit-Remaining", "12345");
+        response.Headers.Add("X-RateLimit-Reset",
+            DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds().ToString());
         return response;
     }
 
@@ -478,6 +504,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
             """{"tomcatUp":true,"dbConnectionOk":true,"readOnlyDbConnectionOk":true,"overallOk":true}"""),
         "search.test" => Account(request),
         "openalex.test" => StubHttpHandler.Json("""{"results":[]}"""),
+        "scopus.test" => StubHttpHandler.Json("""{"search-results":{"opensearch:totalResults":"0","entry":[]}}"""),
         "wos.test" => StubHttpHandler.Json("""{"metadata":{}}"""),
         "yoksis.test" => new(HttpStatusCode.OK) { Content = new StringContent(
             "<definitions xmlns='http://schemas.xmlsoap.org/wsdl/'/>") },

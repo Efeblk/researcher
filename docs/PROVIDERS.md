@@ -6,6 +6,7 @@ Bu belge collector'ın akademik veri entegrasyonlarının sabit kapsamını öze
 | --- | --- | --- |
 | ORCID | Açık profil, faaliyet ve eser | Atıf, h-index ve i10-index sağlamaz. |
 | OpenAlex | ORCID eşleşmeli profil, yayın ve kendi metrikleri | Scholar metriği değildir; aday eşleşme kusursuz olmayabilir. |
+| Scopus | Scopus Author ID ile Author Retrieval profili/metrikleri ve `AU-ID(...)` Search yayınları | API anahtarı gerekir; `InstToken` kurumsal erişim gerektiğinde eklenir. Search ve Author Retrieval kotaları ayrıdır. |
 | Google Scholar / SearchApi | Profil, yayın, atıf, h/i10 | Google'ın resmî API'si değildir; entegrasyon varsayılan ayarda kapalıdır. |
 | Web of Science Starter | ResearcherID ile WOS/WOK yayınları ve varsa atıf | h-index yalnız tüm gerekli atıflar geldiyse yerelde hesaplanır; i10 yoktur. |
 | YÖKSİS | 21 kategori ve desteklenen eser ayrıntıları | Kurumsal kimlik, T.C. kimlik no ve ayrıca BYS yetkisi gerekir. |
@@ -14,7 +15,9 @@ Bu belge collector'ın akademik veri entegrasyonlarının sabit kapsamını öze
 | Semantic Scholar | DOI metaverisi, atıf bağlamları, TLDR ve açık PDF adayı | Atıf yapan eserler araştırmacının yayın listesine eklenmez. |
 | Unpaywall | Collector metadata zenginleştirmesinde DOI ile açık erişim kaynak adayı | Yalnız geçerli `Unpaywall:Email` yapılandırıldığında çağrılır; Analysis Service kaydedilmiş adayı salt okunur kullanır. |
 
-ORCID toplaması OpenAlex ve TR Dizin'i de tetikler; DOI bulunan ortak eserler Crossref ve Semantic Scholar ile zenginleştirilebilir. Sağlayıcı metrikleri kaynak adıyla ayrı tutulur. ResearchGate/Academia.edu scraping'i ve Scopus toplaması kapsam dışıdır.
+ORCID toplaması OpenAlex ve TR Dizin'i de tetikler; Scopus yalnız doğrulanmış `ScopusID` ile çalışır. DOI bulunan ortak eserler Crossref ve Semantic Scholar ile zenginleştirilebilir. Sağlayıcı metrikleri kaynak adıyla ayrı tutulur. ResearchGate/Academia.edu scraping'i kapsam dışıdır.
+
+Scopus için `Scopus:ApiKey` zorunludur; kurumsal abonelik gerekiyorsa `Scopus:InstToken` da user-secrets veya güvenli deployment yapılandırmasından verilir. İstekler yalnız yapılandırılmış `Scopus:ApiBaseUrl` altında oluşturulur ve sırlar `X-ELS-APIKey` / `X-ELS-Insttoken` başlıklarında taşınır. Search sonuçları 25 kayıtlık COMPLETE sayfaları ve cursor ile, `Scopus:MaximumPages` sınırına kadar alınır. Sayfa eksik veya hatalıysa önceki tam profil ve yayınlar değiştirilmez.
 
 ## Durum ve kota anlamı
 
@@ -33,4 +36,4 @@ Anahtar, parola, T.C. kimlik numarası, ham kişisel yanıt ve istek URL'leri lo
 
 YÖKSİS Basic Authentication yalnız Base64 kodlar; HTTPS korunmalı ve endpoint dış ağa BYS kontrolü olmadan açılmamalıdır. Uzak servis şartları, saklama hakları, kota ve kurumsal lisanslar deployment sahibi tarafından teyit edilmelidir.
 
-Resmî başvurular: [ORCID API](https://info.orcid.org/documentation/integration-guide/orcid-api-guide/) · [OpenAlex API](https://docs.openalex.org/) · [SearchApi Scholar Author](https://www.searchapi.io/docs/google-scholar-author) · [WoS Starter](https://developer.clarivate.com/apis/wos-starter) · [YÖKSİS WSDL](https://servisler.yok.gov.tr/ws/OzgecmisV2?wsdl) · [TR Dizin](https://development.trdizin.gov.tr/) · [Crossref REST API](https://www.crossref.org/documentation/retrieve-metadata/rest-api/) · [Semantic Scholar API](https://www.semanticscholar.org/product/api) · [Unpaywall](https://unpaywall.org/products/api)
+Resmî başvurular: [ORCID API](https://info.orcid.org/documentation/integration-guide/orcid-api-guide/) · [OpenAlex API](https://docs.openalex.org/) · [Scopus APIs](https://dev.elsevier.com/) · [SearchApi Scholar Author](https://www.searchapi.io/docs/google-scholar-author) · [WoS Starter](https://developer.clarivate.com/apis/wos-starter) · [YÖKSİS WSDL](https://servisler.yok.gov.tr/ws/OzgecmisV2?wsdl) · [TR Dizin](https://development.trdizin.gov.tr/) · [Crossref REST API](https://www.crossref.org/documentation/retrieve-metadata/rest-api/) · [Semantic Scholar API](https://www.semanticscholar.org/product/api) · [Unpaywall](https://unpaywall.org/products/api)

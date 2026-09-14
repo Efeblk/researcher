@@ -1,6 +1,7 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 
@@ -14,6 +15,7 @@ public sealed class AcademicWorkCategorizer
         List<WebOfScienceWork>? webOfScienceWorks =
             researcher.WebOfScienceProfile?.Works;
         List<OpenAlexWork>? openAlexWorks = researcher.OpenAlexProfile?.Works;
+        List<ScopusWork>? scopusWorks = researcher.ScopusProfile?.Works;
         int index = 0;
 
         if (orcidWorks is not null)
@@ -37,17 +39,37 @@ public sealed class AcademicWorkCategorizer
             }
         }
 
-        if (openAlexWorks is null)
+        for (index = 0; index < (openAlexWorks?.Count ?? 0); index++)
         {
-            return;
-        }
-
-        for (index = 0; index < openAlexWorks.Count; index++)
-        {
-            openAlexWorks[index].Category = GetOpenAlexCategory(
+            openAlexWorks![index].Category = GetOpenAlexCategory(
                 openAlexWorks[index].WorkType);
             openAlexWorks[index].CategorySource = AcademicWorkCategorySource.OpenAlex;
         }
+
+        for (index = 0; index < (scopusWorks?.Count ?? 0); index++)
+        {
+            scopusWorks![index].Category = GetScopusCategory(scopusWorks[index].WorkType);
+            scopusWorks[index].CategorySource = AcademicWorkCategorySource.Scopus;
+        }
+    }
+
+    public AcademicWorkCategory GetScopusCategory(string? type)
+    {
+        return type?.Trim().ToLowerInvariant() switch
+        {
+            "article" or "ar" => AcademicWorkCategory.Article,
+            "book" or "bk" => AcademicWorkCategory.Book,
+            "book chapter" or "ch" => AcademicWorkCategory.BookChapter,
+            "conference paper" or "cp" => AcademicWorkCategory.ConferencePaper,
+            "conference review" or "cr" => AcademicWorkCategory.Review,
+            "review" or "re" => AcademicWorkCategory.Review,
+            "editorial" or "ed" => AcademicWorkCategory.Editorial,
+            "letter" or "le" => AcademicWorkCategory.Letter,
+            "note" or "no" => AcademicWorkCategory.Other,
+            "erratum" or "er" => AcademicWorkCategory.Erratum,
+            "short survey" or "sh" => AcademicWorkCategory.Review,
+            _ => AcademicWorkCategory.Unknown
+        };
     }
 
     public AcademicWorkCategory GetOpenAlexCategory(string? type)

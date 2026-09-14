@@ -23,6 +23,26 @@ public sealed class ProviderStatusServiceTests(SqlServerFixture fixture)
     }
 
     [Fact]
+    public void CreateRequest_Scopus_UsesApprovedBaseAndBothCredentialHeaders()
+    {
+        IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:AcademicDatabase"] = fixture.ConnectionString,
+                ["Scopus:ApiKey"] = "synthetic-scopus-key",
+                ["Scopus:InstToken"] = "synthetic-inst-token"
+            }).Build();
+
+        using HttpRequestMessage request = Service(new CountingHandler(), configuration)
+            .CreateRequest("Scopus", "https://api.elsevier.com/content/");
+
+        Assert.Equal("api.elsevier.com", request.RequestUri!.Host);
+        Assert.Equal("synthetic-scopus-key", request.Headers.GetValues("X-ELS-APIKey").Single());
+        Assert.Equal("synthetic-inst-token", request.Headers.GetValues("X-ELS-Insttoken").Single());
+        Assert.DoesNotContain("synthetic", request.RequestUri.AbsoluteUri);
+    }
+
+    [Fact]
     public async Task CheckOrcidAsync_ConcurrentInstances_UseOneProbeAndSharedFiveMinuteResult()
     {
         CountingHandler handler = new();

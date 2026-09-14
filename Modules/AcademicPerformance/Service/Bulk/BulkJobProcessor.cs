@@ -79,6 +79,8 @@ public sealed class BulkJobProcessor(
                     (response.Researcher?.OrcidProfile is null || response.Researcher.OpenAlexProfile is null)) ||
                 (!string.IsNullOrWhiteSpace(input.GoogleScholarId) && response.Researcher?.GoogleScholarProfile is null) ||
                 (!string.IsNullOrWhiteSpace(input.WebOfScienceId) && response.Researcher?.WebOfScienceProfile is null);
+            hasErrors = hasErrors ||
+                (!string.IsNullOrWhiteSpace(input.ScopusId) && response.Researcher?.ScopusProfile is null);
             if (saved && !hasErrors)
             {
                 job.Status = BulkJobStatus.Succeeded;

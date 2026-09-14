@@ -1,6 +1,7 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
@@ -34,6 +35,13 @@ internal static class ResearcherProviderMetricsSynchronizer
             if (researcher is not null)
                 ApplyWebOfScience(researcher, entry.State == EntityState.Deleted ? null : entry.Entity);
         }
+
+        foreach (EntityEntry<ScopusProfile> entry in Changed<ScopusProfile>(changeTracker))
+        {
+            Researcher? researcher = FindResearcher(dbContext, entry.Entity.PersonelId, entry.Entity.Researcher);
+            if (researcher is not null)
+                ApplyScopus(researcher, entry.State == EntityState.Deleted ? null : entry.Entity);
+        }
     }
 
     public static async Task SynchronizeAsync(
@@ -65,6 +73,14 @@ internal static class ResearcherProviderMetricsSynchronizer
                 dbContext, entry.Entity.PersonelId, entry.Entity.Researcher, cancellationToken);
             if (researcher is not null)
                 ApplyWebOfScience(researcher, entry.State == EntityState.Deleted ? null : entry.Entity);
+        }
+
+        foreach (EntityEntry<ScopusProfile> entry in Changed<ScopusProfile>(changeTracker))
+        {
+            Researcher? researcher = await FindResearcherAsync(
+                dbContext, entry.Entity.PersonelId, entry.Entity.Researcher, cancellationToken);
+            if (researcher is not null)
+                ApplyScopus(researcher, entry.State == EntityState.Deleted ? null : entry.Entity);
         }
     }
 
@@ -122,6 +138,14 @@ internal static class ResearcherProviderMetricsSynchronizer
         researcher.ScholarI10IndexRecent = profile?.I10IndexRecent;
         researcher.ScholarMetricsSinceYear = profile?.MetricsSinceYear;
         researcher.ScholarMetricsUpdatedAt = profile?.LastUpdatedAt;
+    }
+
+    private static void ApplyScopus(Researcher researcher, ScopusProfile? profile)
+    {
+        researcher.ScopusCitationCount = profile?.CitationCount ?? profile?.CitedByCount;
+        researcher.ScopusHIndex = profile?.HIndex;
+        researcher.ScopusDocumentsCount = profile?.DocumentsCount;
+        researcher.ScopusMetricsUpdatedAt = profile?.LastUpdatedAt;
     }
 
     private static void ApplyWebOfScience(Researcher researcher, WebOfScienceProfile? profile)

@@ -18,6 +18,12 @@
     "ApiKey": "",
     "MaximumPages": 100
   },
+  "Scopus": {
+    "ApiBaseUrl": "https://api.elsevier.com/content/",
+    "ApiKey": "",
+    "InstToken": "",
+    "MaximumPages": 100
+  },
   "WebOfScience": {
     "ApiBaseUrl": "https://api.clarivate.com/apis/wos-starter/v1",
     "DatabaseIds": [
@@ -82,6 +88,11 @@
     "OpenAlex": {
       "MinimumIntervalMilliseconds": 20,
       "DailyRequestLimit": 1000
+    },
+    "Scopus": {
+      "Enabled": true,
+      "MinimumIntervalMilliseconds": 400,
+      "DailyRequestLimit": 0
     },
     "WebOfScience": {
       "MinimumIntervalMilliseconds": 250,

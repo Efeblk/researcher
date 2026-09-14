@@ -215,6 +215,34 @@ public sealed class ProviderStatusServiceTests
         Assert.Empty(ProviderStatusService.ParseCrossrefQuotas(response));
     }
 
+    [Fact]
+    public void ParseScopusQuotas_ActualHeaders_UsesEpochResetAndWeeklySearchQuota()
+    {
+        using HttpResponseMessage response = new(HttpStatusCode.OK);
+        response.Headers.Add("X-RateLimit-Limit", "20000");
+        response.Headers.Add("X-RateLimit-Remaining", "12345");
+        response.Headers.Add("X-RateLimit-Reset", "1789344000");
+
+        ProviderQuotaDto quota = Assert.Single(ProviderStatusService.ParseScopusQuotas(response));
+
+        Assert.Equal(20000, quota.Limit);
+        Assert.Equal(12345, quota.Remaining);
+        Assert.Equal("week", quota.Window);
+        Assert.Equal("requests", quota.Unit);
+        Assert.Equal("api-key", quota.Scope);
+        Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(1789344000).UtcDateTime, quota.ResetsAt);
+    }
+
+    [Fact]
+    public void ParseScopusQuotas_UnrelatedOrMalformedHeaders_DoesNotInventValues()
+    {
+        using HttpResponseMessage response = new(HttpStatusCode.OK);
+        response.Headers.TryAddWithoutValidation("X-RateLimit-Limit", "invalid");
+        response.Headers.Add("X-Elsevier-Entitlement", "fake");
+
+        Assert.Empty(ProviderStatusService.ParseScopusQuotas(response));
+    }
+
     [Theory]
     [InlineData("90", true)]
     [InlineData("invalid", false)]

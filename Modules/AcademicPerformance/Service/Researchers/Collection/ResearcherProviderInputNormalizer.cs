@@ -14,11 +14,11 @@ public sealed partial class ResearcherProviderInputNormalizer(ResearcherIdentifi
             Orcid = NormalizeField("ORCID", input.Orcid, NormalizeOrcidCandidate, warnings),
             GoogleScholarId = NormalizeField("Google Scholar ID", input.GoogleScholarId, NormalizeScholarCandidate, warnings),
             WebOfScienceResearcherId = NormalizeField("Web of Science ResearcherID", input.WebOfScienceResearcherId,
-                NormalizeWosCandidate, warnings)
+                NormalizeWosCandidate, warnings),
+            ScopusId = NormalizeField("Scopus ID", input.ScopusId, NormalizeScopusCandidate, warnings)
         };
-        if (!string.IsNullOrWhiteSpace(input.ScopusId))
-            warnings.Add("Scopus ID: collection is unsupported and the value was not used.");
-        if (normalized.Orcid is null && normalized.GoogleScholarId is null && normalized.WebOfScienceResearcherId is null)
+        if (normalized.Orcid is null && normalized.GoogleScholarId is null &&
+            normalized.WebOfScienceResearcherId is null && normalized.ScopusId is null)
             return new(normalized, warnings, "No usable supported provider identifier remains after validation.");
         try { parser.Create(ToCollectionRequest(normalized)); }
         catch (ArgumentException)
@@ -34,6 +34,7 @@ public sealed partial class ResearcherProviderInputNormalizer(ResearcherIdentifi
         if (input.Orcid is not null) identifiers.AddRange(["--orcid", input.Orcid]);
         if (input.GoogleScholarId is not null) identifiers.AddRange(["--scholar", input.GoogleScholarId]);
         if (input.WebOfScienceResearcherId is not null) identifiers.AddRange(["--researcherid", input.WebOfScienceResearcherId]);
+        if (input.ScopusId is not null) identifiers.AddRange(["--scopus", input.ScopusId]);
         return new() { Identifiers = identifiers };
     }
 
@@ -114,10 +115,36 @@ public sealed partial class ResearcherProviderInputNormalizer(ResearcherIdentifi
         catch (ArgumentException) { return null; }
     }
 
+    private static string? NormalizeScopusCandidate(string value)
+    {
+        string candidate = TrimSafeWrappers(value);
+        if (Uri.TryCreate(candidate, UriKind.Absolute, out Uri? uri))
+        {
+            if (uri.Scheme is not ("http" or "https") ||
+                !AllowedScopusHost(uri.Host) || !string.IsNullOrEmpty(uri.Fragment) ||
+                !uri.AbsolutePath.Equals("/authid/detail.uri", StringComparison.OrdinalIgnoreCase))
+                return null;
+            List<string[]> authorParts = uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries)
+                .Select(part => part.Split('=', 2))
+                .Where(pair => Uri.UnescapeDataString(pair[0]).Equals("authorId", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (authorParts.Count != 1 || authorParts[0].Length != 2)
+                return null;
+            candidate = Uri.UnescapeDataString(authorParts[0][1]);
+        }
+        if (candidate.StartsWith("SCOPUS_ID:", StringComparison.OrdinalIgnoreCase))
+            candidate = candidate["SCOPUS_ID:".Length..];
+        try { return ResearcherIdentifierParser.NormalizeScopusId(candidate); }
+        catch (ArgumentException) { return null; }
+    }
+
     private static bool AllowedScholarHost(string host) =>
         host.Equals("scholar.google.com", StringComparison.OrdinalIgnoreCase) ||
         host.Equals("scholar.google.com.tr", StringComparison.OrdinalIgnoreCase) ||
         host.Equals("scholar.google.co.za", StringComparison.OrdinalIgnoreCase);
+    private static bool AllowedScopusHost(string host) =>
+        host.Equals("www.scopus.com", StringComparison.OrdinalIgnoreCase) ||
+        host.Equals("scopus.com", StringComparison.OrdinalIgnoreCase);
     private static bool IsMissingValue(string value) => value.Equals("NULL", StringComparison.OrdinalIgnoreCase) ||
         value is "0" or "." or "-" || value.StartsWith('#');
     private static string TrimSafeWrappers(string value) =>

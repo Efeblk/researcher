@@ -163,7 +163,7 @@ public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture 
     }
 
     [Fact]
-    public async Task CollectAsync_ScopusOnly_RejectsWithSafeReason()
+    public async Task CollectAsync_InvalidScopusOnly_RejectsWithSafeReason()
     {
         using var scope = fixture.Services.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<IAcademicPerformanceApplicationService>();
@@ -175,7 +175,7 @@ public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture 
             }));
         Assert.DoesNotContain(scopus, exception.Message);
         Assert.Contains("Scopus ID", exception.Message);
-        Assert.Contains("unsupported", exception.Message);
+        Assert.Contains("invalid", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

@@ -25,7 +25,7 @@ public sealed class BulkResearcherInputNormalizer(ResearcherProviderInputNormali
             {
                 tcKimlikNo = YoksisCollectionService.ValidateTcKimlikNo(input.TcKimlikNo);
                 if (result.Input.Orcid is null && result.Input.GoogleScholarId is null &&
-                    result.Input.WebOfScienceResearcherId is null)
+                    result.Input.WebOfScienceResearcherId is null && result.Input.ScopusId is null)
                     rejectionReason = null;
             }
             catch (ArgumentException)
@@ -40,7 +40,7 @@ public sealed class BulkResearcherInputNormalizer(ResearcherProviderInputNormali
             Orcid = result.Input.Orcid,
             GoogleScholarId = result.Input.GoogleScholarId,
             WebOfScienceId = result.Input.WebOfScienceResearcherId,
-            ScopusId = input.ScopusId?.Trim()
+            ScopusId = result.Input.ScopusId
         }, result.Warnings, rejectionReason);
     }
 }
