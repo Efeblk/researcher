@@ -58,8 +58,29 @@ jobs:
       - name: Build solution
         run: dotnet build AcademicCollectorDemo.sln --configuration Release --no-restore
 
+      - name: Verify independent service publish outputs
+        shell: pwsh
+        run: |
+          $collectorPublish = Join-Path $env:RUNNER_TEMP 'collector-publish'
+          $analysisPublish = Join-Path $env:RUNNER_TEMP 'analysis-publish'
+          dotnet publish AcademicCollectorDemo.csproj --configuration Release --no-build --no-restore -p:SkipTSBuild=true --output $collectorPublish
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet publish ResearcherAnalysisService/ResearcherAnalysisService.csproj --configuration Release --no-build --no-restore --output $analysisPublish
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (Test-Path (Join-Path $collectorPublish 'ResearcherAnalysisService.dll')) { throw "Collector publish includes analysis runtime" }
+          if (Test-Path (Join-Path $collectorPublish 'ResearcherAnalysisService/appsettings.json')) { throw "Collector publish includes analysis configuration" }
+          if (Test-Path (Join-Path $analysisPublish 'AcademicCollectorDemo.dll')) { throw "Analysis publish includes collector runtime" }
+          if (Test-Path (Join-Path $analysisPublish 'academicsettings.json')) { throw "Analysis publish includes collector configuration" }
+
       - name: Test analysis service
         run: dotnet test ResearcherAnalysisService.Tests/ResearcherAnalysisService.Tests.csproj --configuration Release --no-build --no-restore
+
+      - name: Smoke-test independent startup and shared migrations
+        shell: pwsh
+        env:
+          RUN_SERVICE_BOUNDARY_SMOKE: true
+          SERVICE_BOUNDARY_REPOSITORY_ROOT: ${{ github.workspace }}
+        run: dotnet test ResearcherAnalysisService.Tests/ResearcherAnalysisService.Tests.csproj --configuration Release --no-build --no-restore --filter FullyQualifiedName~ServiceStartupBoundarySmokeTests
 
   build:
     name: Build
@@ -92,9 +113,6 @@ jobs:
       - name: Build
         run: dotnet build AcademicCollectorDemo.sln --configuration Release --no-restore
 
-      - name: Test analysis service with synthetic AI responses
-        run: dotnet test ResearcherAnalysisService.Tests/ResearcherAnalysisService.Tests.csproj --configuration Release --no-build --no-restore
-
       - name: Type-check front end
         run: npm run typecheck
 
@@ -103,6 +121,9 @@ jobs:
 
       - name: Start isolated test SQL Server
         run: bash .github/scripts/start-test-sqlserver.sh
+
+      - name: Test analysis service with synthetic AI responses
+        run: dotnet test ResearcherAnalysisService.Tests/ResearcherAnalysisService.Tests.csproj --configuration Release --no-build --no-restore
 
       - name: Test server and SQL Server persistence
         run: dotnet test AcademicCollectorDemo.Tests/AcademicCollectorDemo.Tests.csproj --configuration Release --no-restore

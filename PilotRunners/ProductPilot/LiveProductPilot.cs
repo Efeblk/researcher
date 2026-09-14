@@ -34,6 +34,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ResearcherAnalysisService.Analysis;
 using ResearcherAnalysisService.Configuration;
+using ResearcherAnalysisService.Data;
 using ResearcherAnalysisService.Integrations.Gemini;
 using Serenity;
 using Serenity.Extensions.DependencyInjection;
@@ -956,6 +957,7 @@ internal static class LiveProductPilot
     private static async Task<WebApplication> StartCollectorAsync(string root, string database,
         string url, bool workerEnabled)
     {
+        EnsureAnalysisDatabase(database);
         WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
             EnvironmentName = "Testing", ContentRootPath = root,
@@ -985,6 +987,20 @@ internal static class LiveProductPilot
         app.MapGet("/", () => Results.Ok(new { Status = "ProductPilot" }));
         await app.StartAsync();
         return app;
+    }
+
+    private static void EnsureAnalysisDatabase(string database)
+    {
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:UsageDatabase"] = database
+            }).Build();
+        ServiceCollection services = new();
+        services.AddLogging();
+        services.AddAnalysisDatabaseMigrations(configuration);
+        using ServiceProvider provider = services.BuildServiceProvider();
+        provider.MigrateAnalysisDatabase();
     }
 
     private static Dictionary<string, string?> CollectorConfiguration(string database, bool workerEnabled)

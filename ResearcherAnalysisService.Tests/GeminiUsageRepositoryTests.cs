@@ -1,17 +1,17 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
-using AcademicCollectorDemo.Tests.Infrastructure;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using ResearcherAnalysisService.Configuration;
 using ResearcherAnalysisService.Integrations.Gemini;
+using ResearcherAnalysisService.Tests.Infrastructure;
 
-namespace AcademicCollectorDemo.Tests.Integration;
+namespace ResearcherAnalysisService.Tests;
 
-[Collection("SQL Server")]
-public sealed class GeminiUsageRepositoryTests(SqlServerFixture fixture)
+[Collection("Analysis SQL Server")]
+public sealed class GeminiUsageRepositoryTests(AnalysisSqlServerFixture fixture)
 {
     [Fact]
     public async Task Repository_PersistsOrdersAndAggregatesIncludingPendingAsUnknown()
