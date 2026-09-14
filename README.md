@@ -28,14 +28,14 @@ dotnet user-secrets set "Yoksis:Username" "<KULLANICI>"
 dotnet user-secrets set "Yoksis:Password" "<ŞİFRE>"
 ```
 
-Examples are in [`Requests/`](Requests/). Collector V1 actions under `/Services/AcademicPerformance/V1/` cover collection and publication selection plus canonical publications, automated article summaries/reviews/evaluations, publication metrics, academic-evidence search, reference populations, evidence graph export, HR evidence dossiers, and the faculty assistant. Durable SQL Server workers process collection, summary, evaluation, metrics, and assistant jobs and are enabled by default; verify budgets, models, quotas, and access settings before deployment.
+Örnekler [`Requests/`](Requests/) klasöründedir. `/Services/AcademicPerformance/V1/` altındaki collector işlemleri; toplama ve yayın seçimine ek olarak kanonik yayınları, otomatik makale özeti/incelemesi/değerlendirmesini, yayın metriklerini, akademik kanıt aramasını, referans popülasyonlarını, kanıt grafiği dışa aktarımını, İK kanıt dosyalarını ve fakülte asistanını kapsar. Toplama, özet, değerlendirme, metrik ve asistan işleri varsayılan olarak etkin kalıcı SQL Server worker'larıyla yürür; deployment öncesinde bütçe, model, kota ve erişim ayarlarını doğrulayın.
 
 ## Belgeler
 
 - [Kod rehberi](docs/CODEBASE_GUIDE.md): klasörler, istek akışı, veri katmanları ve doğrulama.
 - [Toplu toplama](docs/BULK_COLLECTION.md): giriş, kuyruk, hız sınırı ve kurtarma.
-- [Analysis pipeline](docs/ANALYSIS_PIPELINE.md): service contracts, automation, source acquisition, review, evaluation, and usage budgets.
-- [Canonical data](docs/CANONICAL_ACADEMIC_DATA.md), [AI products](docs/ACADEMIC_AI_PRODUCTS.md), [publication metrics](docs/PUBLICATION_METRICS.md), and the [data/knowledge layer](docs/DATA_KNOWLEDGE_LAYER.md): detailed product contracts and boundaries.
+- [Analiz hattı](docs/ANALYSIS_PIPELINE.md): servis sözleşmeleri, otomasyon, kaynak edinme, inceleme, değerlendirme ve kullanım bütçeleri.
+- [Kanonik veri](docs/CANONICAL_ACADEMIC_DATA.md), [AI ürünleri](docs/ACADEMIC_AI_PRODUCTS.md), [yayın metrikleri](docs/PUBLICATION_METRICS.md) ve [veri/bilgi katmanı](docs/DATA_KNOWLEDGE_LAYER.md): ayrıntılı ürün sözleşmeleri ve sınırları.
 - [Sağlayıcılar](docs/PROVIDERS.md): entegrasyon kapsamı, durum/kota anlamları ve resmî başvurular.
 - [Katkı rehberi](CONTRIBUTING.md): dal, PR ve test akışı.
 
