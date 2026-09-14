@@ -10,14 +10,15 @@ using AcademicCollector.Analysis.Contracts;
 using AcademicCollectorDemo.Host;
 using AcademicCollectorDemo.Modules.AcademicPerformance;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleReviews;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries;
+using ResearcherAnalysisService.Products.Api.Contracts;
+using ResearcherAnalysisService.Products.ArticleReviews;
+using ResearcherAnalysisService.Products.ArticleSummaries;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
-using AcademicCollectorDemo.Modules.AcademicPerformance.FacultyAssistant;
-using AcademicCollectorDemo.Modules.AcademicPerformance.HrDossiers;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Knowledge;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Metrics;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ProductAccess;
+using ResearcherAnalysisService.Products.FacultyAssistant;
+using ResearcherAnalysisService.Products.HrDossiers;
+using ResearcherAnalysisService.Products.Knowledge;
+using ResearcherAnalysisService.Products.Metrics;
+using ResearcherAnalysisService.Products.ProductAccess;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using Microsoft.AspNetCore.Authentication;
@@ -27,6 +28,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using ResearcherAnalysisService.Products.Data;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -48,7 +50,7 @@ internal static class LiveProductPilot
     private const string AnalysisUrl = "http://127.0.0.1:5098";
     private const string CollectorUrl = "http://127.0.0.1:5198";
     private const string ServiceKey = "product-pilot-synthetic-analysis-key";
-    private const string Api = "/Services/AcademicPerformance/V1/";
+    private const string Api = AnalysisUrl + "/api/v1/products/";
     private const string PrivateSentinel = "PRIVATE_PRODUCT_PILOT_CONTEXT_7F2A";
     private const string AdamPdfHash = "935a5a15616961aff21529d86a754570028843407adfe858f1d18584b84293a7";
     private const string AdamSourceHash = "ef1663dd32671bce737af77d0cfd0777fd8ebd95bb86f5d0ff2b4aa457675fa3";
@@ -376,7 +378,7 @@ internal static class LiveProductPilot
             usage[3]?["outcome"]?.GetValue<string>() != "Success")
             throw new InvalidOperationException("The cumulative SQL usage rows do not match the reviewed evidence.");
 
-        await using AcademicDbContext db = Database(database);
+        await using AnalysisDbContext db = Database(database);
         ArticleSourceSnapshot source = await db.ArticleSourceSnapshots.AsNoTracking()
             .Include(value => value.Pages).Include(value => value.Spans).SingleAsync();
         FacultyAssistantContextVersion context = await db.FacultyAssistantContextVersions.AsNoTracking()
@@ -493,7 +495,7 @@ internal static class LiveProductPilot
 
     private static async Task<RetestCounts> ReadRetestCountsAsync(string database)
     {
-        await using AcademicDbContext db = Database(database);
+        await using AnalysisDbContext db = Database(database);
         return new(await db.Researchers.CountAsync(), await db.CanonicalWorks.CountAsync(),
             await db.ArticleSourceSnapshots.CountAsync(), await db.ArticleSourceSpans.CountAsync(),
             await db.HrEvidenceDossiers.CountAsync(), await db.HrDossierReviewActions.CountAsync(),
@@ -503,7 +505,7 @@ internal static class LiveProductPilot
 
     private static async Task<bool> OriginalFailedRunsIntactAsync(string database, HashSet<Guid> originalRunIds)
     {
-        await using AcademicDbContext db = Database(database);
+        await using AnalysisDbContext db = Database(database);
         List<FacultyAssistantRun> runs = await db.FacultyAssistantRuns.AsNoTracking()
             .Where(value => originalRunIds.Contains(value.RunId)).ToListAsync();
         return runs.Count == originalRunIds.Count && runs.All(value => value.Status == "Failed" && value.AttemptCount == 1 &&
@@ -512,7 +514,7 @@ internal static class LiveProductPilot
 
     private static async Task<bool> RetestClientRequestIdsAbsentAsync(string database)
     {
-        await using AcademicDbContext db = Database(database);
+        await using AnalysisDbContext db = Database(database);
         return !await db.FacultyAssistantRuns.AsNoTracking().AnyAsync(value =>
             value.ClientRequestId == RetestMethodsClientRequestId ||
             value.ClientRequestId == RetestTeachingClientRequestId);
@@ -520,7 +522,7 @@ internal static class LiveProductPilot
 
     private static async Task<bool> CorrectedReportsPersistedAsync(string database)
     {
-        await using AcademicDbContext db = Database(database);
+        await using AnalysisDbContext db = Database(database);
         List<FacultyAssistantRun> runs = await db.FacultyAssistantRuns.AsNoTracking().Where(value =>
             value.ClientRequestId == RetestMethodsClientRequestId ||
             value.ClientRequestId == RetestTeachingClientRequestId).ToListAsync();
@@ -821,7 +823,7 @@ internal static class LiveProductPilot
         DateTime now = DateTime.UtcNow;
         PublicationMetricComputation computation = await computer.ComputeAsync(PilotAccessService.SubjectId,
             PublicationMetricCatalog.Version, now, default);
-        await using AcademicDbContext db = Database(database);
+        await using AnalysisDbContext db = Database(database);
         PublicationMetricSnapshot snapshot = new()
         {
             PersonelId = PilotAccessService.SubjectId, CatalogVersion = PublicationMetricCatalog.Version,
@@ -853,7 +855,7 @@ internal static class LiveProductPilot
         int sqlBefore = await CountUsageAsync(database);
         HttpCapture start = await PostAsync(client, Api + "StartFacultyAssistant", request);
         FacultyAssistantRunResponse queued = Deserialize<FacultyAssistantRunResponse>(start);
-        await using (AcademicDbContext db = Database(database))
+        await using (AnalysisDbContext db = Database(database))
         {
             FacultyAssistantRun persisted = await db.FacultyAssistantRuns.AsNoTracking()
                 .SingleAsync(value => value.ClientRequestId == clientRequestId);
@@ -934,9 +936,20 @@ internal static class LiveProductPilot
                     ["Ai:FacultyAssistantMaxOutputTokens"] = "16384",
                     ["Ai:ArticleVerifierMaxOutputTokens"] = "8192", ["Ai:ArticleFallbackChunkBytes"] = "10000",
                     ["Ai:ArticleReviewMaximumInputBytes"] = "100000", ["Ai:ArticleReviewTimeoutSeconds"] = "300",
-                    ["Ai:TimeoutSeconds"] = "180"
+                    ["Ai:TimeoutSeconds"] = "180",
+                    ["CollectionChanges:WorkerEnabled"] = "false",
+                    ["ArticleSummaryAutomation:Enabled"] = "false",
+                    ["ArticleSummaryAutomation:WorkerEnabled"] = "false",
+                    ["PublicationMetrics:WorkerEnabled"] = "false",
+                    ["ArticleEvaluation:WorkerEnabled"] = "false",
+                    ["FacultyAssistant:WorkerEnabled"] = allowOutbound.ToString(),
+                    ["FacultyAssistant:PollSeconds"] = "1",
+                    ["FacultyAssistant:RequestTimeoutSeconds"] = "330"
                 });
                 builder.Logging.ClearProviders(); builder.Logging.AddConsole();
+                builder.Services.AddSingleton<IAcademicProductAccessService, PilotAccessService>();
+                builder.Services.AddAuthentication("ProductPilot")
+                    .AddScheme<AuthenticationSchemeOptions, PilotAuthenticationHandler>("ProductPilot", _ => { });
                 builder.Services.AddSingleton(budget);
                 builder.Services.AddSingleton(capture);
                 builder.Services.AddTransient<ProductPilotBudgetHandler>();
@@ -950,6 +963,7 @@ internal static class LiveProductPilot
                 builder.Services.AddScoped<IFacultyAssistantGenerator, CapturingFacultyGenerator>();
                 builder.Services.AddScoped<IArticleReviewVerifier, CapturingFacultyVerifier>();
             });
+        app.UseAuthentication();
         await app.StartAsync();
         return app;
     }
@@ -957,7 +971,6 @@ internal static class LiveProductPilot
     private static async Task<WebApplication> StartCollectorAsync(string root, string database,
         string url, bool workerEnabled)
     {
-        EnsureAnalysisDatabase(database);
         WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
             EnvironmentName = "Testing", ContentRootPath = root,
@@ -969,8 +982,6 @@ internal static class LiveProductPilot
             .AddInMemoryCollection(CollectorConfiguration(database, workerEnabled));
         builder.Logging.ClearProviders(); builder.Logging.AddConsole();
         builder.Services.AddAcademicPerformanceModule(builder.Configuration);
-        builder.Services.RemoveAll<IAcademicProductAccessService>();
-        builder.Services.AddSingleton<IAcademicProductAccessService, PilotAccessService>();
         builder.Services.AddAuthentication("ProductPilot")
             .AddScheme<AuthenticationSchemeOptions, PilotAuthenticationHandler>("ProductPilot", _ => { });
         builder.Services.AddApplicationPartsTypeSource();
@@ -989,30 +1000,12 @@ internal static class LiveProductPilot
         return app;
     }
 
-    private static void EnsureAnalysisDatabase(string database)
-    {
-        IConfiguration configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["ConnectionStrings:UsageDatabase"] = database
-            }).Build();
-        ServiceCollection services = new();
-        services.AddLogging();
-        services.AddAnalysisDatabaseMigrations(configuration);
-        using ServiceProvider provider = services.BuildServiceProvider();
-        provider.MigrateAnalysisDatabase();
-    }
-
     private static Dictionary<string, string?> CollectorConfiguration(string database, bool workerEnabled)
     {
         Dictionary<string, string?> values = new()
         {
             ["ConnectionStrings:AcademicDatabase"] = database,
-            ["AnalysisService:BaseUrl"] = AnalysisUrl, ["AnalysisService:ApiKey"] = ServiceKey,
-            ["ArticleSummaryAutomation:Enabled"] = "false", ["ArticleSummaryAutomation:WorkerEnabled"] = "false",
-            ["PublicationMetrics:WorkerEnabled"] = "false", ["ArticleEvaluation:WorkerEnabled"] = "false",
-            ["FacultyAssistant:WorkerEnabled"] = workerEnabled.ToString(), ["FacultyAssistant:PollSeconds"] = "1",
-            ["FacultyAssistant:RequestTimeoutSeconds"] = "330", ["BulkCollection:WorkerEnabled"] = "false"
+            ["BulkCollection:WorkerEnabled"] = "false"
         };
         foreach (string provider in new[] { "Orcid", "SearchApi", "OpenAlex", "WebOfScience", "Yoksis",
                      "TrDizin", "Crossref", "Unpaywall", "SemanticScholar" })
@@ -1053,7 +1046,7 @@ internal static class LiveProductPilot
         SavedArticleSummaryResponse priorSummary = summaryNode.Deserialize<SavedArticleSummaryResponse>(JsonOptions)!;
         CanonicalArticleReviewResponse priorReview = reviewNode.Deserialize<CanonicalArticleReviewResponse>(JsonOptions)!;
 
-        await using AcademicDbContext db = Database(database);
+        await using AcademicDbContext sourceDb = SourceDatabase(database);
         Researcher researcher = new()
         {
             PersonelId = PilotAccessService.SubjectId, FirstName = "Sentetik", LastName = "Akademisyen",
@@ -1073,8 +1066,8 @@ internal static class LiveProductPilot
         {
             NormalizedDoi = "10.48550/arxiv.1412.6980", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
         };
-        db.AddRange(researcher, work, canonical); await db.SaveChangesAsync();
-        db.AddRange(new CanonicalResearcherWork
+        sourceDb.AddRange(researcher, work, canonical); await sourceDb.SaveChangesAsync();
+        sourceDb.AddRange(new CanonicalResearcherWork
         {
             CanonicalWorkId = canonical.Id, PersonelId = researcher.PersonelId, LastObservedAt = DateTime.UtcNow
         }, new CanonicalWorkObservation
@@ -1085,6 +1078,8 @@ internal static class LiveProductPilot
             CategoryObserved = AcademicWorkCategory.Article, FullTextUrl = work.FullTextUrl,
             IsRetracted = false, ObservedAt = DateTime.UtcNow
         });
+        await sourceDb.SaveChangesAsync();
+        await using AnalysisDbContext db = Database(database);
         ArticleSourceSnapshot source = new()
         {
             CanonicalWorkId = canonical.Id, ExtractedTextHash = extracted.SourceHash,
@@ -1213,7 +1208,7 @@ internal static class LiveProductPilot
     private static async Task<bool> CitationsExactAsync(string database, FacultyAssistantRunResponse run)
     {
         if (run.Report is null || run.Report.Items.Count == 0) return false;
-        await using AcademicDbContext db = Database(database);
+        await using AnalysisDbContext db = Database(database);
         long[] spanIds = run.Retrieval.Evidence.Select(value => value.ArticleSourceSpanId).Distinct().ToArray();
         List<ArticleSourceSpanSnapshot> spans = await db.ArticleSourceSpans.AsNoTracking()
             .Where(value => spanIds.Contains(value.Id)).ToListAsync();
@@ -1270,7 +1265,7 @@ internal static class LiveProductPilot
 
     private static async Task<JsonNode> SqlAuditAsync(string database, SourceFixture? fixture)
     {
-        await using AcademicDbContext db = Database(database);
+        await using AnalysisDbContext db = Database(database);
         var runs = await db.FacultyAssistantRuns.AsNoTracking().OrderBy(value => value.Id)
             .Select(value => new { value.RunId, value.Mode, value.Language, value.Status,
                 value.AttemptCount, value.ContextVersionId, value.InputFingerprint,
@@ -1343,6 +1338,7 @@ internal static class LiveProductPilot
     {
         HttpClient client = new() { BaseAddress = new Uri(baseAddress), Timeout = TimeSpan.FromMinutes(7) };
         client.DefaultRequestHeaders.Add("X-Product-Pilot-Auth", "synthetic-faculty");
+        client.DefaultRequestHeaders.Add("X-Analysis-Key", ServiceKey);
         return client;
     }
 
@@ -1369,7 +1365,10 @@ internal static class LiveProductPilot
         return !string.IsNullOrWhiteSpace(secrets["Gemini:ApiKey"]);
     }
 
-    private static AcademicDbContext Database(string database) => new(
+    private static AnalysisDbContext Database(string database) => new(
+        new DbContextOptionsBuilder<AnalysisDbContext>().UseSqlServer(database).Options);
+
+    private static AcademicDbContext SourceDatabase(string database) => new(
         new DbContextOptionsBuilder<AcademicDbContext>().UseSqlServer(database).Options);
 
     private static async Task<(string Master, string Database)> CreateDatabaseAsync(string name, string prefix)

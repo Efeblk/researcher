@@ -3,7 +3,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using AcademicCollector.Analysis.Contracts;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries;
+using ResearcherAnalysisService.Products.Api.Contracts;
+using ResearcherAnalysisService.Products.ArticleSummaries;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Bulk.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using Microsoft.AspNetCore.Builder;
@@ -11,6 +12,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using ResearcherAnalysisService.Products.Data;
 
 namespace ServiceAcceptancePilot;
 
@@ -76,7 +78,7 @@ internal static class ServiceAcceptanceRehearsal
             }
 
             Dictionary<string, int> workIds;
-            await using (AcademicDbContext identityDb = Database(database))
+            await using (AnalysisDbContext identityDb = Database(database))
             {
                 workIds = await identityDb.CanonicalWorks.AsNoTracking()
                     .Where(value => value.Researchers.Any(item => item.PersonelId == ServiceAcceptanceHost.SubjectId))
@@ -97,7 +99,7 @@ internal static class ServiceAcceptanceRehearsal
             using (HttpClient client = Client())
             {
                 _ = await PostTypedAsync<ResearcherPublicationMetricsStatusResponse>(client,
-                    "/Services/AcademicPerformance/V1/RefreshResearcherPublicationMetrics",
+                    AnalysisUrl + "/api/v1/products/RefreshResearcherPublicationMetrics",
                     new { PersonelID = ServiceAcceptanceHost.SubjectId });
                 metrics = await PollMetricsAsync(client);
             }
@@ -114,18 +116,18 @@ internal static class ServiceAcceptanceRehearsal
             using (HttpClient client = Client(authenticated: true))
             {
                 context = await PostTypedAsync<FacultyAssistantContextResponse>(client,
-                    "/Services/AcademicPerformance/V1/SaveFacultyAssistantContext", new
+                    AnalysisUrl + "/api/v1/products/SaveFacultyAssistantContext", new
                     {
                         PersonelID = ServiceAcceptanceHost.SubjectId, ExpectedVersion = 0,
                         Context = new { Language = "tr", ResearchGoals = new[] { "Yöntem incelemesi" },
                             Courses = new[] { "Makine öğrenmesi" }, TeachingAudience = "Lisansüstü" }
                     });
                 createdDossier = await PostTypedAsync<HrEvidenceDossierResponse>(client,
-                    "/Services/AcademicPerformance/V1/CreateHrEvidenceDossier", new
+                    AnalysisUrl + "/api/v1/products/CreateHrEvidenceDossier", new
                     { PersonelID = ServiceAcceptanceHost.SubjectId, PublicationMetricSnapshotId = metrics.SnapshotId,
                         CanonicalWorkIds = canonicalIds, Language = "tr" });
                 HrEvidenceDossierResponse readDossier = await PostTypedAsync<HrEvidenceDossierResponse>(client,
-                    "/Services/AcademicPerformance/V1/GetHrEvidenceDossier",
+                    AnalysisUrl + "/api/v1/products/GetHrEvidenceDossier",
                     new { PersonelID = ServiceAcceptanceHost.SubjectId, createdDossier.DossierId });
                 if (readDossier.InputFingerprint != createdDossier.InputFingerprint ||
                     readDossier.Dossier.PublicationMetrics is null ||
@@ -168,7 +170,7 @@ internal static class ServiceAcceptanceRehearsal
                 analysisCapture.FacultyCalls
             }, JsonOptions);
 
-            await using (AcademicDbContext db = Database(database))
+            await using (AnalysisDbContext db = Database(database))
             {
                 int works = await db.AcademicWorks.CountAsync(value => value.PersonelId == ServiceAcceptanceHost.SubjectId);
                 int canonical = await db.CanonicalResearcherWorks.CountAsync(value => value.PersonelId == ServiceAcceptanceHost.SubjectId);
@@ -207,7 +209,12 @@ internal static class ServiceAcceptanceRehearsal
         }
     }
 
-    private static HttpClient Client() => new() { BaseAddress = new(Url), Timeout = TimeSpan.FromSeconds(30) };
+    private static HttpClient Client()
+    {
+        HttpClient client = new() { BaseAddress = new(Url), Timeout = TimeSpan.FromSeconds(30) };
+        client.DefaultRequestHeaders.Add("X-Analysis-Key", ServiceAcceptanceHost.ServiceKey);
+        return client;
+    }
 
     private static async Task<JsonObject> PollAsync(HttpClient client, Guid batchId)
     {
@@ -227,7 +234,7 @@ internal static class ServiceAcceptanceRehearsal
         DateTime deadline = DateTime.UtcNow.AddSeconds(40);
         while (DateTime.UtcNow < deadline)
         {
-            await using AcademicDbContext db = Database(connection);
+            await using AnalysisDbContext db = Database(connection);
             string[] statuses = await db.ArticleSummaryAutomationJobs.AsNoTracking()
                 .Where(value => ids.Contains(value.CanonicalWorkId)).Select(value => value.Status).ToArrayAsync();
             if (statuses.Length == 2 && statuses.All(value => value == ArticleSummaryAutomationJobStatus.Succeeded))
@@ -241,7 +248,7 @@ internal static class ServiceAcceptanceRehearsal
 
     private static async Task<JsonNode> ReadSummaryAuditAsync(string connection, int[] ids)
     {
-        await using AcademicDbContext db = Database(connection);
+        await using AnalysisDbContext db = Database(connection);
         var rows = await db.CanonicalArticleAnalysisRuns.AsNoTracking()
             .Include(value => value.ArticleSourceSnapshot).ThenInclude(value => value!.Pages)
             .Where(value => ids.Contains(value.CanonicalWorkId)).OrderBy(value => value.CanonicalWorkId).ToListAsync();
@@ -261,7 +268,7 @@ internal static class ServiceAcceptanceRehearsal
         while (DateTime.UtcNow < deadline)
         {
             ResearcherPublicationMetricsStatusResponse value = await PostTypedAsync<ResearcherPublicationMetricsStatusResponse>(client,
-                "/Services/AcademicPerformance/V1/GetResearcherPublicationMetrics",
+                AnalysisUrl + "/api/v1/products/GetResearcherPublicationMetrics",
                 new { PersonelID = ServiceAcceptanceHost.SubjectId });
             if (value.Status == "Current" && value.SnapshotId.HasValue && value.Data is not null &&
                 value.RequestedRevision == value.ComputedRevision && !value.IsStale) return value;
@@ -274,7 +281,7 @@ internal static class ServiceAcceptanceRehearsal
     private static Task<FacultyAssistantRunResponse> StartFacultyAsync(HttpClient client, Guid requestId,
         string mode, string query, int canonicalWorkId, int contextVersion) =>
         PostTypedAsync<FacultyAssistantRunResponse>(client,
-            "/Services/AcademicPerformance/V1/StartFacultyAssistant", new
+            AnalysisUrl + "/api/v1/products/StartFacultyAssistant", new
             {
                 PersonelID = ServiceAcceptanceHost.SubjectId, ClientRequestId = requestId,
                 Mode = mode, Language = "tr", Query = query, CanonicalWorkIds = new[] { canonicalWorkId },
@@ -287,7 +294,7 @@ internal static class ServiceAcceptanceRehearsal
         while (DateTime.UtcNow < deadline)
         {
             FacultyAssistantRunResponse value = await PostTypedAsync<FacultyAssistantRunResponse>(client,
-                "/Services/AcademicPerformance/V1/GetFacultyAssistantRun",
+                AnalysisUrl + "/api/v1/products/GetFacultyAssistantRun",
                 new { PersonelID = ServiceAcceptanceHost.SubjectId, RunId = runId });
             if (value.Status == "Completed") return value;
             if (value.Status is "Failed" or "Interrupted")
@@ -388,8 +395,8 @@ internal static class ServiceAcceptanceRehearsal
         return (master.ConnectionString, database.ConnectionString);
     }
 
-    internal static AcademicDbContext Database(string connection) => new(
-        new DbContextOptionsBuilder<AcademicDbContext>().UseSqlServer(connection).Options);
+    internal static AnalysisDbContext Database(string connection) => new(
+        new DbContextOptionsBuilder<AnalysisDbContext>().UseSqlServer(connection).Options);
 
     internal static async Task DropAsync(string master, string name)
     {

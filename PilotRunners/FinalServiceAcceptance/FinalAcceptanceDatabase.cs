@@ -1,6 +1,7 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using ResearcherAnalysisService.Products.Data;
 
 namespace ServiceAcceptancePilot;
 
@@ -27,6 +28,9 @@ internal static class FinalAcceptanceDatabase
 
     public static AcademicDbContext Open(string connection) => new(
         new DbContextOptionsBuilder<AcademicDbContext>().UseSqlServer(connection).Options);
+
+    public static AnalysisDbContext OpenAnalysis(string connection) => new(
+        new DbContextOptionsBuilder<AnalysisDbContext>().UseSqlServer(connection).Options);
 
     public static async Task CreateAsync(string masterConnection, string name)
     {

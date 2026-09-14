@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using AcademicCollector.Analysis.Contracts;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
+using ResearcherAnalysisService.Products.Api.Contracts;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Data.SqlClient;
 
@@ -121,14 +122,14 @@ internal static class RetainedFacultyCompletion
             RetainedTeachingBaselineAudit.ConnectionString, CollectorUrl, AnalysisUrl, "idle");
         using HttpClient client = Client();
         CanonicalArticleReviewResponse review = await PostAsync<CanonicalArticleReviewResponse>(client,
-            "/Services/AcademicPerformance/V1/GetCanonicalArticleReview",
+            AnalysisUrl + "/api/v1/products/GetCanonicalArticleReview",
             new CanonicalArticleReviewRequest { PersonelId = RetainedAcceptanceHost.SubjectId,
                 CanonicalWorkId = adam, Language = "tr" });
         FacultyAssistantContextResponse context = await PostAsync<FacultyAssistantContextResponse>(client,
-            "/Services/AcademicPerformance/V1/GetFacultyAssistantContext",
+            AnalysisUrl + "/api/v1/products/GetFacultyAssistantContext",
             new GetFacultyAssistantContextRequest { PersonelId = RetainedAcceptanceHost.SubjectId, Version = 1 });
         HrEvidenceDossierResponse dossier = await PostAsync<HrEvidenceDossierResponse>(client,
-            "/Services/AcademicPerformance/V1/GetHrEvidenceDossier",
+            AnalysisUrl + "/api/v1/products/GetHrEvidenceDossier",
             new GetHrEvidenceDossierRequest { PersonelId = RetainedAcceptanceHost.SubjectId, DossierId = dossierId });
         return (review, context, dossier);
     }
@@ -253,6 +254,7 @@ internal static class RetainedFacultyCompletion
     }
 
     private static HttpClient Client() { HttpClient c = new() { BaseAddress = new(CollectorUrl), Timeout = TimeSpan.FromSeconds(1800) };
+        c.DefaultRequestHeaders.Add("X-Analysis-Key", RetainedAcceptanceHost.ServiceKey);
         c.DefaultRequestHeaders.Add(RetainedAcceptanceHost.Header, RetainedAcceptanceHost.HeaderValue); return c; }
     private static async Task<T> PostAsync<T>(HttpClient client, string path, object request)
     { using HttpResponseMessage response = await client.PostAsJsonAsync(path, request, JsonOptions); string body = await response.Content.ReadAsStringAsync();

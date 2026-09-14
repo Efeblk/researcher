@@ -3,8 +3,9 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
-using AcademicCollectorDemo.Modules.AcademicPerformance.FacultyAssistant;
-using AcademicCollectorDemo.Modules.AcademicPerformance.HrDossiers;
+using ResearcherAnalysisService.Products.Api.Contracts;
+using ResearcherAnalysisService.Products.FacultyAssistant;
+using ResearcherAnalysisService.Products.HrDossiers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Data.SqlClient;
 
@@ -48,21 +49,21 @@ internal static partial class LiveBroaderServiceAcceptance
         using (HttpClient client = Client(authenticated: true))
         {
             context = await PostAsync<FacultyAssistantContextResponse>(client,
-                "/Services/AcademicPerformance/V1/GetFacultyAssistantContext",
+                AnalysisUrl + "/api/v1/products/GetFacultyAssistantContext",
                 new GetFacultyAssistantContextRequest
                 {
                     PersonelId = BroaderAcceptanceHost.PrimarySubjectId,
                     Version = 1
                 });
             dossier = await PostAsync<HrEvidenceDossierResponse>(client,
-                "/Services/AcademicPerformance/V1/GetHrEvidenceDossier",
+                AnalysisUrl + "/api/v1/products/GetHrEvidenceDossier",
                 new GetHrEvidenceDossierRequest
                 {
                     PersonelId = BroaderAcceptanceHost.PrimarySubjectId,
                     DossierId = 1
                 });
             denied = await CaptureAsync(client,
-                "/Services/AcademicPerformance/V1/SearchAcademicEvidence",
+                AnalysisUrl + "/api/v1/products/SearchAcademicEvidence",
                 new AcademicEvidenceSearchRequest
                 {
                     PersonelId = BroaderAcceptanceHost.SecondarySubjectId,
@@ -80,7 +81,7 @@ internal static partial class LiveBroaderServiceAcceptance
             AcademicEvidenceSearchResponse search = retrieval[item.Name];
             int[] expected = item.WorkNames.Select(works.Id).Distinct().Order().ToArray();
             int[] found = search.Hits.Select(hit => hit.CanonicalWorkId).Distinct().Order().ToArray();
-            bool valid = search.CatalogVersion == AcademicCollectorDemo.Modules.AcademicPerformance.Knowledge
+            bool valid = search.CatalogVersion == ResearcherAnalysisService.Products.Knowledge
                     .AcademicEvidenceSearchService.CatalogVersion &&
                 (item.Negative || search.Hits.Count > 0 &&
                 search.Hits.All(hit => expected.Contains(hit.CanonicalWorkId)) &&
@@ -114,7 +115,7 @@ internal static partial class LiveBroaderServiceAcceptance
             aggregateMaximumCalls = 96,
             aggregateMaximumSpendUsd = 3.00m,
             model = ServiceAcceptanceBudget.RequiredModel,
-            retrievalCatalogVersion = AcademicCollectorDemo.Modules.AcademicPerformance.Knowledge
+            retrievalCatalogVersion = ResearcherAnalysisService.Products.Knowledge
                 .AcademicEvidenceSearchService.CatalogVersion,
             matrix = MatrixNode(),
             fixedQueryCoverage = coverage,
@@ -145,7 +146,7 @@ internal static partial class LiveBroaderServiceAcceptance
         Require(preflight["ready"]?.GetValue<bool>() == true &&
             preflight["databaseName"]?.GetValue<string>() == ContinuationDatabase &&
             preflight["retrievalCatalogVersion"]?.GetValue<string>() ==
-                AcademicCollectorDemo.Modules.AcademicPerformance.Knowledge
+                ResearcherAnalysisService.Products.Knowledge
                     .AcademicEvidenceSearchService.CatalogVersion,
             "The exact v4 continuation preflight is absent or blocked.");
         string manifestHash = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(
