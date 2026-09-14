@@ -10,12 +10,56 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using AcademicCollectorDemo.Modules.AcademicPerformance;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Application;
 
 namespace AcademicCollectorDemo.Tests.Integration;
 
 [Collection("SQL Server")]
 public sealed class YoksisPersistenceTests(SqlServerFixture fixture)
 {
+    [Fact]
+    public async Task CollectAsync_TcOnly_UsesYoksisAndPersistsIdentityWithoutNormalProviderCalls()
+    {
+        int requestCount = 0;
+        string personelId = "test-tc-only-" + Guid.NewGuid().ToString("N");
+        string tcKimlikNo = new('4', 11);
+        IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:AcademicDatabase"] = fixture.ConnectionString,
+                ["BulkCollection:WorkerEnabled"] = "false",
+                ["Yoksis:Username"] = Guid.NewGuid().ToString("N"),
+                ["Yoksis:Password"] = Guid.NewGuid().ToString("N"),
+                ["ProviderRequestLimits:Yoksis:MinimumIntervalMilliseconds"] = "0"
+            }).Build();
+        ServiceCollection services = new();
+        services.AddLogging();
+        services.AddSingleton(configuration);
+        services.AddAcademicPerformanceModule(configuration);
+        services.AddSingleton(new HttpClient(new StubHttpHandler(_ =>
+        {
+            requestCount++;
+            return StubHttpHandler.Json(
+                "<Envelope><Body><Response><Sonuc><SonucKod>1</SonucKod></Sonuc></Response></Body></Envelope>");
+        })));
+        await using ServiceProvider provider = services.BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+
+        var response = await scope.ServiceProvider
+            .GetRequiredService<IAcademicPerformanceApplicationService>()
+            .CollectAsync(new() { PersonelId = personelId, TcKimlikNo = tcKimlikNo });
+
+        Assert.True(requestCount > 0);
+        Assert.True(response.IsSaved, string.Join("\n", response.Messages));
+        var saved = await scope.ServiceProvider.GetRequiredService<AcademicDbContext>()
+            .Researchers.AsNoTracking().SingleAsync(item => item.PersonelId == personelId);
+        Assert.Equal(tcKimlikNo, saved.TcKimlikNo);
+        Assert.Null(saved.Orcid);
+        Assert.Null(saved.GoogleScholarId);
+        Assert.Null(saved.WebOfScienceResearcherId);
+    }
+
     [Fact]
     public async Task CollectAsync_IncrementalEmptyResponse_PreservesExistingRecordsAndSelections()
     {
