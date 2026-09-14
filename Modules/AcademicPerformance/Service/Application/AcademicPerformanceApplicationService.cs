@@ -80,11 +80,16 @@ public sealed class AcademicPerformanceApplicationService :
             throw new ArgumentException(normalization.RejectionReason + details);
         }
         bool providerOwnershipConflict = await _dbContext.Researchers.AsNoTracking().AnyAsync(researcher =>
-            researcher.PersonelId != personelId &&
-            ((normalization.Input.Orcid != null && researcher.Orcid == normalization.Input.Orcid) ||
+            ((researcher.PersonelId != personelId &&
+              ((normalization.Input.Orcid != null && researcher.Orcid == normalization.Input.Orcid) ||
              (normalization.Input.GoogleScholarId != null && researcher.GoogleScholarId == normalization.Input.GoogleScholarId) ||
              (normalization.Input.WebOfScienceResearcherId != null &&
-                researcher.WebOfScienceResearcherId == normalization.Input.WebOfScienceResearcherId)));
+                researcher.WebOfScienceResearcherId == normalization.Input.WebOfScienceResearcherId))) ||
+             (researcher.PersonelId == personelId &&
+              ((normalization.Input.Orcid != null && researcher.Orcid != null && researcher.Orcid != normalization.Input.Orcid) ||
+               (normalization.Input.GoogleScholarId != null && researcher.GoogleScholarId != null && researcher.GoogleScholarId != normalization.Input.GoogleScholarId) ||
+               (normalization.Input.WebOfScienceResearcherId != null && researcher.WebOfScienceResearcherId != null &&
+                    researcher.WebOfScienceResearcherId != normalization.Input.WebOfScienceResearcherId)))));
         if (providerOwnershipConflict)
             throw new ArgumentException("Sağlayıcı kimliği farklı bir personel kaydıyla eşleşiyor.");
         YoksisCollectResponse? yoksisResponse = null;
@@ -101,6 +106,12 @@ public sealed class AcademicPerformanceApplicationService :
                 .SingleOrDefaultAsync(researcher => researcher.PersonelId == personelId);
             if (discovered is not null)
             {
+                if ((normalization.Input.Orcid != null && discovered.Orcid != null && normalization.Input.Orcid != discovered.Orcid) ||
+                    (normalization.Input.GoogleScholarId != null && discovered.GoogleScholarId != null &&
+                        normalization.Input.GoogleScholarId != discovered.GoogleScholarId) ||
+                    (normalization.Input.WebOfScienceResearcherId != null && discovered.WebOfScienceResearcherId != null &&
+                        normalization.Input.WebOfScienceResearcherId != discovered.WebOfScienceResearcherId))
+                    throw new ArgumentException("YÖKSİS sağlayıcı kimliği istekle eşleşmiyor.");
                 normalization.Input.Orcid ??= discovered.Orcid;
                 normalization.Input.GoogleScholarId ??= discovered.GoogleScholarId;
                 normalization.Input.WebOfScienceResearcherId ??= discovered.WebOfScienceResearcherId;
@@ -112,11 +123,15 @@ public sealed class AcademicPerformanceApplicationService :
         {
             Researcher? savedResearcher = await _dbContext.Researchers.AsNoTracking()
                 .SingleOrDefaultAsync(researcher => researcher.PersonelId == personelId);
+            int yoksisPublicationCount = await _dbContext.PublicationSummaries.AsNoTracking()
+                .CountAsync(summary => summary.PersonelId == personelId);
             return new()
             {
                 Researcher = savedResearcher is null ? null : AcademicPerformanceDtoMapper.MapResearcher(savedResearcher),
                 IsSaved = yoksisResponse?.IsSaved == true,
                 YoksisFailedCategoryCount = yoksisResponse?.FailedCategoryCount ?? 0,
+                FailureCode = yoksisResponse?.IsSaved == false ? "YoksisPersistenceFailure" : null,
+                PublicationCount = yoksisPublicationCount,
                 CollectedAt = DateTime.UtcNow,
                 Messages = yoksisResponse?.Messages ?? []
             };
@@ -141,7 +156,8 @@ public sealed class AcademicPerformanceApplicationService :
         {
             Researcher = AcademicPerformanceDtoMapper.MapResearcher(collectionResponse.Researcher),
             IsSaved = collectionResponse.IsSaved || yoksisResponse?.IsSaved == true,
-            FailureCode = collectionResponse.FailureCode,
+            FailureCode = collectionResponse.FailureCode ??
+                (yoksisResponse?.IsSaved == false ? "YoksisPersistenceFailure" : null),
             YoksisFailedCategoryCount = yoksisResponse?.FailedCategoryCount ?? 0,
             PublicationCount = publicationCount,
             DatabaseProvider = collectionResponse.DatabaseProvider,
