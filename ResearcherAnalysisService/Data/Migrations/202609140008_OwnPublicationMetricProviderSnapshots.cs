@@ -1,16 +1,14 @@
 using FluentMigrator;
 
-namespace AcademicCollectorDemo.Modules.AcademicPerformance.Data.Migrations.Core;
+namespace ResearcherAnalysisService.Data.Migrations;
 
-[Migration(202609110007, "Add provider bibliometrics to publication metric snapshots")]
-public sealed class AddPublicationMetricProviderSnapshots : Migration
+[Migration(202609140008, "Own provider bibliometrics for publication metric snapshots")]
+public sealed class OwnPublicationMetricProviderSnapshots : Migration
 {
     public override void Up()
     {
-        Alter.Column("WorksCount").OnTable("OpenAlexProfiles").InSchema("openalex")
-            .AsInt32().Nullable();
-        Alter.Column("CitedByCount").OnTable("OpenAlexProfiles").InSchema("openalex")
-            .AsInt32().Nullable();
+        if (Schema.Schema("analysis").Table("PublicationMetricProviderSnapshots").Exists())
+            return;
 
         Create.Table("PublicationMetricProviderSnapshots").InSchema("analysis")
             .WithColumn("Id").AsInt64().PrimaryKey().Identity()
@@ -45,17 +43,6 @@ public sealed class AddPublicationMetricProviderSnapshots : Migration
             .WithOptions().Unique();
     }
 
-    public override void Down()
-    {
+    public override void Down() =>
         Delete.Table("PublicationMetricProviderSnapshots").InSchema("analysis");
-        Execute.Sql("""
-            UPDATE [openalex].[OpenAlexProfiles]
-            SET [WorksCount] = COALESCE([WorksCount], 0),
-                [CitedByCount] = COALESCE([CitedByCount], 0);
-            """);
-        Alter.Column("WorksCount").OnTable("OpenAlexProfiles").InSchema("openalex")
-            .AsInt32().NotNullable();
-        Alter.Column("CitedByCount").OnTable("OpenAlexProfiles").InSchema("openalex")
-            .AsInt32().NotNullable();
-    }
 }

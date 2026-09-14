@@ -1,12 +1,19 @@
 using FluentMigrator;
 
-namespace AcademicCollectorDemo.Modules.AcademicPerformance.Data.Migrations.Core;
+namespace ResearcherAnalysisService.Data.Migrations;
 
-[Migration(202609120012, "Add durable staged article review checkpoints")]
-public sealed class AddArticleReviewCheckpoints : Migration
+[Migration(202609140014, "Add durable staged article review checkpoints")]
+public sealed class OwnArticleReviewCheckpoints : Migration
 {
     public override void Up()
     {
+        if (AnalysisMigrationGuard.IsCompleteOrAbsent("article review checkpoints",
+            Schema.Schema("analysis").Table("ArticleReviewWorkItems").Exists(),
+            Schema.Schema("analysis").Table("ArticleReviewStageCheckpoints").Exists(),
+            Schema.Schema("analysis").Table("CanonicalArticleReviewRuns")
+                .Column("SettingsFingerprint").Exists()))
+            return;
+
         Alter.Table("CanonicalArticleReviewRuns").InSchema("analysis")
             .AddColumn("SettingsFingerprint").AsString(64).Nullable();
         Execute.Sql("ALTER TABLE [analysis].[CanonicalArticleReviewRuns] ALTER COLUMN [SettingsFingerprint] nvarchar(64) COLLATE Latin1_General_100_BIN2 NULL;");
@@ -29,8 +36,6 @@ public sealed class AddArticleReviewCheckpoints : Migration
             .WithColumn("CreatedAt").AsDateTimeOffset().NotNullable()
             .WithColumn("UpdatedAt").AsDateTimeOffset().NotNullable();
         Execute.Sql("ALTER TABLE [analysis].[ArticleReviewWorkItems] ALTER COLUMN [WorkKey] nvarchar(64) COLLATE Latin1_General_100_BIN2 NOT NULL; ALTER TABLE [analysis].[ArticleReviewWorkItems] ALTER COLUMN [Language] nvarchar(20) COLLATE Latin1_General_100_BIN2 NOT NULL; ALTER TABLE [analysis].[ArticleReviewWorkItems] ALTER COLUMN [PolicyVersion] nvarchar(100) COLLATE Latin1_General_100_BIN2 NOT NULL; ALTER TABLE [analysis].[ArticleReviewWorkItems] ALTER COLUMN [SettingsFingerprint] nvarchar(64) COLLATE Latin1_General_100_BIN2 NOT NULL;");
-        Create.ForeignKey("FK_ArticleReviewWorkItems_Works").FromTable("ArticleReviewWorkItems").InSchema("analysis")
-            .ForeignColumn("CanonicalWorkId").ToTable("CanonicalWorks").InSchema("core").PrimaryColumn("Id");
         Create.ForeignKey("FK_ArticleReviewWorkItems_BaseRuns").FromTable("ArticleReviewWorkItems").InSchema("analysis")
             .ForeignColumn("BaseAnalysisRunId").ToTable("CanonicalArticleAnalysisRuns").InSchema("analysis").PrimaryColumn("Id");
         Create.ForeignKey("FK_ArticleReviewWorkItems_Sources").FromTable("ArticleReviewWorkItems").InSchema("analysis")

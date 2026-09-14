@@ -1,12 +1,17 @@
 using FluentMigrator;
 
-namespace AcademicCollectorDemo.Modules.AcademicPerformance.Data.Migrations.Core;
+namespace ResearcherAnalysisService.Data.Migrations;
 
-[Migration(202609120010)]
-public sealed class AddHrEvidenceDossiers : Migration
+[Migration(202609140012)]
+public sealed class OwnHrEvidenceDossiers : Migration
 {
     public override void Up()
     {
+        if (AnalysisMigrationGuard.IsCompleteOrAbsent("HR evidence dossiers",
+            Schema.Schema("hr").Table("EvidenceDossiers").Exists(),
+            Schema.Schema("hr").Table("DossierReviewActions").Exists()))
+            return;
+
         Execute.Sql("IF SCHEMA_ID(N'hr') IS NULL EXEC(N'CREATE SCHEMA [hr]');");
         Create.Table("EvidenceDossiers").InSchema("hr")
             .WithColumn("Id").AsInt64().PrimaryKey().Identity()
@@ -18,8 +23,6 @@ public sealed class AddHrEvidenceDossiers : Migration
             .WithColumn("InputFingerprint").AsString(64).NotNullable()
             .WithColumn("InputManifestJson").AsString(int.MaxValue).NotNullable()
             .WithColumn("DossierJson").AsString(int.MaxValue).NotNullable();
-        Create.ForeignKey("FK_HrEvidenceDossiers_Researchers").FromTable("EvidenceDossiers").InSchema("hr")
-            .ForeignColumn("PersonelID").ToTable("Researchers").InSchema("core").PrimaryColumn("PersonelID");
         Create.ForeignKey("FK_HrEvidenceDossiers_MetricSnapshots").FromTable("EvidenceDossiers").InSchema("hr")
             .ForeignColumn("PublicationMetricSnapshotId").ToTable("PublicationMetricSnapshots").InSchema("analysis").PrimaryColumn("Id");
         Create.Index("IX_HrEvidenceDossiers_PersonelID_Id").OnTable("EvidenceDossiers").InSchema("hr")

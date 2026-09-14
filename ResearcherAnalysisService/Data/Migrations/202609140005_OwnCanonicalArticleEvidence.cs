@@ -1,12 +1,21 @@
 using FluentMigrator;
 
-namespace AcademicCollectorDemo.Modules.AcademicPerformance.Data.Migrations.Core;
+namespace ResearcherAnalysisService.Data.Migrations;
 
-[Migration(202609110004)]
-public sealed class AddCanonicalArticleEvidence : Migration
+[Migration(202609140005)]
+public sealed class OwnCanonicalArticleEvidence : Migration
 {
     public override void Up()
     {
+        if (AnalysisMigrationGuard.IsCompleteOrAbsent("canonical article evidence",
+            Schema.Schema("analysis").Table("ArticleSourceSnapshots").Exists(),
+            Schema.Schema("analysis").Table("ArticleSourcePages").Exists(),
+            Schema.Schema("analysis").Table("ArticleSourceSpans").Exists(),
+            Schema.Schema("analysis").Table("CanonicalArticleAnalysisRuns").Exists(),
+            Schema.Schema("analysis").Table("CanonicalArticleClaims").Exists(),
+            Schema.Schema("analysis").Table("CanonicalArticleClaimEvidence").Exists()))
+            return;
+
         Create.Table("ArticleSourceSnapshots").InSchema("analysis")
             .WithColumn("Id").AsInt64().PrimaryKey().Identity()
             .WithColumn("CanonicalWorkId").AsInt32().NotNullable()
@@ -14,11 +23,6 @@ public sealed class AddCanonicalArticleEvidence : Migration
             .WithColumn("SourceKind").AsString(20).NotNullable()
             .WithColumn("ExtractionVersion").AsString(100).NotNullable()
             .WithColumn("CreatedAt").AsDateTimeOffset().NotNullable();
-        Create.ForeignKey("FK_ArticleSourceSnapshots_CanonicalWorks")
-            .FromTable("ArticleSourceSnapshots").InSchema("analysis")
-            .ForeignColumn("CanonicalWorkId")
-            .ToTable("CanonicalWorks").InSchema("core")
-            .PrimaryColumn("Id").OnDelete(System.Data.Rule.None);
         Execute.Sql("ALTER TABLE [analysis].[ArticleSourceSnapshots] ALTER COLUMN [ExtractedTextHash] nvarchar(64) COLLATE Latin1_General_100_BIN2 NOT NULL;");
         Execute.Sql("ALTER TABLE [analysis].[ArticleSourceSnapshots] ALTER COLUMN [SourceKind] nvarchar(20) COLLATE Latin1_General_100_BIN2 NOT NULL;");
         Execute.Sql("ALTER TABLE [analysis].[ArticleSourceSnapshots] ALTER COLUMN [ExtractionVersion] nvarchar(100) COLLATE Latin1_General_100_BIN2 NOT NULL;");
@@ -103,11 +107,6 @@ public sealed class AddCanonicalArticleEvidence : Migration
             .WithColumn("VerificationPromptVersion").AsString(100).NotNullable()
             .WithColumn("UsesSameModelFamily").AsBoolean().NotNullable()
             .WithColumn("VerificationLimitation").AsString(4000).Nullable();
-        Create.ForeignKey("FK_CanonicalArticleAnalysisRuns_CanonicalWorks")
-            .FromTable("CanonicalArticleAnalysisRuns").InSchema("analysis")
-            .ForeignColumn("CanonicalWorkId")
-            .ToTable("CanonicalWorks").InSchema("core")
-            .PrimaryColumn("Id").OnDelete(System.Data.Rule.None);
         Create.ForeignKey("FK_CanonicalArticleAnalysisRuns_ArticleSourceSnapshots")
             .FromTable("CanonicalArticleAnalysisRuns").InSchema("analysis")
             .ForeignColumn("ArticleSourceSnapshotId")

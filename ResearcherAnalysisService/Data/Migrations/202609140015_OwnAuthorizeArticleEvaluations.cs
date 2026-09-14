@@ -1,12 +1,19 @@
 using FluentMigrator;
 
-namespace AcademicCollectorDemo.Modules.AcademicPerformance.Data.Migrations.Core;
+namespace ResearcherAnalysisService.Data.Migrations;
 
-[Migration(202609120013, "Persist article evaluation authorization grants")]
-public sealed class AuthorizeArticleEvaluations : Migration
+[Migration(202609140015, "Persist article evaluation authorization grants")]
+public sealed class OwnAuthorizeArticleEvaluations : Migration
 {
     public override void Up()
     {
+        if (AnalysisMigrationGuard.IsCompleteOrAbsent("article evaluation authorization",
+            Schema.Schema("analysis").Table("ArticleEvaluationRuns")
+                .Column("ActorAuditId").Exists(),
+            Schema.Schema("analysis").Table("ArticleEvaluationRuns")
+                .Column("AuthorizationGrantId").Exists()))
+            return;
+
         Alter.Table("ArticleEvaluationRuns").InSchema("analysis")
             .AddColumn("ActorAuditId").AsString(200).Nullable()
             .AddColumn("AuthorizationGrantId").AsString(400).Nullable();

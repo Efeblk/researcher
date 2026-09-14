@@ -1,12 +1,18 @@
 using FluentMigrator;
 
-namespace AcademicCollectorDemo.Modules.AcademicPerformance.Data.Migrations.Core;
+namespace ResearcherAnalysisService.Data.Migrations;
 
-[Migration(202609110005, "Add durable automatic article summary queue")]
-public sealed class AddArticleSummaryAutomation : Migration
+[Migration(202609140006, "Add durable automatic article summary queue")]
+public sealed class OwnArticleSummaryAutomation : Migration
 {
     public override void Up()
     {
+        if (AnalysisMigrationGuard.IsCompleteOrAbsent("article summary automation",
+            Schema.Schema("analysis").Table("ArticleSummaryAutomationJobs").Exists(),
+            Schema.Schema("analysis").Table("CanonicalArticleAnalysisRuns")
+                .Column("PolicyVersion").Exists()))
+            return;
+
         Alter.Table("CanonicalArticleAnalysisRuns").InSchema("analysis")
             .AddColumn("PolicyVersion").AsString(100).Nullable();
 
@@ -36,11 +42,6 @@ public sealed class AddArticleSummaryAutomation : Migration
             ALTER TABLE [analysis].[ArticleSummaryAutomationJobs]
                 ALTER COLUMN [Language] nvarchar(20) COLLATE Latin1_General_100_BIN2 NOT NULL;
             """);
-        Create.ForeignKey("FK_ArticleSummaryAutomationJobs_CanonicalWorks")
-            .FromTable("ArticleSummaryAutomationJobs").InSchema("analysis")
-            .ForeignColumn("CanonicalWorkId")
-            .ToTable("CanonicalWorks").InSchema("core")
-            .PrimaryColumn("Id").OnDelete(System.Data.Rule.Cascade);
         Create.ForeignKey("FK_ArticleSummaryAutomationJobs_LastSuccessfulRun")
             .FromTable("ArticleSummaryAutomationJobs").InSchema("analysis")
             .ForeignColumn("LastSuccessfulAnalysisRunId")

@@ -1,12 +1,18 @@
 using FluentMigrator;
 
-namespace AcademicCollectorDemo.Modules.AcademicPerformance.Data.Migrations.Core;
+namespace ResearcherAnalysisService.Data.Migrations;
 
-[Migration(202609110009)]
-public sealed class AddCanonicalArticleReviews : Migration
+[Migration(202609140009)]
+public sealed class OwnCanonicalArticleReviews : Migration
 {
     public override void Up()
     {
+        if (AnalysisMigrationGuard.IsCompleteOrAbsent("canonical article reviews",
+            Schema.Schema("analysis").Table("CanonicalArticleReviewRuns").Exists(),
+            Schema.Schema("analysis").Table("CanonicalArticleReviewFindings").Exists(),
+            Schema.Schema("analysis").Table("CanonicalArticleReviewEvidence").Exists()))
+            return;
+
         Create.Table("CanonicalArticleReviewRuns").InSchema("analysis")
             .WithColumn("Id").AsInt64().PrimaryKey().Identity()
             .WithColumn("CanonicalWorkId").AsInt32().NotNullable()
@@ -38,9 +44,6 @@ public sealed class AddCanonicalArticleReviews : Migration
             .WithColumn("OmittedFindings").AsInt32().NotNullable()
             .WithColumn("OmissionReasonsJson").AsString(int.MaxValue).NotNullable()
             .WithColumn("ReportJson").AsString(int.MaxValue).NotNullable();
-        Create.ForeignKey("FK_CanonicalArticleReviewRuns_CanonicalWorks")
-            .FromTable("CanonicalArticleReviewRuns").InSchema("analysis").ForeignColumn("CanonicalWorkId")
-            .ToTable("CanonicalWorks").InSchema("core").PrimaryColumn("Id").OnDelete(System.Data.Rule.None);
         Create.ForeignKey("FK_CanonicalArticleReviewRuns_BaseAnalysisRuns")
             .FromTable("CanonicalArticleReviewRuns").InSchema("analysis").ForeignColumn("BaseAnalysisRunId")
             .ToTable("CanonicalArticleAnalysisRuns").InSchema("analysis").PrimaryColumn("Id").OnDelete(System.Data.Rule.None);

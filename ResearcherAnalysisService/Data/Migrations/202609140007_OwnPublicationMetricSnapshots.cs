@@ -1,12 +1,17 @@
 using FluentMigrator;
 
-namespace AcademicCollectorDemo.Modules.AcademicPerformance.Data.Migrations.Core;
+namespace ResearcherAnalysisService.Data.Migrations;
 
-[Migration(202609110006, "Add durable publication metric snapshots")]
-public sealed class AddPublicationMetricSnapshots : Migration
+[Migration(202609140007, "Add durable publication metric snapshots")]
+public sealed class OwnPublicationMetricSnapshots : Migration
 {
     public override void Up()
     {
+        if (AnalysisMigrationGuard.IsCompleteOrAbsent("publication metric snapshots",
+            Schema.Schema("analysis").Table("PublicationMetricSnapshots").Exists(),
+            Schema.Schema("analysis").Table("PublicationMetricsRefreshStates").Exists()))
+            return;
+
         Create.Table("PublicationMetricSnapshots").InSchema("analysis")
             .WithColumn("Id").AsInt64().PrimaryKey().Identity()
             .WithColumn("PersonelID").AsString(200).NotNullable()
@@ -24,11 +29,6 @@ public sealed class AddPublicationMetricSnapshots : Migration
                 ALTER COLUMN [CatalogVersion] nvarchar(100) COLLATE Latin1_General_100_BIN2 NOT NULL;
             """);
 
-        Create.ForeignKey("FK_PublicationMetricSnapshots_Researchers")
-            .FromTable("PublicationMetricSnapshots").InSchema("analysis")
-            .ForeignColumn("PersonelID")
-            .ToTable("Researchers").InSchema("core")
-            .PrimaryColumn("PersonelID");
         Create.Index("UX_PublicationMetricSnapshots_Identity")
             .OnTable("PublicationMetricSnapshots").InSchema("analysis")
             .OnColumn("PersonelID").Ascending()
@@ -60,11 +60,6 @@ public sealed class AddPublicationMetricSnapshots : Migration
                 ALTER COLUMN [RequestedCatalogVersion] nvarchar(100) COLLATE Latin1_General_100_BIN2 NOT NULL;
             """);
 
-        Create.ForeignKey("FK_PublicationMetricsRefreshStates_Researchers")
-            .FromTable("PublicationMetricsRefreshStates").InSchema("analysis")
-            .ForeignColumn("PersonelID")
-            .ToTable("Researchers").InSchema("core")
-            .PrimaryColumn("PersonelID").OnDelete(System.Data.Rule.Cascade);
         Create.ForeignKey("FK_PublicationMetricsRefreshStates_LastSnapshot")
             .FromTable("PublicationMetricsRefreshStates").InSchema("analysis")
             .ForeignColumn("LastSuccessfulSnapshotId")

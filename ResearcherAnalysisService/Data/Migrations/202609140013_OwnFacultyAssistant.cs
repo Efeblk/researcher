@@ -1,12 +1,17 @@
 using FluentMigrator;
 
-namespace AcademicCollectorDemo.Modules.AcademicPerformance.Data.Migrations.Core;
+namespace ResearcherAnalysisService.Data.Migrations;
 
-[Migration(202609120011)]
-public sealed class AddFacultyAssistant : Migration
+[Migration(202609140013)]
+public sealed class OwnFacultyAssistant : Migration
 {
     public override void Up()
     {
+        if (AnalysisMigrationGuard.IsCompleteOrAbsent("faculty assistant",
+            Schema.Schema("faculty").Table("AssistantContextVersions").Exists(),
+            Schema.Schema("faculty").Table("AssistantRuns").Exists()))
+            return;
+
         Execute.Sql("IF SCHEMA_ID(N'faculty') IS NULL EXEC(N'CREATE SCHEMA [faculty]');");
         Create.Table("AssistantContextVersions").InSchema("faculty")
             .WithColumn("Id").AsInt64().PrimaryKey().Identity()
@@ -16,8 +21,6 @@ public sealed class AddFacultyAssistant : Migration
             .WithColumn("ContextFingerprint").AsString(64).NotNullable()
             .WithColumn("CreatedByActorId").AsString(200).NotNullable()
             .WithColumn("CreatedAt").AsDateTimeOffset().NotNullable();
-        Create.ForeignKey("FK_FacultyContexts_Researchers").FromTable("AssistantContextVersions").InSchema("faculty")
-            .ForeignColumn("PersonelID").ToTable("Researchers").InSchema("core").PrimaryColumn("PersonelID");
         Create.Index("UX_FacultyContexts_PersonelID_Version").OnTable("AssistantContextVersions").InSchema("faculty")
             .OnColumn("PersonelID").Ascending().OnColumn("Version").Ascending().WithOptions().Unique();
         Create.Table("AssistantRuns").InSchema("faculty")
@@ -44,8 +47,6 @@ public sealed class AddFacultyAssistant : Migration
             .WithColumn("ReportJson").AsString(int.MaxValue).Nullable()
             .WithColumn("ErrorCode").AsString(80).Nullable()
             .WithColumn("ErrorMessage").AsString(1000).Nullable();
-        Create.ForeignKey("FK_FacultyRuns_Researchers").FromTable("AssistantRuns").InSchema("faculty")
-            .ForeignColumn("PersonelID").ToTable("Researchers").InSchema("core").PrimaryColumn("PersonelID");
         Create.ForeignKey("FK_FacultyRuns_Context").FromTable("AssistantRuns").InSchema("faculty")
             .ForeignColumn("ContextVersionId").ToTable("AssistantContextVersions").InSchema("faculty").PrimaryColumn("Id");
         Create.Index("UX_FacultyRuns_RunId").OnTable("AssistantRuns").InSchema("faculty").OnColumn("RunId").Ascending().WithOptions().Unique();

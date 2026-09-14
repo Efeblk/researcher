@@ -1,12 +1,20 @@
 using FluentMigrator;
 
-namespace AcademicCollectorDemo.Modules.AcademicPerformance.Data.Migrations.Core;
+namespace ResearcherAnalysisService.Data.Migrations;
 
-[Migration(202609110010)]
-public sealed class AddArticleEvaluations : Migration
+[Migration(202609140010)]
+public sealed class OwnArticleEvaluations : Migration
 {
     public override void Up()
     {
+        if (AnalysisMigrationGuard.IsCompleteOrAbsent("article evaluations",
+            Schema.Schema("analysis").Table("ArticleEvaluationRuns").Exists(),
+            Schema.Schema("analysis").Table("ArticleEvaluationCases").Exists(),
+            Schema.Schema("analysis").Table("ArticleEvaluationWorkItems").Exists(),
+            Schema.Schema("analysis").Table("ArticleEvaluationAttempts").Exists(),
+            Schema.Schema("analysis").Table("ArticleEvaluationResults").Exists()))
+            return;
+
         Create.Table("ArticleEvaluationRuns").InSchema("analysis")
             .WithColumn("Id").AsInt64().PrimaryKey().Identity()
             .WithColumn("RunId").AsGuid().NotNullable()
@@ -55,9 +63,6 @@ public sealed class AddArticleEvaluations : Migration
         Create.ForeignKey("FK_ArticleEvaluationCases_Runs")
             .FromTable("ArticleEvaluationCases").InSchema("analysis").ForeignColumn("ArticleEvaluationRunId")
             .ToTable("ArticleEvaluationRuns").InSchema("analysis").PrimaryColumn("Id").OnDelete(System.Data.Rule.Cascade);
-        Create.ForeignKey("FK_ArticleEvaluationCases_CanonicalWorks")
-            .FromTable("ArticleEvaluationCases").InSchema("analysis").ForeignColumn("CanonicalWorkId")
-            .ToTable("CanonicalWorks").InSchema("core").PrimaryColumn("Id").OnDelete(System.Data.Rule.None);
         Create.ForeignKey("FK_ArticleEvaluationCases_BaseRuns")
             .FromTable("ArticleEvaluationCases").InSchema("analysis").ForeignColumn("BaseAnalysisRunId")
             .ToTable("CanonicalArticleAnalysisRuns").InSchema("analysis").PrimaryColumn("Id").OnDelete(System.Data.Rule.None);
