@@ -2,7 +2,6 @@ using AcademicCollectorDemo.Tests.Infrastructure;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
@@ -97,11 +96,9 @@ public sealed class EndpointTests(SqlServerFixture fixture)
         Assert.Equal(collectedDoi, collectedCanonical.GetProperty("NormalizedDoi").GetString());
         Assert.Equal("WebOfScience", collectedCanonical.GetProperty("Observations")[0]
             .GetProperty("Provider").GetString());
-        Assert.True(await db.ArticleSummaryAutomationJobs.AsNoTracking().AnyAsync(job =>
-            job.CanonicalWork!.NormalizedDoi == collectedDoi && job.Language == "tr" &&
-            job.Status == ArticleSummaryAutomationJobStatus.Pending));
-        await db.ArticleSummaryAutomationJobs.Where(job =>
-            job.CanonicalWork!.NormalizedDoi == collectedDoi).ExecuteDeleteAsync();
+        Assert.True(await db.CollectionChanges.AsNoTracking().AnyAsync(change =>
+            change.PersonelId == collectedPersonelId &&
+            change.ChangeKind == "CanonicalWorkChanged"));
 
         using var summaryList = await host.Client.PostAsJsonAsync(
             "/Services/AcademicPerformance/PublicationSummary/List",

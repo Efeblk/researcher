@@ -48,6 +48,7 @@ public sealed class MigrationOwnershipTests
                     "SELECT COUNT(*) FROM sys.tables WHERE schema_id=SCHEMA_ID('analysis') AND name='GeminiUsageAttempts'"));
                 await using SqlCommand seed = database.CreateCommand();
                 seed.CommandText = """
+                    EXEC(N'CREATE SCHEMA [analysis]');
                     CREATE TABLE [analysis].[GeminiUsageAttempts]
                     (
                         [AttemptId] uniqueidentifier NOT NULL PRIMARY KEY,

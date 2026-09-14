@@ -14,8 +14,7 @@ public sealed class PersonnelKeySchemaTests(SqlServerFixture fixture)
             "[orcid].[OrcidProfiles]", "[googlescholar].[GoogleScholarProfiles]",
             "[openalex].[OpenAlexProfiles]", "[wos].[WebOfScienceProfiles]",
             "[yoksis].[YoksisRecords]", "[core].[AcademicWorks]",
-            "[core].[PublicationSummaries]", "[core].[PublicationDisplayApprovals]",
-            "[analysis].[ResearcherAnalyses]"
+            "[core].[PublicationSummaries]", "[core].[PublicationDisplayApprovals]"
         ];
 
         await using SqlConnection connection = new(fixture.ConnectionString);

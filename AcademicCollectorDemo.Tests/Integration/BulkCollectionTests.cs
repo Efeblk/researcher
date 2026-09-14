@@ -3,7 +3,6 @@ using System.Text.Json;
 using AcademicCollectorDemo.Modules.AcademicPerformance;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Application;
-using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Background;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Bulk;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Bulk.Models;
@@ -13,6 +12,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimitin
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Tests.Infrastructure;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -296,20 +296,21 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
     }
 
     [Fact]
-    public async Task HostedWorker_DefaultEnabled_ResumesSubmittedJobAndCreatesCanonicalPublication()
+    public async Task HostedWorker_TwoResearchers_NormalizesWorksAndEmitsCollectionChanges()
     {
-        string personelId = "hosted-canonical-" + Guid.NewGuid().ToString("N");
-        const string researcherId = "D-7392-2098";
-        string doi = "10.7200/bulk-" + Guid.NewGuid().ToString("N");
+        string suffix = Guid.NewGuid().ToString("N");
+        string[] personelIds = ["hosted-canonical-a-" + suffix, "hosted-canonical-b-" + suffix];
+        string[] researcherIds = ["D-7392-2098", "D-7392-2099"];
+        string[] dois = ["10.7200/bulk-a-" + suffix, "10.7200/bulk-b-" + suffix];
         Guid batchId = Guid.NewGuid();
         await using (AsyncServiceScope seedScope = fixture.Services.CreateAsyncScope())
         {
             AcademicDbContext db = seedScope.ServiceProvider.GetRequiredService<AcademicDbContext>();
             await DeferExistingJobsAsync(db);
-            db.Researchers.Add(new Researcher
+            db.Researchers.AddRange(personelIds.Select((personelId, index) => new Researcher
             {
                 PersonelId = personelId,
-                WebOfScienceResearcherId = researcherId,
+                WebOfScienceResearcherId = researcherIds[index],
                 WebOfScienceProfile = new WebOfScienceProfile
                 {
                     PersonelId = personelId,
@@ -318,15 +319,15 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
                     DocumentPagesJson = """{"WOS":[{}],"WOK":[{}]}""",
                     Works = [new WebOfScienceWork
                     {
-                        Uid = "WOS:hosted-canonical",
-                        Title = "Hosted bulk canonical publication",
-                        Doi = doi,
+                        Uid = "WOS:hosted-canonical-" + index,
+                        Title = "Hosted bulk canonical publication " + index,
+                        Doi = dois[index],
                         PublicationYear = 2026,
                         WorkTypes = "Article",
                         RawDataJson = "{}"
                     }]
                 }
-            });
+            }));
             await db.SaveChangesAsync();
         }
 
@@ -340,15 +341,13 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
                 new
                 {
                     BatchId = batchId,
-                    Researchers = new[]
-                    {
-                        new { PersonelID = personelId, ResearcherID = researcherId }
-                    }
+                    Researchers = personelIds.Select((personelId, index) => new
+                    { PersonelID = personelId, ResearcherID = researcherIds[index] }).ToArray()
                 });
             submit.EnsureSuccessStatusCode();
             JsonElement submitBody = await submit.Content.ReadFromJsonAsync<JsonElement>();
             Assert.False(submitBody.GetProperty("WorkerEnabled").GetBoolean());
-            Assert.Equal(1, submitBody.GetProperty("Counts").GetProperty("Pending").GetInt32());
+            Assert.Equal(2, submitBody.GetProperty("Counts").GetProperty("Pending").GetInt32());
         }
 
         using var workerHost = new HostProcess(
@@ -371,28 +370,46 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
         }
         Assert.True(statusBody.GetProperty("WorkerEnabled").GetBoolean());
         Assert.True(statusBody.GetProperty("IsComplete").GetBoolean(), statusBody.GetRawText());
-        Assert.Equal(BulkJobStatus.Succeeded,
-            statusBody.GetProperty("Jobs")[0].GetProperty("Status").GetString());
+        Assert.All(statusBody.GetProperty("Jobs").EnumerateArray(), job =>
+            Assert.Equal(BulkJobStatus.Succeeded, job.GetProperty("Status").GetString()));
 
-        using HttpResponseMessage canonical = await workerHost.Client.PostAsJsonAsync(
-            "/Services/AcademicPerformance/V1/ListCanonicalPublications",
-            new { PersonelID = personelId, SearchText = "HTTPS://DOI.ORG/" + doi.ToUpperInvariant() });
-        canonical.EnsureSuccessStatusCode();
-        JsonElement canonicalBody = await canonical.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(1, canonicalBody.GetProperty("TotalCount").GetInt32());
-        JsonElement publication = canonicalBody.GetProperty("Entities")[0];
-        Assert.Equal(doi, publication.GetProperty("NormalizedDoi").GetString());
-        Assert.Equal("WebOfScience", publication.GetProperty("Observations")[0]
-            .GetProperty("Provider").GetString());
-        Assert.Equal(1, publication.GetProperty("KnownResearcherCount").GetInt32());
+        for (int index = 0; index < personelIds.Length; index++)
+        {
+            using HttpResponseMessage canonical = await workerHost.Client.PostAsJsonAsync(
+                "/Services/AcademicPerformance/V1/ListCanonicalPublications",
+                new { PersonelID = personelIds[index],
+                    SearchText = "HTTPS://DOI.ORG/" + dois[index].ToUpperInvariant() });
+            canonical.EnsureSuccessStatusCode();
+            JsonElement canonicalBody = await canonical.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal(1, canonicalBody.GetProperty("TotalCount").GetInt32());
+            JsonElement publication = canonicalBody.GetProperty("Entities")[0];
+            Assert.Equal(dois[index], publication.GetProperty("NormalizedDoi").GetString());
+            Assert.Equal("WebOfScience", publication.GetProperty("Observations")[0]
+                .GetProperty("Provider").GetString());
+            Assert.Equal(1, publication.GetProperty("KnownResearcherCount").GetInt32());
+        }
         await using AsyncServiceScope queueScope = fixture.Services.CreateAsyncScope();
         AcademicDbContext queueDatabase = queueScope.ServiceProvider
             .GetRequiredService<AcademicDbContext>();
-        Assert.True(await queueDatabase.ArticleSummaryAutomationJobs.AsNoTracking().AnyAsync(job =>
-            job.CanonicalWork!.NormalizedDoi == doi && job.Language == "tr" &&
-            job.Status == ArticleSummaryAutomationJobStatus.Pending));
-        await queueDatabase.ArticleSummaryAutomationJobs.Where(job =>
-            job.CanonicalWork!.NormalizedDoi == doi).ExecuteDeleteAsync();
+        var changeRows = await queueDatabase.CollectionChanges.AsNoTracking()
+            .Where(change => personelIds.Contains(change.PersonelId))
+            .Select(change => new { change.PersonelId, change.ChangeKind })
+            .ToArrayAsync();
+        ILookup<string, string> changes = changeRows.ToLookup(
+            change => change.PersonelId!, change => change.ChangeKind);
+        Assert.All(personelIds, personelId =>
+        {
+            Assert.Contains("ResearcherCollected", changes[personelId]);
+            Assert.Contains("CanonicalWorkChanged", changes[personelId]);
+        });
+        await using SqlConnection ownership = new(fixture.ConnectionString);
+        await ownership.OpenAsync();
+        await using SqlCommand ownedTables = ownership.CreateCommand();
+        ownedTables.CommandText = """
+            SELECT COUNT(*) FROM sys.tables t JOIN sys.schemas s ON s.schema_id=t.schema_id
+            WHERE s.name IN (N'analysis', N'hr', N'faculty');
+            """;
+        Assert.Equal(0, Convert.ToInt32(await ownedTables.ExecuteScalarAsync()));
     }
 
     [Fact]
