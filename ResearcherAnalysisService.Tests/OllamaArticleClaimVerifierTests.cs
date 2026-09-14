@@ -12,18 +12,21 @@ namespace ResearcherAnalysisService.Tests;
 public sealed class OllamaArticleClaimVerifierTests
 {
     [Fact]
-    public async Task Verify_CitedAndNeighborContext_SendsFlagsEnumAndAcceptsMixedVerdicts()
+    public async Task Verify_BatchedClaims_SendOnlyTheirOwnCitationsAndAcceptMixedVerdicts()
     {
         IReadOnlyList<ArticleSourceSpan> spans =
         [
-            new("s0", 1, 0, 8, "Context."),
-            new("s1", 1, 8, 24, "Cited evidence."),
-            new("s2", 1, 24, 38, "Qualification.")
+            new("s0", 1, 0, 8, "Uncited neighbor says RMSProp."),
+            new("s1", 1, 8, 24, "Adam combines AdaGrad."),
+            new("s2", 1, 24, 38, "Adam also combines RMSProp."),
+            new("s3", 2, 0, 35, "Yazarlar 10 değil, 12 örnek kullandı.")
         ];
         IReadOnlyList<GeneratedArticleClaim> claims =
         [
-            new("c1", "Supported claim.", ["s1"]),
-            new("c2", "Wrong quantity.", ["s1"])
+            new("c1", "Adam combines AdaGrad and RMSProp.", ["s1"]),
+            new("c2", "Adam combines AdaGrad and RMSProp.", ["s1", "s2"]),
+            new("c3", "Adam includes RMSProp.", ["s2"]),
+            new("c4", "Yazarlar 10 değil, 12 örnek kullandı.", ["s3"])
         ];
         using HttpClient client = new(new StubHandler(async request =>
         {
@@ -31,16 +34,31 @@ public sealed class OllamaArticleClaimVerifierTests
             Assert.True(body.RootElement.GetProperty("think").GetBoolean());
             Assert.Equal(8192, body.RootElement.GetProperty("options").GetProperty("num_predict").GetInt32());
             string input = body.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!;
-            Assert.Contains("\"citedEvidence\":true", input);
-            Assert.Contains("\"citedEvidence\":false", input);
+            using JsonDocument inputDocument = JsonDocument.Parse(input);
+            JsonElement items = inputDocument.RootElement.GetProperty("items");
+            Assert.Equal(["s1"], SourceIds(items[0]));
+            Assert.Equal(["s1", "s2"], SourceIds(items[1]));
+            Assert.Equal(["s2"], SourceIds(items[2]));
+            Assert.Equal(["s3"], SourceIds(items[3]));
+            Assert.Contains("Yazarlar 10 değil, 12 örnek kullandı.", input);
+            Assert.DoesNotContain("Uncited neighbor", input);
+            Assert.DoesNotContain("citedEvidence", input);
+            Assert.DoesNotContain("startOffset", input);
+            Assert.DoesNotContain("endOffset", input);
             string format = body.RootElement.GetProperty("format").GetRawText();
-            Assert.Contains("\"enum\":[\"c1\",\"c2\"]", format);
-            return Response([new("c1", "supported", "Direct support."), new("c2", "unsupported", "Number conflicts.")]);
+            Assert.Contains("\"enum\":[\"c1\",\"c2\",\"c3\",\"c4\"]", format);
+            return Response([
+                new("c1", "uncertain", "The citation omits RMSProp."),
+                new("c2", "supported", "Both methods are cited."),
+                new("c3", "supported", "Direct support."),
+                new("c4", "supported", "Actor, number, and negation match.")
+            ]);
         }));
 
         GeneratedVerificationBatch result = await Verifier(client).VerifyAsync("en", claims, spans, default);
 
-        Assert.Equal(["supported", "unsupported"], result.Verdicts.Select(x => x.Verdict));
+        Assert.Equal(["uncertain", "supported", "supported", "supported"],
+            result.Verdicts.Select(x => x.Verdict));
     }
 
     [Theory]
@@ -85,6 +103,8 @@ public sealed class OllamaArticleClaimVerifierTests
 
     private static OllamaArticleClaimVerifier Verifier(HttpClient client) => new(client, Options.Create(new AiOptions
         { ArticleProvider = "Ollama", ArticleModel = "qwen3.5:9b", ArticleContextTokens = 32768 }));
+    private static string[] SourceIds(JsonElement item) => item.GetProperty("sources").EnumerateArray()
+        .Select(source => source.GetProperty("sourceId").GetString()!).ToArray();
     private static HttpResponseMessage Response(IReadOnlyList<GeneratedClaimVerdict> verdicts,
         int promptTokens = 100, string doneReason = "stop") => ResponseObject(verdicts, promptTokens, doneReason);
     private static HttpResponseMessage ResponseObject(object? verdicts, int promptTokens = 100, string doneReason = "stop")

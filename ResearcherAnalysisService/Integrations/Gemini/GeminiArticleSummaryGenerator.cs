@@ -26,7 +26,8 @@ public sealed class GeminiArticleSummaryGenerator(GeminiArticleClient client, IO
         string input = JsonSerializer.Serialize(new { language, sourceKind, sources }, JsonOptions);
         GeminiArticleResult result = await client.GenerateAsync(options.Value.ArticleModel,
             ArticleSummaryPrompt.Instructions, input,
-            (JsonObject)ArticleSummaryPrompt.Schema.DeepClone(), options.Value.ArticleMaxOutputTokens, cancellationToken);
+            (JsonObject)ArticleSummaryPrompt.Schema.DeepClone(), options.Value.ArticleMaxOutputTokens,
+            options.Value.ArticleGenerationThinkingLevel, cancellationToken);
         try
         {
             GeneratedArticleSections sections = JsonSerializer.Deserialize<GeneratedArticleSections>(result.Json, JsonOptions)

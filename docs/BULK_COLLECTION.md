@@ -9,6 +9,7 @@ JSON rows from an external caller, or an optional configured SQL query
     -> existing collection service
     -> provider HTTP limiter
     -> stored profiles, normalized works, publication summaries
+    -> durable canonical article-summary jobs
 ```
 
 ## Input
@@ -66,7 +67,7 @@ Example initial status (job IDs and timestamps vary):
 ```json
 {
   "BatchId": "a3700086-8ad7-4871-becf-0fbd2ce586e3",
-  "WorkerEnabled": false,
+  "WorkerEnabled": true,
   "IsComplete": false,
   "Counts": { "Pending": 1 },
   "Jobs": [
@@ -123,15 +124,15 @@ Importing is explicit: call `ImportSql` to create a batch. The worker polls the 
 
 ## Enable processing and configure provider speeds
 
-Both the worker and SQL importer are disabled in committed defaults. To perform actual local collection, set `BulkCollection.WorkerEnabled` to `true` in `academicsettings.json`, then restart the host:
+The bulk worker is enabled in committed defaults and processes submitted jobs while the host is running. The optional SQL importer remains disabled until an operator supplies its connection and query. To pause queue processing for maintenance, override the worker setting and restart the host:
 
 ```json
 "BulkCollection": {
-  "WorkerEnabled": true
+  "WorkerEnabled": false
 }
 ```
 
-An existing `BulkCollection:WorkerEnabled` user-secret or another later configuration source can override the file value; update or remove that override if `Status.WorkerEnabled` remains `false`. Restart the host after changing worker or provider-limit settings. `Status.WorkerEnabled` shows the worker setting for the host answering the request. Enabling the worker does not add any source-database configuration requirement to `Submit`.
+An existing `BulkCollection:WorkerEnabled` user-secret or another later configuration source can override the file value. Restart the host after changing worker or provider-limit settings. `Status.WorkerEnabled` shows the worker setting for the host answering the request. The worker does not add any source-database configuration requirement to `Submit`.
 
 Each provider has settings under `ProviderRequestLimits`: `Orcid`, `SearchApi`, `OpenAlex`, `WebOfScience`, `Yoksis`, `TrDizin`, and `Crossref`.
 
@@ -193,6 +194,16 @@ The first version processes one researcher at a time across bulk workers, reusin
 Each status row includes UTC `StartedAt` and `CompletedAt` timestamps. A researcher with many provider pages can remain `Running` for several minutes; bulk-only logs report the job attempt and elapsed time plus safe provider names, request ordinals, HTTP status codes, and cooldown durations without logging identifiers or request URLs. The request ordinal counts every provider HTTP request across the whole job attempt, so it is not a provider page number. Web of Science logs page progress separately for each WOS and WOK database request: the request log includes the requested page and configured maximum, while the parsed-response log also includes the provider-reported total and computed page count. `Pending` and `RetryWaiting` jobs resume when a worker is available. Terminal `Failed` jobs do not resume automatically.
 
 A SQL session lock owns bulk processing. After a crash, another worker can acquire the lock and resume abandoned `Running` jobs, subject to the retry limit. Delivery is **at least once**: a crash after saving provider results but before recording job completion may repeat collection. Existing caches and synchronization reduce repeated calls and reconcile saved data; there is no exactly-once guarantee for external API requests.
+
+Each successful bulk collection uses the same canonical reconciliation and article-summary scheduling transaction as individual `Collect`. It does not wait for article fetching or model analysis. The separate article worker deduplicates shared DOI works across researchers and exposes progress through `GetArticleSummaryAutomationStatus`; see [Article summaries](ARTICLE_SUMMARIES.md).
+
+## First 2–3-researcher operational pilot
+
+1. Before starting the collector host, set `ArticleSummaryAutomation__Enabled=true`, `ArticleSummaryAutomation__WorkerEnabled=false`, `FacultyAssistant__WorkerEnabled=false`, and `ArticleEvaluation__WorkerEnabled=false`. Do not start `ResearcherAnalysisService` yet. Summary jobs will be queued for inspection without source acquisition or model calls.
+2. Submit only 2–3 approved researchers and populate only the provider identifiers approved for this pilot. Keep optional paid providers disabled unless their use and budget are explicitly accepted. Synthetic provider tests are a separate test-suite capability: putting synthetic IDs into a live collector does not make its provider traffic offline.
+3. Poll `V1/Bulk/Status` until every row is terminal. Inspect failures, warnings, request counts, and provider cooldowns before expanding the batch.
+4. Read the saved results through `V1/ListCanonicalPublications`, `V1/GetResearcherPublicationMetrics`, and `V1/GetArticleSummaryAutomationStatus`. Confirm canonical links, metric coverage, and the pending summary backlog without enabling any model worker.
+5. If an AI step is later authorized, start the analysis service and run `V1/SummarizeArticle` manually for one selected work. Manual summaries, specialist reviews, evaluations, and faculty-assistant generation can incur model usage. The usage ledger records completed calls but is not a hard spending limit. Keep the summary worker paused because enabling it would release the entire pending backlog.
 
 The initial migrations now make the required institution `PersonelID` the sole `core.Researchers` primary key; there is no internal integer `core.Researchers.Id`. Provider profiles (including TR Dizin), Crossref works, YÖKSİS records, academic works, publication summaries, publication approvals, and saved analyses reference that same `PersonelID`. Provider profile, work, summary, approval, and analysis row IDs remain unchanged. Single-provider and YÖKSİS collection requests also require `PersonelID` before any provider call. The remaining personnel-export columns are `ORCID`, Web of Science `ResearcherID`, `ScopusID`, and `ScholarID`.
 

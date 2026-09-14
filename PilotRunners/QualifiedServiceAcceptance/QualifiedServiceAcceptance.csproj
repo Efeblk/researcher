@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../AcademicCollectorDemo.csproj" AdditionalProperties="SkipTSBuild=true" />
+    <ProjectReference Include="../../ResearcherAnalysisService/ResearcherAnalysisService.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../FinalServiceAcceptance/FinalAcceptanceArtifacts.cs" Link="Shared/FinalAcceptanceArtifacts.cs" />
+    <Compile Include="../FinalServiceAcceptance/FinalAcceptanceDatabase.cs" Link="Shared/FinalAcceptanceDatabase.cs" />
+    <Compile Include="../FinalServiceAcceptance/FinalServiceAcceptanceCleanup.cs" Link="Shared/FinalServiceAcceptanceCleanup.cs" />
+    <Compile Include="../FinalServiceAcceptance/FinalServiceAcceptancePreflight.cs" Link="Shared/FinalServiceAcceptancePreflight.cs" />
+    <Compile Include="../FinalServiceAcceptance/LiveFinalServiceAcceptance.cs" Link="Shared/LiveFinalServiceAcceptance.cs" />
+    <Compile Include="../FinalServiceAcceptance/ServiceAcceptanceBudget.cs" Link="Shared/ServiceAcceptanceBudget.cs" />
+    <Compile Include="../ServiceAcceptancePilot/ServiceAcceptanceHost.cs" Link="Shared/ServiceAcceptanceHost.cs" />
+    <Compile Include="../ServiceAcceptancePilot/ServiceAcceptanceSelfTest.cs" Link="Shared/ServiceAcceptanceSelfTest.cs" />
+  </ItemGroup>
+</Project>

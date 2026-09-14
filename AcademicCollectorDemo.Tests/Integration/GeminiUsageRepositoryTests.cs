@@ -35,7 +35,7 @@ public sealed class GeminiUsageRepositoryTests(SqlServerFixture fixture)
             for (int index = 0; index < 3; index++)
                 await repository.CompleteAsync(ids[index], start.AddMinutes(index).AddSeconds(1), new()
                 {
-                    Outcome = "Success", HttpStatus = 200, ReturnedModel = $"returned-{index + 1}",
+                    Outcome = "Success", HttpStatus = 200, ReturnedModel = $"model-{index + 1}",
                     PromptTokenCount = 100, CachedTokenCount = 0, CandidateTokenCount = 20,
                     ThoughtTokenCount = 0, TotalTokenCount = 120, PricingVersion = "synthetic-pricing",
                     EstimatedUsd = (index + 1) / 10m
@@ -48,18 +48,18 @@ public sealed class GeminiUsageRepositoryTests(SqlServerFixture fixture)
             Assert.Equal(4, pending.RequestCount);
             Assert.Equal(1, pending.UnknownCount);
             Assert.Null(pending.EstimatedTotalUsd);
-            Assert.Equal(["model-4", "returned-3", "returned-2"], pending.Last3.Select(item => item.Model));
+            Assert.Equal(["model-4", "model-3", "model-2"], pending.Last3.Select(item => item.Model));
             Assert.Null(pending.Last3[0].EstimatedUsd);
 
             await repository.CompleteAsync(ids[3], start.AddMinutes(4), new()
             {
-                Outcome = "Rejected", HttpStatus = 429, ReturnedModel = "returned-4",
+                Outcome = "Rejected", HttpStatus = 429, ReturnedModel = "model-4",
                 EstimatedUsd = 0.4m, PricingVersion = "synthetic-pricing"
             }, default);
             GeminiSpendingStatus complete = await CreateRepository().GetSpendingAsync(default);
             Assert.Equal(0, complete.UnknownCount);
             Assert.Equal(1.0m, complete.EstimatedTotalUsd);
-            Assert.Equal("returned-4", complete.Last3[0].Model);
+            Assert.Equal("model-4", complete.Last3[0].Model);
 
             await using SqlConnection connection = new(fixture.ConnectionString);
             await connection.OpenAsync();
@@ -78,6 +78,75 @@ public sealed class GeminiUsageRepositoryTests(SqlServerFixture fixture)
             await ClearAsync();
         }
     }
+
+    [Fact]
+    public async Task Repository_PricedMissingOrMismatchedReturnedModel_RemainsRawButAggregatesAsUnknown()
+    {
+        GeminiUsageRepository repository = CreateRepository();
+        DateTime start = new(2026, 9, 14, 8, 0, 0, DateTimeKind.Utc);
+        Guid exactId = Guid.NewGuid();
+        Guid missingId = Guid.NewGuid();
+        Guid mismatchId = Guid.NewGuid();
+        await ClearAsync();
+        try
+        {
+            foreach ((Guid id, int minute) in new[] { (exactId, 0), (missingId, 1), (mismatchId, 2) })
+                await repository.BeginAsync(id, start.AddMinutes(minute), "gemini-3.8-flash", default);
+            await repository.CompleteAsync(exactId, start.AddSeconds(1), Completion(
+                "gemini-3.8-flash", 0.1m), default);
+            await repository.CompleteAsync(missingId, start.AddMinutes(1).AddSeconds(1), Completion(
+                null, 0.2m), default);
+            await repository.CompleteAsync(mismatchId, start.AddMinutes(2).AddSeconds(1), Completion(
+                "gemini-other", 0.3m), default);
+
+            GeminiSpendingStatus spending = await repository.GetSpendingAsync(default);
+
+            Assert.True(spending.Available);
+            Assert.Equal(3, spending.RequestCount);
+            Assert.Equal(2, spending.UnknownCount);
+            Assert.Null(spending.EstimatedTotalUsd);
+            Assert.Equal(["gemini-other", "gemini-3.8-flash", "gemini-3.8-flash"],
+                spending.Last3.Select(value => value.Model));
+            Assert.Equal([null, null, 0.1m], spending.Last3.Select(value => value.EstimatedUsd));
+
+            await using SqlConnection connection = new(fixture.ConnectionString);
+            await connection.OpenAsync();
+            await using SqlCommand command = connection.CreateCommand();
+            command.CommandText = "SELECT AttemptId,ReturnedModel,EstimatedUsd FROM [analysis].[GeminiUsageAttempts] ORDER BY StartedAt";
+            await using SqlDataReader reader = await command.ExecuteReaderAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(exactId, reader.GetGuid(0));
+            Assert.Equal("gemini-3.8-flash", reader.GetString(1));
+            Assert.Equal(0.1m, reader.GetDecimal(2));
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(missingId, reader.GetGuid(0));
+            Assert.True(reader.IsDBNull(1));
+            Assert.Equal(0.2m, reader.GetDecimal(2));
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(mismatchId, reader.GetGuid(0));
+            Assert.Equal("gemini-other", reader.GetString(1));
+            Assert.Equal(0.3m, reader.GetDecimal(2));
+        }
+        finally
+        {
+            await ClearAsync();
+        }
+    }
+
+    private static GeminiUsageCompletion Completion(string? returnedModel, decimal estimatedUsd) => new()
+    {
+        Outcome = "InvalidJson",
+        HttpStatus = 200,
+        ReturnedModel = returnedModel,
+        PromptTokenCount = 100,
+        CachedTokenCount = 0,
+        CandidateTokenCount = 20,
+        ThoughtTokenCount = 0,
+        TotalTokenCount = 120,
+        PricingVersion = "synthetic-pricing",
+        EstimatedUsd = estimatedUsd,
+        UsageValidForAttribution = true
+    };
 
     [Fact]
     public async Task CompletionFailure_LeavesInsertedRowPendingAndAggregateUnknown()
@@ -108,7 +177,7 @@ public sealed class GeminiUsageRepositoryTests(SqlServerFixture fixture)
                 Options.Create(new GeminiOptions { ApiKey = "synthetic" }), failing);
 
             await client.GenerateAsync("gemini-3.8-flash", "instructions", "input", new JsonObject(),
-                512, default);
+                512, "high", default);
 
             Assert.Equal(1, sends);
             GeminiSpendingStatus spending = await repository.GetSpendingAsync(default);

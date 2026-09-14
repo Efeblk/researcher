@@ -1,11 +1,20 @@
 using System.Text.Json;
+using System.Data;
+using AcademicCollectorDemo.Modules.AcademicPerformance.ArticleSummaries;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Metrics;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.SemanticScholar;
 
-public sealed class SemanticScholarWorkSourceSynchronizer(AcademicDbContext dbContext)
+public sealed class SemanticScholarWorkSourceSynchronizer(
+    AcademicDbContext dbContext,
+    CanonicalWorkSynchronizer? canonicalWorkSynchronizer = null,
+    ArticleSummaryAutomationScheduler? articleSummaryScheduler = null,
+    PublicationMetricsRefreshScheduler? publicationMetricsScheduler = null)
 {
     private sealed record OpenAccessPdf(string Url, bool IsOpenAccess);
 
@@ -39,7 +48,45 @@ public sealed class SemanticScholarWorkSourceSynchronizer(AcademicDbContext dbCo
                 added++;
             }
         }
-        if (added > 0) await dbContext.SaveChangesAsync(cancellationToken);
+        if (added > 0)
+        {
+            IDbContextTransaction? ownedTransaction = null;
+            if (dbContext.Database.CurrentTransaction is null)
+            {
+                ownedTransaction = await dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.ReadCommitted, cancellationToken);
+            }
+            try
+            {
+                if (canonicalWorkSynchronizer is not null)
+                    await canonicalWorkSynchronizer.AcquireWriteGateAsync(cancellationToken);
+                await dbContext.SaveChangesAsync(cancellationToken);
+                if (publicationMetricsScheduler is not null)
+                    await publicationMetricsScheduler.ScheduleAsync(personelId, cancellationToken);
+                if (articleSummaryScheduler is not null)
+                {
+                    int[] workIds = works.Select(work => work.Id).ToArray();
+                    int[] canonicalWorkIds = await dbContext.CanonicalWorkObservations.AsNoTracking()
+                        .Where(observation => workIds.Contains(observation.AcademicWorkId))
+                        .Select(observation => observation.CanonicalWorkId)
+                        .Distinct().ToArrayAsync(cancellationToken);
+                    await articleSummaryScheduler.ScheduleAsync(canonicalWorkIds, cancellationToken);
+                }
+                if (ownedTransaction is not null)
+                    await ownedTransaction.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                if (ownedTransaction is not null)
+                    await ownedTransaction.RollbackAsync(CancellationToken.None);
+                throw;
+            }
+            finally
+            {
+                if (ownedTransaction is not null)
+                    await ownedTransaction.DisposeAsync();
+            }
+        }
         return added;
     }
 

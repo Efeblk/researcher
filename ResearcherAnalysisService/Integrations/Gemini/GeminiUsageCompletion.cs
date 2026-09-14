@@ -2,6 +2,7 @@ namespace ResearcherAnalysisService.Integrations.Gemini;
 
 public sealed record GeminiUsageCompletion
 {
+    public bool UsageValidForAttribution { get; init; }
     public string Outcome { get; init; } = "Unknown";
     public int? HttpStatus { get; init; }
     public string? ReturnedModel { get; init; }

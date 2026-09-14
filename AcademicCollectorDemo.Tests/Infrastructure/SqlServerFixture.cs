@@ -33,7 +33,13 @@ public sealed class SqlServerFixture : IAsyncLifetime
         IConfiguration configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:AcademicDatabase"] = connection.ConnectionString
+                ["ConnectionStrings:AcademicDatabase"] = connection.ConnectionString,
+                ["BulkCollection:WorkerEnabled"] = "false",
+                ["ArticleSummaryAutomation:Enabled"] = "false",
+                ["ArticleSummaryAutomation:WorkerEnabled"] = "false",
+                ["PublicationMetrics:WorkerEnabled"] = "false"
+                ,["ArticleEvaluation:WorkerEnabled"] = "false"
+                ,["FacultyAssistant:WorkerEnabled"] = "false"
             }).Build();
         ServiceCollection services = new();
         services.AddLogging();

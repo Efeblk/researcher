@@ -2,7 +2,7 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Bulk;
 
 public sealed class BulkCollectionOptions
 {
-    public bool WorkerEnabled { get; set; }
+    public bool WorkerEnabled { get; set; } = true;
     public int MaximumBatchSize { get; set; } = 10000;
     public int MaximumAttempts { get; set; } = 3;
     public int PollSeconds { get; set; } = 5;

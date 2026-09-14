@@ -48,6 +48,27 @@ public sealed record ArticleSummaryReport(string Language, string SourceKind, st
 {
     public ArticleVerificationMetadata? Verification { get; init; }
     public string? ExtractionMethod { get; init; }
+    public ArticleSourceFidelity? SourceFidelity { get; init; }
+}
+
+public sealed record ArticleSourceFidelity(
+    string TextCoverage,
+    bool FormulaAndTableLayoutVerified,
+    bool FigureImageryAnalyzed,
+    string Limitation)
+{
+    public static ArticleSourceFidelity Create(string sourceKind, string extractionVersion) => new(
+        sourceKind switch
+        {
+            "pdf" when extractionVersion.Contains("ocr", StringComparison.OrdinalIgnoreCase) =>
+                "provided_pdf_pages_ocr_text",
+            "pdf" => "provided_pdf_pages_text",
+            "html" => "provided_html_text",
+            _ => "provided_abstract_text"
+        },
+        false,
+        false,
+        "Formula and table layout was not verified from flattened text, and figure imagery was not analyzed.");
 }
 
 public static class ArticleSourceCatalog

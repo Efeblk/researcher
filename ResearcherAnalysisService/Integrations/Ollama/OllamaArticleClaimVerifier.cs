@@ -10,7 +10,8 @@ using ResearcherAnalysisService.Configuration;
 
 namespace ResearcherAnalysisService.Integrations.Ollama;
 
-public sealed class OllamaArticleClaimVerifier(HttpClient client, IOptions<AiOptions> options) : IArticleClaimVerifier
+public sealed class OllamaArticleClaimVerifier(HttpClient client, IOptions<AiOptions> options,
+    ArticleEvaluationAttemptRecorder? attemptRecorder = null) : IArticleClaimVerifier
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -29,16 +30,7 @@ public sealed class OllamaArticleClaimVerifier(HttpClient client, IOptions<AiOpt
         if (model.EndsWith("-cloud", StringComparison.OrdinalIgnoreCase) || model.EndsWith(":cloud", StringComparison.OrdinalIgnoreCase))
             throw new AnalysisUnavailableException("Choose a downloaded local verifier model.");
 
-        HashSet<string> cited = claims.SelectMany(x => x.SourceIds).ToHashSet(StringComparer.Ordinal);
-        HashSet<int> contextIndexes = [];
-        for (int i = 0; i < sourceSpans.Count; i++)
-            if (cited.Contains(sourceSpans[i].SourceId))
-                for (int context = Math.Max(0, i - 1); context <= Math.Min(sourceSpans.Count - 1, i + 1); context++)
-                    contextIndexes.Add(context);
-        var sources = contextIndexes.Order().Select(i => new
-            { sourceSpans[i].SourceId, sourceSpans[i].PageNumber, sourceSpans[i].Text,
-                citedEvidence = cited.Contains(sourceSpans[i].SourceId) }).ToList();
-        string input = JsonSerializer.Serialize(new { language, claims, sources }, JsonOptions);
+        string input = ArticleVerificationInput.CreateClaims(language, claims, sourceSpans);
         using HttpRequestMessage message = new(HttpMethod.Post, new Uri(baseUrl, "/api/chat"))
         {
             Content = JsonContent.Create(new
@@ -50,37 +42,69 @@ public sealed class OllamaArticleClaimVerifier(HttpClient client, IOptions<AiOpt
                 options = new { temperature = 0, num_ctx = settings.ArticleContextTokens, num_predict = settings.ArticleVerifierMaxOutputTokens }
             })
         };
-        using HttpResponseMessage response = await client.SendAsync(message, cancellationToken);
-        if (response.StatusCode == HttpStatusCode.BadRequest)
-        {
-            string error = await response.Content.ReadAsStringAsync(cancellationToken);
-            if (error.Contains("context", StringComparison.OrdinalIgnoreCase) || error.Contains("tokens", StringComparison.OrdinalIgnoreCase))
-                throw new AnalysisInputTooLargeException();
-        }
-        if (!response.IsSuccessStatusCode) throw new HttpRequestException("Local verifier request failed.", null, response.StatusCode);
+        using ArticleEvaluationAttemptRecorder.Attempt? attempt = attemptRecorder?.Begin("Ollama", model);
+        string attemptStatus = "failed";
+        string? attemptError = "provider_failure";
+        ArticleEvaluationUsage usage = new();
         try
         {
-            using JsonDocument document = await JsonDocument.ParseAsync(
-                await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
-            JsonElement root = document.RootElement;
-            if (!root.GetProperty("done").GetBoolean() || root.GetProperty("done_reason").GetString() != "stop")
-                throw new InvalidAnalysisException(AnalysisFailure.IncompleteOutput);
-            int promptTokens = root.GetProperty("prompt_eval_count").GetInt32();
-            int generatedTokens = root.GetProperty("eval_count").GetInt32();
-            if (promptTokens <= 0 || generatedTokens <= 0)
-                throw new InvalidAnalysisException(AnalysisFailure.IncompleteOutput);
-            if (promptTokens > settings.ArticleContextTokens - settings.ArticleVerifierMaxOutputTokens ||
-                promptTokens + generatedTokens > settings.ArticleContextTokens)
-                throw new AnalysisInputTooLargeException();
-            VerificationEnvelope envelope = JsonSerializer.Deserialize<VerificationEnvelope>(
-                root.GetProperty("message").GetProperty("content").GetString()!, JsonOptions)
-                ?? throw new InvalidAnalysisException(AnalysisFailure.InvalidJson);
-            Validate(claims, envelope.Verdicts);
-            return new(envelope.Verdicts, root.GetProperty("model").GetString() ?? model, ArticleVerificationPrompt.Version);
+            using HttpResponseMessage response = await client.SendAsync(message, cancellationToken);
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                attemptError = "model_not_found";
+                throw new AnalysisUnavailableException("Ollama could not find the configured verifier model.");
+            }
+            if (response.StatusCode == HttpStatusCode.BadRequest)
+            {
+                attemptError = "provider_rejected";
+                string error = await response.Content.ReadAsStringAsync(cancellationToken);
+                if (error.Contains("context", StringComparison.OrdinalIgnoreCase) || error.Contains("tokens", StringComparison.OrdinalIgnoreCase))
+                {
+                    attemptError = "input_too_large";
+                    throw new AnalysisInputTooLargeException();
+                }
+            }
+            if (!response.IsSuccessStatusCode)
+            {
+                attemptError = "provider_rejected";
+                throw new HttpRequestException("Local verifier request failed.", null, response.StatusCode);
+            }
+            try
+            {
+                using JsonDocument document = await JsonDocument.ParseAsync(
+                    await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+                JsonElement root = document.RootElement;
+                usage = OllamaEvaluationUsage.Parse(root);
+                OllamaArticleReviewGenerator.ValidateCompletion(root, settings.ArticleContextTokens,
+                    settings.ArticleVerifierMaxOutputTokens);
+                VerificationEnvelope envelope = JsonSerializer.Deserialize<VerificationEnvelope>(
+                    root.GetProperty("message").GetProperty("content").GetString()!, JsonOptions)
+                    ?? throw new InvalidAnalysisException(AnalysisFailure.InvalidJson);
+                Validate(claims, envelope.Verdicts);
+                attemptStatus = "completed";
+                attemptError = null;
+                return new(envelope.Verdicts, root.GetProperty("model").GetString() ?? model, ArticleVerificationPrompt.Version);
+            }
+            catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException)
+            {
+                attemptError = "invalid_provider_response";
+                throw new InvalidAnalysisException(AnalysisFailure.InvalidJson);
+            }
         }
-        catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException)
+        catch (OperationCanceledException)
         {
-            throw new InvalidAnalysisException(AnalysisFailure.InvalidJson);
+            attemptStatus = "cancelled";
+            attemptError = "cancelled";
+            throw;
+        }
+        catch (InvalidAnalysisException exception)
+        {
+            attemptError = InvalidAnalysisException.CodeFor(exception.Reason);
+            throw;
+        }
+        finally
+        {
+            attempt?.Complete(attemptStatus, attemptError, usage);
         }
     }
 

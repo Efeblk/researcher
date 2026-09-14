@@ -25,6 +25,8 @@ public sealed class ArticleSummarizerTests
         Assert.Equal(span.StartOffset, evidence.StartOffset);
         Assert.Equal("automatically_checked", report.Verification!.Status);
         Assert.Equal(1, report.Coverage.SupportedClaims);
+        Assert.False(report.SourceFidelity!.FormulaAndTableLayoutVerified);
+        Assert.False(report.SourceFidelity.FigureImageryAnalyzed);
     }
 
     [Fact]
@@ -115,6 +117,36 @@ public sealed class ArticleSummarizerTests
         Assert.Equal("insufficient_evidence", report.Verification!.Status);
         Assert.Equal(1, report.Coverage.BudgetUnverifiedClaims);
         Assert.Empty(report.Sections.Purpose);
+    }
+
+    [Fact]
+    public async Task SummarizeAsync_VerifierOutputLimit_OmitsSingletonAsBudgetUnverified()
+    {
+        SummarizeArticleRequest request = Request("A source sentence.");
+        string id = request.SourceSpans!.Single().SourceId;
+        CountingGenerator generator = new(new([new("c1", "claim", [id])], [], [], [], []));
+
+        ArticleSummaryReport report = await Create(generator, new OutputLimitVerifier())
+            .SummarizeAsync(request, default);
+
+        Assert.Equal(1, generator.Calls);
+        Assert.Equal(1, report.Coverage.BudgetUnverifiedClaims);
+        Assert.Equal(0, report.Coverage.AutomaticallyCheckedClaims);
+        Assert.Empty(report.Sections.Purpose);
+    }
+
+    [Fact]
+    public async Task SummarizeAsync_GenerationOutputLimit_UsesBoundedSpanFallback()
+    {
+        SummarizeArticleRequest request = Request(string.Concat(Enumerable.Repeat("Supported result. ", 80)));
+        OutputLimitGenerator generator = new();
+
+        ArticleSummaryReport report = await Create(generator, new FixedVerifier("supported", "Direct support."),
+            new AiOptions { ArticleFallbackChunkBytes = 1000 }).SummarizeAsync(request, default);
+
+        Assert.True(generator.Calls > 1);
+        Assert.True(report.Coverage.ProcessedChunks > 1);
+        Assert.NotEmpty(report.Sections.Purpose);
     }
 
     [Fact]
@@ -211,6 +243,28 @@ public sealed class ArticleSummarizerTests
         public Task<GeneratedVerificationBatch> VerifyAsync(string language, IReadOnlyList<GeneratedArticleClaim> claims,
             IReadOnlyList<ArticleSourceSpan> sourceSpans, CancellationToken cancellationToken) =>
             throw new AnalysisInputTooLargeException();
+    }
+
+    private sealed class OutputLimitVerifier : IArticleClaimVerifier
+    {
+        public Task<GeneratedVerificationBatch> VerifyAsync(string language, IReadOnlyList<GeneratedArticleClaim> claims,
+            IReadOnlyList<ArticleSourceSpan> sourceSpans, CancellationToken cancellationToken) =>
+            throw new InvalidAnalysisException(AnalysisFailure.OutputLimit);
+    }
+
+    private sealed class OutputLimitGenerator : IArticleSummaryGenerator
+    {
+        public int Calls { get; private set; }
+        public Task<GeneratedArticleChunk> GenerateAsync(string language, string sourceKind,
+            IReadOnlyList<ArticleSourceSpan> sourceSpans, CancellationToken cancellationToken)
+        {
+            Calls++;
+            if (sourceSpans.Count > 1) throw new InvalidAnalysisException(AnalysisFailure.OutputLimit);
+            ArticleSourceSpan span = sourceSpans.Single();
+            return Task.FromResult(new GeneratedArticleChunk(
+                new([new("c" + Calls, "Supported result.", [span.SourceId])], [], [], [], []),
+                "synthetic", ArticleSummaryPrompt.Version));
+        }
     }
 
     private sealed class FixedVerifier(string verdict, string reason) : IArticleClaimVerifier
