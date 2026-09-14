@@ -1,28 +1,53 @@
 HOST ?= http://localhost:5001
+COLLECTOR_HOST ?= $(HOST)
+ANALYSIS_HOST ?= http://localhost:5011
 
-.PHONY: help run build clean health collect
+.PHONY: help run run-collector run-analysis build build-collector build-analysis clean health health-collector health-analysis collect
 
 help:
 	@echo "Kullanılabilir komutlar:"
-	@echo "  make run                  HTTP sunucusunu başlatır"
-	@echo "  make build                Projeyi derler"
+	@echo "  make run                  Collector'ı başlatır (run-collector alias'ı)"
+	@echo "  make run-collector        Collector'ı localhost:5001 üzerinde başlatır"
+	@echo "  make run-analysis         Analysis Service'i localhost:5011 üzerinde başlatır"
+	@echo "  make build                Solution'daki iki servisi derler"
+	@echo "  make build-collector      Yalnız collector projesini derler"
+	@echo "  make build-analysis       Yalnız Analysis Service projesini derler"
 	@echo "  make clean                .NET build çıktılarını temizler"
-	@echo "  make health               Sunucunun çalıştığını kontrol eder"
+	@echo "  make health               Collector sağlığını kontrol eder (health-collector alias'ı)"
+	@echo "  make health-analysis      Analysis Service sağlığını kontrol eder"
 	@echo "  make collect PERSONEL_ID=... ID=...  PersonelID ile akademik veri toplar"
-	@echo "  make health HOST=...      Farklı bir sunucu adresi kullanır"
+	@echo "  make health HOST=...      Collector için farklı adres kullanır"
+	@echo "  make health-analysis ANALYSIS_HOST=...  Analysis için farklı adres kullanır"
 
-run:
-	dotnet run
+run: run-collector
+
+run-collector:
+	dotnet run --project AcademicCollectorDemo.csproj
+
+run-analysis:
+	dotnet run --project ResearcherAnalysisService/ResearcherAnalysisService.csproj --launch-profile http
 
 build:
 	dotnet build AcademicCollectorDemo.sln
+
+build-collector:
+	dotnet build AcademicCollectorDemo.csproj
+
+build-analysis:
+	dotnet build ResearcherAnalysisService/ResearcherAnalysisService.csproj
 
 clean:
 	dotnet clean AcademicCollectorDemo.sln
 	@echo "Build çıktıları temizlendi. SQL Server veritabanına dokunulmadı."
 
-health:
-	curl --silent --show-error "$(HOST)/"
+health: health-collector
+
+health-collector:
+	curl --silent --show-error "$(COLLECTOR_HOST)/"
+	@echo
+
+health-analysis:
+	curl --silent --show-error "$(ANALYSIS_HOST)/health"
 	@echo
 
 collect:
@@ -57,7 +82,7 @@ collect:
 		--request POST \
 		--header "Content-Type: application/json" \
 		--data "$$request_body" \
-		"$(HOST)/Services/AcademicPerformance/V1/Collect" \
+		"$(COLLECTOR_HOST)/Services/AcademicPerformance/V1/Collect" \
 		> "$$response_file" & \
 	request_pid="$$!"; \
 	while kill -0 "$$request_pid" 2>/dev/null; do \

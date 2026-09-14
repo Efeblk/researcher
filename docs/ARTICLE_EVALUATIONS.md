@@ -97,7 +97,7 @@ Kolektörün desteklenen V1 uç noktaları şunlardır:
 
 `StartArticleEvaluationRequest`, `ProfileIds`, `PersonelId`, `RealCases` ve `EnableBlindCrossCheck` alanlarını taşır. HTTP 202 gövdesindeki `StartArticleEvaluationResponse`; `RunId`, ilk durum, vaka/iş/olası çağrı sayıları ile veri kümesi ve evaluator sürümünü döndürür. Sayfalı okuma `GetArticleEvaluationRequest` alır ve `ArticleEvaluationResponse` döndürür. Analiz servisindeki `GET /api/v1/evaluations/profiles` ve `POST /api/v1/evaluations/execute` kolektörün `X-Analysis-Key` ile kullandığı iç sözleşmelerdir; son kullanıcı akışı değildir.
 
-Bu dilimde iptal uç noktası yoktur. Kalibrasyon dahil bütün başlatma ve okuma istekleri açık bir `PersonelID` ve güvenilir ürün erişim adaptörü üzerinden yetki denetimi gerektirir. Çalıştırılabilir ucuz yerel kalibrasyon ve iki profilli gerçek-vaka/çapraz-kontrol örnekleri [ArticleEvaluation.http](../Requests/ArticleEvaluation.http) dosyasındadır.
+Bu dilimde iptal uç noktası yoktur. Collector'daki kalibrasyon dahil bütün başlatma ve okuma istekleri açık bir `PersonelID` ve güvenilir ürün erişim adaptörü üzerinden yetki denetimi gerektirir. Collector'ın kalıcı kuyruk örnekleri [ArticleEvaluation.http](../Requests/AcademicCollector/ArticleEvaluation.http), Analysis Service'in tam kaynak ve güncel profil parmak izi isteyen doğrudan örneği [EvaluationAndFaculty.http](../ResearcherAnalysisService/Requests/EvaluationAndFaculty.http) dosyasındadır.
 
 ## Yerel entegrasyon smoke sonucu
 

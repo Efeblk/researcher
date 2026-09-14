@@ -2,9 +2,11 @@
 
 ## Project Structure & Module Organization
 
-This is a .NET 10 application built with Serenity and Entity Framework Core. `Program.cs` configures the host; host-only services live in `Host/`. `Modules/AcademicPerformance/` has three main areas: `Service/` contains V1 API contracts/endpoints, application workflows, persistence, provider integrations, researchers, and normalized works; `WebClient/` contains pages, Serenity publication metadata, and UI-only endpoint adapters; `Background/` runs the durable bulk collection worker; `Service/Bulk/` owns queue processing and configurable SQL imports. Provider HTTP pacing lives in `Service/Integrations/RateLimiting/`. Keep namespaces aligned with the responsibility folders such as `Researchers/Collection`, `Researchers/Models`, `Works/Processing`, and `Works/Models`. FluentMigrator changes live in `Service/Data/Migrations/Core` or `Providers` and run at startup. Technical notes are in `docs/`, generated browser assets in `wwwroot/esm/`, and request examples in `Requests/AcademicPerformance.http`.
+This repository has two independently runnable .NET 10 services. `AcademicCollectorDemo.csproj` is the Serenity collector; `Program.cs` configures its host and host-only services live in `Host/`. `Modules/AcademicPerformance/` has three main areas: `Service/` contains V1 API contracts/endpoints, application workflows, persistence, provider integrations, researchers, and normalized works; `WebClient/` contains pages, Serenity publication metadata, and UI-only endpoint adapters; `Background/` runs the durable bulk collection worker; `Service/Bulk/` owns queue processing and configurable SQL imports. Provider HTTP pacing lives in `Service/Integrations/RateLimiting/`. Keep namespaces aligned with responsibility folders such as `Researchers/Collection`, `Researchers/Models`, `Works/Processing`, and `Works/Models`.
 
-The application uses SQL Server only; local defaults target SQL Server LocalDB and production connection strings must come from secure configuration. Public DTOs are under `Service/Api/V1/Contracts`, supported HTTP entry points under `Service/Api/V1/Endpoints`, and YÖKSİS code under `Service/Integrations/Yoksis`. Tests live in `AcademicCollectorDemo.Tests/` and use synthetic provider responses and an isolated SQL Server database.
+`ResearcherAnalysisService/` is the independent AI HTTP service; its controllers are under `Api/V1`, provider adapters under `Integrations/`, analysis workflows under `Analysis/`, and direct HTTP examples under `ResearcherAnalysisService/Requests/`. Shared request/response types live in `ResearcherAnalysis.Contracts/`. Collector HTTP examples live in `Requests/AcademicCollector/`, while `Requests/README.md` is only the two-surface index. Technical notes are in `docs/` and generated browser assets in `wwwroot/esm/`.
+
+Both services use SQL Server only and point to the same database: collector `ConnectionStrings:AcademicDatabase` and analysis `ConnectionStrings:UsageDatabase`. Local defaults target the same SQL Server LocalDB database; production values must come from secure configuration. Each service applies only its own migrations at startup and may start first or concurrently. Collector migrations remain in `Modules/AcademicPerformance/Service/Data/Migrations/{Core,Providers}` with `dbo.VersionInfo`. Analysis migrations live in `ResearcherAnalysisService/Data/Migrations` with `dbo.ResearcherAnalysisVersionInfo` and own only `analysis.GeminiUsageAttempts`. Public collector DTOs are under `Service/Api/V1/Contracts`, supported collector HTTP entry points under `Service/Api/V1/Endpoints`, and YÖKSİS code under `Service/Integrations/Yoksis`.
 
 See `docs/CODEBASE_GUIDE.md` for the request flow and folder map. Tests are grouped into `Unit/`, `Integration/`, and shared `Infrastructure/`. Prefer filenames matching their main type, and declare local variables near their first use.
 
@@ -12,13 +14,15 @@ See `docs/CODEBASE_GUIDE.md` for the request flow and folder map. Tests are grou
 
 - `dotnet restore` restores NuGet dependencies.
 - `npm install` installs Serenity front-end build dependencies.
-- `make build` or `dotnet build` compiles server and front-end assets.
-- `make run` or `dotnet run` starts the service on `http://localhost:5001`.
-- `make health` checks whether the server is responding.
+- `make build` or `dotnet build AcademicCollectorDemo.sln` compiles both services and front-end assets.
+- `make build-collector` and `make build-analysis` compile one service independently.
+- `make run-collector` starts the collector on `http://localhost:5001`; the existing `make run` alias does the same.
+- `make run-analysis` starts Researcher Analysis Service on `http://localhost:5011`.
+- `make health-collector` and `make health-analysis` check the corresponding service; the existing `make health` alias checks collector.
 - `make collect ID="0000-0001-8560-7482"` collects data for one or more space-separated identifiers.
 - `make clean` removes .NET build outputs and never deletes the SQL Server database.
 
-Run `dotnet test AcademicCollectorDemo.Tests/AcademicCollectorDemo.Tests.csproj`, `npm run typecheck`, and `npm test`. Also verify affected endpoints. SQL tests use LocalDB on Windows or `ACADEMIC_TEST_SQLSERVER`; they never read the application's database configuration.
+Run `dotnet test AcademicCollectorDemo.Tests/AcademicCollectorDemo.Tests.csproj`, `dotnet test ResearcherAnalysisService.Tests/ResearcherAnalysisService.Tests.csproj`, `npm run typecheck`, and `npm test`. Scope checks to the affected service when appropriate and verify affected endpoints. SQL tests use LocalDB on Windows or `ACADEMIC_TEST_SQLSERVER`; they never read the applications' database configuration.
 
 Changes limited to `.md`, `.txt`, and `.rst` documentation text or common ignore files (`.gitignore`, `.dockerignore`, `.npmignore`, `.ignore`, `.prettierignore`, and `.eslintignore`) do not require application builds or tests. Changes to code, other configuration, request examples, SQL, JSON, YAML, or other file types require the relevant checks.
 
@@ -28,7 +32,7 @@ Use four-space indentation. Use PascalCase for types, methods, and public proper
 
 ## Testing Guidelines
 
-Add tests in `AcademicCollectorDemo.Tests` using xUnit. Name files after the tested class, such as `ResearcherIdentifierParserTests.cs`, and methods as `Method_Condition_ExpectedResult`. Cover identifier parsing, provider response mapping, caching, and work deduplication. Avoid live paid API calls in automated tests; use synthetic or captured, sanitized JSON fixtures.
+Add collector tests in `AcademicCollectorDemo.Tests` and analysis tests in `ResearcherAnalysisService.Tests` using xUnit. Name files after the tested class, such as `ResearcherIdentifierParserTests.cs`, and methods as `Method_Condition_ExpectedResult`. Cover identifier parsing, provider response mapping, caching, work deduplication, analysis contract validation, and migration ownership as relevant. Avoid live paid API calls in automated tests; use synthetic or captured, sanitized JSON fixtures.
 
 ## Commit & Pull Request Guidelines
 
@@ -36,7 +40,7 @@ History uses short subjects such as `readme ve settings` and `update on feedback
 
 ## Security & Configuration
 
-Store API keys and YÖKSİS credentials with `dotnet user-secrets`; never commit credentials, T.C. identity numbers, raw secrets, or personal database files. Keep non-secret defaults in `academicsettings.json` and database configuration in `appsettings.json`. `DevelopmentPermissionService` deliberately allows all requests in this standalone host and must be replaced by BYS authorization before production deployment.
+Store API keys and YÖKSİS credentials with each owning project's `dotnet user-secrets`; never commit credentials, T.C. identity numbers, raw secrets, or personal database files. Keep collector non-secret defaults in `academicsettings.json` and `appsettings.json`, and analysis defaults in `ResearcherAnalysisService/appsettings.json`. `DevelopmentPermissionService` supplies permissive Serenity/demo permission checks in the standalone collector host; protected academic product routes separately use the fail-closed `IAcademicProductAccessService` and require a trusted identity/scope adapter for deployment. Analysis service-to-service access uses `X-Analysis-Key` configured by `Service:ApiKey`; it is separate from the collector product adapter.
 
 ## Agent Workflow
 
