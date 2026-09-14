@@ -52,6 +52,7 @@ public sealed class BulkJobProcessor(
         bool retryable = false;
         bool collectionReturnedNormally = false;
         bool collectionHasFailureCode = false;
+        bool yoksisHasFailures = false;
         try
         {
             BulkResearcherInput input = BulkCollectionService.ReadPersisted(job.InputJson).Input;
@@ -69,9 +70,10 @@ public sealed class BulkJobProcessor(
             });
             collectionReturnedNormally = true;
             collectionHasFailureCode = response.FailureCode is not null;
+            yoksisHasFailures = response.YoksisFailedCategoryCount > 0;
             saved = response.IsSaved;
             bool persistenceDataTooLong = response.FailureCode == "PersistenceDataTooLong";
-            bool hasErrors = response.YoksisFailedCategoryCount > 0 || providerCalls.Failures.Count > 0 ||
+            bool hasErrors = collectionHasFailureCode || yoksisHasFailures || providerCalls.Failures.Count > 0 ||
                 response.Messages.Any(message => message.StartsWith("[HATA]", StringComparison.Ordinal)) ||
                 (!string.IsNullOrWhiteSpace(input.Orcid) &&
                     (response.Researcher?.OrcidProfile is null || response.Researcher.OpenAlexProfile is null)) ||
@@ -84,7 +86,8 @@ public sealed class BulkJobProcessor(
             }
             else
             {
-                retryable = !persistenceDataTooLong && (response.YoksisFailedCategoryCount > 0 ||
+                retryable = !persistenceDataTooLong && (yoksisHasFailures ||
+                    response.FailureCode == "YoksisPersistenceFailure" ||
                     providerCalls.Failures.Any(failure => failure.Retryable) ||
                     (!saved && providerCalls.Failures.Count == 0));
                 if (persistenceDataTooLong)
@@ -106,6 +109,7 @@ public sealed class BulkJobProcessor(
         }
 
         bool onlyLocalDeferrals = retryable && collectionReturnedNormally && !collectionHasFailureCode &&
+            !yoksisHasFailures &&
             providerCalls.Failures.Any(failure => failure.Retryable) &&
             providerCalls.Failures.All(failure => failure.IsLocalDeferral || failure.IsDisabled);
         if (onlyLocalDeferrals)
