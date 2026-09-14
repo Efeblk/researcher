@@ -12,7 +12,7 @@ Collector uçları:
 | `GetResearcherAnalysis` | Son başarılı raporu sağlayıcı çağrısı yapmadan getirir. |
 | `GetResearcherSourceCoverage` | Mevcut kayıtlı kanıt kapsamını dış çağrı yapmadan getirir. |
 
-İstek örnekleri [`Requests/ResearcherAnalysis.http`](../Requests/ResearcherAnalysis.http) ve [`Requests/AcademicPerformance.http`](../Requests/AcademicPerformance.http) dosyalarındadır. İsteğe bağlı `snapshotAt` yalnız mevcut snapshot'ın etiketidir; geçmiş tarihli veriyi yeniden kurmaz. Başarısız üretim önceki başarılı raporu değiştirmez.
+İstek örnekleri [`Requests/ResearcherAnalysis.http`](../Requests/ResearcherAnalysis.http) dosyasındadır. İsteğe bağlı `snapshotAt` yalnız mevcut snapshot'ın etiketidir; geçmiş tarihli veriyi yeniden kurmaz. Başarısız üretim önceki başarılı raporu değiştirmez.
 
 Yerel kurulumda `ResearcherAnalysisService` varsayılan olarak Ollama kullanır; aktif sağlayıcı/model ve adres için [`ResearcherAnalysisService/appsettings.json`](../ResearcherAnalysisService/appsettings.json) esas alınır. Hosted anahtarlar user-secrets ile verilir. Collector'ın analiz servisi adresi `AnalysisService:BaseUrl` ayarıdır. Production'da her iki servis de erişim kontrolü arkasında olmalıdır.
 

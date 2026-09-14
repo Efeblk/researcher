@@ -1,28 +1,53 @@
-@collector = http://localhost:5001
+@baseUrl = http://localhost:5001
+@api = {{baseUrl}}/Services/AcademicPerformance/V1
 @personelId = P-1001
-@academicWorkId = 1
 @canonicalWorkId = 1
+@academicWorkId = 1
+@language = tr
 
-### Generate and save a Turkish summary from the work's saved source URL (or abstract fallback)
-POST {{collector}}/Services/AcademicPerformance/V1/SummarizeArticle
+# canonicalWorkId = ListCanonicalPublications.Entities[].Id
+# academicWorkId = aynı kaydın Observations[].AcademicWorkId alanı
+
+### 1. Otomatik özet işinin kuyruk ve sonuç durumunu oku [okuma]
+# Ön koşul: araştırmacı ile kanonik yayın arasında güncel ilişki. AI çağrısı veya kuyruk yazması yapmaz.
+POST {{api}}/GetArticleSummaryAutomationStatus
 Content-Type: application/json
 
-{"personelID":"{{personelId}}","academicWorkId":{{academicWorkId}},"language":"tr"}
+{
+  "PersonelID": "{{personelId}}",
+  "CanonicalWorkId": {{canonicalWorkId}},
+  "Language": "{{language}}"
+}
 
-### Read automatic queue status; requires a current researcher/work association
-POST {{collector}}/Services/AcademicPerformance/V1/GetArticleSummaryAutomationStatus
+### 2. Son kaydedilmiş kanonik kanıtı oku [okuma]
+POST {{api}}/GetCanonicalArticleEvidence
 Content-Type: application/json
 
-{"personelID":"{{personelId}}","canonicalWorkId":{{canonicalWorkId}},"language":"tr"}
+{
+  "PersonelID": "{{personelId}}",
+  "CanonicalWorkId": {{canonicalWorkId}},
+  "Language": "{{language}}",
+  "Skip": 0,
+  "Take": 100
+}
 
-### Read the latest normalized canonical evidence for this researcher and language; no AI call
-POST {{collector}}/Services/AcademicPerformance/V1/GetCanonicalArticleEvidence
+### 3. Bir sağlayıcı gözleminin son kaydedilmiş özetini oku [okuma]
+POST {{api}}/GetArticleSummary
 Content-Type: application/json
 
-{"personelID":"{{personelId}}","canonicalWorkId":{{canonicalWorkId}},"language":"tr","skip":0,"take":100}
+{
+  "PersonelID": "{{personelId}}",
+  "AcademicWorkId": {{academicWorkId}},
+  "Language": "{{language}}"
+}
 
-### Retrieve the latest saved summary; the model service may be stopped
-POST {{collector}}/Services/AcademicPerformance/V1/GetArticleSummary
+### 4. İsteğe bağlı: özeti hemen yeniden üret ve kaydet [kaynak + AI çağrısı + yazma]
+# Her başarılı çağrı yeni bir çalışma üretir; otomatik kuyruğun yeniden kullanım davranışını kullanmaz.
+POST {{api}}/SummarizeArticle
 Content-Type: application/json
 
-{"personelID":"{{personelId}}","academicWorkId":{{academicWorkId}},"language":"tr"}
+{
+  "PersonelID": "{{personelId}}",
+  "AcademicWorkId": {{academicWorkId}},
+  "Language": "{{language}}"
+}

@@ -1,20 +1,19 @@
-@collector = http://localhost:5001
+@baseUrl = http://localhost:5001
+@api = {{baseUrl}}/Services/AcademicPerformance/V1
 @personelId = P-1001
 
-### Read the last persisted publication-metrics-v4 snapshot and refresh status
-# 202 with Data=null means the first snapshot is pending. This read action never computes or schedules.
-# Data.ContextualMetrics contains own collected OpenAlex context and provider-normalized availability;
-# InternalNormalizedScore stays null until an evaluated reference population exists.
-POST {{collector}}/Services/AcademicPerformance/V1/GetResearcherPublicationMetrics
+### 1. Son kaydedilmiş metrik sürümünü ve yenileme durumunu oku [okuma, AI yok]
+# HTTP 202 ve Data=null ilk hesaplamanın beklediğini gösterir; bu istek hesaplama kuyruğu oluşturmaz.
+POST {{api}}/GetResearcherPublicationMetrics
 Content-Type: application/json
 
 {
   "PersonelID": "{{personelId}}"
 }
 
-### Explicitly schedule a new revision; computation remains asynchronous
-# Returns 202. Existing Data may be returned with Status=Stale until the worker commits.
-POST {{collector}}/Services/AcademicPerformance/V1/RefreshResearcherPublicationMetrics
+### 2. İsteğe bağlı: yeni metrik sürümünü kuyruğa al [kuyruk yazması, AI yok]
+# HTTP 202 döner. Worker tamamlayana kadar eski Data, Status=Stale ile görülebilir.
+POST {{api}}/RefreshResearcherPublicationMetrics
 Content-Type: application/json
 
 {

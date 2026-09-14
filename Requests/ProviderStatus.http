@@ -1,2 +1,8 @@
-GET http://localhost:5001/Services/AcademicPerformance/V1/ProviderStatus
+@baseUrl = http://localhost:5001
+@api = {{baseUrl}}/Services/AcademicPerformance/V1
+
+### 1. Sağlayıcı yapılandırmasını, kotayı ve erişilebilirliği denetle [aktif durum denetimi]
+# Önbellek boşsa yapılandırılmış sağlayıcılara ve analiz servisine çağrı yapabilir; sonuç 60 saniye bellekte tutulur.
+# Yerel SQL bütçesini okur ve ORCID durum gözlemini SQL'e kaydedebilir.
+GET {{api}}/ProviderStatus
 Accept: application/json

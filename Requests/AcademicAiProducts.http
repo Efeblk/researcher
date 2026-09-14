@@ -1,153 +1,116 @@
 @baseUrl = http://localhost:5001
-@personelId = SYNTHETIC-PERSONEL-ID
-@canonicalWorkId = 101
-@manifestVersion = synthetic-reference-v1
+@api = {{baseUrl}}/Services/AcademicPerformance/V1
+@personelId = P-1001
+@canonicalWorkId = 1
 @dossierId = 1
-@runId = 22222222-2222-2222-2222-222222222222
-@clientRequestId = 11111111-1111-1111-1111-111111111111
+@hrClientRequestId = 11111111-1111-1111-1111-111111111111
+@facultyClientRequestId = 22222222-2222-2222-2222-222222222222
+@facultyRunId = 33333333-3333-3333-3333-333333333333
+@expectedVersion = 0
 
-# These endpoints require the deployment's authenticated BYS access adapter.
-# Anonymous requests receive HTTP 401; authenticated requests receive HTTP 503 while the
-# standalone fail-closed adapter remains unconfigured. This file defines no authorization bypass.
+# İK ve fakülte ürünleri. canonicalWorkId = ListCanonicalPublications.Entities[].Id.
+# Bu uçlar güvenilir ürün erişim adaptörü ister; kimlik bilgisinin cookie/header biçimini kurulu adaptör belirler.
+# Varsayılan kurulum: anonim 401, kimliği doğrulanmış fakat adaptörü yapılandırılmamış istek 503.
 
-### Search saved academic evidence
-POST {{baseUrl}}/Services/AcademicPerformance/V1/SearchAcademicEvidence
+### 1. İK kanıt dosyası oluştur [yazma]
+# Yanıttaki DossierId değerini dossierId değişkenine kopyalayın.
+POST {{api}}/CreateHrEvidenceDossier
 Content-Type: application/json
 
 {
   "PersonelID": "{{personelId}}",
-  "query": "reported sampling method",
-  "canonicalWorkIds": [{{canonicalWorkId}}],
-  "take": 10
+  "PublicationMetricSnapshotId": null,
+  "CanonicalWorkIds": [{{canonicalWorkId}}],
+  "Language": "tr"
 }
 
-### Import a mechanically valid reference-population manifest
-# approvedForInternalNormalization=false keeps scientific acceptance explicitly pending.
-POST {{baseUrl}}/Services/AcademicPerformance/V1/ImportReferencePopulation
+### 2. İK kanıt dosyasını oku [okuma]
+POST {{api}}/GetHrEvidenceDossier
 Content-Type: application/json
 
 {
   "PersonelID": "{{personelId}}",
-  "manifestVersion": "{{manifestVersion}}",
-  "cohortDefinition": "Synthetic example cohort; replace through an approved review process.",
-  "eligibilityPolicyVersion": "synthetic-eligibility-v1",
-  "provenance": "Synthetic request example; no production source implied.",
-  "samplingAndCoverage": "One synthetic member for contract illustration only.",
-  "review": {
-    "reviewer": "synthetic-reviewer",
-    "reviewedAt": "2026-09-12T00:00:00Z",
-    "method": "Contract review only; scientific validity was not assessed.",
-    "approvedForInternalNormalization": false
-  },
-  "members": [
-    {
-      "stableMemberId": "synthetic-member-1",
-      "classificationId": "synthetic-field-1",
-      "publicationYear": 2025,
-      "workType": "article",
-      "category": "Article",
-      "citationCount": 0
-    }
-  ]
+  "DossierId": {{dossierId}}
 }
 
-### Read a saved reference-population manifest
-POST {{baseUrl}}/Services/AcademicPerformance/V1/GetReferencePopulation
+### 3. İK inceleme işlemlerini listele [okuma]
+POST {{api}}/ListHrDossierReviewActions
 Content-Type: application/json
 
 {
   "PersonelID": "{{personelId}}",
-  "manifestVersion": "{{manifestVersion}}"
+  "DossierId": {{dossierId}},
+  "Skip": 0,
+  "Take": 100
 }
 
-### Export a reproducible graph projection for a bounded 20-work pilot
-POST {{baseUrl}}/Services/AcademicPerformance/V1/ExportAcademicEvidenceGraph
+### 4. İsteğe bağlı: idempotent İK inceleme işlemi ekle [yazma]
+# Aynı gövde için aynı clientRequestId yeniden kullanılabilir; gövde değişirse yeni UUID üretin.
+POST {{api}}/AppendHrDossierReviewAction
 Content-Type: application/json
 
 {
   "PersonelID": "{{personelId}}",
-  "canonicalWorkIds": [101, 102, 103, 104, 105, 106, 107, 108, 109, 110,
-    111, 112, 113, 114, 115, 116, 117, 118, 119, 120]
+  "DossierId": {{dossierId}},
+  "ClientRequestId": "{{hrClientRequestId}}",
+  "ActionType": "EvidenceQuestioned",
+  "EvidenceReference": "work:{{canonicalWorkId}}",
+  "Note": "Sentetik inceleme notu."
 }
 
-### Create an HR evidence dossier
-POST {{baseUrl}}/Services/AcademicPerformance/V1/CreateHrEvidenceDossier
+### 5. Fakülte asistanı bağlamını oku [okuma]
+# Version gönderilmediği için son sürüm gelir.
+POST {{api}}/GetFacultyAssistantContext
 Content-Type: application/json
 
 {
-  "PersonelID": "{{personelId}}",
-  "publicationMetricSnapshotId": null,
-  "canonicalWorkIds": [{{canonicalWorkId}}],
-  "language": "tr"
+  "PersonelID": "{{personelId}}"
 }
 
-### Read an HR evidence dossier
-POST {{baseUrl}}/Services/AcademicPerformance/V1/GetHrEvidenceDossier
+### 6. İsteğe bağlı: fakülte asistanı bağlamını kaydet [sürüm kontrollü yazma]
+# İlk kayıt expectedVersion=0 ister. Güncellemede son okunan Version değerini kullanın; uyuşmazlık 409 döner.
+# Başarılı yanıtın Version değerini sonraki güncellemede expectedVersion değişkenine kopyalayın.
+POST {{api}}/SaveFacultyAssistantContext
 Content-Type: application/json
 
 {
   "PersonelID": "{{personelId}}",
-  "dossierId": {{dossierId}}
-}
-
-### Append an idempotent procedural HR review action
-POST {{baseUrl}}/Services/AcademicPerformance/V1/AppendHrDossierReviewAction
-Content-Type: application/json
-
-{
-  "PersonelID": "{{personelId}}",
-  "dossierId": {{dossierId}},
-  "clientRequestId": "{{clientRequestId}}",
-  "actionType": "EvidenceQuestioned",
-  "evidenceReference": "work:101",
-  "note": "Synthetic review note."
-}
-
-### Save a versioned private faculty context
-POST {{baseUrl}}/Services/AcademicPerformance/V1/SaveFacultyAssistantContext
-Content-Type: application/json
-
-{
-  "PersonelID": "{{personelId}}",
-  "expectedVersion": 0,
-  "context": {
-    "language": "tr",
-    "researchGoals": ["Synthetic research goal"],
-    "courses": ["Synthetic course"],
-    "teachingAudience": "Synthetic audience",
-    "preferences": "Use concise evidence-linked answers."
+  "ExpectedVersion": {{expectedVersion}},
+  "Context": {
+    "Language": "tr",
+    "ResearchGoals": ["Sentetik araştırma hedefi"],
+    "Courses": ["Sentetik ders"],
+    "TeachingAudience": "Sentetik hedef kitle",
+    "Preferences": "Kısa ve kanıta bağlı yanıt ver."
   }
 }
 
-### Ask the faculty assistant (queues work and returns HTTP 202)
-POST {{baseUrl}}/Services/AcademicPerformance/V1/StartFacultyAssistant
+### 7. İsteğe bağlı: fakülte asistanı çalışmasını kuyruğa al [AI kuyruğu + yazma]
+# Aynı yetkili aktör + PersonelID + clientRequestId ve aynı gövde, aynı RunId ile Reused=true döner;
+# bu kapsamda aynı clientRequestId ile değişen gövde 409 verir. Yapılandırılmış sağlayıcı ücret doğurabilir.
+# Ön koşul: seçilen kayıtlarda aynı dilde güncel ve eşleşen kaydedilmiş kanıt; yoksa AI kuyruğundan önce 422 döner.
+# RelatedWorks modu da desteklenir fakat yalnız seçilen kayıtların uygun kanıtlarıyla sınırlıdır;
+# desteklenmeyen mod veya eşleşmeyen kanıt, model kuyruğundan önce 422 döndürebilir.
+# ContextVersion gönderilmediği için son bağlam kullanılır. Sabitlemek gerekirse kaydedilmiş bir Version ekleyin.
+# Yanıttaki RunId değerini facultyRunId'ye kopyalayın.
+POST {{api}}/StartFacultyAssistant
 Content-Type: application/json
 
 {
   "PersonelID": "{{personelId}}",
-  "clientRequestId": "{{clientRequestId}}",
-  "mode": "OwnPaperMethods",
-  "language": "tr",
-  "query": "reported sampling method",
-  "canonicalWorkIds": [{{canonicalWorkId}}],
-  "take": 10,
-  "contextVersion": 1
+  "ClientRequestId": "{{facultyClientRequestId}}",
+  "Mode": "OwnPaperMethods",
+  "Language": "tr",
+  "Query": "bildirilen örnekleme yöntemi",
+  "CanonicalWorkIds": [{{canonicalWorkId}}],
+  "Take": 10
 }
 
-### Read the latest private faculty context
-POST {{baseUrl}}/Services/AcademicPerformance/V1/GetFacultyAssistantContext
+### 8. Fakülte asistanı kuyruğunu veya sonucunu oku [okuma]
+POST {{api}}/GetFacultyAssistantRun
 Content-Type: application/json
 
 {
   "PersonelID": "{{personelId}}",
-  "version": 1
-}
-
-### Read a queued or completed faculty-assistant run
-POST {{baseUrl}}/Services/AcademicPerformance/V1/GetFacultyAssistantRun
-Content-Type: application/json
-
-{
-  "PersonelID": "{{personelId}}",
-  "runId": "{{runId}}"
+  "RunId": "{{facultyRunId}}"
 }

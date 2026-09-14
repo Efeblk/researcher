@@ -1,31 +1,33 @@
-# Collector (5001), ResearcherAnalysisService (5011), SQL Server ve Ollama calisir durumda olmali.
-# personelId: kurumun PersonelID degeri. Yayinlar otomatik alinir.
-# snapshotAt: rapora yazilan veri tarihi; gecmise yonelik kayit secmez.
+# Eski uyumluluk araştırmacı analizi. HR/fakülte ürünlerinden ve onların erişim adaptöründen ayrıdır;
+# bağımsız Ai:Provider/Ai:Model ayarlarını kullanır ve yerel varsayılanı Qwen'dir.
+@baseUrl = http://localhost:5001
+@api = {{baseUrl}}/Services/AcademicPerformance/V1
+@personelId = P-1001
+@snapshotAt = 2026-09-14T00:00:00Z
 
-@host = http://localhost:5001
-@personelId = 00123-A
-@snapshotAt = 2026-09-08T00:00:00Z
+### 1. Kaynak kapsamını AI çağrısı yapmadan oku [okuma]
+POST {{api}}/GetResearcherSourceCoverage
+Content-Type: application/json
 
-### Analiz olustur ve kaydet
-POST {{host}}/Services/AcademicPerformance/V1/AnalyzeResearcher
+{
+  "PersonelID": "{{personelId}}"
+}
+
+### 2. Son kaydedilmiş araştırmacı analizini oku [okuma]
+POST {{api}}/GetResearcherAnalysis
+Content-Type: application/json
+
+{
+  "PersonelID": "{{personelId}}"
+}
+
+### 3. İsteğe bağlı: yeni araştırmacı analizi üret ve kaydet [AI çağrısı + yazma]
+# Ön koşul: kaydedilmiş kullanılabilir yayınlar ve yapılandırılmış analiz servisi/modeli.
+# snapshotAt rapor metadata'sıdır; geçmişe ait veri sürümünü seçmez. Her başarı yeni rapor ekler.
+POST {{api}}/AnalyzeResearcher
 Content-Type: application/json
 
 {
   "PersonelID": "{{personelId}}",
-  "snapshotAt": "{{snapshotAt}}"
-}
-
-### Son kayitli raporu getir
-POST {{host}}/Services/AcademicPerformance/V1/GetResearcherAnalysis
-Content-Type: application/json
-
-{
-  "PersonelID": "{{personelId}}"
-}
-### Read source coverage without invoking the analysis model
-POST {{host}}/Services/AcademicPerformance/V1/GetResearcherSourceCoverage
-Content-Type: application/json
-
-{
-  "PersonelID": "{{personelId}}"
+  "SnapshotAt": "{{snapshotAt}}"
 }

@@ -28,7 +28,7 @@ dotnet user-secrets set "Yoksis:Username" "<KULLANICI>"
 dotnet user-secrets set "Yoksis:Password" "<ŞİFRE>"
 ```
 
-Örnekler [`Requests/`](Requests/) klasöründedir. `/Services/AcademicPerformance/V1/` altındaki collector işlemleri; toplama ve yayın seçimine ek olarak kanonik yayınları, otomatik makale özeti/incelemesi/değerlendirmesini, yayın metriklerini, akademik kanıt aramasını, referans popülasyonlarını, kanıt grafiği dışa aktarımını, İK kanıt dosyalarını ve fakülte asistanını kapsar. Toplama, özet, değerlendirme, metrik ve asistan işleri varsayılan olarak etkin kalıcı SQL Server worker'larıyla yürür; deployment öncesinde bütçe, model, kota ve erişim ayarlarını doğrulayın.
+Normal test sırası ve çalıştırılabilir örnekler [`Requests/README.md`](Requests/README.md) dosyasındadır. `/Services/AcademicPerformance/V1/` altındaki collector işlemleri; toplama ve yayın seçimine ek olarak kanonik yayınları, otomatik makale özeti/incelemesi/değerlendirmesini, yayın metriklerini, akademik kanıt aramasını, referans popülasyonlarını, kanıt grafiği dışa aktarımını, İK kanıt dosyalarını ve fakülte asistanını kapsar. Toplama, özet, değerlendirme, metrik ve asistan işleri varsayılan olarak etkin kalıcı SQL Server worker'larıyla yürür; deployment öncesinde bütçe, model, kota ve erişim ayarlarını doğrulayın.
 
 ## Belgeler
 

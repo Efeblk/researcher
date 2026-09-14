@@ -1,21 +1,31 @@
-@collector = http://localhost:5001
+@baseUrl = http://localhost:5001
+@api = {{baseUrl}}/Services/AcademicPerformance/V1
 @personelId = P-1001
 @canonicalWorkId = 1
+@language = tr
+@forceRegeneration = false
 
-### Generate or reuse a saved evidence-bound specialist review
-POST {{collector}}/Services/AcademicPerformance/V1/ReviewCanonicalArticle
+# canonicalWorkId = ListCanonicalPublications.Entities[].Id
+
+### 1. Son kaydedilmiş uzman incelemesini ve eskime durumunu oku [okuma]
+POST {{api}}/GetCanonicalArticleReview
 Content-Type: application/json
 
-{"personelID":"{{personelId}}","canonicalWorkId":{{canonicalWorkId}},"language":"tr","forceRegeneration":false}
+{
+  "PersonelID": "{{personelId}}",
+  "CanonicalWorkId": {{canonicalWorkId}},
+  "Language": "{{language}}"
+}
 
-### Explicitly append a new manual run for the current base analysis
-POST {{collector}}/Services/AcademicPerformance/V1/ReviewCanonicalArticle
+### 2. Uzman incelemesi üret veya aynı güncel girdinin sonucunu yeniden kullan [yeniden kullanım veya AI çağrısı + yazma]
+# false: tam eşleşen güncel sonuç varsa model çağrısı/yeni analiz yazması olmadan Reused=true döner.
+# Yeni çalışma eklemek için true yapın.
+POST {{api}}/ReviewCanonicalArticle
 Content-Type: application/json
 
-{"personelID":"{{personelId}}","canonicalWorkId":{{canonicalWorkId}},"language":"tr","forceRegeneration":true}
-
-### Read the latest saved review and its staleness; no model call or write
-POST {{collector}}/Services/AcademicPerformance/V1/GetCanonicalArticleReview
-Content-Type: application/json
-
-{"personelID":"{{personelId}}","canonicalWorkId":{{canonicalWorkId}},"language":"tr"}
+{
+  "PersonelID": "{{personelId}}",
+  "CanonicalWorkId": {{canonicalWorkId}},
+  "Language": "{{language}}",
+  "ForceRegeneration": {{forceRegeneration}}
+}
