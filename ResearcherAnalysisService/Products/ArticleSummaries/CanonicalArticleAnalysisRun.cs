@@ -27,6 +27,7 @@ public sealed class CanonicalArticleAnalysisRun
     public string SourceOrigin { get; set; } = string.Empty;
     public string Language { get; set; } = string.Empty;
     public string? PolicyVersion { get; set; } = null;
+    public string? SourceIdentityHash { get; set; } = null;
     public string Model { get; set; } = string.Empty;
     public string PromptVersion { get; set; } = string.Empty;
     public string ExtractionMethod { get; set; } = string.Empty;

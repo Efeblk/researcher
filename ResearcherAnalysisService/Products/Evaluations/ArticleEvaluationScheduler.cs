@@ -168,11 +168,14 @@ public sealed class ArticleEvaluationScheduler(
         CancellationToken cancellationToken)
     {
         string language = requested.Language.Trim();
+        string? sourceIdentityHash = await CanonicalSourceIdentity.LoadAsync(
+            database, requested.CanonicalWorkId, cancellationToken);
         CanonicalArticleAnalysisRun? captured = await database.CanonicalArticleAnalysisRuns.AsNoTracking()
             .Include(run => run.SavedArticleSummary)
             .Include(run => run.ArticleSourceSnapshot)!.ThenInclude(snapshot => snapshot!.Pages)
             .Include(run => run.ArticleSourceSnapshot)!.ThenInclude(snapshot => snapshot!.Spans)
             .Where(run => run.CanonicalWorkId == requested.CanonicalWorkId && run.Language == language &&
+                sourceIdentityHash != null && run.SourceIdentityHash == sourceIdentityHash &&
                 database.CanonicalResearcherWorks.Any(association => association.CanonicalWorkId == requested.CanonicalWorkId &&
                     association.PersonelId == personelId))
             .OrderByDescending(run => run.Id).AsSplitQuery().FirstOrDefaultAsync(cancellationToken);

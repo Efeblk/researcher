@@ -706,30 +706,44 @@ public sealed class ArticleReviewWorkflow(
         string personelId,
         int canonicalWorkId,
         string language,
-        CancellationToken cancellationToken) =>
-        await database.CanonicalArticleAnalysisRuns.AsNoTracking()
+        CancellationToken cancellationToken)
+    {
+        string? sourceIdentityHash = await CanonicalSourceIdentity.LoadAsync(
+            database, canonicalWorkId, cancellationToken);
+        if (sourceIdentityHash is null)
+            return null;
+        return await database.CanonicalArticleAnalysisRuns.AsNoTracking()
             .Include(run => run.SavedArticleSummary)
             .Include(run => run.ArticleSourceSnapshot)!.ThenInclude(snapshot => snapshot!.Pages)
             .Include(run => run.ArticleSourceSnapshot)!.ThenInclude(snapshot => snapshot!.Spans)
             .Where(run => run.CanonicalWorkId == canonicalWorkId && run.Language == language &&
+                run.SourceIdentityHash == sourceIdentityHash &&
                 database.CanonicalResearcherWorks.Any(association =>
                     association.CanonicalWorkId == canonicalWorkId && association.PersonelId == personelId))
             .OrderByDescending(run => run.Id)
             .AsSplitQuery()
             .FirstOrDefaultAsync(cancellationToken);
+    }
 
     private async Task<long?> LoadLatestBaseIdAsync(
         string personelId,
         int canonicalWorkId,
         string language,
-        CancellationToken cancellationToken) =>
-        await database.CanonicalArticleAnalysisRuns.AsNoTracking()
+        CancellationToken cancellationToken)
+    {
+        string? sourceIdentityHash = await CanonicalSourceIdentity.LoadAsync(
+            database, canonicalWorkId, cancellationToken);
+        if (sourceIdentityHash is null)
+            return null;
+        return await database.CanonicalArticleAnalysisRuns.AsNoTracking()
             .Where(run => run.CanonicalWorkId == canonicalWorkId && run.Language == language &&
+                run.SourceIdentityHash == sourceIdentityHash &&
                 database.CanonicalResearcherWorks.Any(association =>
                     association.CanonicalWorkId == canonicalWorkId && association.PersonelId == personelId))
             .OrderByDescending(run => run.Id)
             .Select(run => (long?)run.Id)
             .FirstOrDefaultAsync(cancellationToken);
+    }
 
     private static ReviewArticleRequest CreateRequest(CanonicalArticleAnalysisRun run, string policyVersion)
     {

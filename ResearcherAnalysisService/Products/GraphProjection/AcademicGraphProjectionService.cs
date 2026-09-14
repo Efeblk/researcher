@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using ResearcherAnalysisService.Products.Api.Contracts;
+using ResearcherAnalysisService.Products.ArticleSummaries;
 using ResearcherAnalysisService.Products.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -31,16 +32,25 @@ public sealed class AcademicGraphProjectionService(AnalysisDbContext database)
             .Where(value => ids.Contains(value.Id)).OrderBy(value => value.Id)
             .Select(value => new WorkRow(value.Id, value.NormalizedDoi,
                 value.HasRetractionObservation)).ToListAsync(cancellationToken);
-        List<RunRow> runs = await database.CanonicalArticleAnalysisRuns.AsNoTracking()
+        IReadOnlyDictionary<int, string> sourceIdentities = await CanonicalSourceIdentity.LoadAsync(
+            database, ids, cancellationToken);
+        List<RunCandidate> runCandidates = await database.CanonicalArticleAnalysisRuns.AsNoTracking()
             .Where(value => ids.Contains(value.CanonicalWorkId) &&
                 !database.CanonicalArticleAnalysisRuns.Any(later =>
                     later.CanonicalWorkId == value.CanonicalWorkId &&
                     later.Language == value.Language && later.Id > value.Id))
             .OrderBy(value => value.CanonicalWorkId).ThenBy(value => value.Language)
             .ThenBy(value => value.Id)
-            .Select(value => new RunRow(value.Id, value.CanonicalWorkId,
+            .Select(value => new RunCandidate(value.Id, value.CanonicalWorkId,
                 value.ArticleSourceSnapshotId, value.Language, value.PolicyVersion,
-                value.PromptVersion, value.IsPartial)).ToListAsync(cancellationToken);
+                value.PromptVersion, value.IsPartial, value.SourceIdentityHash))
+            .ToListAsync(cancellationToken);
+        List<RunRow> runs = runCandidates
+            .Where(value => value.SourceIdentityHash is not null &&
+                sourceIdentities.GetValueOrDefault(value.CanonicalWorkId) == value.SourceIdentityHash)
+            .Select(value => new RunRow(value.Id, value.CanonicalWorkId, value.SourceSnapshotId,
+                value.Language, value.PolicyVersion, value.PromptVersion, value.IsPartial))
+            .ToList();
         long[] sourceIds = runs.Select(value => value.SourceSnapshotId).Distinct().ToArray();
         List<SourceRow> sources = await database.ArticleSourceSnapshots.AsNoTracking()
             .Where(value => sourceIds.Contains(value.Id)).OrderBy(value => value.Id)
@@ -193,6 +203,9 @@ public sealed class AcademicGraphProjectionService(AnalysisDbContext database)
     internal sealed record WorkRow(int Id, string? NormalizedDoi, bool HasRetractionObservation);
     internal sealed record RunRow(long Id, int CanonicalWorkId, long SourceSnapshotId,
         string Language, string? PolicyVersion, string PromptVersion, bool IsPartial);
+    private sealed record RunCandidate(long Id, int CanonicalWorkId, long SourceSnapshotId,
+        string Language, string? PolicyVersion, string PromptVersion, bool IsPartial,
+        string? SourceIdentityHash);
     internal sealed record SourceRow(long Id, int CanonicalWorkId, string ExtractedTextHash,
         string SourceKind, string ExtractionVersion);
     internal sealed record SpanRow(long Id, long SourceSnapshotId, string SourceId, int Ordinal,

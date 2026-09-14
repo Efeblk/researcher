@@ -93,6 +93,9 @@ public sealed class ArticleSummaryAutomationScheduler(
         List<AcademicWork> ordered = PrepareWorks(works);
         var input = new
         {
+            WorkIdentities = ordered.Select(CreateStableWorkIdentity)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(value => value, StringComparer.Ordinal),
             Candidates = ArticleSourceCandidateCatalog.GetCandidates(ordered)
                 .Select(candidate => new
                 {
@@ -104,6 +107,17 @@ public sealed class ArticleSummaryAutomationScheduler(
         string canonical = JsonSerializer.Serialize(input);
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)))
             .ToLowerInvariant();
+    }
+
+    private static string CreateStableWorkIdentity(AcademicWork work)
+    {
+        string? doi = AcademicDoiNormalizer.NormalizeValid(work.Doi);
+        if (doi is not null)
+            return "doi:" + doi;
+        if (!string.IsNullOrWhiteSpace(work.ProviderWorkId))
+            return $"provider:{work.Provider}:{work.ProviderWorkId.Trim().ToLowerInvariant()}";
+        return $"fallback:{work.Provider}:{work.Title?.Trim().ToLowerInvariant()}:" +
+            $"{work.PublicationYear?.ToString() ?? "unknown"}";
     }
 
     internal static List<AcademicWork> PrepareWorks(IEnumerable<AcademicWork> works)

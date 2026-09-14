@@ -32,9 +32,11 @@ public static class AnalysisFreshnessEvaluator
         List<RunIdentity> runs = await database.CanonicalArticleAnalysisRuns.AsNoTracking()
             .Where(value => ids.Contains(value.Id))
             .Select(value => new RunIdentity(value.Id, value.CanonicalWorkId, value.Language,
-                value.PolicyVersion))
+                value.PolicyVersion, value.SourceIdentityHash))
             .ToListAsync(cancellationToken);
         int[] workIds = runs.Select(value => value.CanonicalWorkId).Distinct().ToArray();
+        IReadOnlyDictionary<int, string> currentSourceIdentities =
+            await CanonicalSourceIdentity.LoadAsync(database, workIds, cancellationToken);
         string[] languages = runs.Select(value => value.Language).Distinct().ToArray();
         List<LatestIdentity> latest = workIds.Length == 0 ? [] :
             await database.CanonicalArticleAnalysisRuns.AsNoTracking()
@@ -67,7 +69,8 @@ public static class AnalysisFreshnessEvaluator
             string key = Key(run.CanonicalWorkId, run.Language);
             latestByKey.TryGetValue(key, out LatestIdentity? newest);
             jobByKey.TryGetValue(key, out JobIdentity? job);
-            result[id] = Evaluate(run, newest, job, currentPolicyVersion);
+            currentSourceIdentities.TryGetValue(run.CanonicalWorkId, out string? currentSourceIdentity);
+            result[id] = Evaluate(run, newest, job, currentPolicyVersion, currentSourceIdentity);
         }
         return result;
     }
@@ -82,13 +85,23 @@ public static class AnalysisFreshnessEvaluator
     }
 
     private static AnalysisFreshnessResult Evaluate(RunIdentity run, LatestIdentity? newest,
-        JobIdentity? job, string currentPolicyVersion)
+        JobIdentity? job, string currentPolicyVersion, string? currentSourceIdentity)
     {
         string identity = string.Join(':', run.Id, run.CanonicalWorkId, run.Language,
             run.PolicyVersion, currentPolicyVersion, newest?.RunId.ToString() ?? "missing",
             job?.LastSuccessfulAnalysisRunId?.ToString() ?? "missing",
             job?.ProcessedInputHash ?? "missing", job?.ProcessedPolicyVersion ?? "missing",
-            job?.DesiredInputHash ?? "missing", job?.DesiredPolicyVersion ?? "missing");
+            job?.DesiredInputHash ?? "missing", job?.DesiredPolicyVersion ?? "missing",
+            run.SourceIdentityHash ?? "missing", currentSourceIdentity ?? "missing");
+        if (currentSourceIdentity is null)
+            return Create(run.Id, AnalysisFreshnessStatus.Stale,
+                ["SourceAssociationUnavailable"], identity);
+        if (string.IsNullOrWhiteSpace(run.SourceIdentityHash))
+            return Create(run.Id, AnalysisFreshnessStatus.Unknown,
+                ["LegacySourceIdentityUnavailable"], identity);
+        if (!string.Equals(run.SourceIdentityHash, currentSourceIdentity, StringComparison.Ordinal))
+            return Create(run.Id, AnalysisFreshnessStatus.Stale,
+                ["SourceIdentityChanged"], identity);
         if (newest is not null && newest.RunId > run.Id)
             return Create(run.Id, AnalysisFreshnessStatus.Stale, ["NewerAnalysisAvailable"], identity);
         if (!string.IsNullOrWhiteSpace(run.PolicyVersion) && !string.IsNullOrWhiteSpace(currentPolicyVersion) &&
@@ -123,7 +136,8 @@ public static class AnalysisFreshnessEvaluator
 
     private static string Key(int canonicalWorkId, string language) => canonicalWorkId + "\n" + language;
 
-    private sealed record RunIdentity(long Id, int CanonicalWorkId, string Language, string? PolicyVersion);
+    private sealed record RunIdentity(long Id, int CanonicalWorkId, string Language,
+        string? PolicyVersion, string? SourceIdentityHash);
     private sealed record LatestIdentity(int CanonicalWorkId, string Language, long RunId);
     private sealed record JobIdentity(int CanonicalWorkId, string Language,
         long? LastSuccessfulAnalysisRunId, string? ProcessedInputHash, string? ProcessedPolicyVersion,

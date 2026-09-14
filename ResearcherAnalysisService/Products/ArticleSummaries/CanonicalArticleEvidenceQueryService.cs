@@ -24,9 +24,15 @@ public sealed class CanonicalArticleEvidenceQueryService(AnalysisDbContext datab
         if (!hasCurrentAssociation)
             return null;
 
+        string? sourceIdentityHash = await CanonicalSourceIdentity.LoadAsync(
+            database, canonicalWorkId, cancellationToken);
+        if (sourceIdentityHash is null)
+            return null;
+
         CanonicalArticleAnalysisRun? run = await database.CanonicalArticleAnalysisRuns.AsNoTracking()
             .Include(value => value.ArticleSourceSnapshot)
-            .Where(value => value.CanonicalWorkId == canonicalWorkId && value.Language == language)
+            .Where(value => value.CanonicalWorkId == canonicalWorkId && value.Language == language &&
+                value.SourceIdentityHash == sourceIdentityHash)
             .OrderByDescending(value => value.Id)
             .FirstOrDefaultAsync(cancellationToken);
         if (run is null)

@@ -139,7 +139,7 @@ public sealed class ArticleSummaryWorkflow(AnalysisDbContext database, SafeArtic
         if (!forceRegeneration)
         {
             CanonicalArticleAnalysisRun? reusable = await FindReusableRunAsync(
-                canonicalWorkId, language, policyVersion, snapshot, total.Token);
+                canonicalWorkId, language, policyVersion, capturedGlobalInputHash, snapshot, total.Token);
             if (reusable is not null)
             {
                 await CompleteReusedAttemptAsync(attempt!, reusable.Id, total.Token);
@@ -182,13 +182,17 @@ public sealed class ArticleSummaryWorkflow(AnalysisDbContext database, SafeArtic
             .SingleOrDefaultAsync(cancellationToken);
         if (canonicalWorkId is not null)
         {
+            string? currentSourceIdentityHash = await CanonicalSourceIdentity.LoadAsync(
+                database, canonicalWorkId.Value, cancellationToken);
+            if (currentSourceIdentityHash is null)
+                return null;
             CanonicalArticleAnalysisRun? canonical = await database.CanonicalArticleAnalysisRuns.AsNoTracking()
                 .Include(value => value.SavedArticleSummary)
-                .Where(value => value.CanonicalWorkId == canonicalWorkId && value.Language == language)
+                .Where(value => value.CanonicalWorkId == canonicalWorkId && value.Language == language &&
+                    value.SourceIdentityHash == currentSourceIdentityHash)
                 .OrderByDescending(value => value.Id).FirstOrDefaultAsync(cancellationToken);
             if (canonical?.SavedArticleSummary is null)
-                return await GetLatestLegacyAsync(
-                    personelId, academicWorkId, language, cancellationToken);
+                return null;
             ArticleSummaryReport canonicalReport = JsonSerializer.Deserialize<ArticleSummaryReport>(
                 canonical.SavedArticleSummary.ReportJson, JsonOptions)!;
             SavedArticleSummaryResponse mapped = Map(canonical.SavedArticleSummary, canonicalReport);
@@ -203,19 +207,7 @@ public sealed class ArticleSummaryWorkflow(AnalysisDbContext database, SafeArtic
             };
         }
 
-        CanonicalArticleAnalysisRun? ownRun = await database.CanonicalArticleAnalysisRuns.AsNoTracking()
-            .Include(value => value.SavedArticleSummary)
-            .Where(value => value.Language == language &&
-                value.SavedArticleSummary!.PersonelId == personelId &&
-                value.SavedArticleSummary.OriginalAcademicWorkId == academicWorkId)
-            .OrderByDescending(value => value.Id).FirstOrDefaultAsync(cancellationToken);
-        if (ownRun?.SavedArticleSummary is not null)
-        {
-            ArticleSummaryReport report = JsonSerializer.Deserialize<ArticleSummaryReport>(
-                ownRun.SavedArticleSummary.ReportJson, JsonOptions)!;
-            return Map(ownRun.SavedArticleSummary, report);
-        }
-        return await GetLatestLegacyAsync(personelId, academicWorkId, language, cancellationToken);
+        return null;
     }
 
     private async Task<SavedArticleSummaryResponse?> GetLatestLegacyAsync(
@@ -277,6 +269,7 @@ public sealed class ArticleSummaryWorkflow(AnalysisDbContext database, SafeArtic
         int canonicalWorkId,
         string language,
         string policyVersion,
+        string sourceIdentityHash,
         SummarizeArticleRequest snapshot,
         CancellationToken cancellationToken) =>
         await database.CanonicalArticleAnalysisRuns.AsNoTracking()
@@ -284,6 +277,7 @@ public sealed class ArticleSummaryWorkflow(AnalysisDbContext database, SafeArtic
             .Include(value => value.SavedArticleSummary)
             .Where(value => value.CanonicalWorkId == canonicalWorkId &&
                 value.Language == language && value.PolicyVersion == policyVersion &&
+                value.SourceIdentityHash == sourceIdentityHash &&
                 value.ArticleSourceSnapshot!.ExtractedTextHash == snapshot.SourceHash &&
                 value.ArticleSourceSnapshot.SourceKind == snapshot.SourceKind &&
                 value.ArticleSourceSnapshot.ExtractionVersion == snapshot.ExtractionVersion)
@@ -374,7 +368,7 @@ public sealed class ArticleSummaryWorkflow(AnalysisDbContext database, SafeArtic
         database.ArticleSummaries.Add(saved);
         CanonicalArticleAnalysisRun run = CreateAnalysisRun(
             canonicalWorkId, sourceSnapshot, saved, snapshot, report,
-            sourceUrl, sourceOrigin, sourceAcquiredAt, policyVersion);
+            sourceUrl, sourceOrigin, sourceAcquiredAt, policyVersion, postWriteInputHash);
         database.CanonicalArticleAnalysisRuns.Add(run);
         await database.SaveChangesAsync(cancellationToken);
         if (job is not null)
@@ -545,7 +539,8 @@ public sealed class ArticleSummaryWorkflow(AnalysisDbContext database, SafeArtic
     private static CanonicalArticleAnalysisRun CreateAnalysisRun(
         int canonicalWorkId, ArticleSourceSnapshot source, SavedArticleSummary saved,
         SummarizeArticleRequest snapshot, ArticleSummaryReport report, string? sourceUrl,
-        string sourceOrigin, DateTimeOffset sourceAcquiredAt, string policyVersion)
+        string sourceOrigin, DateTimeOffset sourceAcquiredAt, string policyVersion,
+        string sourceIdentityHash)
     {
         ArticleVerificationMetadata verification = report.Verification!;
         ArticleCoverage coverage = report.Coverage;
@@ -560,6 +555,7 @@ public sealed class ArticleSummaryWorkflow(AnalysisDbContext database, SafeArtic
             SourceOrigin = sourceOrigin,
             Language = report.Language,
             PolicyVersion = policyVersion,
+            SourceIdentityHash = sourceIdentityHash,
             Model = report.Model,
             PromptVersion = report.PromptVersion,
             ExtractionMethod = report.ExtractionMethod ??
