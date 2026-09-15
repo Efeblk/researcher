@@ -31,11 +31,12 @@ export function describeYoksisOutcome(response: YoksisCollectResponse): YoksisOu
     }
 
     if (failedCount > 0) {
+        const stopReason = response.StopReason ? ` ${response.StopReason}` : "";
         return {
             kind: "warning",
             message: publicationCount > 0
-                ? `YÖKSİS: ${format(publicationCount)} yayın bulundu. Bazı YÖKSİS verileri alınamadı.`
-                : "YÖKSİS verilerinin bir kısmı alınamadı; alınan verilerde yayın bulunamadı.",
+                ? `YÖKSİS: ${format(publicationCount)} yayın bulundu. Bazı YÖKSİS verileri alınamadı.${stopReason}`
+                : `YÖKSİS verilerinin bir kısmı alınamadı; alınan verilerde yayın bulunamadı.${stopReason}`,
             hasUsableResult: true
         };
     }

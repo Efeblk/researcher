@@ -57,3 +57,15 @@ test("YOKSIS stream resolves and cancels the reader as soon as result arrives", 
     assert.equal(result.IsSaved, true);
     assert.equal(cancelled, true);
 });
+
+test("YOKSIS stream rejects a terminal result without payload without waiting for EOF", async () => {
+    const encoder = new TextEncoder();
+    const response = new Response(new ReadableStream({
+        start(controller) {
+            controller.enqueue(encoder.encode('{"Type":"result"}\n'));
+        }
+    }));
+
+    await assert.rejects(() => collectYoksisStream({}, new AbortController().signal,
+        () => undefined, async () => response), /geçerli bir sonuç/);
+});

@@ -74,11 +74,7 @@ public sealed class YoksisEndpoint : ServiceEndpoint
             {
                 Type = "result",
                 Stage = "completed",
-                Message = result.SuccessfulCategoryCount == 0 && result.StopReason is not null
-                    ? result.StopReason
-                    : result.IsSaved
-                        ? "YÖKSİS toplaması ve kayıt işlemi tamamlandı."
-                    : "YÖKSİS toplaması tamamlandı fakat kayıt işlemi başarısız oldu.",
+                Message = YoksisCollectionProgressMessages.Completion(result),
                 Result = result
             }, elapsed, lastActualProgress, cancellationToken);
         }

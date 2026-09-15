@@ -154,14 +154,15 @@ function showYoksisProgress(event?: YoksisProgressEvent) {
     const connectionSilent = event.Stage === "connection-silent";
     const stalled = connectionSilent || (event.Type === "heartbeat" && staleSeconds >= 30);
     yoksisProgress.classList.toggle("stalled", stalled);
+    const currentPhase = lastYoksisProgressMessage || "YÖKSİS işlemi sürüyor.";
     if (event.Type !== "heartbeat" && event.Message)
         lastYoksisProgressMessage = event.Message;
     yoksisProgressMessage.textContent = connectionSilent
-        ? `Sunucudan ${Math.round(staleSeconds)} saniyedir durum bilgisi alınamıyor.`
+        ? `${currentPhase} Sunucudan ${Math.round(staleSeconds)} saniyedir durum bilgisi alınamıyor.`
         : stalled
-        ? `YÖKSİS hâlâ bekleniyor; ${Math.round(staleSeconds)} saniyedir yeni işlem ilerlemesi yok.`
+        ? `${currentPhase} Son işlem ilerlemesi ${Math.round(staleSeconds)} saniye önceydi.`
         : event.Type === "heartbeat"
-            ? `${lastYoksisProgressMessage || "YÖKSİS işlemi sürüyor."} Sunucu bağlantısı etkin.`
+            ? `${currentPhase} Sunucu bağlantısı etkin.`
             : event.Message ?? "YÖKSİS işlemi sürüyor.";
     yoksisProgressElapsed.textContent = event.ElapsedSeconds == null
         ? ""
@@ -334,6 +335,7 @@ form?.addEventListener("submit", async event => {
                 showSelectionStatus("info",
                     "YÖKSİS kayıtları toplama tamamlanınca veritabanına yazılacak.");
                 let lastStreamEventAt = Date.now();
+                const streamStartedAt = lastStreamEventAt;
                 const connectionTimer = globalThis.setInterval(() => {
                     if (!requestCoordinator.isCurrent(run))
                         return;
@@ -343,6 +345,7 @@ form?.addEventListener("submit", async event => {
                         showYoksisProgress({
                             Type: "heartbeat",
                             Stage: "connection-silent",
+                            ElapsedSeconds: (Date.now() - streamStartedAt) / 1000,
                             LastProgressElapsedSeconds: silentSeconds
                         });
                 }, 1000);

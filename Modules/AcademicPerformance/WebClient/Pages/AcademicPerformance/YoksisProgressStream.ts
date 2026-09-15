@@ -51,7 +51,11 @@ export async function collectYoksisStream(
         onEvent(event);
         if (event.Type === "error")
             throw new YoksisStreamError(event.Message || "YÖKSİS toplaması sona erdi.");
-        if (event.Type === "result") result = event.Result;
+        if (event.Type === "result") {
+            if (!event.Result)
+                throw new YoksisStreamError("YÖKSİS sonuç iletisi geçerli bir sonuç içermiyor.");
+            result = event.Result;
+        }
     };
     try {
         while (true) {

@@ -114,7 +114,7 @@ public sealed class YoksisClient
 
             int timeoutSeconds = _configuration.GetValue("Yoksis:RequestTimeoutSeconds", 100);
             using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(
-                Math.Clamp(timeoutSeconds, 5, 300)));
+                Math.Clamp(timeoutSeconds, 5, 100)));
             using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(
                 cancellationToken, timeout.Token);
             try
@@ -142,10 +142,12 @@ public sealed class YoksisClient
                 if (stopsCollection)
                 {
                     string message = localDeferral
-                        ? "YÖKSİS isteği yerel hız sınırı nedeniyle ertelendi."
+                        ? "YÖKSİS için bekleme süresi dolmadı. Daha sonra tekrar deneyin."
                         : disabled
                             ? "YÖKSİS istekleri yerel yapılandırmada devre dışı."
-                            : $"YÖKSİS servisi {(int)response.StatusCode} döndürdü; sonraki istekler gönderilmedi.";
+                            : response.StatusCode == System.Net.HttpStatusCode.TooManyRequests
+                                ? "YÖKSİS istek sınırına ulaşıldı. Daha sonra tekrar deneyin."
+                                : "YÖKSİS erişimi reddedildi. Bağlantı ayarlarını kontrol edin.";
                     throw new YoksisProviderException(message, stopsCollection: true);
                 }
                 throw new HttpRequestException(

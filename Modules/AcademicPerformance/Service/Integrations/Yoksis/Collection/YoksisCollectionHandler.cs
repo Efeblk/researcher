@@ -129,7 +129,7 @@ public sealed class YoksisCollectionHandler
         progress?.Report(new()
         {
             Stage = "completed",
-            Message = response.IsSaved ? "YÖKSİS toplaması tamamlandı." : "YÖKSİS kayıt aşaması başarısız oldu.",
+            Message = YoksisCollectionProgressMessages.Completion(response),
             RecordCount = response.TotalRecordCount
         });
         return response;
