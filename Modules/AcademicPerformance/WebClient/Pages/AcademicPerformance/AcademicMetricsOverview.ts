@@ -1,4 +1,6 @@
-import type { ResearcherCollectResponse } from "../../Contracts/AcademicPerformanceContracts";
+import type {
+    ResearcherCollectResponse, YoksisCollectResponse
+} from "../../Contracts/AcademicPerformanceContracts";
 
 type Researcher = ResearcherCollectResponse["Researcher"];
 
@@ -10,7 +12,8 @@ export interface AcademicMetricProvider {
 }
 
 export function mapAcademicMetricProviders(
-    researcher?: Researcher): AcademicMetricProvider[] {
+    researcher?: Researcher,
+    yoksis?: YoksisCollectResponse): AcademicMetricProvider[] {
     return [
         {
             provider: "ORCID",
@@ -35,12 +38,22 @@ export function mapAcademicMetricProviders(
             publications: definedNumber(researcher?.OpenAlexProfile?.WorksCount),
             citations: definedNumber(researcher?.OpenAlexProfile?.CitedByCount),
             hIndex: definedNumber(researcher?.OpenAlexProfile?.HIndex)
+        },
+        {
+            provider: "YÖKSİS",
+            publications: yoksis?.IsSaved === true &&
+                (yoksis.SuccessfulCategoryCount ?? 0) > 0
+                ? definedNumber(yoksis?.YoksisPublicationCount)
+                : undefined,
+            citations: undefined,
+            hIndex: undefined
         }
     ];
 }
 
 export function showAcademicMetricsOverview(
     researcher?: Researcher,
+    yoksis?: YoksisCollectResponse,
     root: ParentNode = document) {
     const panel = root.querySelector<HTMLDetailsElement>("#AcademicMetricsOverview");
     const grid = root.querySelector<HTMLElement>("#AcademicMetricsProviderGrid");
@@ -48,7 +61,7 @@ export function showAcademicMetricsOverview(
     const button = root.querySelector<HTMLButtonElement>("#AcademicMetricsMoreButton");
 
     grid?.replaceChildren();
-    if (!panel || !grid || !researcher) {
+    if (!panel || !grid || (!researcher && !yoksis)) {
         if (panel)
             panel.hidden = true;
         if (details)
@@ -60,7 +73,7 @@ export function showAcademicMetricsOverview(
         return;
     }
 
-    for (const metric of mapAcademicMetricProviders(researcher)) {
+    for (const metric of mapAcademicMetricProviders(researcher, yoksis)) {
         const card = document.createElement("article");
         const provider = document.createElement("h3");
         const publicationLabel = document.createElement("span");

@@ -13,6 +13,8 @@ import {
     showProfileSummary, showWebOfScienceSummary, showProviderComparison,
     showGoogleScholarSummary, showOpenAlexSummary, showYoksisSummary
 } from "./ResearcherSummaryPanels";
+import { describeYoksisOutcome, type ResearchOutcomeKind } from "./YoksisFeedback";
+import { describeProviderOutcome } from "./ProviderFeedback";
 
 const providerIdentifierStorageKey = "AcademicPerformance.ProviderIdentifiers.v1";
 
@@ -110,7 +112,7 @@ function setResearchButtonsEnabled(enabled: boolean) {
         myPublicationsButton.disabled = !enabled;
 }
 
-function showStatus(kind: "info" | "success" | "error", message: string) {
+function showStatus(kind: "info" | ResearchOutcomeKind, message: string) {
     if (!researchStatus)
         return;
 
@@ -225,9 +227,17 @@ form?.addEventListener("submit", async event => {
         let hasSuccessfulResult = false;
         let linkedPersonelId = "";
         let researcherDisplayName = "";
+        let latestResearcher: ResearcherCollectResponse["Researcher"];
+        let yoksisResponse: YoksisCollectResponse | undefined;
 
         if (identifiers.length) {
             try {
+                const providerNames = [
+                    orcid && "ORCID",
+                    googleScholarId && "Google Scholar",
+                    webOfScienceResearcherId && "Web of Science"
+                ].filter(Boolean).join(", ");
+                showStatus("info", `${providerNames} verileri araştırılıyor...`);
                 const response = await serviceRequest<ResearcherCollectResponse>(
                     "AcademicPerformance/V1/Collect",
                     {
@@ -243,9 +253,10 @@ form?.addEventListener("submit", async event => {
                     return;
 
                 const savedPersonelId = response.Researcher?.PersonelID ?? "";
-                const messages = (response.Messages ?? []).filter(Boolean).join("\n");
+                const outcome = describeProviderOutcome(response);
 
-                if (response.IsSaved && savedPersonelId) {
+                if (outcome.hasUsableResult && savedPersonelId) {
+                    latestResearcher = response.Researcher;
                     researcherDisplayName = [
                         response.Researcher?.FirstName,
                         response.Researcher?.LastName
@@ -258,7 +269,10 @@ form?.addEventListener("submit", async event => {
                     linkedPersonelId = updateSelectionTarget(
                         linkedPersonelId, response.IsSaved, savedPersonelId);
                     hasSuccessfulResult = true;
-                    statusMessages.push(messages || "Yayın araştırması tamamlandı.");
+                    if (outcome.kind === "success")
+                        statusMessages.push(outcome.message);
+                    else
+                        errors.push(outcome.message);
                     rememberProviderIdentifiers();
                     showProfileSummary(response.Researcher);
                     showGoogleScholarSummary(response.Researcher);
@@ -271,9 +285,7 @@ form?.addEventListener("submit", async event => {
                         grid.setResearcher(savedPersonelId, researcherDisplayName);
                 }
                 else {
-                    errors.push(
-                        messages ||
-                        "Yayın araştırması tamamlandı ancak kayıt oluşturulamadı.");
+                    errors.push(outcome.message);
                 }
             }
             catch (error) {
@@ -287,6 +299,7 @@ form?.addEventListener("submit", async event => {
 
         if (tcKimlikNo) {
             try {
+                showStatus("info", "YÖKSİS verileri araştırılıyor...");
                 const response = await serviceRequest<YoksisCollectResponse>(
                     "AcademicPerformance/V1/Yoksis/Collect",
                     {
@@ -301,36 +314,27 @@ form?.addEventListener("submit", async event => {
                 if (!requestCoordinator.isCurrent(run))
                     return;
 
-                const successfulCount = response.SuccessfulCategoryCount ?? 0;
-                const failedCount = response.FailedCategoryCount ?? 0;
                 const savedPersonelId = response.PersonelID ?? "";
+                const outcome = describeYoksisOutcome(response);
+                yoksisResponse = response;
 
                 showYoksisSummary(response);
+                showAcademicMetricsOverview(latestResearcher, response);
 
-                if (response.IsSaved && savedPersonelId) {
+                if (outcome.hasUsableResult && savedPersonelId) {
                     linkedPersonelId = updateSelectionTarget(
                         linkedPersonelId, response.IsSaved, savedPersonelId);
                     researcherDisplayName = response.ResearcherDisplayName ?? researcherDisplayName;
                     hasSuccessfulResult = true;
-                    statusMessages.push(
-                        `YÖKSİS: ${(response.YoksisRecordCount ?? 0)
-                            .toLocaleString("tr-TR")} kategori kaydı saklandı, ` +
-                        `${(response.YoksisPublicationCount ?? 0)
-                            .toLocaleString("tr-TR")} yayın kaydedildi, ` +
-                        `${(response.PublicationSummaryCount ?? 0)
-                            .toLocaleString("tr-TR")} ortak yayın özeti hazırlandı.`);
+                    if (outcome.kind === "success")
+                        statusMessages.push(outcome.message);
                     if (grid.getResearcherId() !== savedPersonelId)
                         grid.setResearcher(savedPersonelId, researcherDisplayName);
                 }
-                else if (successfulCount > 0) {
-                    errors.push(
-                        "YÖKSİS verileri alındı ancak akademisyen kaydına yazılamadı.");
-                }
-
-                if (failedCount > 0) {
-                    errors.push(
-                        `YÖKSİS: ${failedCount.toLocaleString("tr-TR")} kategori alınamadı.`);
-                }
+                if (outcome.kind === "warning")
+                    errors.push(outcome.message);
+                else if (outcome.kind === "error")
+                    errors.push(outcome.message);
             }
             catch (error) {
                 if (!requestCoordinator.isCurrent(run))
@@ -346,6 +350,11 @@ form?.addEventListener("submit", async event => {
 
         if (hasSuccessfulResult && linkedPersonelId) {
             try {
+                showStatus("info", [
+                    ...statusMessages,
+                    ...errors,
+                    "Akademik metrikler güncelleniyor..."
+                ].filter(Boolean).join("\n"));
                 const refreshed = await recalculateAndReadResearcher(
                     linkedPersonelId,
                     (action, body) => serviceRequest<ResearcherMetricsResponse | ResearcherCollectResponse>(
@@ -355,10 +364,11 @@ form?.addEventListener("submit", async event => {
                 if (!requestCoordinator.isCurrent(run))
                     return;
                 showProfileSummary(refreshed.Researcher);
+                latestResearcher = refreshed.Researcher;
                 showGoogleScholarSummary(refreshed.Researcher);
                 showOpenAlexSummary(refreshed.Researcher);
                 showWebOfScienceSummary(refreshed.Researcher);
-                showAcademicMetricsOverview(refreshed.Researcher);
+                showAcademicMetricsOverview(latestResearcher, yoksisResponse);
                 showProviderComparison(refreshed.Researcher);
             }
             catch (error) {
@@ -379,7 +389,7 @@ form?.addEventListener("submit", async event => {
             .join("\n");
 
         if (hasSuccessfulResult && errors.length > 0)
-            showStatus("info", combinedMessage);
+            showStatus("warning", combinedMessage);
         else if (hasSuccessfulResult)
             showStatus("success", combinedMessage || "Araştırma tamamlandı.");
         else
