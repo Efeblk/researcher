@@ -33,9 +33,9 @@ public sealed class EndpointTests(SqlServerFixture fixture)
             SyncedAt = DateTime.UtcNow
         });
         await db.SaveChangesAsync();
-        await new PublicationSummarySynchronizer(db).SyncAsync(researcher.PersonelId);
         await scope.ServiceProvider.GetRequiredService<CanonicalWorkSynchronizer>()
             .SyncAsync(researcher.PersonelId);
+        await new PublicationSummarySynchronizer(db).SyncAsync(researcher.PersonelId);
 
         string collectedPersonelId = "endpoint-canonical-" + Guid.NewGuid().ToString("N");
         const string collectedResearcherId = "C-7391-2098";
@@ -179,6 +179,9 @@ public sealed class EndpointTests(SqlServerFixture fixture)
         Assert.False(canonicalObservation.TryGetProperty("PersonelID", out _));
         Assert.False(canonicalObservation.TryGetProperty("ProviderPayload", out _));
 
+        await db.PublicationSummaries.Where(value => value.PersonelId == researcher.PersonelId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.Title, "Stale display title"));
+
         using var rebuild = await host.Client.PostAsJsonAsync(
             "/Services/AcademicPerformance/V1/RebuildCanonicalPublications",
             new { PersonelID = researcher.PersonelId });
@@ -186,6 +189,10 @@ public sealed class EndpointTests(SqlServerFixture fixture)
         JsonElement rebuildBody = await rebuild.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(1, rebuildBody.GetProperty("CanonicalWorkCount").GetInt32());
         Assert.Equal(1, rebuildBody.GetProperty("ObservationCount").GetInt32());
+        db.ChangeTracker.Clear();
+        Assert.Equal("Endpoint publication", await db.PublicationSummaries
+            .Where(value => value.PersonelId == researcher.PersonelId)
+            .Select(value => value.Title).SingleAsync());
 
         using var missingRebuild = await host.Client.PostAsJsonAsync(
             "/Services/AcademicPerformance/V1/RebuildCanonicalPublications",

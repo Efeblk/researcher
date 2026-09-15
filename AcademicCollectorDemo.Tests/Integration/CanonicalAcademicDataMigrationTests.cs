@@ -52,6 +52,14 @@ public sealed class CanonicalAcademicDataMigrationTests(SqlServerFixture fixture
                     (SELECT COUNT(*) FROM [core].[AcademicWorks] WHERE [PersonelID] = @personelId) +
                     (SELECT COUNT(*) FROM [core].[PublicationSummaries] WHERE [PersonelID] = @personelId) +
                     (SELECT COUNT(*) FROM [core].[PublicationDisplayApprovals] WHERE [PersonelID] = @personelId) +
+                    (SELECT COUNT(*) FROM [core].[PublicationSummaries]
+                        WHERE [PersonelID] = @personelId AND [CanonicalWorkId] IS NULL) +
+                    (SELECT COUNT(*) FROM sys.foreign_keys
+                        WHERE [name] = N'FK_PublicationSummaries_CanonicalWorks_CanonicalWorkId') +
+                    (SELECT COUNT(*) FROM sys.indexes
+                        WHERE [object_id] = OBJECT_ID(N'[core].[PublicationSummaries]')
+                          AND [name] = N'UX_PublicationSummaries_PersonelID_CanonicalWorkId'
+                          AND [is_unique] = 1 AND [filter_definition] IS NOT NULL) +
                     (SELECT COUNT(*) FROM sys.check_constraints
                         WHERE [name] = N'CK_CanonicalWorks_ExactlyOneIdentity') +
                     (SELECT COUNT(*) FROM sys.indexes
@@ -59,7 +67,7 @@ public sealed class CanonicalAcademicDataMigrationTests(SqlServerFixture fixture
                           AND [name] IN (N'UX_CanonicalWorks_NormalizedDoi', N'UX_CanonicalWorks_SourceScopedKey'));
                 """;
             verify.Parameters.AddWithValue("@personelId", personelId);
-            Assert.Equal(6, Convert.ToInt32(await verify.ExecuteScalarAsync()));
+            Assert.Equal(9, Convert.ToInt32(await verify.ExecuteScalarAsync()));
 
             using IServiceScope scope = fixture.Services.CreateScope();
             AcademicDbContext db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
@@ -80,7 +88,7 @@ public sealed class CanonicalAcademicDataMigrationTests(SqlServerFixture fixture
     private void MigrateDown()
     {
         using IServiceScope scope = fixture.Services.CreateScope();
-        scope.ServiceProvider.GetRequiredService<IMigrationRunner>().MigrateDown(202609110002);
+        scope.ServiceProvider.GetRequiredService<IMigrationRunner>().MigrateDown(202609140002);
     }
 
     private void MigrateUp()

@@ -583,12 +583,21 @@ public sealed class AcademicDbContext : DbContext
 
             entity.Property(summary => summary.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
             entity.HasIndex(summary => summary.PersonelId);
+            entity.HasIndex(summary => new { summary.PersonelId, summary.CanonicalWorkId })
+                .IsUnique()
+                .HasFilter("[CanonicalWorkId] IS NOT NULL")
+                .HasDatabaseName("UX_PublicationSummaries_PersonelID_CanonicalWorkId");
             entity.HasIndex(summary => new
             {
                 summary.PersonelId,
                 summary.Fingerprint
             })
                 .IsUnique();
+
+            entity.HasOne(summary => summary.CanonicalWork)
+                .WithMany(work => work.PublicationSummaries)
+                .HasForeignKey(summary => summary.CanonicalWorkId)
+                .OnDelete(DeleteBehavior.NoAction);
 
             entity.HasOne(summary => summary.DisplayApproval)
                 .WithOne(approval => approval.PublicationSummary)

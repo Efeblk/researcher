@@ -37,7 +37,7 @@ public sealed class OpenAlexAcademicWorkPersistenceTests(SqlServerFixture fixtur
             item.PersonelId == researcher.PersonelId &&
             item.Provider == AcademicWorkProvider.OpenAlex);
         Assert.StartsWith("https://openalex.org/W", work.ProviderWorkId);
-        Assert.Equal("10.1234/shared", work.Doi);
+        Assert.Equal("10.1234/openalex-shared", work.Doi);
         Assert.Equal(AcademicWorkCategory.Article, work.Category);
         Assert.Equal(AcademicWorkCategorySource.OpenAlex, work.CategorySource);
         Assert.Equal(9, work.CitedByCount);
@@ -68,7 +68,7 @@ public sealed class OpenAlexAcademicWorkPersistenceTests(SqlServerFixture fixtur
                     PutCode = 1,
                     Title = "Shared publication from ORCID",
                     PublicationYear = 2025,
-                    Doi = "https://doi.org/10.1234/SHARED",
+                    Doi = "https://doi.org/10.1234/OPENALEX-SHARED",
                     WorkType = "journal-article"
                 },
                 new OrcidWork
@@ -88,14 +88,16 @@ public sealed class OpenAlexAcademicWorkPersistenceTests(SqlServerFixture fixtur
         var summaries = new PublicationSummarySynchronizer(db);
 
         await works.SyncAsync(researcher);
+        await new CanonicalWorkSynchronizer(db).SyncAsync(researcher.PersonelId);
         Assert.Equal(2, await summaries.SyncAsync(researcher.PersonelId));
         await works.SyncAsync(researcher);
+        await new CanonicalWorkSynchronizer(db).SyncAsync(researcher.PersonelId);
         Assert.Equal(2, await summaries.SyncAsync(researcher.PersonelId));
 
         Assert.Equal(3, await db.AcademicWorks.CountAsync(item =>
             item.PersonelId == researcher.PersonelId));
         PublicationSummary shared = await db.PublicationSummaries.SingleAsync(item =>
-            item.PersonelId == researcher.PersonelId && item.Doi == "10.1234/shared");
+            item.PersonelId == researcher.PersonelId && item.Doi == "10.1234/openalex-shared");
         Assert.Equal("OpenAlex,Orcid", shared.Sources);
         Assert.Single(await db.PublicationSummaries.Where(item =>
             item.PersonelId == researcher.PersonelId && item.Doi == "10.1234/distinct")
@@ -121,7 +123,7 @@ public sealed class OpenAlexAcademicWorkPersistenceTests(SqlServerFixture fixtur
                         Title = "Shared publication from OpenAlex",
                         PublicationYear = 2025,
                         PublicationDate = new DateTime(2025, 2, 3),
-                        Doi = "10.1234/shared",
+                        Doi = "10.1234/openalex-shared",
                         WorkType = "article",
                         CitedByCount = 9,
                         Authors = "Ada Example",

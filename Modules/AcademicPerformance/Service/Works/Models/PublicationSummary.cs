@@ -8,6 +8,10 @@ public sealed class PublicationSummary
 {
     public int Id { get; set; }
     public string PersonelId { get; set; } = string.Empty;
+    public int? CanonicalWorkId { get; set; } = null;
+
+    [JsonIgnore]
+    public CanonicalWork? CanonicalWork { get; set; } = null;
 
     [JsonIgnore]
     public Researcher? Researcher { get; set; } = null;

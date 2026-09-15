@@ -115,6 +115,12 @@ public static class ResearcherSnapshotBuilder
 
     private static bool Matches(PublicationSummary summary, AcademicWork work)
     {
+        if (summary.CanonicalWorkId.HasValue)
+        {
+            return summary.PersonelId == work.PersonelId &&
+                work.CanonicalObservation?.PersonelId == summary.PersonelId &&
+                work.CanonicalObservation.CanonicalWorkId == summary.CanonicalWorkId.Value;
+        }
         if (!string.IsNullOrWhiteSpace(summary.Doi) && !string.IsNullOrWhiteSpace(work.Doi))
             return NormalizeDoi(summary.Doi) == NormalizeDoi(work.Doi);
         return !string.IsNullOrWhiteSpace(work.Title) && summary.Title == work.Title &&

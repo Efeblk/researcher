@@ -21,7 +21,7 @@ public sealed class ResearcherCollectionHandler
     private readonly CrossrefEnrichmentService _crossrefEnrichmentService;
     private readonly SemanticScholarEnrichmentService? _semanticScholarEnrichmentService;
     private readonly SemanticScholarWorkSourceSynchronizer? _semanticScholarWorkSourceSynchronizer;
-    private readonly CanonicalWorkSynchronizer? _canonicalWorkSynchronizer;
+    private readonly CanonicalWorkSynchronizer _canonicalWorkSynchronizer;
 
     public ResearcherCollectionHandler(
         ResearcherIdentifierParser identifierParser,
@@ -43,7 +43,7 @@ public sealed class ResearcherCollectionHandler
         _crossrefEnrichmentService = crossrefEnrichmentService;
         _semanticScholarEnrichmentService = semanticScholarEnrichmentService;
         _semanticScholarWorkSourceSynchronizer = semanticScholarWorkSourceSynchronizer;
-        _canonicalWorkSynchronizer = canonicalWorkSynchronizer;
+        _canonicalWorkSynchronizer = canonicalWorkSynchronizer ?? new CanonicalWorkSynchronizer(dbContext);
         _dbContext = dbContext;
     }
 
@@ -99,17 +99,12 @@ public sealed class ResearcherCollectionHandler
         {
             await using IDbContextTransaction transaction =
                 await _dbContext.Database.BeginTransactionAsync();
-            if (_canonicalWorkSynchronizer is not null)
-            {
-                await _canonicalWorkSynchronizer.AcquireWriteGateAsync();
-                await _canonicalWorkSynchronizer.AcquireResearcherLockAsync(researcher.PersonelId);
-            }
+            await _canonicalWorkSynchronizer.AcquireWriteGateAsync();
+            await _canonicalWorkSynchronizer.AcquireResearcherLockAsync(researcher.PersonelId);
 
             await _researcherRepository.SaveAsync(researcher);
             await _academicWorkSynchronizer.SyncAsync(researcher);
-            if (_canonicalWorkSynchronizer is not null)
-                await _canonicalWorkSynchronizer.SyncAsync(
-                    researcher.PersonelId);
+            await _canonicalWorkSynchronizer.SyncAsync(researcher.PersonelId);
             int publicationSummaryCount = await _publicationSummarySynchronizer.SyncAsync(researcher.PersonelId);
             await transaction.CommitAsync();
             response.Messages.Add(
@@ -190,15 +185,10 @@ public sealed class ResearcherCollectionHandler
     private async Task<int> SynchronizeCrossrefAsync(Researcher researcher)
     {
         await using IDbContextTransaction transaction = await _dbContext.Database.BeginTransactionAsync();
-        if (_canonicalWorkSynchronizer is not null)
-        {
-            await _canonicalWorkSynchronizer.AcquireWriteGateAsync();
-            await _canonicalWorkSynchronizer.AcquireResearcherLockAsync(researcher.PersonelId);
-        }
+        await _canonicalWorkSynchronizer.AcquireWriteGateAsync();
+        await _canonicalWorkSynchronizer.AcquireResearcherLockAsync(researcher.PersonelId);
         await _academicWorkSynchronizer.SyncAsync(researcher);
-        if (_canonicalWorkSynchronizer is not null)
-            await _canonicalWorkSynchronizer.SyncAsync(
-                researcher.PersonelId);
+        await _canonicalWorkSynchronizer.SyncAsync(researcher.PersonelId);
         int count = await _publicationSummarySynchronizer.SyncAsync(researcher.PersonelId);
         await transaction.CommitAsync();
         return count;

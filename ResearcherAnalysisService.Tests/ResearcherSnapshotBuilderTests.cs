@@ -11,6 +11,31 @@ namespace ResearcherAnalysisService.Tests;
 public sealed class ResearcherSnapshotBuilderTests
 {
     [Fact]
+    public void Build_CanonicalDoiLessPublications_AttachesEvidenceByCanonicalMembership()
+    {
+        const string personelId = "00123-A";
+        List<PublicationSummary> summaries =
+        [
+            new() { Id = 1, PersonelId = personelId, CanonicalWorkId = 101, Title = "Same title", PublicationYear = 2025 },
+            new() { Id = 2, PersonelId = personelId, CanonicalWorkId = 102, Title = "Same title", PublicationYear = 2025 }
+        ];
+        List<AcademicWork> works =
+        [
+            new() { Id = 10, PersonelId = personelId, Title = "Same title", PublicationYear = 2025,
+                Abstract = "First abstract", CanonicalObservation = new() { AcademicWorkId = 10, PersonelId = personelId, CanonicalWorkId = 101 } },
+            new() { Id = 11, PersonelId = personelId, Title = "Same title", PublicationYear = 2025,
+                Abstract = "Second abstract", CanonicalObservation = new() { AcademicWorkId = 11, PersonelId = personelId, CanonicalWorkId = 102 } }
+        ];
+
+        AnalyzeResearcherRequest snapshot = ResearcherSnapshotBuilder.Build(
+            new Researcher { PersonelId = personelId }, summaries, works, new());
+
+        Assert.Equal("First abstract", snapshot.Publications.Single(value => value.Id == "publication-1").Abstract);
+        Assert.Equal("Second abstract", snapshot.Publications.Single(value => value.Id == "publication-2").Abstract);
+        Assert.Equal(2, snapshot.SourceCoverage!.AbstractOnly);
+    }
+
+    [Fact]
     public void Build_AmbiguousTitles_DoesNotAttachAnotherPublicationsAbstract()
     {
         var summaries = new List<PublicationSummary>

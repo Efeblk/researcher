@@ -890,6 +890,10 @@ public sealed class AnalysisDbContext : DbContext
 
             entity.Property(summary => summary.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
             entity.HasIndex(summary => summary.PersonelId);
+            entity.HasIndex(summary => new { summary.PersonelId, summary.CanonicalWorkId })
+                .IsUnique()
+                .HasFilter("[CanonicalWorkId] IS NOT NULL")
+                .HasDatabaseName("UX_PublicationSummaries_PersonelID_CanonicalWorkId");
             entity.HasIndex(summary => new
             {
                 summary.PersonelId,
