@@ -101,8 +101,10 @@ public static class AcademicPerformanceModule
         })
         {
             int interval = configuration.GetValue($"ProviderRequestLimits:{name}:MinimumIntervalMilliseconds", 1000);
-            int dailyLimit = configuration.GetValue($"ProviderRequestLimits:{name}:DailyRequestLimit", 0);
-            if (interval is < 1 or > 60000 || dailyLimit < 0)
+            int dailyLimit = ProviderRequestPolicy.GetEffectiveDailyRequestLimit(configuration, name);
+            int rateLimitCooldownSeconds = configuration.GetValue(
+                $"ProviderRequestLimits:{name}:RateLimitCooldownSeconds", 0);
+            if (interval is < 1 or > 60000 || dailyLimit < 0 || rateLimitCooldownSeconds is < 0 or > 3600)
                 throw new InvalidOperationException($"Invalid request limits for {name}.");
             policies.Add(new()
             {
@@ -110,7 +112,8 @@ public static class AcademicPerformanceModule
                 Name = name,
                 Host = new Uri(configuration[key] ?? defaultUrl).Host,
                 MinimumIntervalMilliseconds = interval,
-                DailyRequestLimit = dailyLimit
+                DailyRequestLimit = dailyLimit,
+                RateLimitCooldownSeconds = rateLimitCooldownSeconds
             });
         }
         ProviderRateLimitHandler handler = new(

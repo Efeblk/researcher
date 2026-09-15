@@ -23,6 +23,7 @@ public sealed class ServiceStartupBoundarySmokeTests
         "googlescholar.GoogleScholarProfiles", "googlescholar.GoogleScholarWorks",
         "integrations.ProviderRequestBudgets", "integrations.ProviderStatusObservations",
         "openalex.OpenAlexProfiles", "openalex.OpenAlexWorks", "orcid.OrcidProfiles", "orcid.OrcidWorks",
+        "scopus.ScopusProfiles", "scopus.ScopusWorks",
         "semanticscholar.SemanticScholarCitationContexts", "semanticscholar.SemanticScholarCitations",
         "semanticscholar.SemanticScholarPapers", "trdizin.TrDizinProfiles", "trdizin.TrDizinWorks",
         "wos.WebOfSciencePeerReviews", "wos.WebOfScienceProfiles", "wos.WebOfScienceWorks",
@@ -106,9 +107,9 @@ public sealed class ServiceStartupBoundarySmokeTests
                 throw new ArgumentOutOfRangeException(nameof(order));
         }
 
-        Assert.Equal(31, CollectorBusinessTables.Length);
+        Assert.Equal(33, CollectorBusinessTables.Length);
         Assert.Equal(30, AnalysisBusinessTables.Length);
-        Assert.Equal(61, CollectorBusinessTables.Length + AnalysisBusinessTables.Length);
+        Assert.Equal(63, CollectorBusinessTables.Length + AnalysisBusinessTables.Length);
         await AssertTablesAsync(database,
             [.. CollectorBusinessTables, .. AnalysisBusinessTables, CollectorHistoryTable, AnalysisHistoryTable]);
         Assert.Equal(AnalysisMigrationVersions, await database.QueryInt64sAsync(

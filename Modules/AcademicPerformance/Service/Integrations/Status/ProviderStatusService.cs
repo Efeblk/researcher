@@ -658,7 +658,7 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
     {
         using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(5));
-        int limit = configuration.GetValue($"ProviderRequestLimits:{name}:DailyRequestLimit", 0);
+        int limit = ProviderRequestPolicy.GetEffectiveDailyRequestLimit(configuration, name);
         LocalProviderBudgetDto result = new() { DailyRequestLimit = limit > 0 ? limit : null,
             MinimumIntervalMilliseconds = configuration.GetValue($"ProviderRequestLimits:{name}:MinimumIntervalMilliseconds", 1000),
             ResetsAt = now.Date.AddDays(1) };
