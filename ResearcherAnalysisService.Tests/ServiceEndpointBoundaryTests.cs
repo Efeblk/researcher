@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Routing;
@@ -16,6 +17,31 @@ namespace ResearcherAnalysisService.Tests;
 public sealed class ServiceEndpointBoundaryTests
 {
     private const string ServiceKey = "synthetic-boundary-key";
+
+    [Fact]
+    public async Task AnalysisApiRoutes_ExceptHealth_RejectMissingOrWrongServiceKey()
+    {
+        await using BoundaryHost host = await BoundaryHost.StartAsync(UnreachableDatabaseConnectionString());
+        IReadOnlyList<RouteEndpoint> routes = host.AnalysisApiRoutes;
+
+        Assert.Equal(36, routes.Count);
+        Assert.Equal(25, routes.Count(route => route.RoutePattern.RawText?.StartsWith(
+            "api/v1/products/", StringComparison.OrdinalIgnoreCase) == true));
+
+        foreach (RouteEndpoint route in routes)
+        {
+            IReadOnlyList<string> methods = route.Metadata
+                .GetRequiredMetadata<IHttpMethodMetadata>().HttpMethods;
+            string method = Assert.Single(methods);
+            string path = "/" + route.RoutePattern.RawText;
+
+            using HttpResponseMessage missing = await host.SendAsync(path, method, key: null);
+            Assert.Equal(HttpStatusCode.Unauthorized, missing.StatusCode);
+
+            using HttpResponseMessage wrong = await host.SendAsync(path, method, key: "wrong-boundary-key");
+            Assert.Equal(HttpStatusCode.Unauthorized, wrong.StatusCode);
+        }
+    }
 
     [Fact]
     public async Task ProductRoutes_ResideInAnalysisAndRejectMissingOrWrongServiceKey()
@@ -85,6 +111,14 @@ public sealed class ServiceEndpointBoundaryTests
             .OrderBy(endpoint => endpoint.RoutePattern.RawText, StringComparer.Ordinal)
             .ToArray();
 
+        public IReadOnlyList<RouteEndpoint> AnalysisApiRoutes => application.Services
+            .GetRequiredService<EndpointDataSource>().Endpoints
+            .OfType<RouteEndpoint>()
+            .Where(endpoint => endpoint.RoutePattern.RawText?.StartsWith(
+                "api/v1/", StringComparison.OrdinalIgnoreCase) == true)
+            .OrderBy(endpoint => endpoint.RoutePattern.RawText, StringComparer.Ordinal)
+            .ToArray();
+
         public static async Task<BoundaryHost> StartAsync(string connectionString)
         {
             WebApplication application = ResearcherAnalysisService.Program.CreateApplication(
@@ -119,11 +153,14 @@ public sealed class ServiceEndpointBoundaryTests
 
         public async Task<HttpResponseMessage> SendAsync(string path, string? key,
             string body = "{}")
+            => await SendAsync(path, "POST", key, body);
+
+        public async Task<HttpResponseMessage> SendAsync(string path, string method, string? key,
+            string body = "{}")
         {
-            using HttpRequestMessage request = new(HttpMethod.Post, path)
-            {
-                Content = new StringContent(body, Encoding.UTF8, "application/json")
-            };
+            using HttpRequestMessage request = new(new HttpMethod(method), path);
+            if (!HttpMethods.IsGet(method))
+                request.Content = new StringContent(body, Encoding.UTF8, "application/json");
             if (key is not null)
                 request.Headers.Add("X-Analysis-Key", key);
             return await Client.SendAsync(request);
