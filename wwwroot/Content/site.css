@@ -133,6 +133,7 @@ body {
 .academic-status.visible { display: block; }
 .academic-status.info { background: #eaf3fb; color: #285f8f; }
 .academic-status.success { background: #e9f6ee; color: #24663d; }
+.academic-status.warning { background: #fff4d6; color: #795500; }
 .academic-status.error { background: #fbecec; color: #9b2c2c; }
 
 .academic-metrics-grid {
