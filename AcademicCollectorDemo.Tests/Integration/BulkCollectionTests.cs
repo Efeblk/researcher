@@ -112,6 +112,32 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
         Assert.Equal(new string('1', 11), fake.LastRequest.TcKimlikNo);
         Assert.Equal("57200000001", fake.LastRequest.ScopusId);
         Assert.Null(fake.LastRequest.GoogleScholarId);
+        Assert.Equal("synthetic-cleanup", fake.LastMetricsRequest!.PersonelId);
+        Assert.Equal(1, fake.MetricsCallCount);
+    }
+
+    [Fact]
+    public async Task ProcessNextAsync_MetricRecalculationFails_RetriesSavedCollection()
+    {
+        var fake = new FakeApplicationService(false, metricsFail: true);
+        await using ServiceProvider services = BuildServices(fake, new()
+        {
+            ["BulkCollection:MaximumAttempts"] = "2",
+            ["BulkCollection:RetrySeconds"] = "1"
+        });
+        using IServiceScope scope = services.CreateScope();
+        AcademicDbContext db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        await DeferExistingJobsAsync(db);
+        BulkCollectionSubmitRequest input = Input();
+        await scope.ServiceProvider.GetRequiredService<BulkCollectionService>().SubmitAsync(input);
+
+        Assert.True(await scope.ServiceProvider.GetRequiredService<BulkJobProcessor>().ProcessNextAsync());
+
+        BulkCollectionJob job = await db.BulkCollectionJobs.SingleAsync(value => value.BatchId == input.BatchId);
+        Assert.Equal(BulkJobStatus.RetryWaiting, job.Status);
+        Assert.Equal(1, job.Attempts);
+        Assert.Contains("metric recalculation failed", job.ResultMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, fake.MetricsCallCount);
     }
 
     [Fact]
@@ -781,9 +807,11 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
     private sealed class FakeApplicationService(bool fail, string? failureCode = null,
         bool localDeferral = false, bool throwAfterFailure = false, bool actualFailure = false,
         bool nonretryableFailure = false, bool actualNonretryableFailure = false,
-        int yoksisFailedCategories = 0) : IAcademicPerformanceApplicationService
+        int yoksisFailedCategories = 0, bool metricsFail = false) : IAcademicPerformanceApplicationService
     {
         public AcademicDataCollectRequest? LastRequest { get; private set; }
+        public ResearcherMetricsRequest? LastMetricsRequest { get; private set; }
+        public int MetricsCallCount { get; private set; }
 
         public Task<AcademicDataResponse> CollectAsync(AcademicDataCollectRequest request)
         {
@@ -805,6 +833,21 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
                     WebOfScienceProfile = request.WebOfScienceResearcherId is null ? null : new()
                 },
                 YoksisFailedCategoryCount = yoksisFailedCategories
+            });
+        }
+        public Task<ResearcherMetricsResponse> RecalculateMetricsAsync(ResearcherMetricsRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            LastMetricsRequest = request;
+            MetricsCallCount++;
+            if (LastRequest is null)
+                throw new InvalidOperationException("Metrics were called before collection.");
+            if (metricsFail)
+                throw new InvalidOperationException("Synthetic metric failure.");
+            return Task.FromResult(new ResearcherMetricsResponse
+            {
+                PersonelId = request.PersonelId ?? string.Empty,
+                RecalculatedAt = DateTime.UtcNow
             });
         }
         public Task<AcademicDataResponse> GetResearcherAsync(AcademicResearcherRequest request) => throw new NotSupportedException();

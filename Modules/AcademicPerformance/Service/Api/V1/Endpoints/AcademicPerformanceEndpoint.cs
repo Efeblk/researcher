@@ -17,6 +17,22 @@ public sealed class AcademicPerformanceEndpoint : ServiceEndpoint
     }
 
     [HttpPost]
+    public async Task<ResearcherMetricsResponse> RecalculateMetrics(
+        ResearcherMetricsRequest request,
+        [FromServices] IAcademicPerformanceApplicationService applicationService,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await applicationService.RecalculateMetricsAsync(request, cancellationToken);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new ValidationError(exception.Message);
+        }
+    }
+
+    [HttpPost]
     public Task<AcademicDataResponse> GetResearcher(
         AcademicResearcherRequest request,
         [FromServices] IAcademicPerformanceApplicationService applicationService)

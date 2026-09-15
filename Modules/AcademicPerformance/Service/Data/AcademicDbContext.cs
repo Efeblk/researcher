@@ -53,20 +53,6 @@ public sealed class AcademicDbContext : DbContext
     {
     }
 
-    public override int SaveChanges(bool acceptAllChangesOnSuccess)
-    {
-        ResearcherProviderMetricsSynchronizer.Synchronize(this);
-        return base.SaveChanges(acceptAllChangesOnSuccess);
-    }
-
-    public override async Task<int> SaveChangesAsync(
-        bool acceptAllChangesOnSuccess,
-        CancellationToken cancellationToken = default)
-    {
-        await ResearcherProviderMetricsSynchronizer.SynchronizeAsync(this, cancellationToken);
-        return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
-    }
-
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<CollectionChange>(entity =>
