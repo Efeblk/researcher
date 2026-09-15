@@ -36,14 +36,13 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
                 "<definitions xmlns='http://schemas.xmlsoap.org/wsdl/'/>") },
             "trdizin.test" => TrDizin(request),
             "crossref.test" => Crossref(request),
-            "unpaywall.test" => Unpaywall(request),
             "semantic.test" => SemanticScholar(request),
             _ => throw new HttpRequestException("synthetic secret must not be exposed")
         });
         using HttpClient client = new(handler);
         ProviderStatusService service = CreateService(client);
         var responses = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => service.GetAsync(default)));
-        Assert.Equal(10, handler.RequestCount);
+        Assert.Equal(9, handler.RequestCount);
         Assert.All(responses, response => Assert.Same(responses[0], response));
         var providers = responses[0].Providers.ToDictionary(provider => provider.Provider);
         Assert.Equal("Healthy", providers["Orcid"].Status);
@@ -64,7 +63,6 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         Assert.Equal(5, crossrefQuota.Limit);
         Assert.Null(crossrefQuota.Remaining);
         Assert.Equal("second", crossrefQuota.Window);
-        Assert.Equal("Healthy", providers["Unpaywall"].Status);
         Assert.Equal("Healthy", providers["SemanticScholar"].Status);
         Assert.DoesNotContain("synthetic secret", JsonSerializer.Serialize(responses[0]));
     }
@@ -76,7 +74,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         using HttpClient client = new(handler);
         ProviderStatusResponse response = await CreateService(client, false).GetAsync(default);
         Assert.Equal(5, handler.RequestCount);
-        Assert.Equal(5, response.Providers.Count(provider => provider.Status == "NotConfigured"));
+        Assert.Equal(4, response.Providers.Count(provider => provider.Status == "NotConfigured"));
         Assert.All(response.Providers.Where(provider => provider.Status == "NotConfigured"),
             provider => Assert.Equal("Unavailable", provider.RemainingUsage.Status));
         Assert.All(response.Providers.Where(provider => provider.Status != "NotConfigured"),
@@ -173,7 +171,6 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
             "wos.test" => WebOfScienceWithQuotaHeaders(),
             "trdizin.test" => TrDizin(request),
             "crossref.test" => Crossref(request),
-            "unpaywall.test" => Unpaywall(request),
             "semantic.test" => SemanticScholar(request),
             _ => StubHttpHandler.Json("{}")
         }));
@@ -194,7 +191,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         JsonElement root = document.RootElement;
         Assert.Equal(["providers"], root.EnumerateObject().Select(property => property.Name));
         JsonElement[] providers = root.GetProperty("providers").EnumerateArray().ToArray();
-        Assert.Equal(10, providers.Length);
+        Assert.Equal(9, providers.Length);
         Assert.All(providers, provider => Assert.Equal(["provider", "health", "quotas"],
             provider.EnumerateObject().Select(property => property.Name)));
         JsonElement quota = providers.Single(provider =>
@@ -346,54 +343,6 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         Assert.Null(openAlex.RemainingUsage.Items[0].Value);
     }
 
-    [Fact]
-    public async Task GetAsync_MissingUnpaywallEmail_SkipsRequest()
-    {
-        List<string> requestedHosts = [];
-        using HttpClient client = new(new StubHttpHandler(request =>
-        {
-            lock (requestedHosts) requestedHosts.Add(request.RequestUri!.Host);
-            return StubHttpHandler.Json("{}");
-        }));
-
-        ProviderStatusResponse response = await CreateService(client, credentials: false).GetAsync(default);
-
-        Assert.Equal("NotConfigured", response.Providers.Single(provider =>
-            provider.Provider == "Unpaywall").Status);
-        Assert.DoesNotContain("unpaywall.test", requestedHosts);
-    }
-
-    [Fact]
-    public async Task GetAsync_InvalidUnpaywallPayload_DoesNotClaimHealthy()
-    {
-        using HttpClient client = new(new StubHttpHandler(request => request.RequestUri!.Host == "unpaywall.test"
-            ? StubHttpHandler.Json("""{"doi":"10.9999/wrong","is_oa":true,"secret":"must-not-leak"}""")
-            : ValidResponse(request)));
-
-        ProviderStatusResponse response = await CreateService(client).GetAsync(default);
-
-        ProviderStatusDto unpaywall = response.Providers.Single(provider => provider.Provider == "Unpaywall");
-        Assert.Equal("UnexpectedResponse", unpaywall.Status);
-        Assert.DoesNotContain("must-not-leak", JsonSerializer.Serialize(response));
-    }
-
-    [Fact]
-    public async Task GetAsync_DisabledUnpaywall_SkipsConfiguredProvider()
-    {
-        List<string> requestedHosts = [];
-        using HttpClient client = new(new StubHttpHandler(request =>
-        {
-            lock (requestedHosts) requestedHosts.Add(request.RequestUri!.Host);
-            return ValidResponse(request);
-        }));
-
-        ProviderStatusResponse response = await CreateService(client, unpaywallEnabled: false).GetAsync(default);
-
-        Assert.Equal("Disabled", response.Providers.Single(provider =>
-            provider.Provider == "Unpaywall").Status);
-        Assert.DoesNotContain("unpaywall.test", requestedHosts);
-    }
-
     [Theory]
     [InlineData(false, "RateLimited")]
     [InlineData(true, "LocallyLimited")]
@@ -419,7 +368,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
     }
 
     private ProviderStatusService CreateService(HttpClient client, bool credentials = true,
-        bool openAlexKey = false, bool searchApiEnabled = true, bool unpaywallEnabled = true)
+        bool openAlexKey = false, bool searchApiEnabled = true)
     {
         Dictionary<string, string?> settings = new()
         {
@@ -433,18 +382,15 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
             ["TrDizin:ApiBaseUrl"] = "https://trdizin.test",
             ["Crossref:ApiBaseUrl"] = "https://crossref.test",
             ["Crossref:Mailto"] = "status@example.test",
-            ["Unpaywall:ApiBaseUrl"] = "https://unpaywall.test",
             ["SemanticScholar:ApiBaseUrl"] = "https://semantic.test/graph/v1",
             ["ProviderRequestLimits:Orcid:DailyRequestLimit"] = "2"
         };
         settings["ProviderRequestLimits:SearchApi:Enabled"] = searchApiEnabled.ToString();
-        settings["ProviderRequestLimits:Unpaywall:Enabled"] = unpaywallEnabled.ToString();
         if (credentials)
             foreach (string key in new[] { "SearchApi:ApiKey", "Scopus:ApiKey", "Scopus:InstToken", "WebOfScience:ApiKey", "Yoksis:Username", "Yoksis:Password" })
                 settings[key] = "synthetic";
         if (credentials)
         {
-            settings["Unpaywall:Email"] = "status@example.test";
         }
         if (openAlexKey) settings["OpenAlex:ApiKey"] = "synthetic";
         settings["SemanticScholar:ApiKey"] = "synthetic-semantic-key";
@@ -529,13 +475,6 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         return response;
     }
 
-    private static HttpResponseMessage Unpaywall(HttpRequestMessage request)
-    {
-        Assert.Equal("/v2/10.1038/nphys1170", request.RequestUri!.AbsolutePath);
-        Assert.Equal("?email=status%40example.test", request.RequestUri.Query);
-        return StubHttpHandler.Json("""{"doi":"10.1038/nphys1170","is_oa":true}""");
-    }
-
     private static HttpResponseMessage ValidResponse(HttpRequestMessage request) => request.RequestUri!.Host switch
     {
         "orcid.test" => StubHttpHandler.Json(
@@ -548,7 +487,6 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
             "<definitions xmlns='http://schemas.xmlsoap.org/wsdl/'/>") },
         "trdizin.test" => TrDizin(request),
         "crossref.test" => Crossref(request),
-        "unpaywall.test" => Unpaywall(request),
         "semantic.test" => SemanticScholar(request),
         _ => throw new InvalidOperationException("Unexpected test host.")
     };

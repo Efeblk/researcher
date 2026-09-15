@@ -118,19 +118,3 @@ public sealed class AcademicWorkSourceDto
     public string Origin { get; set; } = string.Empty;
     public bool? IsOpenAccess { get; set; } = null;
 }
-
-public sealed class CanonicalPublicationRebuildRequest : ServiceRequest
-{
-    [Required, StringLength(200)]
-    [JsonPropertyName("PersonelID"), Newtonsoft.Json.JsonProperty("PersonelID")]
-    public string PersonelId { get; set; } = string.Empty;
-}
-
-public sealed class CanonicalPublicationRebuildResponse : ServiceResponse
-{
-    [JsonPropertyName("PersonelID"), Newtonsoft.Json.JsonProperty("PersonelID")]
-    public string PersonelId { get; set; } = string.Empty;
-    public int CanonicalWorkCount { get; set; }
-    public int ObservationCount { get; set; }
-    public int AssociationCount { get; set; }
-}

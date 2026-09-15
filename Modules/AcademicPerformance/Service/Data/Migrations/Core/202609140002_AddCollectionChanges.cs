@@ -25,28 +25,6 @@ public sealed class AddCollectionChanges : Migration
             .OnColumn("PersonelID").Ascending()
             .OnColumn("OccurredAtUtc").Ascending();
 
-        Execute.Sql("""
-            INSERT INTO [core].[CollectionChanges]
-                ([EventId], [ChangeKind], [PersonelID], [CanonicalWorkId], [AcademicWorkId],
-                 [OccurredAtUtc], [PayloadVersion])
-            SELECT NEWID(), N'ResearcherCollected', researcher.[PersonelID], NULL, NULL,
-                   SYSUTCDATETIME(), 1
-            FROM [core].[Researchers] researcher;
-
-            INSERT INTO [core].[CollectionChanges]
-                ([EventId], [ChangeKind], [PersonelID], [CanonicalWorkId], [AcademicWorkId],
-                 [OccurredAtUtc], [PayloadVersion])
-            SELECT NEWID(), N'CanonicalWorkChanged', relation.[PersonelID],
-                   relation.[CanonicalWorkId], observation.[AcademicWorkId], SYSUTCDATETIME(), 1
-            FROM [core].[CanonicalResearcherWorks] relation
-            OUTER APPLY
-            (
-                SELECT MIN(candidate.[AcademicWorkId]) AS [AcademicWorkId]
-                FROM [core].[CanonicalWorkObservations] candidate
-                WHERE candidate.[PersonelID] = relation.[PersonelID]
-                  AND candidate.[CanonicalWorkId] = relation.[CanonicalWorkId]
-            ) observation;
-            """);
     }
 
     public override void Down() => Delete.Table("CollectionChanges").InSchema("core");

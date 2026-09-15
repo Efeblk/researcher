@@ -93,7 +93,6 @@ public sealed class HostProcess : IDisposable
             start.Environment["ProviderRequestLimits__OpenAlex__Enabled"] = "false";
             start.Environment["ProviderRequestLimits__Crossref__Enabled"] = "false";
             start.Environment["ProviderRequestLimits__SemanticScholar__Enabled"] = "false";
-            start.Environment["Unpaywall__Email"] = "";
         }
         if (analysisBaseUrl is not null)
             start.Environment["AnalysisService__BaseUrl"] = analysisBaseUrl;

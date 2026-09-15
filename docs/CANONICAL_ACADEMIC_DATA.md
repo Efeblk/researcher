@@ -20,16 +20,9 @@ Every successful V1 `Collect` reconciles canonical links after normalized `Acade
 
 All canonical writers take a transaction-owned SQL Server application lock named as the canonical write gate before changing normalized works. They then take the researcher lock and sorted identity locks. The gate serializes the short database persistence phase to avoid delete/rebuild lock inversion; provider network calls occur before the transaction and do not hold it. Unique database indexes remain the final identity guard. Application lock waits are bounded and every negative SQL result is treated as a failure.
 
-The read-only `GetResearcher` and canonical list actions do not initiate collection or change stored data. During development, reset the disposable database and recollect after this identity-model change. The existing rebuild action remains available for saved-data repair; it performs no provider HTTP request and refreshes canonical membership and the summary projection in one transaction:
-
-```text
-POST /Services/AcademicPerformance/V1/RebuildCanonicalPublications
-{ "PersonelID": "..." }
-```
+The read-only `GetResearcher` and canonical list actions do not initiate collection or change stored data. During development, reset the disposable database and recollect after this identity-model change. Normal individual, bulk, and YÖKSİS collection refresh canonical membership and the summary projection in one transaction.
 
 Summary IDs and approvals remain stable while `CanonicalWorkId` remains the same. A canonical identity change creates a new summary and requires a new display selection. DOI-less records from different providers keep their source-scoped canonical identities even when title and year match, so the displayed summary count may be higher than the old title/year grouping.
-
-Normal individual and bulk collection do not require this repair action.
 
 The paged read endpoint is:
 

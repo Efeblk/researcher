@@ -7,10 +7,7 @@ public sealed class OwnPublicationMetricProviderSnapshots : Migration
 {
     public override void Up()
     {
-        if (Schema.Schema("analysis").Table("PublicationMetricProviderSnapshots").Exists())
-            return;
-
-        Create.Table("PublicationMetricProviderSnapshots").InSchema("analysis")
+Create.Table("PublicationMetricProviderSnapshots").InSchema("analysis")
             .WithColumn("Id").AsInt64().PrimaryKey().Identity()
             .WithColumn("SnapshotId").AsInt64().NotNullable()
             .WithColumn("Provider").AsString(50).NotNullable()

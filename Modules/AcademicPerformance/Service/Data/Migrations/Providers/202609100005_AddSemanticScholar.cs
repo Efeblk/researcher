@@ -7,7 +7,7 @@ public sealed class AddSemanticScholar : Migration
 {
     public override void Up()
     {
-        Create.Table("SemanticScholarPapers")
+        Create.Table("SemanticScholarPapers").InSchema("semanticscholar")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity().WithColumn("NormalizedDoi").AsString(500).NotNullable()
             .WithColumn("PaperId").AsString(100).Nullable().WithColumn("Found").AsBoolean().NotNullable()
             .WithColumn("FetchedAt").AsDateTime2().NotNullable().WithColumn("CitationTotal").AsInt32().Nullable()
@@ -21,20 +21,20 @@ public sealed class AddSemanticScholar : Migration
             .WithColumn("InfluentialCitationCount").AsInt32().Nullable().WithColumn("Url").AsString(2000).Nullable()
             .WithColumn("TldrJson").AsString(int.MaxValue).Nullable().WithColumn("TextAvailability").AsString(100).Nullable()
             .WithColumn("RawDataJson").AsString(int.MaxValue).Nullable();
-        Create.UniqueConstraint("UQ_SemanticScholarPapers_Doi").OnTable("SemanticScholarPapers").Column("NormalizedDoi");
-        Execute.Sql("CREATE UNIQUE INDEX [UX_SemanticScholarPapers_PaperId] ON [SemanticScholarPapers] ([PaperId]) WHERE [PaperId] IS NOT NULL");
-        Create.Table("SemanticScholarCitations").WithColumn("Id").AsInt32().PrimaryKey().Identity()
-            .WithColumn("TargetPaperId").AsInt32().NotNullable().ForeignKey("SemanticScholarPapers", "Id").OnDelete(System.Data.Rule.Cascade)
+        Create.UniqueConstraint("UQ_SemanticScholarPapers_Doi").OnTable("SemanticScholarPapers").WithSchema("semanticscholar").Column("NormalizedDoi");
+        Execute.Sql("CREATE UNIQUE INDEX [UX_SemanticScholarPapers_PaperId] ON [semanticscholar].[SemanticScholarPapers] ([PaperId]) WHERE [PaperId] IS NOT NULL");
+        Create.Table("SemanticScholarCitations").InSchema("semanticscholar").WithColumn("Id").AsInt32().PrimaryKey().Identity()
+            .WithColumn("TargetPaperId").AsInt32().NotNullable().ForeignKey("FK_SemanticScholarCitations_SemanticScholarPapers_TargetPaperId", "semanticscholar", "SemanticScholarPapers", "Id").OnDelete(System.Data.Rule.Cascade)
             .WithColumn("CitingPaperId").AsString(100).NotNullable().WithColumn("CitingDoi").AsString(500).Nullable()
             .WithColumn("CitingTitle").AsString(2000).Nullable().WithColumn("CitingAuthorsJson").AsString(int.MaxValue).Nullable()
             .WithColumn("IsInfluential").AsBoolean().Nullable().WithColumn("IntentsJson").AsString(int.MaxValue).Nullable()
             .WithColumn("RawDataJson").AsString(int.MaxValue).Nullable().WithColumn("RefreshGeneration").AsString(32).NotNullable();
-        Create.UniqueConstraint("UQ_SemanticScholarCitations_Target_Citing").OnTable("SemanticScholarCitations").Columns("TargetPaperId", "CitingPaperId");
-        Create.Table("SemanticScholarCitationContexts").WithColumn("Id").AsInt32().PrimaryKey().Identity()
-            .WithColumn("CitationId").AsInt32().NotNullable().ForeignKey("SemanticScholarCitations", "Id").OnDelete(System.Data.Rule.Cascade)
+        Create.UniqueConstraint("UQ_SemanticScholarCitations_Target_Citing").OnTable("SemanticScholarCitations").WithSchema("semanticscholar").Columns("TargetPaperId", "CitingPaperId");
+        Create.Table("SemanticScholarCitationContexts").InSchema("semanticscholar").WithColumn("Id").AsInt32().PrimaryKey().Identity()
+            .WithColumn("CitationId").AsInt32().NotNullable().ForeignKey("FK_SemanticScholarCitationContexts_SemanticScholarCitations_CitationId", "semanticscholar", "SemanticScholarCitations", "Id").OnDelete(System.Data.Rule.Cascade)
             .WithColumn("Ordinal").AsInt32().NotNullable().WithColumn("Context").AsString(int.MaxValue).NotNullable()
             .WithColumn("IntentsJson").AsString(int.MaxValue).Nullable();
-        Create.UniqueConstraint("UQ_SemanticScholarContexts_Citation_Ordinal").OnTable("SemanticScholarCitationContexts").Columns("CitationId", "Ordinal");
+        Create.UniqueConstraint("UQ_SemanticScholarContexts_Citation_Ordinal").OnTable("SemanticScholarCitationContexts").WithSchema("semanticscholar").Columns("CitationId", "Ordinal");
     }
-    public override void Down() { Delete.Table("SemanticScholarCitationContexts"); Delete.Table("SemanticScholarCitations"); Delete.Table("SemanticScholarPapers"); }
+    public override void Down() { Delete.Table("SemanticScholarCitationContexts").InSchema("semanticscholar"); Delete.Table("SemanticScholarCitations").InSchema("semanticscholar"); Delete.Table("SemanticScholarPapers").InSchema("semanticscholar"); }
 }

@@ -7,12 +7,12 @@ public sealed class AddProviderStatusObservations : Migration
 {
     public override void Up()
     {
-        Create.Table("ProviderStatusObservations")
+        Create.Table("ProviderStatusObservations").InSchema("integrations")
             .WithColumn("Provider").AsString(50).PrimaryKey()
             .WithColumn("ObservedAt").AsDateTime2().NotNullable()
             .WithColumn("ExpiresAt").AsDateTime2().NotNullable()
             .WithColumn("PayloadJson").AsString(int.MaxValue).NotNullable();
     }
 
-    public override void Down() => Delete.Table("ProviderStatusObservations");
+    public override void Down() => Delete.Table("ProviderStatusObservations").InSchema("integrations");
 }

@@ -787,7 +787,6 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
                 ["Scopus:ApiKey"] = "bulk-scopus-key",
                 ["Scopus:InstToken"] = "bulk-inst-token",
                 ["ProviderRequestLimits:Crossref:Enabled"] = "false",
-                ["ProviderRequestLimits:Unpaywall:Enabled"] = "false",
                 ["ProviderRequestLimits:SemanticScholar:Enabled"] = "false"
             }).Build();
         ServiceCollection services = new();
@@ -854,6 +853,5 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
         public Task<AcademicPublicationListResponse> ListPublicationsAsync(AcademicPublicationListRequest request) => throw new NotSupportedException();
         public Task<AcademicPublicationSelectionResponse> SavePublicationSelectionsAsync(AcademicPublicationSelectionRequest request) => throw new NotSupportedException();
         public Task<CanonicalPublicationListResponse> ListCanonicalPublicationsAsync(CanonicalPublicationListRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<CanonicalPublicationRebuildResponse> RebuildCanonicalPublicationsAsync(CanonicalPublicationRebuildRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }

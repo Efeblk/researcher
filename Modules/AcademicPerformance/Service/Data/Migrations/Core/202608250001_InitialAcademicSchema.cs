@@ -8,6 +8,20 @@ public sealed class InitialAcademicSchema : Migration
 {
     public override void Up()
     {
+        Execute.Sql("""
+            IF SCHEMA_ID(N'core') IS NULL EXEC(N'CREATE SCHEMA [core] AUTHORIZATION [dbo]');
+            IF SCHEMA_ID(N'orcid') IS NULL EXEC(N'CREATE SCHEMA [orcid] AUTHORIZATION [dbo]');
+            IF SCHEMA_ID(N'googlescholar') IS NULL EXEC(N'CREATE SCHEMA [googlescholar] AUTHORIZATION [dbo]');
+            IF SCHEMA_ID(N'openalex') IS NULL EXEC(N'CREATE SCHEMA [openalex] AUTHORIZATION [dbo]');
+            IF SCHEMA_ID(N'wos') IS NULL EXEC(N'CREATE SCHEMA [wos] AUTHORIZATION [dbo]');
+            IF SCHEMA_ID(N'yoksis') IS NULL EXEC(N'CREATE SCHEMA [yoksis] AUTHORIZATION [dbo]');
+            IF SCHEMA_ID(N'trdizin') IS NULL EXEC(N'CREATE SCHEMA [trdizin] AUTHORIZATION [dbo]');
+            IF SCHEMA_ID(N'crossref') IS NULL EXEC(N'CREATE SCHEMA [crossref] AUTHORIZATION [dbo]');
+            IF SCHEMA_ID(N'semanticscholar') IS NULL EXEC(N'CREATE SCHEMA [semanticscholar] AUTHORIZATION [dbo]');
+            IF SCHEMA_ID(N'scopus') IS NULL EXEC(N'CREATE SCHEMA [scopus] AUTHORIZATION [dbo]');
+            IF SCHEMA_ID(N'bulk') IS NULL EXEC(N'CREATE SCHEMA [bulk] AUTHORIZATION [dbo]');
+            IF SCHEMA_ID(N'integrations') IS NULL EXEC(N'CREATE SCHEMA [integrations] AUTHORIZATION [dbo]');
+            """);
         CreateResearchers();
         CreateOrcidProfiles();
         CreateOrcidWorks();
@@ -23,21 +37,21 @@ public sealed class InitialAcademicSchema : Migration
 
     public override void Down()
     {
-        Delete.Table("PublicationDisplayApprovals");
-        Delete.Table("PublicationSummaries");
-        Delete.Table("AcademicWorks");
-        Delete.Table("YoksisRecords");
-        Delete.Table("WebOfSciencePeerReviews");
-        Delete.Table("WebOfScienceWorks");
-        Delete.Table("WebOfScienceProfiles");
-        Delete.Table("OrcidWorks");
-        Delete.Table("OrcidProfiles");
-        Delete.Table("Researchers");
+        Delete.Table("PublicationDisplayApprovals").InSchema("core");
+        Delete.Table("PublicationSummaries").InSchema("core");
+        Delete.Table("AcademicWorks").InSchema("core");
+        Delete.Table("YoksisRecords").InSchema("yoksis");
+        Delete.Table("WebOfSciencePeerReviews").InSchema("wos");
+        Delete.Table("WebOfScienceWorks").InSchema("wos");
+        Delete.Table("WebOfScienceProfiles").InSchema("wos");
+        Delete.Table("OrcidWorks").InSchema("orcid");
+        Delete.Table("OrcidProfiles").InSchema("orcid");
+        Delete.Table("Researchers").InSchema("core");
     }
 
     private void CreateResearchers()
     {
-        Create.Table("Researchers")
+        Create.Table("Researchers").InSchema("core")
             .WithColumn("PersonelID").AsString(200).PrimaryKey()
             .WithColumn("FirstName").AsString(int.MaxValue).Nullable()
             .WithColumn("LastName").AsString(int.MaxValue).Nullable()
@@ -52,12 +66,12 @@ public sealed class InitialAcademicSchema : Migration
 
     private void CreateOrcidProfiles()
     {
-        Create.Table("OrcidProfiles")
+        Create.Table("OrcidProfiles").InSchema("orcid")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
             .WithColumn("PersonelID").AsString(200).NotNullable()
                 .ForeignKey(
                     "FK_OrcidProfiles_Researchers_PersonelID",
-                    "Researchers",
+                    "core", "Researchers",
                     "PersonelID")
                 .OnDelete(Rule.Cascade)
             .WithColumn("DisplayName").AsString(500).Nullable()
@@ -87,12 +101,12 @@ public sealed class InitialAcademicSchema : Migration
 
     private void CreateOrcidWorks()
     {
-        Create.Table("OrcidWorks")
+        Create.Table("OrcidWorks").InSchema("orcid")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
             .WithColumn("OrcidProfileId").AsInt32().NotNullable()
                 .ForeignKey(
                     "FK_OrcidWorks_OrcidProfiles_OrcidProfileId",
-                    "OrcidProfiles",
+                    "orcid", "OrcidProfiles",
                     "Id")
                 .OnDelete(Rule.Cascade)
             .WithColumn("PutCode").AsInt64().NotNullable()
@@ -122,12 +136,12 @@ public sealed class InitialAcademicSchema : Migration
 
     private void CreateWebOfScienceProfiles()
     {
-        Create.Table("WebOfScienceProfiles")
+        Create.Table("WebOfScienceProfiles").InSchema("wos")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
             .WithColumn("PersonelID").AsString(200).NotNullable()
                 .ForeignKey(
                     "FK_WebOfScienceProfiles_Researchers_PersonelID",
-                    "Researchers",
+                    "core", "Researchers",
                     "PersonelID")
                 .OnDelete(Rule.Cascade)
             .WithColumn("DisplayName").AsString(500).Nullable()
@@ -159,12 +173,12 @@ public sealed class InitialAcademicSchema : Migration
 
     private void CreateWebOfScienceWorks()
     {
-        Create.Table("WebOfScienceWorks")
+        Create.Table("WebOfScienceWorks").InSchema("wos")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
             .WithColumn("WebOfScienceProfileId").AsInt32().NotNullable()
                 .ForeignKey(
                     "FK_WebOfScienceWorks_WebOfScienceProfiles_WebOfScienceProfileId",
-                    "WebOfScienceProfiles",
+                    "wos", "WebOfScienceProfiles",
                     "Id")
                 .OnDelete(Rule.Cascade)
             .WithColumn("Uid").AsString(100).Nullable()
@@ -186,12 +200,12 @@ public sealed class InitialAcademicSchema : Migration
 
     private void CreateWebOfSciencePeerReviews()
     {
-        Create.Table("WebOfSciencePeerReviews")
+        Create.Table("WebOfSciencePeerReviews").InSchema("wos")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
             .WithColumn("WebOfScienceProfileId").AsInt32().NotNullable()
                 .ForeignKey(
                     "FK_WebOfSciencePeerReviews_WebOfScienceProfiles_WebOfScienceProfileId",
-                    "WebOfScienceProfiles",
+                    "wos", "WebOfScienceProfiles",
                     "Id")
                 .OnDelete(Rule.Cascade)
             .WithColumn("Journal").AsString(2000).Nullable()
@@ -205,12 +219,12 @@ public sealed class InitialAcademicSchema : Migration
 
     private void CreateYoksisRecords()
     {
-        Create.Table("YoksisRecords")
+        Create.Table("YoksisRecords").InSchema("yoksis")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
             .WithColumn("PersonelID").AsString(200).NotNullable()
                 .ForeignKey(
                     "FK_YoksisRecords_Researchers_PersonelID",
-                    "Researchers",
+                    "core", "Researchers",
                     "PersonelID")
                 .OnDelete(Rule.Cascade)
             .WithColumn("CategoryName").AsString(250).NotNullable()
@@ -223,12 +237,12 @@ public sealed class InitialAcademicSchema : Migration
 
     private void CreateAcademicWorks()
     {
-        Create.Table("AcademicWorks")
+        Create.Table("AcademicWorks").InSchema("core")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
             .WithColumn("PersonelID").AsString(200).NotNullable()
                 .ForeignKey(
                     "FK_AcademicWorks_Researchers_PersonelID",
-                    "Researchers",
+                    "core", "Researchers",
                     "PersonelID")
                 .OnDelete(Rule.Cascade)
             .WithColumn("Provider").AsString(50).NotNullable()
@@ -272,12 +286,12 @@ public sealed class InitialAcademicSchema : Migration
 
     private void CreatePublicationSummaries()
     {
-        Create.Table("PublicationSummaries")
+        Create.Table("PublicationSummaries").InSchema("core")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
             .WithColumn("PersonelID").AsString(200).NotNullable()
                 .ForeignKey(
                     "FK_PublicationSummaries_Researchers_PersonelID",
-                    "Researchers",
+                    "core", "Researchers",
                     "PersonelID")
                 .OnDelete(Rule.Cascade)
             .WithColumn("Fingerprint").AsString(64).NotNullable()
@@ -294,17 +308,17 @@ public sealed class InitialAcademicSchema : Migration
 
     private void CreatePublicationDisplayApprovals()
     {
-        Create.Table("PublicationDisplayApprovals")
+        Create.Table("PublicationDisplayApprovals").InSchema("core")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
             .WithColumn("PersonelID").AsString(200).NotNullable()
                 .ForeignKey(
                     "FK_PublicationDisplayApprovals_Researchers_PersonelID",
-                    "Researchers",
+                    "core", "Researchers",
                     "PersonelID")
             .WithColumn("PublicationSummaryId").AsInt32().NotNullable()
                 .ForeignKey(
                     "FK_PublicationDisplayApprovals_PublicationSummaries_PublicationSummaryId",
-                    "PublicationSummaries",
+                    "core", "PublicationSummaries",
                     "Id")
                 .OnDelete(Rule.Cascade)
             .WithColumn("ApprovedAt").AsDateTime().NotNullable();
@@ -384,7 +398,7 @@ public sealed class InitialAcademicSchema : Migration
         string columnName)
     {
         Execute.Sql(
-            $"CREATE UNIQUE INDEX [{indexName}] ON [Researchers] " +
+            $"CREATE UNIQUE INDEX [{indexName}] ON [core].[Researchers] " +
             $"([{columnName}]) WHERE [{columnName}] IS NOT NULL;");
     }
 
@@ -397,6 +411,7 @@ public sealed class InitialAcademicSchema : Migration
         {
             Create.Index(indexName)
                 .OnTable(tableName)
+                .InSchema(GetSchema(tableName))
                 .OnColumn(columnNames[0])
                 .Ascending();
             return;
@@ -404,6 +419,7 @@ public sealed class InitialAcademicSchema : Migration
 
         Create.Index(indexName)
             .OnTable(tableName)
+            .InSchema(GetSchema(tableName))
             .OnColumn(columnNames[0])
             .Ascending()
             .OnColumn(columnNames[1])
@@ -419,6 +435,7 @@ public sealed class InitialAcademicSchema : Migration
         {
             Create.Index(indexName)
                 .OnTable(tableName)
+                .InSchema(GetSchema(tableName))
                 .OnColumn(columnNames[0])
                 .Ascending()
                 .WithOptions()
@@ -428,6 +445,7 @@ public sealed class InitialAcademicSchema : Migration
 
         Create.Index(indexName)
             .OnTable(tableName)
+            .InSchema(GetSchema(tableName))
             .OnColumn(columnNames[0])
             .Ascending()
             .OnColumn(columnNames[1])
@@ -435,4 +453,12 @@ public sealed class InitialAcademicSchema : Migration
             .WithOptions()
             .Unique();
     }
+
+    private static string GetSchema(string tableName) => tableName switch
+    {
+        "OrcidProfiles" or "OrcidWorks" => "orcid",
+        "WebOfScienceProfiles" or "WebOfScienceWorks" or "WebOfSciencePeerReviews" => "wos",
+        "YoksisRecords" => "yoksis",
+        _ => "core"
+    };
 }

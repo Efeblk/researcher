@@ -7,16 +7,7 @@ public sealed class OwnCanonicalArticleEvidence : Migration
 {
     public override void Up()
     {
-        if (AnalysisMigrationGuard.IsCompleteOrAbsent("canonical article evidence",
-            Schema.Schema("analysis").Table("ArticleSourceSnapshots").Exists(),
-            Schema.Schema("analysis").Table("ArticleSourcePages").Exists(),
-            Schema.Schema("analysis").Table("ArticleSourceSpans").Exists(),
-            Schema.Schema("analysis").Table("CanonicalArticleAnalysisRuns").Exists(),
-            Schema.Schema("analysis").Table("CanonicalArticleClaims").Exists(),
-            Schema.Schema("analysis").Table("CanonicalArticleClaimEvidence").Exists()))
-            return;
-
-        Create.Table("ArticleSourceSnapshots").InSchema("analysis")
+Create.Table("ArticleSourceSnapshots").InSchema("analysis")
             .WithColumn("Id").AsInt64().PrimaryKey().Identity()
             .WithColumn("CanonicalWorkId").AsInt32().NotNullable()
             .WithColumn("ExtractedTextHash").AsString(64).NotNullable()

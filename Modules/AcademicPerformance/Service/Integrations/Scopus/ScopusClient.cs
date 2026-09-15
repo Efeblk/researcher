@@ -131,7 +131,7 @@ public sealed class ScopusClient(HttpClient httpClient, IConfiguration configura
             ? value : DefaultMaximumPages;
 
     private long GetMaximumResponseBytes() =>
-        long.TryParse(configuration["ArticleMetadataEnrichment:MaximumResponseBytes"], out long value) &&
+        long.TryParse(configuration["ProviderResponses:MaximumResponseBytes"], out long value) &&
         value is >= 1024 and <= 16L * 1024 * 1024 ? value : DefaultMaximumResponseBytes;
 
     private static ScopusProfile CreateProfile(JsonElement root, string expectedId)

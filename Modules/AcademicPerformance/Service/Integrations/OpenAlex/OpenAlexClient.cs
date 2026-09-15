@@ -306,7 +306,7 @@ public sealed class OpenAlexClient
     private long GetMaximumResponseBytes()
     {
         return long.TryParse(
-                _configuration["ArticleMetadataEnrichment:MaximumResponseBytes"],
+                _configuration["ProviderResponses:MaximumResponseBytes"],
                 out long maximumResponseBytes) &&
             maximumResponseBytes is >= 1024 and <= 16L * 1024 * 1024
                 ? maximumResponseBytes

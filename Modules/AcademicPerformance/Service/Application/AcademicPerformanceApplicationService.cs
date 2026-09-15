@@ -13,7 +13,6 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Collection;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Metrics;
-using Microsoft.EntityFrameworkCore.Storage;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Application;
 
@@ -28,7 +27,6 @@ public sealed class AcademicPerformanceApplicationService :
     private readonly ResearcherProviderInputNormalizer _inputNormalizer;
     private readonly CanonicalWorkQueryService _canonicalWorkQueryService;
     private readonly CanonicalWorkSynchronizer _canonicalWorkSynchronizer;
-    private readonly PublicationSummarySynchronizer _publicationSummarySynchronizer;
     private readonly YoksisCollectionHandler? _yoksisCollectionHandler;
     private readonly ResearcherMetricsService _researcherMetricsService;
 
@@ -39,16 +37,13 @@ public sealed class AcademicPerformanceApplicationService :
         CanonicalWorkQueryService? canonicalWorkQueryService = null,
         CanonicalWorkSynchronizer? canonicalWorkSynchronizer = null,
         YoksisCollectionHandler? yoksisCollectionHandler = null,
-        ResearcherMetricsService? researcherMetricsService = null,
-        PublicationSummarySynchronizer? publicationSummarySynchronizer = null)
+        ResearcherMetricsService? researcherMetricsService = null)
     {
         _collectionHandler = collectionHandler;
         _dbContext = dbContext;
         _inputNormalizer = inputNormalizer;
         _canonicalWorkQueryService = canonicalWorkQueryService ?? new CanonicalWorkQueryService(dbContext);
         _canonicalWorkSynchronizer = canonicalWorkSynchronizer ?? new CanonicalWorkSynchronizer(dbContext);
-        _publicationSummarySynchronizer = publicationSummarySynchronizer ??
-            new PublicationSummarySynchronizer(dbContext, _canonicalWorkSynchronizer);
         _yoksisCollectionHandler = yoksisCollectionHandler;
         _researcherMetricsService = researcherMetricsService ??
             new ResearcherMetricsService(dbContext, _canonicalWorkSynchronizer);
@@ -381,35 +376,6 @@ public sealed class AcademicPerformanceApplicationService :
             cancellationToken);
         return await _canonicalWorkQueryService.ListAsync(
             researcher.PersonelId, request, cancellationToken);
-    }
-
-    public async Task<CanonicalPublicationRebuildResponse> RebuildCanonicalPublicationsAsync(
-        CanonicalPublicationRebuildRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        string personelId = request.PersonelId?.Trim() ?? string.Empty;
-        if (personelId.Length == 0 || personelId.Length > 200 ||
-            !await _dbContext.Researchers.AsNoTracking()
-                .AnyAsync(researcher => researcher.PersonelId == personelId, cancellationToken))
-        {
-            throw new ArgumentException("Akademisyen kaydı bulunamadı.");
-        }
-
-        await using IDbContextTransaction transaction =
-            await _dbContext.Database.BeginTransactionAsync(cancellationToken);
-        await _canonicalWorkSynchronizer.AcquireWriteGateAsync(cancellationToken);
-        await _canonicalWorkSynchronizer.AcquireResearcherLockAsync(personelId, cancellationToken);
-        CanonicalWorkSyncResult result = await _canonicalWorkSynchronizer.SyncAsync(
-            personelId, cancellationToken);
-        await _publicationSummarySynchronizer.SyncAsync(personelId, cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return new()
-        {
-            PersonelId = personelId,
-            CanonicalWorkCount = result.CanonicalWorkCount,
-            ObservationCount = result.ObservationCount,
-            AssociationCount = result.AssociationCount
-        };
     }
 
     private async Task<Researcher> ResolveResearcherAsync(

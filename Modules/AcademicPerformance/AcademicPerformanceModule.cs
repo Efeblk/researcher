@@ -21,7 +21,6 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Persistence;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Metrics;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Persistence;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Enrichment;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance;
 
@@ -33,7 +32,6 @@ public static class AcademicPerformanceModule
     {
         services.AddSingleton(provider => CreateHttpClient(configuration,
             provider.GetRequiredService<ILogger<ProviderRateLimitHandler>>()));
-        services.AddArticleMetadataEnrichment(configuration);
         services.AddSingleton<Integrations.Status.ProviderStatusService>();
         services.AddHttpClient("ProviderStatus", client => client.Timeout = TimeSpan.FromSeconds(15))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });

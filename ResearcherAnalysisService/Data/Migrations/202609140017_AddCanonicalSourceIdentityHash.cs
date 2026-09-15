@@ -7,16 +7,12 @@ public sealed class AddCanonicalSourceIdentityHash : Migration
 {
     public override void Up()
     {
-        if (Schema.Schema("analysis").Table("CanonicalArticleAnalysisRuns")
-            .Column("SourceIdentityHash").Exists())
-            return;
-
-        Alter.Table("CanonicalArticleAnalysisRuns").InSchema("analysis")
-            .AddColumn("SourceIdentityHash").AsString(64).Nullable();
+Alter.Table("CanonicalArticleAnalysisRuns").InSchema("analysis")
+            .AddColumn("SourceIdentityHash").AsString(64).NotNullable();
         Execute.Sql("""
             ALTER TABLE [analysis].[CanonicalArticleAnalysisRuns]
                 ALTER COLUMN [SourceIdentityHash]
-                    nvarchar(64) COLLATE Latin1_General_100_BIN2 NULL;
+                    nvarchar(64) COLLATE Latin1_General_100_BIN2 NOT NULL;
             """);
     }
 

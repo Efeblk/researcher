@@ -1,6 +1,6 @@
 # Kod rehberi
 
-Veritabanındaki 61 iş tablosunun servis, şema ve veri yaşam döngüsü ayrımı için
+Veritabanındaki 63 fiziksel tablonun servis, şema ve veri yaşam döngüsü ayrımı için
 [veritabanı rehberine](DATABASE_GUIDE.md) bakın.
 
 Uygulama iki bağımsız .NET 10 projesinden oluşur. Academic Collector dış sağlayıcılardan veri toplar, normalize eder ve kanonik çekirdeği yönetir. `ResearcherAnalysisService` bütün analitik ürünlerin HTTP, kalıcılık ve worker sahibidir. Servisler aynı SQL Server veritabanını kullanır, fakat kendi migration grubunu ve sürüm geçmişini başlangıçta ayrı uygular; herhangi biri önce veya ikisi eşzamanlı başlatılabilir.
@@ -51,14 +51,14 @@ Collector bağımlılık yönü `WebClient veya Api/V1/Endpoints → Application
 
 `core.PublicationSummaries` bibliyografik normalizasyon çıktısıdır; AI özeti `analysis.ArticleSummaries` tablosudur. Her tablo tam bir DDL/yazma sahibine sahiptir. Servisler arası foreign key yoktur. Analysis tablolarındaki `PersonelID`, `CanonicalWorkId` ve `AcademicWorkId` mantıksal kaynak kimlikleridir; Analysis güncel ilişki ve uygunluğu aynı veritabanındaki salt okunur kaynak modelleriyle denetler. `AnalysisDbContext.SaveChanges` bu modellere yazmayı reddeder. Gerekli kanıtı kendi tablolarında immutable snapshot olarak tutar; collector tablolarını veya veritabanını aynalamaz.
 
-Collector migration'ları `dbo.VersionInfo`, Analysis migration'ları `dbo.ResearcherAnalysisVersionInfo` kullanır. Fresh Analysis-first yalnız Analysis nesnelerini, fresh Collector-first yalnız collector nesnelerini kurar. Uygulanmış legacy `dbo.VersionInfo` satırları upgrade sırasında korunur; Analysis final-schema baseline'ı mevcut analitik tabloları ve satırları değiştirmeden benimser. Tam envanter ve upgrade/offline kabul matrisi [servis ayrımı planındadır](SERVICE_SEPARATION_PLAN.md).
+Collector migration'ları `dbo.VersionInfo`, Analysis migration'ları `dbo.ResearcherAnalysisVersionInfo` kullanır. Fresh Analysis-first yalnız Analysis nesnelerini, fresh Collector-first yalnız collector nesnelerini kurar; şema değişikliklerinde geliştirme veritabanı sıfırlanıp yeniden oluşturulur. Tam envanter ve başlangıç sırası kabul matrisi [servis ayrımı planındadır](SERVICE_SEPARATION_PLAN.md).
 
 ## HTTP ve worker yüzeyleri
 
 Collector `http://localhost:5001/Services/AcademicPerformance/V1/[action]` altında şu sorumlulukları tutar:
 
 - `Collect`, `RecalculateMetrics`, `GetResearcher`, `ListPublications`, `SavePublicationSelections`;
-- `ListCanonicalPublications`, `RebuildCanonicalPublications`;
+- `ListCanonicalPublications`;
 - `Bulk/{Submit,Status,ImportSql}`;
 - YÖKSİS, Semantic Scholar ve toplama sağlayıcısı `ProviderStatus` işlemleri.
 

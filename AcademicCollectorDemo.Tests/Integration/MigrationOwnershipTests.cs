@@ -76,6 +76,15 @@ public sealed class MigrationOwnershipTests
                 "SELECT COUNT(*) FROM [dbo].[ResearcherAnalysisVersionInfo] WHERE [Version]=202609140001"));
             Assert.Equal(0, await CountAsync(after,
                 "SELECT COUNT(*) FROM sys.tables WHERE schema_id=SCHEMA_ID('dbo') AND name='VersionInfo'"));
+            await after.CloseAsync();
+
+            provider.MigrateAcademicDatabase();
+
+            await after.OpenAsync();
+            Assert.Equal(1, await CountAsync(after,
+                "SELECT COUNT(*) FROM sys.tables WHERE schema_id=SCHEMA_ID('core') AND name='Researchers'"));
+            Assert.Equal(1, await CountAsync(after,
+                "SELECT COUNT(*) FROM [analysis].[GeminiUsageAttempts] WHERE [AttemptId]='99d0c550-bca1-4ed5-8ace-45196b48f2d3'"));
         }
         finally
         {

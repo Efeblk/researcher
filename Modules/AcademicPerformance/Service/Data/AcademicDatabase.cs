@@ -43,7 +43,6 @@ public static class AcademicDatabase
     public static void CleanAcademicDatabase(this IServiceProvider services)
     {
         using SqlConnection migrationLock = AcquireMigrationLock(services);
-        EnsureNoLegacyCrossServiceForeignKeys(services);
         using IServiceScope scope = services.CreateScope();
         IMigrationRunner migrationRunner = scope.ServiceProvider
             .GetRequiredService<IMigrationRunner>();
@@ -54,42 +53,6 @@ public static class AcademicDatabase
             .GetRequiredService<AcademicDbContext>();
         dbContext.Database.ExecuteSqlRaw(
             "DROP TABLE IF EXISTS [dbo].[VersionInfo]");
-    }
-
-    private static void EnsureNoLegacyCrossServiceForeignKeys(IServiceProvider services)
-    {
-        string connectionString = services.GetRequiredService<AcademicDatabaseConnection>()
-            .ConnectionString;
-        using SqlConnection connection = new(connectionString);
-        connection.Open();
-        using SqlCommand command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT COUNT(*)
-            FROM sys.foreign_keys foreignKey
-            JOIN sys.tables parentTable ON parentTable.[object_id] = foreignKey.[parent_object_id]
-            JOIN sys.schemas parentSchema ON parentSchema.[schema_id] = parentTable.[schema_id]
-            JOIN sys.tables referencedTable ON referencedTable.[object_id] = foreignKey.[referenced_object_id]
-            JOIN sys.schemas referencedSchema ON referencedSchema.[schema_id] = referencedTable.[schema_id]
-            WHERE
-              (
-                (parentSchema.[name] = N'analysis' AND parentTable.[name] IN
-                    (N'ResearcherAnalyses', N'ArticleSummaries', N'ArticleSourceSnapshots',
-                     N'CanonicalArticleAnalysisRuns', N'ArticleSummaryAutomationJobs',
-                     N'PublicationMetricSnapshots', N'PublicationMetricsRefreshStates',
-                     N'CanonicalArticleReviewRuns', N'ArticleEvaluationCases',
-                     N'ArticleReviewWorkItems'))
-                OR (parentSchema.[name] = N'hr' AND parentTable.[name] = N'EvidenceDossiers')
-                OR (parentSchema.[name] = N'faculty' AND parentTable.[name] IN
-                    (N'AssistantContextVersions', N'AssistantRuns'))
-              )
-              AND referencedSchema.[name] NOT IN (N'analysis', N'hr', N'faculty');
-            """;
-        int count = Convert.ToInt32(command.ExecuteScalar());
-        if (count > 0)
-            throw new InvalidOperationException(
-                "Collector cleanup cannot proceed while legacy analysis, HR, or faculty tables " +
-                "still reference collector-owned tables. Start ResearcherAnalysisService once " +
-                "to adopt those schemas before cleaning the collector database.");
     }
 
     private static string GetConnectionString(IConfiguration configuration)

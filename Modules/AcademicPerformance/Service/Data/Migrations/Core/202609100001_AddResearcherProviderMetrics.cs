@@ -17,7 +17,7 @@ public sealed class AddResearcherProviderMetrics : Migration
 
     public override void Up()
     {
-        Alter.Table("Researchers")
+        Alter.Table("Researchers").InSchema("core")
             .AddColumn("WosCitationCount").AsInt32().Nullable()
             .AddColumn("WosHIndex").AsInt32().Nullable()
             .AddColumn("WosDocumentsCount").AsInt32().Nullable()
@@ -38,43 +38,11 @@ public sealed class AddResearcherProviderMetrics : Migration
             .AddColumn("ScholarMetricsSinceYear").AsInt32().Nullable()
             .AddColumn("ScholarMetricsUpdatedAt").AsDateTime2().Nullable();
 
-        Execute.Sql("""
-            UPDATE researcher
-            SET WosCitationCount = profile.TotalTimesCited,
-                WosHIndex = profile.HIndex,
-                WosDocumentsCount = profile.DocumentsCount,
-                WosMetricsUpdatedAt = profile.LastUpdatedAt
-            FROM Researchers researcher
-            JOIN WebOfScienceProfiles profile ON profile.PersonelID = researcher.PersonelID;
-
-            UPDATE researcher
-            SET OpenAlexCitationCount = profile.CitedByCount,
-                OpenAlexHIndex = profile.HIndex,
-                OpenAlexI10Index = profile.I10Index,
-                OpenAlexDocumentsCount = profile.WorksCount,
-                OpenAlexTwoYearMeanCitedness = profile.TwoYearMeanCitedness,
-                OpenAlexMetricsUpdatedAt = profile.LastUpdatedAt
-            FROM Researchers researcher
-            JOIN OpenAlexProfiles profile ON profile.PersonelID = researcher.PersonelID;
-
-            UPDATE researcher
-            SET ScholarCitationCount = profile.CitationCount,
-                ScholarHIndex = profile.HIndex,
-                ScholarI10Index = profile.I10Index,
-                ScholarDocumentsCount = profile.DocumentsCount,
-                ScholarCitationCountRecent = profile.CitationCountRecent,
-                ScholarHIndexRecent = profile.HIndexRecent,
-                ScholarI10IndexRecent = profile.I10IndexRecent,
-                ScholarMetricsSinceYear = profile.MetricsSinceYear,
-                ScholarMetricsUpdatedAt = profile.LastUpdatedAt
-            FROM Researchers researcher
-            JOIN GoogleScholarProfiles profile ON profile.PersonelID = researcher.PersonelID;
-            """);
     }
 
     public override void Down()
     {
         foreach (string column in Columns.Reverse())
-            Delete.Column(column).FromTable("Researchers");
+            Delete.Column(column).FromTable("Researchers").InSchema("core");
     }
 }

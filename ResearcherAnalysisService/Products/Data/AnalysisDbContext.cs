@@ -237,9 +237,9 @@ public sealed class AnalysisDbContext : DbContext
             entity.ToTable("CanonicalArticleAnalysisRuns", "analysis");
             entity.HasKey(run => run.Id);
             entity.Property(run => run.Language).HasMaxLength(20);
-            entity.Property(run => run.PolicyVersion).HasMaxLength(100);
+            entity.Property(run => run.PolicyVersion).HasMaxLength(100).IsRequired();
             entity.Property(run => run.SourceIdentityHash).HasMaxLength(64)
-                .UseCollation("Latin1_General_100_BIN2");
+                .UseCollation("Latin1_General_100_BIN2").IsRequired();
             entity.Property(run => run.Model).HasMaxLength(200);
             entity.Property(run => run.PromptVersion).HasMaxLength(100);
             entity.Property(run => run.ExtractionMethod).HasMaxLength(50);

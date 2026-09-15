@@ -123,13 +123,6 @@ public sealed class WebOfScienceClient
             return databaseIds;
         }
 
-        string? legacyDatabaseId = _configuration["WebOfScience:DatabaseId"];
-
-        if (!string.IsNullOrWhiteSpace(legacyDatabaseId))
-        {
-            return [legacyDatabaseId.Trim().ToUpperInvariant()];
-        }
-
         return [.. DefaultDatabaseIds];
     }
 

@@ -754,7 +754,7 @@ public sealed class AcademicEvidenceSearchPersistenceTests(AnalysisProductSqlSer
             CanonicalWorkId = workId, ArticleSourceSnapshotId = snapshotId, SavedArticleSummary = summary,
             AnalyzedAt = DateTimeOffset.UtcNow, SourceAcquiredAt = DateTimeOffset.UtcNow,
             SourceOrigin = "Test", Language = language, PolicyVersion = "test-policy", Model = "synthetic",
-            SourceIdentityHash = sourceIdentityHash,
+            SourceIdentityHash = sourceIdentityHash!,
             PromptVersion = "test-prompt", ExtractionMethod = "test", ProcessedChunks = 1,
             TotalChunks = 1, ProcessedPages = 1, TextBearingPages = 1, TotalPages = 1,
             OmissionReasonsJson = "[]", VerificationStatus = verificationStatus,

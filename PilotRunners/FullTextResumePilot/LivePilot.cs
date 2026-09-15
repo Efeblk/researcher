@@ -971,10 +971,10 @@ public static class LivePilot
             start.Environment["ASPNETCORE_ENVIRONMENT"] = "Testing"; start.Environment["DOTNET_ENVIRONMENT"] = "Testing";
             start.Environment["ConnectionStrings__AcademicDatabase"] = connectionString;
             start.Environment["BulkCollection__WorkerEnabled"] = "false";
-            foreach (string provider in new[] { "Orcid", "SearchApi", "OpenAlex", "WebOfScience", "Yoksis", "TrDizin", "Crossref", "Unpaywall", "SemanticScholar" })
+            foreach (string provider in new[] { "Orcid", "SearchApi", "OpenAlex", "WebOfScience", "Yoksis", "TrDizin", "Crossref", "SemanticScholar" })
                 start.Environment[$"ProviderRequestLimits__{provider}__Enabled"] = "false";
             foreach (string key in new[] { "SearchApi__ApiKey", "OpenAlex__ApiKey", "SemanticScholar__ApiKey", "WebOfScience__ApiKey",
-                "Yoksis__Username", "Yoksis__Password", "Unpaywall__Email" }) start.Environment[key] = "";
+                "Yoksis__Username", "Yoksis__Password" }) start.Environment[key] = "";
         }
         public async ValueTask DisposeAsync() { if (!process.HasExited) { process.Kill(entireProcessTree: true); await process.WaitForExitAsync(); } process.Dispose(); }
     }

@@ -179,25 +179,5 @@ public sealed class EndpointTests(SqlServerFixture fixture)
         Assert.False(canonicalObservation.TryGetProperty("PersonelID", out _));
         Assert.False(canonicalObservation.TryGetProperty("ProviderPayload", out _));
 
-        await db.PublicationSummaries.Where(value => value.PersonelId == researcher.PersonelId)
-            .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.Title, "Stale display title"));
-
-        using var rebuild = await host.Client.PostAsJsonAsync(
-            "/Services/AcademicPerformance/V1/RebuildCanonicalPublications",
-            new { PersonelID = researcher.PersonelId });
-        rebuild.EnsureSuccessStatusCode();
-        JsonElement rebuildBody = await rebuild.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(1, rebuildBody.GetProperty("CanonicalWorkCount").GetInt32());
-        Assert.Equal(1, rebuildBody.GetProperty("ObservationCount").GetInt32());
-        db.ChangeTracker.Clear();
-        Assert.Equal("Endpoint publication", await db.PublicationSummaries
-            .Where(value => value.PersonelId == researcher.PersonelId)
-            .Select(value => value.Title).SingleAsync());
-
-        using var missingRebuild = await host.Client.PostAsJsonAsync(
-            "/Services/AcademicPerformance/V1/RebuildCanonicalPublications",
-            new { PersonelID = "missing-canonical-researcher" });
-        JsonElement missingBody = await missingRebuild.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.True(missingBody.TryGetProperty("Error", out _));
     }
 }

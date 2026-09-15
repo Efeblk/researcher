@@ -65,13 +65,4 @@ public sealed class AcademicPerformanceEndpoint : ServiceEndpoint
         return applicationService.ListCanonicalPublicationsAsync(request, cancellationToken);
     }
 
-    [HttpPost]
-    public Task<CanonicalPublicationRebuildResponse> RebuildCanonicalPublications(
-        CanonicalPublicationRebuildRequest request,
-        [FromServices] IAcademicPerformanceApplicationService applicationService,
-        CancellationToken cancellationToken)
-    {
-        return applicationService.RebuildCanonicalPublicationsAsync(request, cancellationToken);
-    }
-
 }
