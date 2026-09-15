@@ -5,6 +5,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScienc
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Persistence;
 
@@ -25,6 +26,7 @@ public sealed class ResearcherRepository
                 (identifiers.Orcid != null && item.Orcid == identifiers.Orcid) ||
                 (identifiers.GoogleScholarId != null && item.GoogleScholarId == identifiers.GoogleScholarId) ||
                 (identifiers.WebOfScienceResearcherId != null && item.WebOfScienceResearcherId == identifiers.WebOfScienceResearcherId) ||
+                (identifiers.ScopusId != null && item.ScopusId == identifiers.ScopusId) ||
                 (identifiers.TcKimlikNo != null && item.TcKimlikNo == identifiers.TcKimlikNo))
             .Select(item => item.PersonelId)
             .Take(2)
@@ -54,8 +56,7 @@ public sealed class ResearcherRepository
         target.Department = source.Department ?? target.Department;
 
         target.Orcid = GetIdentifierValue(target.Orcid, source.Orcid, "ORCID");
-        // Scopus is stored as source metadata only; it is not used for matching or collection.
-        target.ScopusId ??= source.ScopusId;
+        target.ScopusId = GetIdentifierValue(target.ScopusId, source.ScopusId, "Scopus ID");
         target.GoogleScholarId = GetIdentifierValue(
             target.GoogleScholarId,
             source.GoogleScholarId,
@@ -103,6 +104,8 @@ public sealed class ResearcherRepository
                 .ThenInclude(profile => profile!.Works)
             .Include(researcher => researcher.OpenAlexProfile)
                 .ThenInclude(profile => profile!.Works)
+            .Include(researcher => researcher.ScopusProfile)
+                .ThenInclude(profile => profile!.Works)
             .Include(researcher => researcher.WebOfScienceProfile)
                 .ThenInclude(profile => profile!.Works)
             .Include(researcher => researcher.WebOfScienceProfile)
@@ -123,6 +126,7 @@ public sealed class ResearcherRepository
         UpdateOrcid(target, source);
         UpdateGoogleScholar(target, source);
         UpdateOpenAlex(target, source);
+        UpdateScopus(target, source);
         UpdateWebOfScience(target, source);
         UpdateTrDizin(target, source);
     }
@@ -211,6 +215,32 @@ public sealed class ResearcherRepository
 
         _dbContext.GoogleScholarWorks.RemoveRange(targetProfile.Works ?? []);
         targetProfile.Works = sourceProfile.Works;
+    }
+
+    private void UpdateScopus(Researcher target, Researcher source)
+    {
+        ScopusProfile? incoming = source.ScopusProfile;
+        if (incoming is null)
+            return;
+        if (target.ScopusProfile is null)
+        {
+            target.ScopusProfile = incoming;
+            return;
+        }
+
+        ScopusProfile profile = target.ScopusProfile;
+        profile.ScopusAuthorId = incoming.ScopusAuthorId;
+        profile.DisplayName = incoming.DisplayName;
+        profile.CurrentAffiliation = incoming.CurrentAffiliation;
+        profile.DocumentsCount = incoming.DocumentsCount;
+        profile.CitationCount = incoming.CitationCount;
+        profile.CitedByCount = incoming.CitedByCount;
+        profile.HIndex = incoming.HIndex;
+        profile.LastUpdatedAt = incoming.LastUpdatedAt;
+        profile.RawDataJson = incoming.RawDataJson;
+        profile.SearchPagesJson = incoming.SearchPagesJson;
+        _dbContext.ScopusWorks.RemoveRange(profile.Works ?? []);
+        profile.Works = incoming.Works;
     }
 
     private void UpdateWebOfScience(Researcher target, Researcher source)

@@ -83,11 +83,13 @@ public sealed class AcademicPerformanceApplicationService :
             ((researcher.PersonelId != personelId &&
               ((normalization.Input.Orcid != null && researcher.Orcid == normalization.Input.Orcid) ||
              (normalization.Input.GoogleScholarId != null && researcher.GoogleScholarId == normalization.Input.GoogleScholarId) ||
+             (normalization.Input.ScopusId != null && researcher.ScopusId == normalization.Input.ScopusId) ||
              (normalization.Input.WebOfScienceResearcherId != null &&
                 researcher.WebOfScienceResearcherId == normalization.Input.WebOfScienceResearcherId))) ||
              (researcher.PersonelId == personelId &&
               ((normalization.Input.Orcid != null && researcher.Orcid != null && researcher.Orcid != normalization.Input.Orcid) ||
                (normalization.Input.GoogleScholarId != null && researcher.GoogleScholarId != null && researcher.GoogleScholarId != normalization.Input.GoogleScholarId) ||
+               (normalization.Input.ScopusId != null && researcher.ScopusId != null && researcher.ScopusId != normalization.Input.ScopusId) ||
                (normalization.Input.WebOfScienceResearcherId != null && researcher.WebOfScienceResearcherId != null &&
                     researcher.WebOfScienceResearcherId != normalization.Input.WebOfScienceResearcherId)))));
         if (providerOwnershipConflict)
@@ -109,16 +111,24 @@ public sealed class AcademicPerformanceApplicationService :
                 if ((normalization.Input.Orcid != null && discovered.Orcid != null && normalization.Input.Orcid != discovered.Orcid) ||
                     (normalization.Input.GoogleScholarId != null && discovered.GoogleScholarId != null &&
                         normalization.Input.GoogleScholarId != discovered.GoogleScholarId) ||
+                    (normalization.Input.ScopusId != null && discovered.ScopusId != null &&
+                        normalization.Input.ScopusId != discovered.ScopusId) ||
                     (normalization.Input.WebOfScienceResearcherId != null && discovered.WebOfScienceResearcherId != null &&
                         normalization.Input.WebOfScienceResearcherId != discovered.WebOfScienceResearcherId))
                     throw new ArgumentException("YÖKSİS sağlayıcı kimliği istekle eşleşmiyor.");
                 normalization.Input.Orcid ??= discovered.Orcid;
                 normalization.Input.GoogleScholarId ??= discovered.GoogleScholarId;
                 normalization.Input.WebOfScienceResearcherId ??= discovered.WebOfScienceResearcherId;
+                if (normalization.Input.ScopusId is null && !string.IsNullOrWhiteSpace(discovered.ScopusId))
+                {
+                    try { normalization.Input.ScopusId = ResearcherIdentifierParser.NormalizeScopusId(discovered.ScopusId); }
+                    catch (ArgumentException) { }
+                }
             }
         }
         bool hasProviderIdentifier = normalization.Input.Orcid is not null ||
-            normalization.Input.GoogleScholarId is not null || normalization.Input.WebOfScienceResearcherId is not null;
+            normalization.Input.GoogleScholarId is not null || normalization.Input.WebOfScienceResearcherId is not null ||
+            normalization.Input.ScopusId is not null;
         if (!hasProviderIdentifier)
         {
             Researcher? savedResearcher = await _dbContext.Researchers.AsNoTracking()
@@ -140,8 +150,7 @@ public sealed class AcademicPerformanceApplicationService :
             ResearcherProviderInputNormalizer.ToCollectionRequest(normalization.Input);
         collectionRequest.PersonelId = personelId;
         collectionRequest.TcKimlikNo = tcKimlikNo;
-        collectionRequest.ScopusId = string.IsNullOrWhiteSpace(request.ScopusId)
-            ? null : request.ScopusId.Trim();
+        collectionRequest.ScopusId = normalization.Input.ScopusId;
         ResearcherCollectResponse? collectionResponse = await _collectionHandler.CollectAsync(collectionRequest);
         string? collectedPersonelId = collectionResponse.Researcher?.PersonelId;
 

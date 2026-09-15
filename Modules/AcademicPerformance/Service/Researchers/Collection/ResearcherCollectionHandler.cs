@@ -59,7 +59,9 @@ public sealed class ResearcherCollectionHandler
         Researcher requestedResearcher = _identifierParser.Create(request);
         requestedResearcher.PersonelId = request.PersonelId.Trim();
         requestedResearcher.TcKimlikNo = request.TcKimlikNo;
-        requestedResearcher.ScopusId = NormalizeOptional(request.ScopusId);
+        requestedResearcher.ScopusId = string.IsNullOrWhiteSpace(request.ScopusId)
+            ? requestedResearcher.ScopusId
+            : ResearcherIdentifierParser.NormalizeScopusId(request.ScopusId);
         Researcher researcher = requestedResearcher;
 
         Researcher? existingResearcher = await _researcherRepository.FindByIdentifiersAsync(
@@ -83,6 +85,7 @@ public sealed class ResearcherCollectionHandler
         if (researcher.OrcidProfile is null &&
             researcher.GoogleScholarProfile is null &&
             researcher.OpenAlexProfile is null &&
+            researcher.ScopusProfile is null &&
             researcher.WebOfScienceProfile is null && researcher.TrDizinProfile is null)
         {
             response.Messages.Add(

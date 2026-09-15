@@ -4,6 +4,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Persistence;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using System.Text.Json.Serialization;
 
@@ -36,6 +37,11 @@ public sealed class Researcher
     public decimal? OpenAlexTwoYearMeanCitedness { get; set; } = null;
     public DateTime? OpenAlexMetricsUpdatedAt { get; set; } = null;
 
+    public int? ScopusCitationCount { get; set; } = null;
+    public int? ScopusHIndex { get; set; } = null;
+    public int? ScopusDocumentsCount { get; set; } = null;
+    public DateTime? ScopusMetricsUpdatedAt { get; set; } = null;
+
     public int? ScholarCitationCount { get; set; } = null;
     public int? ScholarHIndex { get; set; } = null;
     public int? ScholarI10Index { get; set; } = null;
@@ -49,6 +55,7 @@ public sealed class Researcher
     public OrcidProfile? OrcidProfile { get; set; } = null;
     public GoogleScholarProfile? GoogleScholarProfile { get; set; } = null;
     public OpenAlexProfile? OpenAlexProfile { get; set; } = null;
+    public ScopusProfile? ScopusProfile { get; set; } = null;
     public WebOfScienceProfile? WebOfScienceProfile { get; set; } = null;
     public TrDizinProfile? TrDizinProfile { get; set; } = null;
 

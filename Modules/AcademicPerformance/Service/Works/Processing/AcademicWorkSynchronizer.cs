@@ -5,6 +5,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Enrichment;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
@@ -49,6 +50,8 @@ public sealed class AcademicWorkSynchronizer
             researcher.PersonelId,
             researcher.OpenAlexProfile?.Works,
             synchronizedAt);
+        AddScopusWorks(synchronizedWorks, researcher.PersonelId,
+            researcher.ScopusProfile?.Works, synchronizedAt);
         AddWebOfScienceWorks(
             synchronizedWorks,
             researcher.PersonelId,
@@ -251,6 +254,40 @@ public sealed class AcademicWorkSynchronizer
         }
 
         return null;
+    }
+
+    private static void AddScopusWorks(
+        List<AcademicWork> target,
+        string personelId,
+        List<ScopusWork>? source,
+        DateTime synchronizedAt)
+    {
+        foreach (ScopusWork work in source ?? [])
+        {
+            target.Add(new()
+            {
+                PersonelId = personelId,
+                Provider = AcademicWorkProvider.Scopus,
+                ProviderWorkId = work.ScopusWorkId,
+                Title = work.Title,
+                PublicationYear = work.PublicationYear,
+                PublicationDate = work.PublicationDate,
+                Doi = work.Doi,
+                RawType = work.WorkType,
+                Category = work.Category,
+                CategorySource = work.CategorySource,
+                CitedByCount = work.CitedByCount,
+                Authors = work.Authors,
+                Publication = work.SourceName,
+                Link = work.Url,
+                SourceId = work.Eid ?? work.ScopusWorkId,
+                SourceName = work.SourceName,
+                SourceType = "Scopus",
+                IsOpenAccess = work.IsOpenAccess,
+                ProviderPayload = work.RawDataJson,
+                SyncedAt = synchronizedAt
+            });
+        }
     }
 
     private static void CopyValues(AcademicWork source, AcademicWork target)

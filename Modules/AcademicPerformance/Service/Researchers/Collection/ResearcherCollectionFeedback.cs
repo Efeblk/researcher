@@ -2,6 +2,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 
@@ -33,7 +34,23 @@ public sealed class ResearcherCollectionFeedback
             AddWebOfScienceFeedback(researcher.WebOfScienceProfile, messages);
         }
 
+        if (!string.IsNullOrWhiteSpace(requestedIdentifiers.ScopusId))
+            AddScopusFeedback(researcher.ScopusProfile, messages);
+
         messages.Add(string.Empty);
+    }
+
+    private static void AddScopusFeedback(ScopusProfile? profile, List<string> messages)
+    {
+        if (profile is null)
+        {
+            messages.Add("[EKSİK] Scopus profile or publications could not be collected.");
+            return;
+        }
+        messages.Add($"[OK] Scopus profile: {profile.DisplayName ?? "name unavailable"}.");
+        messages.Add($"[BİLGİ] Scopus metrics: {profile.DocumentsCount?.ToString() ?? "—"} documents, " +
+            $"{profile.CitationCount?.ToString() ?? "—"} citations, h-index {profile.HIndex?.ToString() ?? "—"}.");
+        messages.Add($"[OK] Scopus works: {profile.Works?.Count ?? 0} records collected.");
     }
 
     private static void AddOpenAlexFeedback(

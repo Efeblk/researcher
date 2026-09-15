@@ -118,6 +118,7 @@ public sealed class TableSchemaGroupingMigrationTests(SqlServerFixture fixture)
             "integrations.ProviderRequestBudgets", "integrations.ProviderStatusObservations",
             "openalex.OpenAlexProfiles", "openalex.OpenAlexWorks", "orcid.OrcidProfiles",
             "orcid.OrcidWorks",
+            "scopus.ScopusProfiles", "scopus.ScopusWorks",
             "semanticscholar.SemanticScholarCitationContexts",
             "semanticscholar.SemanticScholarCitations", "semanticscholar.SemanticScholarPapers",
             "trdizin.TrDizinProfiles", "trdizin.TrDizinWorks", "wos.WebOfSciencePeerReviews",
