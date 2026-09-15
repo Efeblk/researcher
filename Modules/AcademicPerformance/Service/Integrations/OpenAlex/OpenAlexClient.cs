@@ -154,6 +154,9 @@ public sealed class OpenAlexClient
     {
         using HttpRequestMessage request = new(HttpMethod.Get, url);
         request.Headers.Accept.ParseAdd("application/json");
+        if (!string.IsNullOrWhiteSpace(_configuration["OpenAlex:ApiKey"]))
+            request.Headers.Authorization = new(
+                "Bearer", _configuration["OpenAlex:ApiKey"]!.Trim());
         request.Options.Set(ProviderRateLimitHandler.ResponseBufferLimit, GetMaximumResponseBytes());
         using HttpResponseMessage response = await _httpClient.SendAsync(
             request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
@@ -287,15 +290,7 @@ public sealed class OpenAlexClient
 
     private string AppendApiKey(string url)
     {
-        string? apiKey = _configuration["OpenAlex:ApiKey"];
-
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            return url;
-        }
-
-        char separator = url.Contains('?') ? '&' : '?';
-        return $"{url}{separator}api_key={Uri.EscapeDataString(apiKey.Trim())}";
+        return url;
     }
 
     private int GetMaximumPages()

@@ -50,4 +50,15 @@ public sealed class ResearcherProviderInputNormalizerTests
         Assert.NotNull(result.RejectionReason);
         Assert.DoesNotContain("1.23456789E+11", result.RejectionReason);
     }
+
+    [Fact]
+    public void Normalize_ScopusAuthorUrl_ReturnsCanonicalId()
+    {
+        ResearcherProviderInputNormalizationResult result = _normalizer.Normalize(new()
+        {
+            ScopusId = "https://www.scopus.com/authid/detail.uri?authorId=57200000001"
+        });
+        Assert.Equal("57200000001", result.Input.ScopusId);
+        Assert.Null(result.RejectionReason);
+    }
 }

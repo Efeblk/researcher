@@ -5,6 +5,7 @@
 @api = {{baseUrl}}/Services/AcademicPerformance/V1
 @personelId = P-1001
 @orcid = 0000-0002-1825-0097
+@scopusId = SCOPUS_AUTHOR_ID_BURAYA_YAZ
 @publicationId = 1
 @academicWorkId = 1
 @tcKimlikNo = TC_KIMLIK_NUMARASINI_BURAYA_YAZ
@@ -21,6 +22,15 @@ Content-Type: application/json
 {
   "PersonelID": "{{personelId}}",
   "ORCID": "{{orcid}}"
+}
+
+### 2b. Tek bir araştırmacıyı Scopus Author ID ile topla [sağlayıcı çağrısı + yazma]
+POST {{api}}/Collect
+Content-Type: application/json
+
+{
+  "PersonelID": "{{personelId}}",
+  "ScopusID": "{{scopusId}}"
 }
 
 ### 3. Kaydedilmiş araştırmacıyı oku [okuma]

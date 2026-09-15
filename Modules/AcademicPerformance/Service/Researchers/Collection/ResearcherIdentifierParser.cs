@@ -14,6 +14,9 @@ public sealed class ResearcherIdentifierParser
     private static readonly Regex GoogleScholarIdPattern = new(
         @"^[A-Za-z0-9_-]{12}$",
         RegexOptions.CultureInvariant);
+    private static readonly Regex ScopusIdPattern = new(
+        @"^[0-9]{5,20}$",
+        RegexOptions.CultureInvariant);
 
     public Researcher Create(ResearcherCollectRequest request)
     {
@@ -42,11 +45,12 @@ public sealed class ResearcherIdentifierParser
 
         if (string.IsNullOrWhiteSpace(researcher.Orcid) &&
             string.IsNullOrWhiteSpace(researcher.GoogleScholarId) &&
-            string.IsNullOrWhiteSpace(researcher.WebOfScienceResearcherId))
+            string.IsNullOrWhiteSpace(researcher.WebOfScienceResearcherId) &&
+            string.IsNullOrWhiteSpace(researcher.ScopusId))
         {
             throw new ArgumentException(
                 "ORCID, Google Scholar ID veya Web of Science ResearcherID " +
-                "verilmelidir.");
+                "veya Scopus ID verilmelidir.");
         }
 
         return researcher;
@@ -63,7 +67,8 @@ public sealed class ResearcherIdentifierParser
             argumentName != "--scholar" &&
             argumentName != "--googlescholar" &&
             argumentName != "--researcherid" &&
-            argumentName != "--wos")
+            argumentName != "--wos" &&
+            argumentName != "--scopus")
         {
             return false;
         }
@@ -86,12 +91,17 @@ public sealed class ResearcherIdentifierParser
             EnsureIdentifierIsEmpty(researcher.GoogleScholarId, "Google Scholar ID");
             researcher.GoogleScholarId = NormalizeGoogleScholarId(identifier);
         }
-        else
+        else if (argumentName is "--researcherid" or "--wos")
         {
             EnsureIdentifierIsEmpty(
                 researcher.WebOfScienceResearcherId,
                 "Web of Science ResearcherID");
             researcher.WebOfScienceResearcherId = NormalizeResearcherId(identifier);
+        }
+        else
+        {
+            EnsureIdentifierIsEmpty(researcher.ScopusId, "Scopus ID");
+            researcher.ScopusId = NormalizeScopusId(identifier);
         }
 
         return true;
@@ -119,6 +129,13 @@ public sealed class ResearcherIdentifierParser
         {
             EnsureIdentifierIsEmpty(researcher.GoogleScholarId, "Google Scholar ID");
             researcher.GoogleScholarId = identifier;
+            return true;
+        }
+
+        if (ScopusIdPattern.IsMatch(identifier))
+        {
+            EnsureIdentifierIsEmpty(researcher.ScopusId, "Scopus ID");
+            researcher.ScopusId = NormalizeScopusId(identifier);
             return true;
         }
 
@@ -150,6 +167,14 @@ public sealed class ResearcherIdentifierParser
             throw new ArgumentException("Google Scholar ID 12 karakter olmalıdır.");
         }
 
+        return normalized;
+    }
+
+    public static string NormalizeScopusId(string? identifier)
+    {
+        string normalized = identifier?.Trim() ?? string.Empty;
+        if (!ScopusIdPattern.IsMatch(normalized))
+            throw new ArgumentException("Scopus ID must contain 5 to 20 ASCII digits.");
         return normalized;
     }
 

@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AcademicCollectorDemo.Modules.AcademicPerformance;
@@ -11,6 +12,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using AcademicCollectorDemo.Tests.Infrastructure;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -41,7 +43,7 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
         var second = await service.SubmitAsync(input);
         Assert.Equal(first.Jobs.Single().Id, second.Jobs.Single().Id);
         input.Researchers[0].WebOfScienceId = "B-1234-2020";
-        await Assert.ThrowsAsync<ArgumentException>(() => service.SubmitAsync(input));
+        await Assert.ThrowsAsync<BulkRequestException>(() => service.SubmitAsync(input));
     }
 
     [Fact]
@@ -77,18 +79,18 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
                 Orcid = " (https://orcid.org/0000-0002-1825-009X) ,",
                 GoogleScholarId = "person@example.test",
                 WebOfScienceId = "https://www.webofscience.com/wos/author/record/A-1234-2020.",
-                ScopusId = " unsupported-scopus-value "
+                ScopusId = " https://www.scopus.com/authid/detail.uri?authorId=57200000001 "
             }]
         };
 
         var submitted = await service.SubmitAsync(input);
         Assert.Equal(BulkJobStatus.Pending, submitted.Jobs.Single().Status);
-        Assert.Equal(2, submitted.Jobs.Single().Warnings.Count);
+        Assert.Single(submitted.Jobs.Single().Warnings);
         string persisted = (await db.BulkCollectionJobs.SingleAsync(job => job.BatchId == input.BatchId)).InputJson;
         Assert.Contains("0000-0002-1825-009X", persisted);
         Assert.Contains("A-1234-2020", persisted);
         Assert.Contains("person@example.test", persisted);
-        Assert.Contains(" unsupported-scopus-value ", persisted);
+        Assert.Contains("authorId=57200000001", persisted);
         using (JsonDocument document = JsonDocument.Parse(persisted))
         {
             Assert.Equal("person@example.test", document.RootElement.GetProperty("OriginalInput")
@@ -102,14 +104,57 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
         Assert.Equal(BulkJobStatus.Succeeded, status.Jobs.Single().Status);
         Assert.NotNull(status.Jobs.Single().StartedAt);
         Assert.NotNull(status.Jobs.Single().CompletedAt);
-        Assert.Equal(2, status.Jobs.Single().Warnings.Count);
+        Assert.Single(status.Jobs.Single().Warnings);
         var fake = (FakeApplicationService)scope.ServiceProvider.GetRequiredService<IAcademicPerformanceApplicationService>();
         Assert.Equal("0000-0002-1825-009X", fake.LastRequest!.Orcid);
         Assert.Equal("A-1234-2020", fake.LastRequest.WebOfScienceResearcherId);
         Assert.Equal("synthetic-cleanup", fake.LastRequest.PersonelId);
         Assert.Equal(new string('1', 11), fake.LastRequest.TcKimlikNo);
-        Assert.Equal("unsupported-scopus-value", fake.LastRequest.ScopusId);
+        Assert.Equal("57200000001", fake.LastRequest.ScopusId);
         Assert.Null(fake.LastRequest.GoogleScholarId);
+    }
+
+    [Fact]
+    public async Task ProcessNextAsync_ScopusOnly_UsesRealCollectionAndPersistsCanonicalWork()
+    {
+        string scopusId = Random.Shared.NextInt64(10000000000, 99999999999).ToString();
+        string personelId = "scopus-bulk-" + Guid.NewGuid().ToString("N");
+        string workId = Random.Shared.NextInt64(10000000000, 99999999999).ToString();
+        using StubHttpHandler handler = new(request =>
+        {
+            Assert.Equal("bulk-scopus-key", request.Headers.GetValues("X-ELS-APIKey").Single());
+            Assert.Equal("bulk-inst-token", request.Headers.GetValues("X-ELS-Insttoken").Single());
+            return request.RequestUri!.AbsolutePath.Contains("/author/author_id/")
+                ? StubHttpHandler.Json("{\"author-retrieval-response\":{\"coredata\":{\"dc:identifier\":\"AUTHOR_ID:" +
+                    scopusId + "\",\"document-count\":\"1\",\"citation-count\":\"5\"},\"h-index\":\"2\"}}")
+                : StubHttpHandler.Json("{\"search-results\":{\"opensearch:totalResults\":\"1\",\"entry\":[{" +
+                    "\"dc:identifier\":\"SCOPUS_ID:" + workId + "\",\"eid\":\"2-s2.0-" + workId +
+                    "\",\"dc:title\":\"Bulk Scopus work\",\"prism:doi\":\"10.5555/scopus-bulk\"," +
+                    "\"prism:coverDate\":\"2026-09-14\",\"subtypeDescription\":\"Article\"}]}}" );
+        });
+        await using ServiceProvider services = BuildScopusServices(handler);
+        using IServiceScope scope = services.CreateScope();
+        AcademicDbContext db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        await DeferExistingJobsAsync(db);
+        BulkCollectionService bulk = scope.ServiceProvider.GetRequiredService<BulkCollectionService>();
+        BulkCollectionSubmitRequest request = new()
+        {
+            BatchId = Guid.NewGuid(),
+            Researchers = [new() { PersonelId = personelId, ScopusId = scopusId }]
+        };
+
+        await bulk.SubmitAsync(request);
+        Assert.True(await scope.ServiceProvider.GetRequiredService<BulkJobProcessor>().ProcessNextAsync());
+        BulkCollectionStatusResponse status = await bulk.GetStatusAsync(new() { BatchId = request.BatchId });
+        db.ChangeTracker.Clear();
+
+        Assert.Equal(BulkJobStatus.Succeeded, status.Jobs.Single().Status);
+        AcademicWork work = await db.AcademicWorks.SingleAsync(item =>
+            item.PersonelId == personelId && item.Provider == AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models.AcademicWorkProvider.Scopus);
+        Assert.Equal("2-s2.0-" + workId, work.SourceId);
+        Assert.Equal("10.5555/scopus-bulk", work.Doi);
+        Assert.True(await db.CanonicalWorks.AnyAsync(item => item.NormalizedDoi == "10.5555/scopus-bulk"));
+        Assert.True(await db.ScopusProfiles.AnyAsync(item => item.PersonelId == personelId && item.HIndex == 2));
     }
 
     [Fact]
@@ -629,6 +674,45 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
         Assert.Equal(1, statusJson.GetProperty("Jobs")[0].GetProperty("Warnings").GetArrayLength());
     }
 
+    [Fact]
+    public async Task Api_InvalidSubmitAndUnknownStatus_ReturnStructuredErrors()
+    {
+        using var host = new HostProcess(fixture.ConnectionString);
+        await host.WaitUntilReadyAsync();
+
+        using HttpResponseMessage invalidSubmit = await host.Client.PostAsJsonAsync(
+            "/Services/AcademicPerformance/V1/Bulk/Submit",
+            new { BatchId = Guid.Empty, Researchers = Array.Empty<object>() });
+        Assert.Equal(HttpStatusCode.BadRequest, invalidSubmit.StatusCode);
+        JsonElement invalidSubmitBody = await invalidSubmit.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(invalidSubmitBody.TryGetProperty("Error", out JsonElement submitError),
+            invalidSubmitBody.GetRawText());
+        Assert.Contains("stable, non-empty BatchId", submitError.GetProperty("Message").GetString());
+
+        using HttpResponseMessage emptyBatch = await host.Client.PostAsJsonAsync(
+            "/Services/AcademicPerformance/V1/Bulk/Submit",
+            new { BatchId = Guid.NewGuid(), Researchers = Array.Empty<object>() });
+        Assert.Equal(HttpStatusCode.BadRequest, emptyBatch.StatusCode);
+        JsonElement emptyBatchBody = await emptyBatch.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains("between 1 and", emptyBatchBody.GetProperty("Error")
+            .GetProperty("Message").GetString());
+
+        using HttpResponseMessage invalidImport = await host.Client.PostAsJsonAsync(
+            "/Services/AcademicPerformance/V1/Bulk/ImportSql", new { BatchId = Guid.Empty });
+        Assert.Equal(HttpStatusCode.BadRequest, invalidImport.StatusCode);
+        JsonElement invalidImportBody = await invalidImport.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains("stable, non-empty BatchId", invalidImportBody.GetProperty("Error")
+            .GetProperty("Message").GetString());
+
+        using HttpResponseMessage unknownStatus = await host.Client.PostAsJsonAsync(
+            "/Services/AcademicPerformance/V1/Bulk/Status", new { BatchId = Guid.NewGuid() });
+        Assert.Equal(HttpStatusCode.BadRequest, unknownStatus.StatusCode);
+        JsonElement unknownStatusBody = await unknownStatus.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(unknownStatusBody.TryGetProperty("Error", out JsonElement statusError),
+            unknownStatusBody.GetRawText());
+        Assert.Equal("Batch not found.", statusError.GetProperty("Message").GetString());
+    }
+
     private ServiceProvider BuildServices(FakeApplicationService service, Dictionary<string, string?>? extra = null)
     {
         var settings = extra ?? [];
@@ -641,6 +725,50 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
         services.AddSingleton(configuration);
         services.AddAcademicPerformanceModule(configuration);
         services.AddSingleton<IAcademicPerformanceApplicationService>(service);
+        return services.BuildServiceProvider();
+    }
+
+    [Fact]
+    public async Task SubmitAsync_SharedScopusIdAcrossPersonnel_RejectsBothRows()
+    {
+        using IServiceScope scope = fixture.Services.CreateScope();
+        BulkCollectionSubmitRequest request = new()
+        {
+            BatchId = Guid.NewGuid(),
+            Researchers =
+            [
+                new() { PersonelId = "scopus-conflict-a", ScopusId = "57200000001" },
+                new() { PersonelId = "scopus-conflict-b", ScopusId = " 57200000001 " }
+            ]
+        };
+
+        BulkCollectionStatusResponse result = await scope.ServiceProvider
+            .GetRequiredService<BulkCollectionService>().SubmitAsync(request);
+
+        Assert.Equal(2, result.Counts[BulkJobStatus.Rejected]);
+        Assert.All(result.Jobs, job => Assert.Equal(BulkJobStatus.Rejected, job.Status));
+    }
+
+    private ServiceProvider BuildScopusServices(HttpMessageHandler handler)
+    {
+        IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:AcademicDatabase"] = fixture.ConnectionString,
+                ["BulkCollection:MaximumAttempts"] = "1",
+                ["BulkCollection:WorkerEnabled"] = "false",
+                ["Scopus:ApiBaseUrl"] = "https://scopus.test/content/",
+                ["Scopus:ApiKey"] = "bulk-scopus-key",
+                ["Scopus:InstToken"] = "bulk-inst-token",
+                ["ProviderRequestLimits:Crossref:Enabled"] = "false",
+                ["ProviderRequestLimits:Unpaywall:Enabled"] = "false",
+                ["ProviderRequestLimits:SemanticScholar:Enabled"] = "false"
+            }).Build();
+        ServiceCollection services = new();
+        services.AddLogging();
+        services.AddSingleton(configuration);
+        services.AddAcademicPerformanceModule(configuration);
+        services.AddSingleton(new HttpClient(handler));
         return services.BuildServiceProvider();
     }
 
@@ -672,6 +800,7 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
                     PersonelId = request.PersonelId,
                     OrcidProfile = request.Orcid is null ? null : new(),
                     OpenAlexProfile = request.Orcid is null ? null : new(),
+                    ScopusProfile = request.ScopusId is null ? null : new(),
                     GoogleScholarProfile = request.GoogleScholarId is null ? null : new(),
                     WebOfScienceProfile = request.WebOfScienceResearcherId is null ? null : new()
                 },

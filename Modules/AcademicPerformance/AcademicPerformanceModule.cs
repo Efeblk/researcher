@@ -11,6 +11,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimitin
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.SemanticScholar;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Collection;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Persistence;
@@ -54,6 +55,7 @@ public static class AcademicPerformanceModule
         services.AddTransient<OrcidClient>();
         services.AddTransient<GoogleScholarClient>();
         services.AddTransient<OpenAlexClient>();
+        services.AddTransient<ScopusClient>();
         services.AddTransient<WebOfScienceClient>();
         services.AddTransient<YoksisClient>();
         services.AddTransient<TrDizinClient>();
@@ -90,6 +92,7 @@ public static class AcademicPerformanceModule
             ("Orcid", "Orcid:ApiBaseUrl", "https://pub.orcid.org/v3.0"),
             ("SearchApi", "SearchApi:ApiBaseUrl", "https://www.searchapi.io/api/v1/search"),
             ("OpenAlex", "OpenAlex:ApiBaseUrl", "https://api.openalex.org"),
+            ("Scopus", "Scopus:ApiBaseUrl", "https://api.elsevier.com/content/"),
             ("WebOfScience", "WebOfScience:ApiBaseUrl", "https://api.clarivate.com/apis/wos-starter/v1"),
             ("Yoksis", "Yoksis:ServiceUrl", "https://servisler.yok.gov.tr/ws/OzgecmisV2"),
             ("TrDizin", "TrDizin:ApiBaseUrl", "https://search.trdizin.gov.tr"),
@@ -98,8 +101,10 @@ public static class AcademicPerformanceModule
         })
         {
             int interval = configuration.GetValue($"ProviderRequestLimits:{name}:MinimumIntervalMilliseconds", 1000);
-            int dailyLimit = configuration.GetValue($"ProviderRequestLimits:{name}:DailyRequestLimit", 0);
-            if (interval is < 1 or > 60000 || dailyLimit < 0)
+            int dailyLimit = ProviderRequestPolicy.GetEffectiveDailyRequestLimit(configuration, name);
+            int rateLimitCooldownSeconds = configuration.GetValue(
+                $"ProviderRequestLimits:{name}:RateLimitCooldownSeconds", 0);
+            if (interval is < 1 or > 60000 || dailyLimit < 0 || rateLimitCooldownSeconds is < 0 or > 3600)
                 throw new InvalidOperationException($"Invalid request limits for {name}.");
             policies.Add(new()
             {
@@ -107,7 +112,8 @@ public static class AcademicPerformanceModule
                 Name = name,
                 Host = new Uri(configuration[key] ?? defaultUrl).Host,
                 MinimumIntervalMilliseconds = interval,
-                DailyRequestLimit = dailyLimit
+                DailyRequestLimit = dailyLimit,
+                RateLimitCooldownSeconds = rateLimitCooldownSeconds
             });
         }
         ProviderRateLimitHandler handler = new(

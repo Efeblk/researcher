@@ -83,6 +83,25 @@ public sealed class ProviderStatusSummaryMapperTests
     }
 
     [Fact]
+    public void Map_ScopusSearchQuota_ExposesVerifiedWeeklyHeaderValues()
+    {
+        ProviderStatusDto provider = ProviderWithQuota();
+        provider.Provider = "Scopus";
+        provider.ProviderQuotas[0].Source = "ResponseHeaders";
+        provider.ProviderQuotas[0].Scope = "api-key";
+        provider.ProviderQuotas[0].Unit = "requests";
+        provider.ProviderQuotas[0].Window = "week";
+        provider.ProviderQuotas[0].SourceFields =
+            "X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset";
+
+        ProviderQuotaSummaryDto quota = Assert.Single(Map(provider).Quotas);
+
+        Assert.Equal(100, quota.Limit);
+        Assert.Equal(70, quota.Remaining);
+        Assert.Equal("weekly", quota.Period);
+    }
+
+    [Fact]
     public void Map_Health_ExpiresOrcidReportAndUsesReachabilityForOtherProviders()
     {
         ProviderStatusDto orcid = new()

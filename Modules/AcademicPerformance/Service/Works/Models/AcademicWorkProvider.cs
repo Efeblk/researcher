@@ -9,5 +9,6 @@ public enum AcademicWorkProvider
     Legacy = 4,
     OpenAlex = 5,
     TrDizin = 6,
-    Crossref = 7
+    Crossref = 7,
+    Scopus = 8
 }

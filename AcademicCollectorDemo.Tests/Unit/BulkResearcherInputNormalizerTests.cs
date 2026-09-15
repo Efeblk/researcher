@@ -77,15 +77,15 @@ public sealed class BulkResearcherInputNormalizerTests
     }
 
     [Fact]
-    public void Normalize_ScopusOnly_DoesNotMutateOriginalAndRejectsUnsupportedProvider()
+    public void Normalize_ScopusOnly_NormalizesAndAcceptsProvider()
     {
         var input = Input();
-        input.ScopusId = "raw-scopus-value";
+        input.ScopusId = " 57200000001 ";
         var result = _normalizer.Normalize(input);
-        Assert.Equal("raw-scopus-value", result.Input.ScopusId);
-        Assert.NotNull(result.RejectionReason);
-        Assert.Contains(result.Warnings, warning => warning.StartsWith("Scopus ID:"));
-        Assert.Equal("raw-scopus-value", input.ScopusId);
+        Assert.Equal("57200000001", result.Input.ScopusId);
+        Assert.Null(result.RejectionReason);
+        Assert.Empty(result.Warnings);
+        Assert.Equal(" 57200000001 ", input.ScopusId);
     }
 
     [Fact]
