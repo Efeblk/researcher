@@ -26,10 +26,26 @@ public sealed class YoksisClient
         _configuration = configuration;
     }
 
+    internal void ValidateConfiguration()
+    {
+        try
+        {
+            GetCredentials();
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw new YoksisProviderException(
+                "YÖKSİS kullanıcı adı veya parolası yapılandırılmamış.",
+                stopsCollection: true,
+                exception);
+        }
+    }
+
     internal Task<YoksisOperationResult> GetAsync(
         YoksisOperationDefinition operation,
         string tcKimlikNo,
-        DateTime? updatedAfter)
+        DateTime? updatedAfter,
+        CancellationToken cancellationToken = default)
     {
         XDocument? envelope = CreateEnvelope(
             operation.RequestElementName,
@@ -37,14 +53,15 @@ public sealed class YoksisClient
             updatedAfter,
             eserId: null);
 
-        return SendAsync(operation, envelope, tcKimlikNo);
+        return SendAsync(operation, envelope, tcKimlikNo, cancellationToken);
     }
 
     internal Task<YoksisOperationResult> GetDetailAsync(
         YoksisOperationDefinition operation,
         string tcKimlikNo,
         string eserId,
-        DateTime? updatedAfter)
+        DateTime? updatedAfter,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(operation.DetailOperationName) ||
             string.IsNullOrWhiteSpace(operation.DetailRequestElementName) ||
@@ -66,13 +83,15 @@ public sealed class YoksisClient
                 operation.DetailOperationName,
                 operation.DetailRequestElementName),
             envelope,
-            tcKimlikNo);
+            tcKimlikNo,
+            cancellationToken);
     }
 
     private async Task<YoksisOperationResult> SendAsync(
         YoksisOperationDefinition operation,
         XDocument envelope,
-        string tcKimlikNo)
+        string tcKimlikNo,
+        CancellationToken cancellationToken)
     {
         string? responseXml = null;
         string? safeError = null;
@@ -93,12 +112,44 @@ public sealed class YoksisClient
                 Encoding.UTF8,
                 "text/xml");
 
-            response = await _httpClient.SendAsync(request);
-            responseXml = await response.Content.ReadAsStringAsync();
+            int timeoutSeconds = _configuration.GetValue("Yoksis:RequestTimeoutSeconds", 100);
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(
+                Math.Clamp(timeoutSeconds, 5, 100)));
+            using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken, timeout.Token);
+            try
+            {
+                response = await _httpClient.SendAsync(request, linked.Token);
+                responseXml = await response.Content.ReadAsStringAsync(linked.Token);
+            }
+            catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new YoksisProviderException(
+                    "YÖKSİS isteği zaman aşımına uğradı; sonraki istekler gönderilmedi.",
+                    stopsCollection: true,
+                    exception);
+            }
 
             if (!response.IsSuccessStatusCode)
             {
                 safeError = GetSafeErrorMessage(responseXml, tcKimlikNo);
+                bool localDeferral = response.Headers.Contains("X-Academic-Local-Deferral");
+                bool disabled = response.Headers.Contains("X-Academic-Provider-Disabled");
+                bool stopsCollection = localDeferral || disabled ||
+                    response.StatusCode is System.Net.HttpStatusCode.Unauthorized or
+                        System.Net.HttpStatusCode.Forbidden or
+                        System.Net.HttpStatusCode.TooManyRequests;
+                if (stopsCollection)
+                {
+                    string message = localDeferral
+                        ? "YÖKSİS için bekleme süresi dolmadı. Daha sonra tekrar deneyin."
+                        : disabled
+                            ? "YÖKSİS istekleri yerel yapılandırmada devre dışı."
+                            : response.StatusCode == System.Net.HttpStatusCode.TooManyRequests
+                                ? "YÖKSİS istek sınırına ulaşıldı. Daha sonra tekrar deneyin."
+                                : "YÖKSİS erişimi reddedildi. Bağlantı ayarlarını kontrol edin.";
+                    throw new YoksisProviderException(message, stopsCollection: true);
+                }
                 throw new HttpRequestException(
                     $"YÖKSİS SOAP servisi {(int)response.StatusCode} " +
                     $"({response.ReasonPhrase}) döndürdü: {safeError}",

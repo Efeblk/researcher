@@ -12,6 +12,7 @@
   "OpenAlex": {
     "ApiBaseUrl": "https://api.openalex.org",
     "ApiKey": "",
+    "MaximumResponseBytes": 8388608,
     "MaximumPages": 100
   },
   "Scopus": {

@@ -1,4 +1,4 @@
-import { addLocalText, serviceRequest } from "@serenity-is/corelib";
+import { addLocalText, resolveUrl, serviceRequest } from "@serenity-is/corelib";
 import type { ResearcherCollectResponse, ResearcherMetricsResponse, YoksisCollectResponse } from "../../Contracts/AcademicPerformanceContracts";
 import { PublicationSummaryGrid } from "../../Publications/PublicationSummaryGrid";
 import { restoreProviderIdentifiers } from "./ProviderIdentifiers";
@@ -15,6 +15,8 @@ import {
 } from "./ResearcherSummaryPanels";
 import { describeYoksisOutcome, type ResearchOutcomeKind } from "./YoksisFeedback";
 import { describeProviderOutcome } from "./ProviderFeedback";
+import { collectYoksisStream, getYoksisConnectionSilenceSeconds,
+    YoksisStreamError, type YoksisProgressEvent } from "./YoksisProgressStream";
 
 const providerIdentifierStorageKey = "AcademicPerformance.ProviderIdentifiers.v1";
 
@@ -29,7 +31,11 @@ const saveSelectionsButton = document.querySelector<HTMLButtonElement>(
     "#SavePublicationSelections");
 const selectionCount = document.querySelector<HTMLElement>("#SelectionCount");
 const selectionStatus = document.querySelector<HTMLElement>("#SelectionStatus");
+const yoksisProgress = document.querySelector<HTMLElement>("#YoksisProgress");
+const yoksisProgressMessage = document.querySelector<HTMLElement>("#YoksisProgressMessage");
+const yoksisProgressElapsed = document.querySelector<HTMLElement>("#YoksisProgressElapsed");
 let researchBusy = false;
+let lastYoksisProgressMessage = "";
 initializeAcademicMetricsOverview();
 addLocalText({
     Controls: {
@@ -135,6 +141,34 @@ function updateSelectionCount(count: number) {
         selectionCount.textContent = `${count.toLocaleString("tr-TR")} yayın seçildi`;
 }
 
+function showYoksisProgress(event?: YoksisProgressEvent) {
+    if (!yoksisProgress || !yoksisProgressMessage || !yoksisProgressElapsed)
+        return;
+    if (!event) {
+        yoksisProgress.hidden = true;
+        lastYoksisProgressMessage = "";
+        return;
+    }
+    yoksisProgress.hidden = false;
+    const staleSeconds = event.LastProgressElapsedSeconds ?? 0;
+    const connectionSilent = event.Stage === "connection-silent";
+    const stalled = connectionSilent || (event.Type === "heartbeat" && staleSeconds >= 30);
+    yoksisProgress.classList.toggle("stalled", stalled);
+    const currentPhase = lastYoksisProgressMessage || "YÖKSİS işlemi sürüyor.";
+    if (event.Type !== "heartbeat" && event.Message)
+        lastYoksisProgressMessage = event.Message;
+    yoksisProgressMessage.textContent = connectionSilent
+        ? `${currentPhase} Sunucudan ${Math.round(staleSeconds)} saniyedir durum bilgisi alınamıyor.`
+        : stalled
+        ? `${currentPhase} Son işlem ilerlemesi ${Math.round(staleSeconds)} saniye önceydi.`
+        : event.Type === "heartbeat"
+            ? `${currentPhase} Sunucu bağlantısı etkin.`
+            : event.Message ?? "YÖKSİS işlemi sürüyor.";
+    yoksisProgressElapsed.textContent = event.ElapsedSeconds == null
+        ? ""
+        : `Geçen süre: ${Math.round(event.ElapsedSeconds)} saniye`;
+}
+
 function setSelectionControlsEnabled(enabled: boolean) {
     if (saveSelectionsButton)
         saveSelectionsButton.disabled = !enabled || researchBusy;
@@ -209,8 +243,10 @@ form?.addEventListener("submit", async event => {
 
     try {
         clearResearcherResults();
+        showYoksisProgress(undefined);
         grid.setResearcher(personelId, personelId);
-        publicationPoller.start();
+        if (identifiers.length)
+            publicationPoller.start();
         showStatus(
             "info",
             "Akademik sağlayıcılar araştırılıyor. Yeni bir akademisyene geçmek için “Yeni Akademisyen” düğmesini kullanabilirsiniz.");
@@ -294,17 +330,42 @@ form?.addEventListener("submit", async event => {
 
         if (tcKimlikNo) {
             try {
+                publicationPoller.stop();
                 showStatus("info", "YÖKSİS verileri araştırılıyor...");
-                const response = await serviceRequest<YoksisCollectResponse>(
-                    "AcademicPerformance/V1/Yoksis/Collect",
+                showSelectionStatus("info",
+                    "YÖKSİS kayıtları toplama tamamlanınca veritabanına yazılacak.");
+                let lastStreamEventAt = Date.now();
+                const streamStartedAt = lastStreamEventAt;
+                const connectionTimer = globalThis.setInterval(() => {
+                    if (!requestCoordinator.isCurrent(run))
+                        return;
+                    const silentSeconds = getYoksisConnectionSilenceSeconds(
+                        lastStreamEventAt, Date.now());
+                    if (silentSeconds)
+                        showYoksisProgress({
+                            Type: "heartbeat",
+                            Stage: "connection-silent",
+                            ElapsedSeconds: (Date.now() - streamStartedAt) / 1000,
+                            LastProgressElapsedSeconds: silentSeconds
+                        });
+                }, 1000);
+                const response = await collectYoksisStream(
                     {
                         PersonelID: linkedPersonelId || personelId,
                         TcKimlikNo: tcKimlikNo,
                         IncludeRecords: false,
                         IncludeRawResponses: false
                     },
-                    undefined,
-                    { blockUI: false, errorMode: "none", signal: run.signal });
+                    run.signal,
+                    event => {
+                        if (!requestCoordinator.isCurrent(run))
+                            return;
+                        lastStreamEventAt = Date.now();
+                        showYoksisProgress(event);
+                        if (event.Type === "result" || event.Type === "error")
+                            globalThis.clearInterval(connectionTimer);
+                    }, globalThis.fetch, resolveUrl("~/Services/AcademicPerformance/V1/Yoksis/CollectStream"))
+                    .finally(() => globalThis.clearInterval(connectionTimer));
 
                 if (!requestCoordinator.isCurrent(run))
                     return;
@@ -331,11 +392,15 @@ form?.addEventListener("submit", async event => {
                 else if (outcome.kind === "error")
                     errors.push(outcome.message);
             }
-            catch {
+            catch (error) {
                 if (!requestCoordinator.isCurrent(run))
                     return;
 
-                errors.push("YÖKSİS verileri alınamadı. Lütfen tekrar deneyin.");
+                const safeMessage = error instanceof YoksisStreamError
+                    ? error.message
+                    : "YÖKSİS verileri alınamadı. Lütfen tekrar deneyin.";
+                showYoksisProgress({ Type: "error", Stage: "failed", Message: safeMessage });
+                errors.push(safeMessage);
             }
         }
 
@@ -416,6 +481,7 @@ form?.addEventListener("submit", async event => {
 newResearcherButton?.addEventListener("click", () => {
     requestCoordinator.cancel();
     publicationPoller.stop();
+    showYoksisProgress(undefined);
     setResearchButtonsEnabled(true);
     form?.reset();
     clearResearcherResults();
