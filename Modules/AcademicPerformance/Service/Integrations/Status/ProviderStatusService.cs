@@ -18,7 +18,7 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private ProviderStatusResponse? _cached = null;
-    private static readonly (string Name, string Key, string Url)[] Providers =
+    internal static readonly (string Name, string Key, string Url)[] ProviderDefinitions =
     [
         ("Orcid", "Orcid:ApiBaseUrl", "https://pub.orcid.org/v3.0"),
         ("SearchApi", "SearchApi:ApiBaseUrl", "https://www.searchapi.io/api/v1/search"),
@@ -42,7 +42,7 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
                 RefreshRemainingUsage(_cached, DateTime.UtcNow);
                 return _cached;
             }
-            ProviderStatusDto[] results = await Task.WhenAll(Providers.Select(provider => provider.Name == "Orcid"
+            ProviderStatusDto[] results = await Task.WhenAll(ProviderDefinitions.Select(provider => provider.Name == "Orcid"
                 ? CheckOrcidAsync(configuration[provider.Key] ?? provider.Url, cancellationToken)
                 : CheckAsync(provider.Name, configuration[provider.Key] ?? provider.Url, cancellationToken)));
             DateTime budgetAt = DateTime.UtcNow;

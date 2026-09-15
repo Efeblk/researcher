@@ -9,6 +9,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.SemanticScholar;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Status;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
@@ -88,19 +89,20 @@ public static class AcademicPerformanceModule
     private static HttpClient CreateHttpClient(IConfiguration configuration,
         ILogger<ProviderRateLimitHandler> logger)
     {
-        List<ProviderRequestPolicy> policies = [];
-        foreach (var (name, key, defaultUrl) in new[]
+        ProviderRateLimitHandler handler = new(
+            configuration.GetConnectionString("AcademicDatabase")!, CreateRequestPolicies(configuration), logger)
         {
-            ("Orcid", "Orcid:ApiBaseUrl", "https://pub.orcid.org/v3.0"),
-            ("SearchApi", "SearchApi:ApiBaseUrl", "https://www.searchapi.io/api/v1/search"),
-            ("OpenAlex", "OpenAlex:ApiBaseUrl", "https://api.openalex.org"),
-            ("Scopus", "Scopus:ApiBaseUrl", "https://api.elsevier.com/content/"),
-            ("WebOfScience", "WebOfScience:ApiBaseUrl", "https://api.clarivate.com/apis/wos-starter/v1"),
-            ("Yoksis", "Yoksis:ServiceUrl", "https://servisler.yok.gov.tr/ws/OzgecmisV2"),
-            ("TrDizin", "TrDizin:ApiBaseUrl", "https://search.trdizin.gov.tr"),
-            ("Crossref", "Crossref:ApiBaseUrl", "https://api.crossref.org"),
-            ("SemanticScholar", "SemanticScholar:ApiBaseUrl", "https://api.semanticscholar.org/graph/v1")
-        })
+            InnerHandler = new HttpClientHandler { AllowAutoRedirect = false }
+        };
+        HttpClient httpClient = new(handler);
+        httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("AcademicCollectorDemo/0.1");
+        return httpClient;
+    }
+
+    internal static IReadOnlyList<ProviderRequestPolicy> CreateRequestPolicies(IConfiguration configuration)
+    {
+        List<ProviderRequestPolicy> policies = [];
+        foreach (var (name, key, defaultUrl) in ProviderStatusService.ProviderDefinitions)
         {
             int interval = configuration.GetValue($"ProviderRequestLimits:{name}:MinimumIntervalMilliseconds", 1000);
             int dailyLimit = ProviderRequestPolicy.GetEffectiveDailyRequestLimit(configuration, name);
@@ -118,13 +120,6 @@ public static class AcademicPerformanceModule
                 RateLimitCooldownSeconds = rateLimitCooldownSeconds
             });
         }
-        ProviderRateLimitHandler handler = new(
-            configuration.GetConnectionString("AcademicDatabase")!, policies, logger)
-        {
-            InnerHandler = new HttpClientHandler { AllowAutoRedirect = false }
-        };
-        HttpClient httpClient = new(handler);
-        httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("AcademicCollectorDemo/0.1");
-        return httpClient;
+        return policies;
     }
 }
