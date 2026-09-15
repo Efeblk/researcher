@@ -3,6 +3,9 @@ import type { ResearcherCollectResponse, YoksisCollectResponse } from "../../Con
 import { PublicationSummaryGrid } from "../../Publications/PublicationSummaryGrid";
 import { restoreProviderIdentifiers } from "./ProviderIdentifiers";
 import {
+    PublicationRefreshPoller, ResearchRequestCoordinator
+} from "./ResearchRequestCoordinator";
+import {
     initializeAcademicMetricsOverview, showAcademicMetricsOverview
 } from "./AcademicMetricsOverview";
 import {
@@ -16,11 +19,14 @@ const form = document.querySelector<HTMLFormElement>("#ResearcherSearchForm");
 const researchButton = document.querySelector<HTMLButtonElement>("#ResearchButton");
 const myPublicationsButton = document.querySelector<HTMLButtonElement>(
     "#MyPublicationsButton");
+const newResearcherButton = document.querySelector<HTMLButtonElement>(
+    "#NewResearcherButton");
 const researchStatus = document.querySelector<HTMLElement>("#ResearchStatus");
 const saveSelectionsButton = document.querySelector<HTMLButtonElement>(
     "#SavePublicationSelections");
 const selectionCount = document.querySelector<HTMLElement>("#SelectionCount");
 const selectionStatus = document.querySelector<HTMLElement>("#SelectionStatus");
+let researchBusy = false;
 initializeAcademicMetricsOverview();
 addLocalText({
     Controls: {
@@ -41,8 +47,16 @@ addLocalText({
 const grid = new PublicationSummaryGrid("#PublicationGrid", {
     onCountChanged: updateSelectionCount,
     onControlsEnabled: setSelectionControlsEnabled,
-    onError: message => showSelectionStatus("error", message)
+    onError: message => showSelectionStatus("error", message),
+    onLoading: () => {
+        if (!researchBusy && !grid.hasSelectionLoadError())
+            showSelectionStatus("info", "Yayınlar güncelleniyor...");
+    },
+    onPublicationsChanged: showPublicationState
 });
+const requestCoordinator = new ResearchRequestCoordinator();
+const publicationPoller = new PublicationRefreshPoller(
+    () => grid.refreshPublications());
 
 function valueOf(id: string) {
     return document.querySelector<HTMLInputElement>(`#${id}`)?.value.trim() ?? "";
@@ -84,8 +98,6 @@ function fillRememberedProviderIdentifiers() {
     }
     return restoreProviderIdentifiers(getProviderIdentifierInputs(), storedValue);
 }
-
-let researchBusy = false;
 
 function setResearchButtonsEnabled(enabled: boolean) {
     researchBusy = !enabled;
@@ -129,16 +141,49 @@ function getErrorMessage(error: unknown) {
     return error instanceof Error ? error.message : String(error);
 }
 
+function showPublicationState(count: number) {
+    if (grid.hasSelectionLoadError())
+        return;
+
+    if (researchBusy) {
+        showSelectionStatus(
+            "info",
+            count > 0
+                ? `Araştırma sürüyor. Şu ana kadar ${count.toLocaleString("tr-TR")} yayın bulundu; yeni yayınlar otomatik eklenecek.`
+                : "Araştırma sürüyor. Yayınlar bulundukça bu listeye otomatik eklenecek.");
+        return;
+    }
+
+    showSelectionStatus(
+        "info",
+        count > 0
+            ? grid.canSaveSelections()
+                ? `${count.toLocaleString("tr-TR")} yayın listelendi. Okulda gösterilecek yayınları seçebilirsiniz.`
+                : `${count.toLocaleString("tr-TR")} yayın listelendi. Kayıtlı seçimler hazırlanıyor...`
+            : "Bu akademisyen için henüz yayın bulunamadı. Farklı bir kimlikle yeniden araştırabilirsiniz.");
+}
+
+function clearResearcherResults() {
+    grid.setResearcher("");
+    showProfileSummary(undefined);
+    showGoogleScholarSummary(undefined);
+    showOpenAlexSummary(undefined);
+    showWebOfScienceSummary(undefined);
+    showAcademicMetricsOverview(undefined);
+    showProviderComparison(undefined);
+    showYoksisSummary(undefined);
+}
+
 form?.addEventListener("submit", async event => {
     event.preventDefault();
     if (researchBusy)
         return;
 
-    const identifiers = [
-        valueOf("Orcid"),
-        valueOf("GoogleScholarId"),
-        valueOf("WebOfScienceResearcherId")
-    ].filter(Boolean);
+    const orcid = valueOf("Orcid");
+    const googleScholarId = valueOf("GoogleScholarId");
+    const webOfScienceResearcherId = valueOf("WebOfScienceResearcherId");
+    const identifiers = [orcid, googleScholarId, webOfScienceResearcherId]
+        .filter(Boolean);
     const tcKimlikNo = valueOf("TcKimlikNo");
     const personelId = valueOf("PersonelId");
 
@@ -160,22 +205,25 @@ form?.addEventListener("submit", async event => {
         return;
     }
 
+    const run = requestCoordinator.begin();
     setResearchButtonsEnabled(false);
-    await grid.setResearcher("");
-    showProfileSummary(undefined);
-    showGoogleScholarSummary(undefined);
-    showOpenAlexSummary(undefined);
-    showWebOfScienceSummary(undefined);
-    showAcademicMetricsOverview(undefined);
-    showProviderComparison(undefined);
-    showYoksisSummary(undefined);
-    showStatus("info", "Akademik sağlayıcılar araştırılıyor. Bu işlem biraz sürebilir...");
 
     try {
+        clearResearcherResults();
+        grid.setResearcher(personelId, personelId);
+        publicationPoller.start();
+        showStatus(
+            "info",
+            "Akademik sağlayıcılar araştırılıyor. Yeni bir akademisyene geçmek için “Yeni Akademisyen” düğmesini kullanabilirsiniz.");
+        showSelectionStatus(
+            "info",
+            "Araştırma sürüyor. Yayınlar bulundukça bu listeye otomatik eklenecek.");
+
         const statusMessages: string[] = [];
         const errors: string[] = [];
         let hasSuccessfulResult = false;
         let linkedPersonelId = "";
+        let researcherDisplayName = "";
 
         if (identifiers.length) {
             try {
@@ -183,16 +231,21 @@ form?.addEventListener("submit", async event => {
                     "AcademicPerformance/V1/Collect",
                     {
                         PersonelID: personelId,
-                        ORCID: valueOf("Orcid") || undefined,
-                        ScholarID: valueOf("GoogleScholarId") || undefined,
-                        ResearcherID:
-                            valueOf("WebOfScienceResearcherId") || undefined
-                    });
+                        ORCID: orcid || undefined,
+                        ScholarID: googleScholarId || undefined,
+                        ResearcherID: webOfScienceResearcherId || undefined
+                    },
+                    undefined,
+                    { blockUI: false, errorMode: "none", signal: run.signal });
+
+                if (!requestCoordinator.isCurrent(run))
+                    return;
+
                 const savedPersonelId = response.Researcher?.PersonelID ?? "";
                 const messages = (response.Messages ?? []).filter(Boolean).join("\n");
 
                 if (response.IsSaved && savedPersonelId) {
-                    const displayName = [
+                    researcherDisplayName = [
                         response.Researcher?.FirstName,
                         response.Researcher?.LastName
                     ].filter(Boolean).join(" ") ||
@@ -211,7 +264,9 @@ form?.addEventListener("submit", async event => {
                     showWebOfScienceSummary(response.Researcher);
                     showAcademicMetricsOverview(response.Researcher);
                     showProviderComparison(response.Researcher);
-                    await grid.setResearcher(savedPersonelId, displayName);
+
+                    if (grid.getResearcherId() !== savedPersonelId)
+                        grid.setResearcher(savedPersonelId, researcherDisplayName);
                 }
                 else {
                     errors.push(
@@ -220,6 +275,9 @@ form?.addEventListener("submit", async event => {
                 }
             }
             catch (error) {
+                if (!requestCoordinator.isCurrent(run))
+                    return;
+
                 errors.push(
                     `Yayın araştırması tamamlanamadı: ${getErrorMessage(error)}`);
             }
@@ -234,7 +292,13 @@ form?.addEventListener("submit", async event => {
                         TcKimlikNo: tcKimlikNo,
                         IncludeRecords: false,
                         IncludeRawResponses: false
-                    });
+                    },
+                    undefined,
+                    { blockUI: false, errorMode: "none", signal: run.signal });
+
+                if (!requestCoordinator.isCurrent(run))
+                    return;
+
                 const successfulCount = response.SuccessfulCategoryCount ?? 0;
                 const failedCount = response.FailedCategoryCount ?? 0;
                 const savedPersonelId = response.PersonelID ?? "";
@@ -243,6 +307,7 @@ form?.addEventListener("submit", async event => {
 
                 if (response.IsSaved && savedPersonelId) {
                     linkedPersonelId = savedPersonelId;
+                    researcherDisplayName = response.ResearcherDisplayName ?? researcherDisplayName;
                     hasSuccessfulResult = true;
                     statusMessages.push(
                         `YÖKSİS: ${(response.YoksisRecordCount ?? 0)
@@ -251,9 +316,8 @@ form?.addEventListener("submit", async event => {
                             .toLocaleString("tr-TR")} yayın kaydedildi, ` +
                         `${(response.PublicationSummaryCount ?? 0)
                             .toLocaleString("tr-TR")} ortak yayın özeti hazırlandı.`);
-                    await grid.setResearcher(
-                        savedPersonelId,
-                        response.ResearcherDisplayName);
+                    if (grid.getResearcherId() !== savedPersonelId)
+                        grid.setResearcher(savedPersonelId, researcherDisplayName);
                 }
                 else if (successfulCount > 0) {
                     errors.push(
@@ -266,10 +330,22 @@ form?.addEventListener("submit", async event => {
                 }
             }
             catch (error) {
+                if (!requestCoordinator.isCurrent(run))
+                    return;
+
                 errors.push(
                     `YÖKSİS sorgusu tamamlanamadı: ${getErrorMessage(error)}`);
             }
         }
+
+        if (!requestCoordinator.isCurrent(run))
+            return;
+
+        if (hasSuccessfulResult && linkedPersonelId)
+            await grid.loadSelections(linkedPersonelId, researcherDisplayName);
+
+        if (!requestCoordinator.isCurrent(run))
+            return;
 
         const combinedMessage = [...statusMessages, ...errors]
             .filter(Boolean)
@@ -283,15 +359,45 @@ form?.addEventListener("submit", async event => {
             showStatus("error", combinedMessage || "Araştırma tamamlanamadı.");
     }
     catch (error) {
-        showStatus("error", `Araştırma tamamlanamadı: ${getErrorMessage(error)}`);
+        if (requestCoordinator.isCurrent(run))
+            showStatus("error", `Araştırma tamamlanamadı: ${getErrorMessage(error)}`);
     }
     finally {
+        if (!requestCoordinator.isCurrent(run))
+            return;
+
+        publicationPoller.stop();
         const tcKimlikInput = document.querySelector<HTMLInputElement>("#TcKimlikNo");
         if (tcKimlikInput)
             tcKimlikInput.value = "";
         setResearchButtonsEnabled(true);
         setSelectionControlsEnabled(grid.canSaveSelections());
+        requestCoordinator.complete(run);
+
+        try {
+            grid.refreshPublications(true);
+        }
+        catch (error) {
+            showSelectionStatus(
+                "error",
+                `Yayın listesi yenilenemedi: ${getErrorMessage(error)}`);
+        }
     }
+});
+
+newResearcherButton?.addEventListener("click", () => {
+    requestCoordinator.cancel();
+    publicationPoller.stop();
+    setResearchButtonsEnabled(true);
+    form?.reset();
+    clearResearcherResults();
+    showStatus(
+        "info",
+        "Yeni akademisyen için PersonelID ve ona ait sağlayıcı kimliklerini girin.");
+    showSelectionStatus(
+        "info",
+        "Bir akademisyen araştırdığınızda bulunan yayınlar burada görünecek.");
+    document.querySelector<HTMLInputElement>("#PersonelId")?.focus();
 });
 
 myPublicationsButton?.addEventListener("click", () => {
@@ -309,11 +415,15 @@ myPublicationsButton?.addEventListener("click", () => {
 });
 
 saveSelectionsButton?.addEventListener("click", async () => {
+    const contextVersion = grid.getContextVersion();
     setSelectionControlsEnabled(false);
     showSelectionStatus("info", "Yayın tercihleri kaydediliyor...");
 
     try {
         const response = await grid.saveApprovals();
+        if (!grid.isContextCurrent(contextVersion))
+            return;
+
         const approvedCount = response.ApprovedCount ?? grid.getApprovedCount();
         updateSelectionCount(approvedCount);
         showSelectionStatus(
@@ -321,13 +431,21 @@ saveSelectionsButton?.addEventListener("click", async () => {
             `${approvedCount.toLocaleString("tr-TR")} yayın okulda gösterilmek üzere kaydedildi.`);
     }
     catch (error) {
+        if (!grid.isContextCurrent(contextVersion))
+            return;
+
         const message = error instanceof Error ? error.message : String(error);
         showSelectionStatus("error", `Yayın tercihleri kaydedilemedi: ${message}`);
     }
     finally {
-        setSelectionControlsEnabled(true);
+        if (grid.isContextCurrent(contextVersion))
+            setSelectionControlsEnabled(true);
     }
 });
+
+showSelectionStatus(
+    "info",
+    "Bir akademisyen araştırdığınızda bulunan yayınlar burada görünecek.");
 
 document.querySelector(".academic-menu-toggle")?.addEventListener("click", () => {
     document.body.classList.toggle("academic-sidebar-open");
