@@ -20,14 +20,14 @@ Every successful V1 `Collect` reconciles canonical links after normalized `Acade
 
 All canonical writers take a transaction-owned SQL Server application lock named as the canonical write gate before changing normalized works. They then take the researcher lock and sorted identity locks. The gate serializes the short database persistence phase to avoid delete/rebuild lock inversion; provider network calls occur before the transaction and do not hold it. Unique database indexes remain the final identity guard. Application lock waits are bounded and every negative SQL result is treated as a failure.
 
-The read-only `GetResearcher` and canonical list actions do not initiate collection or change stored data. Existing summary rows remain nullable after the schema migration until the researcher is collected or rebuilt. The rebuild action uses saved `AcademicWorks` only, performs no provider HTTP request, reconciles canonical membership, and refreshes the summary projection in the same transaction:
+The read-only `GetResearcher` and canonical list actions do not initiate collection or change stored data. During development, reset the disposable database and recollect after this identity-model change. The existing rebuild action remains available for saved-data repair; it performs no provider HTTP request and refreshes canonical membership and the summary projection in one transaction:
 
 ```text
 POST /Services/AcademicPerformance/V1/RebuildCanonicalPublications
 { "PersonelID": "..." }
 ```
 
-During this upgrade, a legacy summary ID and its display approval are retained only when it maps uniquely to one canonical work. A legacy selection that could map to multiple newly split canonical works is removed and must be selected again. DOI-less records from different providers keep their source-scoped canonical identities even when title and year match, so a researcher's displayed summary count can increase after rebuild.
+Summary IDs and approvals remain stable while `CanonicalWorkId` remains the same. A canonical identity change creates a new summary and requires a new display selection. DOI-less records from different providers keep their source-scoped canonical identities even when title and year match, so the displayed summary count may be higher than the old title/year grouping.
 
 Normal individual and bulk collection do not require this repair action.
 

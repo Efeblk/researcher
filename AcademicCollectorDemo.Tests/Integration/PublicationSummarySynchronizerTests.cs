@@ -12,71 +12,6 @@ namespace AcademicCollectorDemo.Tests.Integration;
 public sealed class PublicationSummarySynchronizerTests(SqlServerFixture fixture)
 {
     [Fact]
-    public async Task SyncAsync_LegacySelectedSummaryUniqueMatch_RetainsIdAndApproval()
-    {
-        using var scope = fixture.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
-        string personelId = "legacy-" + Guid.NewGuid().ToString("N");
-        db.Researchers.Add(new() { PersonelId = personelId });
-        db.AcademicWorks.Add(Work(personelId, "Legacy publication", "10.1234/legacy"));
-        await db.SaveChangesAsync();
-        PublicationSummary legacy = new()
-        {
-            PersonelId = personelId, Fingerprint = new string('a', 64),
-            Title = "Legacy publication", Doi = "10.1234/legacy", Sources = "Orcid",
-            UpdatedAt = DateTime.UtcNow
-        };
-        db.PublicationSummaries.Add(legacy);
-        await db.SaveChangesAsync();
-        db.PublicationDisplayApprovals.Add(new()
-        {
-            PersonelId = personelId, PublicationSummaryId = legacy.Id, ApprovedAt = DateTime.UtcNow
-        });
-        await db.SaveChangesAsync();
-        await new CanonicalWorkSynchronizer(db).SyncAsync(personelId);
-
-        Assert.Equal(1, await new PublicationSummarySynchronizer(db).SyncAsync(personelId));
-
-        db.ChangeTracker.Clear();
-        PublicationSummary rebuilt = await db.PublicationSummaries.SingleAsync(value => value.PersonelId == personelId);
-        Assert.Equal(legacy.Id, rebuilt.Id);
-        Assert.NotNull(rebuilt.CanonicalWorkId);
-        Assert.True(await db.PublicationDisplayApprovals.AnyAsync(value => value.PublicationSummaryId == legacy.Id));
-    }
-
-    [Fact]
-    public async Task SyncAsync_LegacySelectedSummaryAmbiguousSplit_RequiresReselection()
-    {
-        using var scope = fixture.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
-        string personelId = "ambiguous-" + Guid.NewGuid().ToString("N");
-        db.Researchers.Add(new() { PersonelId = personelId });
-        db.AcademicWorks.AddRange(
-            Work(personelId, "Same publication", "10.1234/first"),
-            Work(personelId, "Same publication", "10.1234/second"));
-        await db.SaveChangesAsync();
-        PublicationSummary legacy = new()
-        {
-            PersonelId = personelId, Fingerprint = new string('b', 64),
-            Title = "Same publication", PublicationYear = 2025, Sources = "Orcid",
-            UpdatedAt = DateTime.UtcNow
-        };
-        db.PublicationSummaries.Add(legacy);
-        await db.SaveChangesAsync();
-        db.PublicationDisplayApprovals.Add(new()
-        {
-            PersonelId = personelId, PublicationSummaryId = legacy.Id, ApprovedAt = DateTime.UtcNow
-        });
-        await db.SaveChangesAsync();
-        await new CanonicalWorkSynchronizer(db).SyncAsync(personelId);
-
-        Assert.Equal(2, await new PublicationSummarySynchronizer(db).SyncAsync(personelId));
-        Assert.False(await db.PublicationDisplayApprovals.AnyAsync(value => value.PersonelId == personelId));
-        Assert.Equal(2, await db.PublicationSummaries.CountAsync(value =>
-            value.PersonelId == personelId && value.CanonicalWorkId != null));
-    }
-
-    [Fact]
     public async Task SyncAsync_SharedDoiAcrossResearchers_CreatesOneCanonicalAndTwoSummaries()
     {
         using var scope = fixture.Services.CreateScope();
@@ -155,7 +90,7 @@ public sealed class PublicationSummarySynchronizerTests(SqlServerFixture fixture
     }
 
     [Fact]
-    public async Task SyncAsync_DoiAdded_PreservesExistingSelection()
+    public async Task SyncAsync_DoiAdded_CreatesSummaryForNewCanonicalIdentity()
     {
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
@@ -175,8 +110,13 @@ public sealed class PublicationSummarySynchronizerTests(SqlServerFixture fixture
         await db.SaveChangesAsync();
         await new CanonicalWorkSynchronizer(db).SyncAsync(researcher.PersonelId);
         await synchronizer.SyncAsync(researcher.PersonelId);
-        Assert.Equal("10.1234/new", summary.Doi);
-        Assert.True(await db.PublicationDisplayApprovals.AnyAsync(x => x.PublicationSummaryId == summary.Id));
+        db.ChangeTracker.Clear();
+        PublicationSummary replacement = await db.PublicationSummaries.SingleAsync(
+            x => x.PersonelId == researcher.PersonelId);
+        Assert.Equal("10.1234/new", replacement.Doi);
+        Assert.NotEqual(summary.Id, replacement.Id);
+        Assert.False(await db.PublicationDisplayApprovals.AnyAsync(
+            x => x.PersonelId == researcher.PersonelId));
     }
 
     [Fact]
@@ -252,7 +192,7 @@ public sealed class PublicationSummarySynchronizerTests(SqlServerFixture fixture
     }
 
     [Fact]
-    public async Task SyncAsync_MergedGroupsChangePreferredTitle_PreservesSelectedSummary()
+    public async Task SyncAsync_MergedCanonicalIdentity_DoesNotTransferSelection()
     {
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
@@ -276,7 +216,10 @@ public sealed class PublicationSummarySynchronizerTests(SqlServerFixture fixture
         await new CanonicalWorkSynchronizer(db).SyncAsync(researcher.PersonelId);
         Assert.Equal(1, await synchronizer.SyncAsync(researcher.PersonelId));
         db.ChangeTracker.Clear();
-        Assert.True(await db.PublicationDisplayApprovals.AnyAsync(x => x.PublicationSummaryId == selected.Id));
-        Assert.Equal("10.1234/merge", (await db.PublicationSummaries.SingleAsync(x => x.PersonelId == researcher.PersonelId)).Doi);
+        Assert.False(await db.PublicationDisplayApprovals.AnyAsync(x => x.PersonelId == researcher.PersonelId));
+        PublicationSummary replacement = await db.PublicationSummaries.SingleAsync(
+            x => x.PersonelId == researcher.PersonelId);
+        Assert.NotEqual(selected.Id, replacement.Id);
+        Assert.Equal("10.1234/merge", replacement.Doi);
     }
 }

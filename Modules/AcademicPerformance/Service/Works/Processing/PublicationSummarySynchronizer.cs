@@ -47,11 +47,9 @@ public sealed class PublicationSummarySynchronizer
                 .GroupBy(value => value.CanonicalWorkId)
                 .ToDictionary(group => group.Key,
                     group => group.Select(value => value.AcademicWork!).ToList());
-            List<DesiredSummary> desired = associations
+            List<PublicationSummary> desired = associations
                 .Where(value => worksByCanonicalId.ContainsKey(value.CanonicalWorkId))
-                .Select(value => new DesiredSummary(
-                    CreateSummary(personelId, value.CanonicalWorkId,
-                        worksByCanonicalId[value.CanonicalWorkId]),
+                .Select(value => CreateSummary(personelId, value.CanonicalWorkId,
                     worksByCanonicalId[value.CanonicalWorkId])).ToList();
             List<PublicationSummary> existing = await _dbContext.PublicationSummaries
                 .Include(value => value.DisplayApproval)
@@ -60,50 +58,24 @@ public sealed class PublicationSummarySynchronizer
 
             Dictionary<int, PublicationSummary> existingByCanonicalId = existing
                 .Where(value => value.CanonicalWorkId.HasValue)
-                .GroupBy(value => value.CanonicalWorkId!.Value)
-                .ToDictionary(group => group.Key, group => group
-                    .OrderByDescending(value => value.DisplayApproval is not null)
-                    .ThenBy(value => value.Id).First());
-            HashSet<int> desiredCanonicalIds = desired
-                .Select(value => value.Summary.CanonicalWorkId!.Value).ToHashSet();
-            List<PublicationSummary> legacy = existing
-                .Where(value => !value.CanonicalWorkId.HasValue ||
-                    !desiredCanonicalIds.Contains(value.CanonicalWorkId.Value)).ToList();
-            Dictionary<PublicationSummary, List<DesiredSummary>> legacyMatches = legacy
-                .ToDictionary(value => value, value => desired
-                    .Where(candidate => IsLegacyMatch(value, candidate)).Take(2).ToList());
-            Dictionary<DesiredSummary, PublicationSummary?> targets = [];
+                .ToDictionary(value => value.CanonicalWorkId!.Value);
             HashSet<int> retainedIds = [];
 
-            foreach (DesiredSummary desiredSummary in desired)
+            foreach (PublicationSummary candidate in desired)
             {
-                PublicationSummary candidate = desiredSummary.Summary;
-                PublicationSummary? exact = existingByCanonicalId.GetValueOrDefault(
+                PublicationSummary? target = existingByCanonicalId.GetValueOrDefault(
                     candidate.CanonicalWorkId!.Value);
-                List<PublicationSummary> candidates = legacyMatches
-                    .Where(pair => pair.Value.Count == 1 && ReferenceEquals(pair.Value[0], desiredSummary))
-                    .Select(pair => pair.Key).ToList();
-                if (exact is not null)
-                    candidates.Add(exact);
-                PublicationSummary? target = candidates.Distinct()
-                    .OrderByDescending(value => value.DisplayApproval is not null)
-                    .ThenByDescending(value => value.CanonicalWorkId == candidate.CanonicalWorkId)
-                    .ThenBy(value => value.Id).FirstOrDefault();
-                targets.Add(desiredSummary, target);
-                if (target is not null)
+                if (target is null)
+                    _dbContext.PublicationSummaries.Add(candidate);
+                else
+                {
+                    CopyValues(candidate, target);
                     retainedIds.Add(target.Id);
+                }
             }
 
             _dbContext.PublicationSummaries.RemoveRange(
                 existing.Where(value => !retainedIds.Contains(value.Id)));
-            await _dbContext.SaveChangesAsync(cancellationToken);
-            foreach ((DesiredSummary desiredSummary, PublicationSummary? target) in targets)
-            {
-                if (target is null)
-                    _dbContext.PublicationSummaries.Add(desiredSummary.Summary);
-                else
-                    CopyValues(desiredSummary.Summary, target);
-            }
             await _dbContext.SaveChangesAsync(cancellationToken);
             if (ownedTransaction is not null)
                 await ownedTransaction.CommitAsync(cancellationToken);
@@ -121,25 +93,6 @@ public sealed class PublicationSummarySynchronizer
                 await ownedTransaction.DisposeAsync();
         }
     }
-
-    private static bool IsLegacyMatch(PublicationSummary existing, DesiredSummary desired)
-    {
-        PublicationSummary candidate = desired.Summary;
-        string? existingDoi = AcademicDoiNormalizer.NormalizeValid(existing.Doi);
-        string? candidateDoi = AcademicDoiNormalizer.NormalizeValid(candidate.Doi);
-        if (existingDoi is not null && candidateDoi is not null)
-            return existingDoi == candidateDoi;
-        if (existing.Fingerprint == CreateLegacyFingerprint(candidate))
-            return true;
-        if (existing.Title == "Başlıksız yayın" || candidate.Title == "Başlıksız yayın")
-            return false;
-        string normalizedTitle = NormalizeTitle(existing.Title);
-        return desired.Works.Any(work => normalizedTitle == NormalizeTitle(work.Title) &&
-            YearsAreCompatible(existing.PublicationYear, work.PublicationYear));
-    }
-
-    private static bool YearsAreCompatible(int? first, int? second) =>
-        !first.HasValue || !second.HasValue || first == second;
 
     private static PublicationSummary CreateSummary(
         string personelId, int canonicalWorkId, List<AcademicWork> works)
@@ -191,25 +144,6 @@ public sealed class PublicationSummarySynchronizer
         return null;
     }
 
-    private static string CreateLegacyFingerprint(PublicationSummary summary)
-    {
-        string? doi = AcademicDoiNormalizer.Normalize(summary.Doi);
-        string source = !string.IsNullOrWhiteSpace(doi) ? "doi:" + doi :
-            $"title:{NormalizeTitle(summary.Title)}|year:{summary.PublicationYear}";
-        return Hash(source);
-    }
-
-    private static string NormalizeTitle(string? title)
-    {
-        if (string.IsNullOrWhiteSpace(title))
-            return string.Empty;
-        StringBuilder normalized = new();
-        foreach (char character in title)
-            if (char.IsLetterOrDigit(character))
-                normalized.Append(char.ToLowerInvariant(character));
-        return normalized.ToString();
-    }
-
     private static string Hash(string value) => Convert.ToHexString(
         SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
 
@@ -228,6 +162,4 @@ public sealed class PublicationSummarySynchronizer
         target.Sources = source.Sources;
         target.UpdatedAt = source.UpdatedAt;
     }
-
-    private sealed record DesiredSummary(PublicationSummary Summary, List<AcademicWork> Works);
 }
