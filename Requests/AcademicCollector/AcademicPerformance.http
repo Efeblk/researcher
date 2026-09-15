@@ -109,6 +109,8 @@ Content-Type: application/json
 
 ### 9. İsteğe bağlı: Semantic Scholar verisini yenile [sağlayıcı çağrısı + yazma]
 # Ön koşul: DOI içeren kaydedilmiş yayın. Yanıttaki HasPendingWork=true ise çağrı güvenle tekrarlanabilir.
+# Hata/ertelenme yanıtları ErrorCode, ProviderHttpStatusCode, RetryAt ve Retryable tanı alanlarını içerir.
+# Yerel kota ertelemesinde ProviderHttpStatusCode null kalır; RetryAt varsa o zamandan sonra yeniden deneyin.
 POST {{api}}/CollectSemanticScholar
 Content-Type: application/json
 

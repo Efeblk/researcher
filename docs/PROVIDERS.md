@@ -17,6 +17,8 @@ Bu belge collector'ın akademik veri entegrasyonlarının sabit kapsamını öze
 
 ORCID toplaması OpenAlex ve TR Dizin'i de tetikler; Scopus yalnız doğrulanmış `ScopusID` ile çalışır. DOI bulunan ortak eserler Crossref ve Semantic Scholar ile zenginleştirilebilir. Sağlayıcı metrikleri kaynak adıyla ayrı tutulur. `Collect` sağlayıcı ve eser verisini kaydeder; `RecalculateMetrics` dış HTTP çağrısı yapmadan kayıtlı tam profillerden metrik alanlarını günceller. OpenAlex, Google Scholar ve Scopus değerleri sağlayıcının raporladığı biçimde korunur; WOS h-index ve toplam atıf yalnız kayıtlı WOS eserlerinden hesaplanır ve eksik bir atıf değeri sonucu `null` yapar. ResearchGate/Academia.edu scraping'i kapsam dışıdır.
 
+`CollectSemanticScholar`, tamamı başarısız sağlayıcı çağrısında `503`, önceki DOI'ler kaydedildiyse `200` ve `HasPendingWork=true` döndürür. `ErrorCode`, `ProviderHttpStatusCode`, `RetryAt` ve `Retryable` alanları güvenli yeniden deneme tanısı sağlar; yerel erteleme ve taşıma hatalarında sağlayıcı HTTP durumu `null` kalır.
+
 `make collect` yalnız `Collect` çağrısını yapar. Tekil komut satırı akışında ardından `Requests/AcademicCollector/AcademicPerformance.http` içindeki `RecalculateMetrics` ve `GetResearcher` adımlarını çalıştırın.
 
 Scopus için `Scopus:ApiKey` zorunludur; kurumsal abonelik gerekiyorsa `Scopus:InstToken` da user-secrets veya güvenli deployment yapılandırmasından verilir. İstekler yalnız yapılandırılmış `Scopus:ApiBaseUrl` altında oluşturulur ve sırlar `X-ELS-APIKey` / `X-ELS-Insttoken` başlıklarında taşınır. Search sonuçları 25 kayıtlık COMPLETE sayfaları ve cursor ile, `Scopus:MaximumPages` sınırına kadar alınır. Sayfa eksik veya hatalıysa önceki tam profil ve yayınlar değiştirilmez.

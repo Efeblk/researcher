@@ -32,21 +32,28 @@ public sealed class SemanticScholarClient(HttpClient httpClient, IOptions<Semant
         using HttpRequestMessage request = CreateRequest($"{root}/paper/DOI:{Uri.EscapeDataString(doi)}?fields={Uri.EscapeDataString(PaperFields)}", options);
         request.Options.Set(ProviderRateLimitHandler.ExpectedNotFound, true);
         request.Options.Set(ProviderRateLimitHandler.ResponseBufferLimit, 4L * 1024 * 1024);
-        using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
+        using HttpResponseMessage response = await SendAsync(request, true, cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             return new() { NormalizedDoi = doi, Found = false, FetchedAt = DateTime.UtcNow };
         }
-        response.EnsureSuccessStatusCode();
-        string raw = await response.Content.ReadAsStringAsync(cancellationToken);
-        using JsonDocument document = JsonDocument.Parse(raw);
-        JsonElement rootElement = document.RootElement;
-        string? returnedDoi = ExternalId(rootElement, "DOI");
-        if (!string.Equals(CrossrefClient.NormalizeDoi(returnedDoi), doi, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("Semantic Scholar returned metadata for a different DOI.");
-        SemanticScholarPaper paper = ParsePaper(rootElement, doi, raw);
-        if (string.IsNullOrWhiteSpace(paper.PaperId)) throw new InvalidDataException("Semantic Scholar paper response has no paperId.");
-        return paper;
+        string raw = await ReadContentAsync(response, cancellationToken);
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(raw);
+            JsonElement rootElement = document.RootElement;
+            string? returnedDoi = ExternalId(rootElement, "DOI");
+            if (!string.Equals(CrossrefClient.NormalizeDoi(returnedDoi), doi, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Semantic Scholar returned metadata for a different DOI.");
+            SemanticScholarPaper paper = ParsePaper(rootElement, doi, raw);
+            if (string.IsNullOrWhiteSpace(paper.PaperId))
+                throw new InvalidDataException("Semantic Scholar paper response has no paperId.");
+            return paper;
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidDataException)
+        {
+            throw SemanticScholarRequestException.InvalidProviderResponse(response.StatusCode, exception);
+        }
     }
 
     public async Task<SemanticScholarCitationPage> GetCitationPageAsync(string paperId, int offset, int limit,
@@ -57,18 +64,25 @@ public sealed class SemanticScholarClient(HttpClient httpClient, IOptions<Semant
         string url = $"{root}/paper/{Uri.EscapeDataString(paperId)}/citations?offset={offset}&limit={limit}&fields={Uri.EscapeDataString(CitationFields)}";
         using HttpRequestMessage request = CreateRequest(url, options);
         request.Options.Set(ProviderRateLimitHandler.ResponseBufferLimit, 8L * 1024 * 1024);
-        using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        string raw = await response.Content.ReadAsStringAsync(cancellationToken);
-        using JsonDocument document = JsonDocument.Parse(raw);
-        JsonElement page = document.RootElement;
-        if (!page.TryGetProperty("data", out JsonElement data) || data.ValueKind != JsonValueKind.Array)
-            throw new InvalidDataException("Semantic Scholar citation page has no data array.");
-        List<SemanticScholarCitation> citations = data.EnumerateArray().Select(ParseCitation).Where(x => x is not null)
-            .Cast<SemanticScholarCitation>().DistinctBy(x => x.CitingPaperId).ToList();
-        int? next = Int(page, "next");
-        if (next is not null && next <= offset) throw new InvalidDataException("Semantic Scholar returned a non-advancing citation offset.");
-        return new(Int(page, "total"), next, citations);
+        using HttpResponseMessage response = await SendAsync(request, false, cancellationToken);
+        string raw = await ReadContentAsync(response, cancellationToken);
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(raw);
+            JsonElement page = document.RootElement;
+            if (!page.TryGetProperty("data", out JsonElement data) || data.ValueKind != JsonValueKind.Array)
+                throw new InvalidDataException("Semantic Scholar citation page has no data array.");
+            List<SemanticScholarCitation> citations = data.EnumerateArray().Select(ParseCitation).Where(x => x is not null)
+                .Cast<SemanticScholarCitation>().DistinctBy(x => x.CitingPaperId).ToList();
+            int? next = Int(page, "next");
+            if (next is not null && next <= offset)
+                throw new InvalidDataException("Semantic Scholar returned a non-advancing citation offset.");
+            return new(Int(page, "total"), next, citations);
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidDataException)
+        {
+            throw SemanticScholarRequestException.InvalidProviderResponse(response.StatusCode, exception);
+        }
     }
 
     public static string NormalizeDoi(string? value) => CrossrefClient.NormalizeDoi(value);
@@ -84,31 +98,39 @@ public sealed class SemanticScholarClient(HttpClient httpClient, IOptions<Semant
             string url = $"{root}/paper/{Uri.EscapeDataString(paper.PaperId!)}/citations?offset={offset}&limit={limit}&fields={Uri.EscapeDataString(CitationFields)}";
             using HttpRequestMessage request = CreateRequest(url, options);
             request.Options.Set(ProviderRateLimitHandler.ResponseBufferLimit, 8L * 1024 * 1024);
-            using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
-            response.EnsureSuccessStatusCode();
-            string raw = await response.Content.ReadAsStringAsync(cancellationToken);
-            using JsonDocument document = JsonDocument.Parse(raw);
-            JsonElement page = document.RootElement;
-            paper.CitationTotal ??= Int(page, "total");
-            JsonElement data = page.TryGetProperty("data", out JsonElement items) ? items : default;
-            if (data.ValueKind != JsonValueKind.Array) throw new InvalidDataException("Semantic Scholar citation page has no data array.");
-            int received = 0;
-            foreach (JsonElement item in data.EnumerateArray())
+            using HttpResponseMessage response = await SendAsync(request, false, cancellationToken);
+            string raw = await ReadContentAsync(response, cancellationToken);
+            try
             {
-                received++;
-                SemanticScholarCitation? citation = ParseCitation(item);
-                if (citation is not null && seen.Add(citation.CitingPaperId)) target.Add(citation);
+                using JsonDocument document = JsonDocument.Parse(raw);
+                JsonElement page = document.RootElement;
+                paper.CitationTotal ??= Int(page, "total");
+                JsonElement data = page.TryGetProperty("data", out JsonElement items) ? items : default;
+                if (data.ValueKind != JsonValueKind.Array)
+                    throw new InvalidDataException("Semantic Scholar citation page has no data array.");
+                int received = 0;
+                foreach (JsonElement item in data.EnumerateArray())
+                {
+                    received++;
+                    SemanticScholarCitation? citation = ParseCitation(item);
+                    if (citation is not null && seen.Add(citation.CitingPaperId)) target.Add(citation);
+                }
+                int requestedOffset = offset;
+                offset += received;
+                int? next = Int(page, "next");
+                if (received == 0 || next is null)
+                {
+                    paper.CitationsComplete = true;
+                    break;
+                }
+                if (next.Value <= requestedOffset)
+                    throw new InvalidDataException("Semantic Scholar returned a non-advancing citation offset.");
+                offset = next.Value;
             }
-            int requestedOffset = offset;
-            offset += received;
-            int? next = Int(page, "next");
-            if (received == 0 || next is null)
+            catch (Exception exception) when (exception is JsonException or InvalidDataException)
             {
-                paper.CitationsComplete = true;
-                break;
+                throw SemanticScholarRequestException.InvalidProviderResponse(response.StatusCode, exception);
             }
-            if (next.Value <= requestedOffset) throw new InvalidDataException("Semantic Scholar returned a non-advancing citation offset.");
-            offset = next.Value;
         }
         if (paper.CitationTotal is int total && offset >= total) paper.CitationsComplete = true;
     }
@@ -162,6 +184,45 @@ public sealed class SemanticScholarClient(HttpClient httpClient, IOptions<Semant
         if (!string.IsNullOrWhiteSpace(options.ApiKey)) request.Headers.Add("x-api-key", options.ApiKey.Trim());
         return request;
     }
+    private async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, bool allowNotFound,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
+            if (response.IsSuccessStatusCode || allowNotFound && response.StatusCode == HttpStatusCode.NotFound)
+                return response;
+            SemanticScholarRequestException exception = SemanticScholarRequestException.FromResponse(response);
+            response.Dispose();
+            throw exception;
+        }
+        catch (OperationCanceledException exception) when (!IsCallerCancellation(cancellationToken))
+        {
+            throw SemanticScholarRequestException.Timeout(exception);
+        }
+        catch (HttpRequestException exception) when (exception is not SemanticScholarRequestException)
+        {
+            throw SemanticScholarRequestException.Transport(exception);
+        }
+    }
+    private static async Task<string> ReadContentAsync(HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await response.Content.ReadAsStringAsync(cancellationToken);
+        }
+        catch (OperationCanceledException exception) when (!IsCallerCancellation(cancellationToken))
+        {
+            throw SemanticScholarRequestException.Timeout(exception);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException)
+        {
+            throw SemanticScholarRequestException.Transport(exception);
+        }
+    }
+    private static bool IsCallerCancellation(CancellationToken cancellationToken) =>
+        cancellationToken.IsCancellationRequested || ProviderCallScope.Cancellation.IsCancellationRequested;
     private static string? NormalizeOptionalDoi(string? value) { string doi = NormalizeDoi(value); return doi.Length == 0 ? null : doi; }
     private static string? ExternalId(JsonElement value, string name) => value.TryGetProperty("externalIds", out JsonElement ids) && ids.ValueKind == JsonValueKind.Object ? Text(ids, name) : null;
     private static string? Text(JsonElement value, string name) => value.TryGetProperty(name, out JsonElement item) && item.ValueKind == JsonValueKind.String ? item.GetString() : null;

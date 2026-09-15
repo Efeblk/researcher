@@ -33,6 +33,10 @@ public sealed class SemanticScholarCollectResponse : ServiceResponse
     public int ProcessedDoiCount { get; set; }
     public bool HasPendingWork { get; set; }
     public string? Message { get; set; } = null;
+    public string? ErrorCode { get; set; } = null;
+    public int? ProviderHttpStatusCode { get; set; } = null;
+    public DateTime? RetryAt { get; set; } = null;
+    public bool? Retryable { get; set; } = null;
 }
 
 public sealed class SemanticScholarResponse : ServiceResponse
