@@ -12,15 +12,27 @@ public sealed class BulkCollectionEndpoint : ServiceEndpoint
     [HttpPost, RequestSizeLimit(8 * 1024 * 1024)]
     public Task<BulkCollectionStatusResponse> Submit(BulkCollectionSubmitRequest request,
         [FromServices] BulkCollectionService service, CancellationToken cancellationToken)
-        => service.SubmitAsync(request, cancellationToken);
+        => ValidateAsync(() => service.SubmitAsync(request, cancellationToken));
 
     [HttpPost]
     public Task<BulkCollectionStatusResponse> Status(BulkCollectionStatusRequest request,
         [FromServices] BulkCollectionService service, CancellationToken cancellationToken)
-        => service.GetStatusAsync(request, cancellationToken);
+        => ValidateAsync(() => service.GetStatusAsync(request, cancellationToken));
 
     [HttpPost]
     public Task<BulkCollectionStatusResponse> ImportSql(BulkCollectionStatusRequest request,
         [FromServices] BulkSqlImporter importer, CancellationToken cancellationToken)
-        => importer.ImportAsync(request.BatchId, cancellationToken);
+        => ValidateAsync(() => importer.ImportAsync(request.BatchId, cancellationToken));
+
+    private static async Task<T> ValidateAsync<T>(Func<Task<T>> action)
+    {
+        try
+        {
+            return await action();
+        }
+        catch (BulkRequestException exception)
+        {
+            throw new ValidationError(exception.Message);
+        }
+    }
 }

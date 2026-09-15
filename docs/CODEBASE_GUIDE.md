@@ -1,5 +1,8 @@
 # Kod rehberi
 
+Veritabanındaki 61 iş tablosunun servis, şema ve veri yaşam döngüsü ayrımı için
+[veritabanı rehberine](DATABASE_GUIDE.md) bakın.
+
 Uygulama iki bağımsız .NET 10 projesinden oluşur. Academic Collector dış sağlayıcılardan veri toplar, normalize eder ve kanonik çekirdeği yönetir. `ResearcherAnalysisService` bütün analitik ürünlerin HTTP, kalıcılık ve worker sahibidir. Servisler aynı SQL Server veritabanını kullanır, fakat kendi migration grubunu ve sürüm geçmişini başlangıçta ayrı uygular; herhangi biri önce veya ikisi eşzamanlı başlatılabilir.
 
 ## Klasörler ve sınırlar

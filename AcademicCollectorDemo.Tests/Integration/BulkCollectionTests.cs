@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AcademicCollectorDemo.Modules.AcademicPerformance;
@@ -41,7 +42,7 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
         var second = await service.SubmitAsync(input);
         Assert.Equal(first.Jobs.Single().Id, second.Jobs.Single().Id);
         input.Researchers[0].WebOfScienceId = "B-1234-2020";
-        await Assert.ThrowsAsync<ArgumentException>(() => service.SubmitAsync(input));
+        await Assert.ThrowsAsync<BulkRequestException>(() => service.SubmitAsync(input));
     }
 
     [Fact]
@@ -627,6 +628,45 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
         JsonElement statusJson = await status.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(1, statusJson.GetProperty("Counts").GetProperty("Pending").GetInt32());
         Assert.Equal(1, statusJson.GetProperty("Jobs")[0].GetProperty("Warnings").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task Api_InvalidSubmitAndUnknownStatus_ReturnStructuredErrors()
+    {
+        using var host = new HostProcess(fixture.ConnectionString);
+        await host.WaitUntilReadyAsync();
+
+        using HttpResponseMessage invalidSubmit = await host.Client.PostAsJsonAsync(
+            "/Services/AcademicPerformance/V1/Bulk/Submit",
+            new { BatchId = Guid.Empty, Researchers = Array.Empty<object>() });
+        Assert.Equal(HttpStatusCode.BadRequest, invalidSubmit.StatusCode);
+        JsonElement invalidSubmitBody = await invalidSubmit.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(invalidSubmitBody.TryGetProperty("Error", out JsonElement submitError),
+            invalidSubmitBody.GetRawText());
+        Assert.Contains("stable, non-empty BatchId", submitError.GetProperty("Message").GetString());
+
+        using HttpResponseMessage emptyBatch = await host.Client.PostAsJsonAsync(
+            "/Services/AcademicPerformance/V1/Bulk/Submit",
+            new { BatchId = Guid.NewGuid(), Researchers = Array.Empty<object>() });
+        Assert.Equal(HttpStatusCode.BadRequest, emptyBatch.StatusCode);
+        JsonElement emptyBatchBody = await emptyBatch.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains("between 1 and", emptyBatchBody.GetProperty("Error")
+            .GetProperty("Message").GetString());
+
+        using HttpResponseMessage invalidImport = await host.Client.PostAsJsonAsync(
+            "/Services/AcademicPerformance/V1/Bulk/ImportSql", new { BatchId = Guid.Empty });
+        Assert.Equal(HttpStatusCode.BadRequest, invalidImport.StatusCode);
+        JsonElement invalidImportBody = await invalidImport.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains("stable, non-empty BatchId", invalidImportBody.GetProperty("Error")
+            .GetProperty("Message").GetString());
+
+        using HttpResponseMessage unknownStatus = await host.Client.PostAsJsonAsync(
+            "/Services/AcademicPerformance/V1/Bulk/Status", new { BatchId = Guid.NewGuid() });
+        Assert.Equal(HttpStatusCode.BadRequest, unknownStatus.StatusCode);
+        JsonElement unknownStatusBody = await unknownStatus.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(unknownStatusBody.TryGetProperty("Error", out JsonElement statusError),
+            unknownStatusBody.GetRawText());
+        Assert.Equal("Batch not found.", statusError.GetProperty("Message").GetString());
     }
 
     private ServiceProvider BuildServices(FakeApplicationService service, Dictionary<string, string?>? extra = null)
