@@ -140,10 +140,6 @@ function setSelectionControlsEnabled(enabled: boolean) {
         saveSelectionsButton.disabled = !enabled || researchBusy;
 }
 
-function getErrorMessage(error: unknown) {
-    return error instanceof Error ? error.message : String(error);
-}
-
 function showPublicationState(count: number) {
     if (grid.hasSelectionLoadError())
         return;
@@ -288,12 +284,11 @@ form?.addEventListener("submit", async event => {
                     errors.push(outcome.message);
                 }
             }
-            catch (error) {
+            catch {
                 if (!requestCoordinator.isCurrent(run))
                     return;
 
-                errors.push(
-                    `Yayın araştırması tamamlanamadı: ${getErrorMessage(error)}`);
+                errors.push("Akademik veriler alınamadı. Lütfen tekrar deneyin.");
             }
         }
 
@@ -336,12 +331,11 @@ form?.addEventListener("submit", async event => {
                 else if (outcome.kind === "error")
                     errors.push(outcome.message);
             }
-            catch (error) {
+            catch {
                 if (!requestCoordinator.isCurrent(run))
                     return;
 
-                errors.push(
-                    `YÖKSİS sorgusu tamamlanamadı: ${getErrorMessage(error)}`);
+                errors.push("YÖKSİS verileri alınamadı. Lütfen tekrar deneyin.");
             }
         }
 
@@ -350,11 +344,7 @@ form?.addEventListener("submit", async event => {
 
         if (hasSuccessfulResult && linkedPersonelId) {
             try {
-                showStatus("info", [
-                    ...statusMessages,
-                    ...errors,
-                    "Akademik metrikler güncelleniyor..."
-                ].filter(Boolean).join("\n"));
+                showStatus("info", "Sonuçlar hazırlanıyor...");
                 const refreshed = await recalculateAndReadResearcher(
                     linkedPersonelId,
                     (action, body) => serviceRequest<ResearcherMetricsResponse | ResearcherCollectResponse>(
@@ -371,10 +361,11 @@ form?.addEventListener("submit", async event => {
                 showAcademicMetricsOverview(latestResearcher, yoksisResponse);
                 showProviderComparison(refreshed.Researcher);
             }
-            catch (error) {
+            catch {
                 if (!requestCoordinator.isCurrent(run))
                     return;
-                errors.push(`Metrikler hesaplanamadı: ${getErrorMessage(error)}`);
+                errors.push(
+                    "Akademik metrikler güncellenemedi. Mevcut sonuçları inceleyebilirsiniz.");
             }
         }
 
@@ -395,9 +386,9 @@ form?.addEventListener("submit", async event => {
         else
             showStatus("error", combinedMessage || "Araştırma tamamlanamadı.");
     }
-    catch (error) {
+    catch {
         if (requestCoordinator.isCurrent(run))
-            showStatus("error", `Araştırma tamamlanamadı: ${getErrorMessage(error)}`);
+            showStatus("error", "Araştırma tamamlanamadı. Lütfen tekrar deneyin.");
     }
     finally {
         if (!requestCoordinator.isCurrent(run))
@@ -414,10 +405,10 @@ form?.addEventListener("submit", async event => {
         try {
             grid.refreshPublications(true);
         }
-        catch (error) {
+        catch {
             showSelectionStatus(
                 "error",
-                `Yayın listesi yenilenemedi: ${getErrorMessage(error)}`);
+                "Yayın listesi yenilenemedi. Lütfen tekrar deneyin.");
         }
     }
 });
