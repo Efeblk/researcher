@@ -2,6 +2,9 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Application;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Tests.Infrastructure;
 using FluentMigrator.Runner;
@@ -67,7 +70,7 @@ public sealed class ResearcherProviderMetricsTests(SqlServerFixture fixture)
     }
 
     [Fact]
-    public async Task SaveChanges_ProfileMetricsChanged_RefreshesOnlyMatchingProviderColumns()
+    public async Task RecalculateMetricsAsync_SavedProfilesAndWorks_UpdatesMetricsIdempotently()
     {
         string personelId = "metrics-" + Guid.NewGuid().ToString("N");
         DateTime initialTime = new(2026, 1, 1, 8, 0, 0, DateTimeKind.Utc);
@@ -96,9 +99,24 @@ public sealed class ResearcherProviderMetricsTests(SqlServerFixture fixture)
                 },
                 WebOfScienceProfile = new WebOfScienceProfile
                 {
-                    TotalTimesCited = 12,
-                    HIndex = 3,
-                    DocumentsCount = 5,
+                    TotalTimesCited = 999,
+                    HIndex = 99,
+                    DocumentsCount = 99,
+                    LastUpdatedAt = initialTime,
+                    Works =
+                    [
+                        new() { Uid = "WOS:1", TimesCited = 10 },
+                        new() { Uid = "WOS:2", TimesCited = 2 },
+                        new() { Uid = "WOS:3", TimesCited = 1 }
+                    ]
+                },
+                ScopusProfile = new ScopusProfile
+                {
+                    ScopusAuthorId = Random.Shared.NextInt64(10000000000, 99999999999).ToString(),
+                    CitationCount = 31,
+                    CitedByCount = 700,
+                    HIndex = 6,
+                    DocumentsCount = 12,
                     LastUpdatedAt = initialTime
                 }
             });
@@ -117,6 +135,39 @@ public sealed class ResearcherProviderMetricsTests(SqlServerFixture fixture)
             profile.WorksCount = 9;
             profile.LastUpdatedAt = refreshedTime;
             await database.SaveChangesAsync();
+
+            Researcher before = await database.Researchers.AsNoTracking()
+                .SingleAsync(value => value.PersonelId == personelId);
+            Assert.Null(before.OpenAlexCitationCount);
+        }
+
+        await using (AsyncServiceScope scope = fixture.Services.CreateAsyncScope())
+        {
+            AcademicDbContext database = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+            await database.Researchers.Include(value => value.OpenAlexProfile)
+                .SingleAsync(value => value.PersonelId == personelId);
+            await using (AsyncServiceScope updateScope = fixture.Services.CreateAsyncScope())
+            {
+                AcademicDbContext updateDatabase = updateScope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+                OpenAlexProfile latest = await updateDatabase.OpenAlexProfiles
+                    .SingleAsync(value => value.PersonelId == personelId);
+                latest.CitedByCount = 42;
+                await updateDatabase.SaveChangesAsync();
+            }
+            IAcademicPerformanceApplicationService service = scope.ServiceProvider
+                .GetRequiredService<IAcademicPerformanceApplicationService>();
+            ResearcherMetricsResponse first = await service.RecalculateMetricsAsync(
+                new() { PersonelId = personelId });
+            int eventsAfterFirst = await database.CollectionChanges.CountAsync(value =>
+                value.PersonelId == personelId && value.ChangeKind == "ResearcherCollected");
+            ResearcherMetricsResponse second = await service.RecalculateMetricsAsync(
+                new() { PersonelId = personelId });
+            int eventsAfterSecond = await database.CollectionChanges.CountAsync(value =>
+                value.PersonelId == personelId && value.ChangeKind == "ResearcherCollected");
+            Assert.Equal(personelId, first.PersonelId);
+            Assert.True(second.RecalculatedAt >= first.RecalculatedAt);
+            Assert.True(eventsAfterFirst > 0);
+            Assert.Equal(eventsAfterFirst, eventsAfterSecond);
         }
 
         await using (AsyncServiceScope scope = fixture.Services.CreateAsyncScope())
@@ -124,13 +175,59 @@ public sealed class ResearcherProviderMetricsTests(SqlServerFixture fixture)
             AcademicDbContext database = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
             Researcher saved = await database.Researchers.AsNoTracking()
                 .SingleAsync(value => value.PersonelId == personelId);
-            Assert.Equal(41, saved.OpenAlexCitationCount);
+            Assert.Equal(42, saved.OpenAlexCitationCount);
             Assert.Null(saved.OpenAlexHIndex);
             Assert.Equal(0, saved.OpenAlexI10Index);
             Assert.Equal(9, saved.OpenAlexDocumentsCount);
             Assert.Equal(refreshedTime, saved.OpenAlexMetricsUpdatedAt);
             Assert.Equal(25, saved.ScholarCitationCount);
-            Assert.Equal(12, saved.WosCitationCount);
+            Assert.Equal(13, saved.WosCitationCount);
+            Assert.Equal(2, saved.WosHIndex);
+            Assert.Equal(3, saved.WosDocumentsCount);
+            Assert.Equal(initialTime, saved.WosMetricsUpdatedAt);
+            Assert.Equal(31, saved.ScopusCitationCount);
+            Assert.Equal(6, saved.ScopusHIndex);
+        }
+    }
+
+    [Fact]
+    public async Task RecalculateMetricsAsync_MissingCitationAndMissingResearcher_ReturnsNullAndRejects()
+    {
+        string personelId = "metrics-null-" + Guid.NewGuid().ToString("N");
+        await using (AsyncServiceScope scope = fixture.Services.CreateAsyncScope())
+        {
+            AcademicDbContext database = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+            database.Researchers.Add(new Researcher
+            {
+                PersonelId = personelId,
+                WosCitationCount = 88,
+                WosHIndex = 8,
+                WebOfScienceProfile = new WebOfScienceProfile
+                {
+                    LastUpdatedAt = DateTime.UtcNow.AddDays(-2),
+                    Works = [new() { Uid = "WOS:null", TimesCited = null }]
+                }
+            });
+            await database.SaveChangesAsync();
+        }
+
+        await using (AsyncServiceScope scope = fixture.Services.CreateAsyncScope())
+        {
+            IAcademicPerformanceApplicationService service = scope.ServiceProvider
+                .GetRequiredService<IAcademicPerformanceApplicationService>();
+            await service.RecalculateMetricsAsync(new() { PersonelId = personelId });
+            await Assert.ThrowsAsync<ArgumentException>(() => service.RecalculateMetricsAsync(
+                new() { PersonelId = "missing-" + Guid.NewGuid().ToString("N") }));
+            await Assert.ThrowsAsync<ArgumentException>(() => service.RecalculateMetricsAsync(new()));
+        }
+
+        await using (AsyncServiceScope scope = fixture.Services.CreateAsyncScope())
+        {
+            AcademicDbContext database = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+            Researcher saved = await database.Researchers.AsNoTracking()
+                .SingleAsync(value => value.PersonelId == personelId);
+            Assert.Null(saved.WosCitationCount);
+            Assert.Null(saved.WosHIndex);
         }
     }
 

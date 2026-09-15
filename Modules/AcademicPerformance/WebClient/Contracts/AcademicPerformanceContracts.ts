@@ -78,6 +78,11 @@ export interface ResearcherCollectResponse extends ServiceResponse {
     Messages?: string[];
 }
 
+export interface ResearcherMetricsResponse extends ServiceResponse {
+    PersonelID?: string;
+    RecalculatedAt?: string;
+}
+
 export interface YoksisOperationResult {
     CategoryName?: string;
     IsSuccess?: boolean;

@@ -12,6 +12,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Persistence;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Collection;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Metrics;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Application;
 
@@ -27,6 +28,7 @@ public sealed class AcademicPerformanceApplicationService :
     private readonly CanonicalWorkQueryService _canonicalWorkQueryService;
     private readonly CanonicalWorkSynchronizer _canonicalWorkSynchronizer;
     private readonly YoksisCollectionHandler? _yoksisCollectionHandler;
+    private readonly ResearcherMetricsService _researcherMetricsService;
 
     public AcademicPerformanceApplicationService(
         ResearcherCollectionHandler collectionHandler,
@@ -34,7 +36,8 @@ public sealed class AcademicPerformanceApplicationService :
         ResearcherProviderInputNormalizer inputNormalizer,
         CanonicalWorkQueryService? canonicalWorkQueryService = null,
         CanonicalWorkSynchronizer? canonicalWorkSynchronizer = null,
-        YoksisCollectionHandler? yoksisCollectionHandler = null)
+        YoksisCollectionHandler? yoksisCollectionHandler = null,
+        ResearcherMetricsService? researcherMetricsService = null)
     {
         _collectionHandler = collectionHandler;
         _dbContext = dbContext;
@@ -42,6 +45,27 @@ public sealed class AcademicPerformanceApplicationService :
         _canonicalWorkQueryService = canonicalWorkQueryService ?? new CanonicalWorkQueryService(dbContext);
         _canonicalWorkSynchronizer = canonicalWorkSynchronizer ?? new CanonicalWorkSynchronizer(dbContext);
         _yoksisCollectionHandler = yoksisCollectionHandler;
+        _researcherMetricsService = researcherMetricsService ??
+            new ResearcherMetricsService(dbContext, _canonicalWorkSynchronizer);
+    }
+
+    public async Task<ResearcherMetricsResponse> RecalculateMetricsAsync(
+        ResearcherMetricsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        string personelId = request.PersonelId?.Trim() ?? string.Empty;
+        if (personelId.Length == 0)
+            throw new ArgumentException("PersonelID is required.");
+        if (personelId.Length > 200)
+            throw new ArgumentException("PersonelID must be at most 200 characters.");
+
+        DateTime recalculatedAt = await _researcherMetricsService.RecalculateAsync(
+            personelId, cancellationToken);
+        return new()
+        {
+            PersonelId = personelId,
+            RecalculatedAt = recalculatedAt
+        };
     }
 
     public async Task<AcademicDataResponse> CollectAsync(

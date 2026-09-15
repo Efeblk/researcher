@@ -57,7 +57,7 @@ Collector migration'ları `dbo.VersionInfo`, Analysis migration'ları `dbo.Resea
 
 Collector `http://localhost:5001/Services/AcademicPerformance/V1/[action]` altında şu sorumlulukları tutar:
 
-- `Collect`, `GetResearcher`, `ListPublications`, `SavePublicationSelections`;
+- `Collect`, `RecalculateMetrics`, `GetResearcher`, `ListPublications`, `SavePublicationSelections`;
 - `ListCanonicalPublications`, `RebuildCanonicalPublications`;
 - `Bulk/{Submit,Status,ImportSql}`;
 - YÖKSİS, Semantic Scholar ve toplama sağlayıcısı `ProviderStatus` işlemleri.

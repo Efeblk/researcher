@@ -53,6 +53,7 @@ public sealed class BulkJobProcessor(
         bool collectionReturnedNormally = false;
         bool collectionHasFailureCode = false;
         bool yoksisHasFailures = false;
+        bool metricsFailed = false;
         try
         {
             BulkResearcherInput input = BulkCollectionService.ReadPersisted(job.InputJson).Input;
@@ -72,6 +73,21 @@ public sealed class BulkJobProcessor(
             collectionHasFailureCode = response.FailureCode is not null;
             yoksisHasFailures = response.YoksisFailedCategoryCount > 0;
             saved = response.IsSaved;
+            if (saved)
+            {
+                try
+                {
+                    await service.RecalculateMetricsAsync(new()
+                    {
+                        PersonelId = input.PersonelId
+                    }, cancellationToken);
+                }
+                catch
+                {
+                    metricsFailed = true;
+                    throw;
+                }
+            }
             bool persistenceDataTooLong = response.FailureCode == "PersistenceDataTooLong";
             bool hasErrors = collectionHasFailureCode || yoksisHasFailures || providerCalls.Failures.Count > 0 ||
                 response.Messages.Any(message => message.StartsWith("[HATA]", StringComparison.Ordinal)) ||
@@ -98,7 +114,7 @@ public sealed class BulkJobProcessor(
                 job.ResultMessage ??= ProviderFailureMessage(providerCalls.Failures);
             }
         }
-        catch (ArgumentException)
+        catch (ArgumentException) when (!metricsFailed)
         {
             job.Status = BulkJobStatus.Rejected;
             job.ResultMessage = "Invalid researcher input.";
@@ -106,11 +122,13 @@ public sealed class BulkJobProcessor(
         catch (Exception)
         {
             retryable = true;
-            job.Status = BulkJobStatus.Failed;
-            job.ResultMessage = "Collection failed; a retry may be scheduled.";
+            job.Status = saved ? BulkJobStatus.Partial : BulkJobStatus.Failed;
+            job.ResultMessage = metricsFailed
+                ? "Collection was saved, but metric recalculation failed; a retry may be scheduled."
+                : "Collection failed; a retry may be scheduled.";
         }
 
-        bool onlyLocalDeferrals = retryable && collectionReturnedNormally && !collectionHasFailureCode &&
+        bool onlyLocalDeferrals = retryable && !metricsFailed && collectionReturnedNormally && !collectionHasFailureCode &&
             !yoksisHasFailures &&
             providerCalls.Failures.Any(failure => failure.Retryable) &&
             providerCalls.Failures.All(failure => failure.IsLocalDeferral || failure.IsDisabled);
@@ -123,9 +141,12 @@ public sealed class BulkJobProcessor(
             job.NextAttemptAt = providerCalls.Failures.Where(failure => failure.RetryAt.HasValue)
                 .Select(failure => failure.RetryAt!.Value).Append(backoff).Max();
             string providers = ProviderNames(providerCalls.Failures);
-            job.ResultMessage = providers.Length == 0
-                ? "Temporary failure or provider cooldown; retry scheduled."
-                : $"Temporary provider failure or cooldown ({providers}); retry scheduled.";
+            if (!metricsFailed)
+            {
+                job.ResultMessage = providers.Length == 0
+                    ? "Temporary failure or provider cooldown; retry scheduled."
+                    : $"Temporary provider failure or cooldown ({providers}); retry scheduled.";
+            }
         }
         else
             job.CompletedAt = DateTime.UtcNow;

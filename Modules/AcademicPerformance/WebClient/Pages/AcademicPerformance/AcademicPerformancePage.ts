@@ -1,7 +1,8 @@
 import { addLocalText, serviceRequest } from "@serenity-is/corelib";
-import type { ResearcherCollectResponse, YoksisCollectResponse } from "../../Contracts/AcademicPerformanceContracts";
+import type { ResearcherCollectResponse, ResearcherMetricsResponse, YoksisCollectResponse } from "../../Contracts/AcademicPerformanceContracts";
 import { PublicationSummaryGrid } from "../../Publications/PublicationSummaryGrid";
 import { restoreProviderIdentifiers } from "./ProviderIdentifiers";
+import { recalculateAndReadResearcher } from "./ResearcherMetricsWorkflow";
 import {
     PublicationRefreshPoller, ResearchRequestCoordinator, updateSelectionTarget
 } from "./ResearchRequestCoordinator";
@@ -342,6 +343,30 @@ form?.addEventListener("submit", async event => {
 
         if (!requestCoordinator.isCurrent(run))
             return;
+
+        if (hasSuccessfulResult && linkedPersonelId) {
+            try {
+                const refreshed = await recalculateAndReadResearcher(
+                    linkedPersonelId,
+                    (action, body) => serviceRequest<ResearcherMetricsResponse | ResearcherCollectResponse>(
+                        action, body, undefined,
+                        { blockUI: false, errorMode: "none", signal: run.signal }),
+                    () => requestCoordinator.isCurrent(run));
+                if (!requestCoordinator.isCurrent(run))
+                    return;
+                showProfileSummary(refreshed.Researcher);
+                showGoogleScholarSummary(refreshed.Researcher);
+                showOpenAlexSummary(refreshed.Researcher);
+                showWebOfScienceSummary(refreshed.Researcher);
+                showAcademicMetricsOverview(refreshed.Researcher);
+                showProviderComparison(refreshed.Researcher);
+            }
+            catch (error) {
+                if (!requestCoordinator.isCurrent(run))
+                    return;
+                errors.push(`Metrikler hesaplanamadı: ${getErrorMessage(error)}`);
+            }
+        }
 
         if (hasSuccessfulResult && linkedPersonelId)
             await grid.loadSelections(linkedPersonelId, researcherDisplayName);

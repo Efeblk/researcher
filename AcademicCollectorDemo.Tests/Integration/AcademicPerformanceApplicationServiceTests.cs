@@ -6,12 +6,30 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScienc
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Persistence;
 using Microsoft.Extensions.DependencyInjection;
+using System.Net;
+using System.Net.Http.Json;
 
 namespace AcademicCollectorDemo.Tests.Integration;
 
 [Collection("SQL Server")]
 public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture fixture)
 {
+    [Fact]
+    public async Task RecalculateMetricsEndpoint_InvalidOrUnknownPersonelId_ReturnsValidationError()
+    {
+        using HostProcess host = new(fixture.ConnectionString);
+        await host.WaitUntilReadyAsync();
+
+        using HttpResponseMessage missing = await host.Client.PostAsJsonAsync(
+            "/Services/AcademicPerformance/V1/RecalculateMetrics", new { });
+        Assert.Equal(HttpStatusCode.BadRequest, missing.StatusCode);
+
+        using HttpResponseMessage unknown = await host.Client.PostAsJsonAsync(
+            "/Services/AcademicPerformance/V1/RecalculateMetrics",
+            new { PersonelID = "unknown-" + Guid.NewGuid().ToString("N") });
+        Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
+    }
+
     [Fact]
     public async Task GetResearcherAsync_PartialOpenAlexCollection_ReturnsStoredCount()
     {

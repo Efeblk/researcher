@@ -1,4 +1,5 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Application;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Persistence;
@@ -51,6 +52,9 @@ public sealed class ScopusAcademicWorkPersistenceTests(SqlServerFixture fixture)
 
         await new AcademicWorkSynchronizer(db).SyncAsync(researcher);
         await new CanonicalWorkSynchronizer(db).SyncAsync(researcher.PersonelId);
+        db.ChangeTracker.Clear();
+        await scope.ServiceProvider.GetRequiredService<IAcademicPerformanceApplicationService>()
+            .RecalculateMetricsAsync(new() { PersonelId = researcher.PersonelId });
         db.ChangeTracker.Clear();
 
         Researcher stored = await new ResearcherRepository(db).FindByPersonelIdAsync(researcher.PersonelId)

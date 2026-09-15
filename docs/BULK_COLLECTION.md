@@ -4,12 +4,14 @@ Toplu modül, araştırmacı satırlarını SQL Server kuyruğuna kaydeder; HTTP
 
 ```text
 JSON veya operatörün sabit SQL sorgusu → doğrulama → bulk kuyruğu
-→ worker → ortak toplama servisi → sağlayıcı hız sınırı → kayıtlı sonuçlar
+→ worker → ortak toplama servisi → sağlayıcı hız sınırı → kayıtlı sonuçlar → metrik hesaplama
 ```
 
 ## Girdi ve API
 
 Her satır zorunlu, benzersiz `PersonelID` ile isteğe bağlı `ORCID`, `ResearcherID` (Web of Science), `ScholarID`, `ScopusID` ve `TcKimlikNo` alanlarını taşır. En az bir desteklenen kimlik gerekir. ScopusID 5–20 ASCII rakamdan oluşur; Scopus yazar bağlantısı da kanonik kimliğe çevrilebilir. `TcKimlikNo` sağlandığında YÖKSİS de ortak toplama akışında çalışır.
+
+Worker, kayıt başarılı olduktan sonra aynı uygulama servisi üzerinden metrikleri hesaplar. Bu adım başarısız olursa iş başarılı sayılmaz ve mevcut retry politikası uygulanır. Tekil HTTP istemcileri ise `Collect` sonrasında `RecalculateMetrics`, ardından `GetResearcher` çağırır.
 
 ```json
 {
