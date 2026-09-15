@@ -17,6 +17,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Coll
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Persistence;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Persistence;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Metrics;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Persistence;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Enrichment;
@@ -79,6 +80,7 @@ public static class AcademicPerformanceModule
         services.AddScoped<PublicationSummarySynchronizer>();
         services.AddScoped<ResearcherCollectionService>();
         services.AddScoped<ResearcherCollectionHandler>();
+        services.AddScoped<ResearcherMetricsService>();
         services.AddScoped<IAcademicPerformanceApplicationService, AcademicPerformanceApplicationService>();
         return services;
     }

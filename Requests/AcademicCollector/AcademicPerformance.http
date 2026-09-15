@@ -33,7 +33,15 @@ Content-Type: application/json
   "ScopusID": "{{scopusId}}"
 }
 
-### 3. Kaydedilmiş araştırmacıyı oku [okuma]
+### 3. Kaydedilmiş veriden sağlayıcı metriklerini hesapla [yazma, sağlayıcı çağrısı yok]
+POST {{api}}/RecalculateMetrics
+Content-Type: application/json
+
+{
+  "PersonelID": "{{personelId}}"
+}
+
+### 4. Kaydedilmiş araştırmacıyı oku [okuma]
 # Ön koşul: aynı PersonelID ile başarılı tekil veya toplu toplama.
 POST {{api}}/GetResearcher
 Content-Type: application/json
@@ -42,7 +50,7 @@ Content-Type: application/json
   "PersonelID": "{{personelId}}"
 }
 
-### 4. Kaydedilmiş yayın özetlerini listele [okuma]
+### 5. Kaydedilmiş yayın özetlerini listele [okuma]
 # Entities[].Id, yalnız SavePublicationSelections isteğindeki PublicationIds değeridir.
 POST {{api}}/ListPublications
 Content-Type: application/json
@@ -54,7 +62,7 @@ Content-Type: application/json
   "Take": 100
 }
 
-### 5. Kanonik yayınları ve sağlayıcı gözlemlerini listele [okuma]
+### 6. Kanonik yayınları ve sağlayıcı gözlemlerini listele [okuma]
 # Entities[].Id bir CanonicalWorkId; aynı kaydın Observations[].AcademicWorkId alanı AcademicWorkId'dir.
 POST {{api}}/ListCanonicalPublications
 Content-Type: application/json
@@ -66,8 +74,8 @@ Content-Type: application/json
   "Take": 100
 }
 
-### 6. İsteğe bağlı: okulda gösterilecek yayınları kaydet [yazma]
-# publicationId, 4. istekteki Entities[].Id değeridir. Liste, mevcut seçimin tamamının yerine geçer.
+### 7. İsteğe bağlı: okulda gösterilecek yayınları kaydet [yazma]
+# publicationId, 5. istekteki Entities[].Id değeridir. Liste, mevcut seçimin tamamının yerine geçer.
 POST {{api}}/SavePublicationSelections
 Content-Type: application/json
 
