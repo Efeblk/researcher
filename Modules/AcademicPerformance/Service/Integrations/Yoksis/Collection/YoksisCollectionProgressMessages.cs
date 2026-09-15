@@ -7,6 +7,9 @@ internal static class YoksisCollectionProgressMessages
         if (response.SuccessfulCategoryCount == 0)
             return response.StopReason ?? "YÖKSİS kategorilerinden veri alınamadı.";
 
+        if (!response.IsSaved)
+            return "YÖKSİS verileri toplandı fakat veritabanına kaydedilemedi.";
+
         if (response.FailedCategoryCount > 0)
         {
             return response.StopReason is null
@@ -14,8 +17,6 @@ internal static class YoksisCollectionProgressMessages
                 : $"YÖKSİS toplaması kısmen tamamlandı. {response.StopReason}";
         }
 
-        return response.IsSaved
-            ? "YÖKSİS toplaması ve kayıt işlemi tamamlandı."
-            : "YÖKSİS toplaması tamamlandı fakat kayıt işlemi başarısız oldu.";
+        return "YÖKSİS toplaması ve kayıt işlemi tamamlandı.";
     }
 }
