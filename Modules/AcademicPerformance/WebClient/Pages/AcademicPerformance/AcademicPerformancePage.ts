@@ -3,7 +3,7 @@ import type { ResearcherCollectResponse, YoksisCollectResponse } from "../../Con
 import { PublicationSummaryGrid } from "../../Publications/PublicationSummaryGrid";
 import { restoreProviderIdentifiers } from "./ProviderIdentifiers";
 import {
-    PublicationRefreshPoller, ResearchRequestCoordinator
+    PublicationRefreshPoller, ResearchRequestCoordinator, updateSelectionTarget
 } from "./ResearchRequestCoordinator";
 import {
     initializeAcademicMetricsOverview, showAcademicMetricsOverview
@@ -254,7 +254,8 @@ form?.addEventListener("submit", async event => {
                         response.Researcher?.OpenAlexProfile?.DisplayName ||
                         response.Researcher?.WebOfScienceProfile?.DisplayName;
 
-                    linkedPersonelId = savedPersonelId;
+                    linkedPersonelId = updateSelectionTarget(
+                        linkedPersonelId, response.IsSaved, savedPersonelId);
                     hasSuccessfulResult = true;
                     statusMessages.push(messages || "Yayın araştırması tamamlandı.");
                     rememberProviderIdentifiers();
@@ -306,7 +307,8 @@ form?.addEventListener("submit", async event => {
                 showYoksisSummary(response);
 
                 if (response.IsSaved && savedPersonelId) {
-                    linkedPersonelId = savedPersonelId;
+                    linkedPersonelId = updateSelectionTarget(
+                        linkedPersonelId, response.IsSaved, savedPersonelId);
                     researcherDisplayName = response.ResearcherDisplayName ?? researcherDisplayName;
                     hasSuccessfulResult = true;
                     statusMessages.push(

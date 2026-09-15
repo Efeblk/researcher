@@ -36,6 +36,13 @@ export class ResearchRequestCoordinator {
     }
 }
 
+export function updateSelectionTarget(
+    currentPersonelId: string,
+    isSaved: boolean | undefined,
+    savedPersonelId: string | undefined) {
+    return isSaved && savedPersonelId ? savedPersonelId : currentPersonelId;
+}
+
 type IntervalHandle = ReturnType<typeof setInterval>;
 
 export class PublicationRefreshPoller {

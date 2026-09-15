@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
     PublicationRefreshPoller,
-    ResearchRequestCoordinator
+    ResearchRequestCoordinator,
+    updateSelectionTarget
 } from "../../Modules/AcademicPerformance/WebClient/Pages/AcademicPerformance/ResearchRequestCoordinator.ts";
 import { LatestRequestGuard } from "../../Modules/AcademicPerformance/WebClient/Publications/LatestRequestGuard.ts";
 
@@ -102,4 +103,18 @@ test("only the latest publication request may publish results, errors, or cleanu
 
     assert.equal(guard.isCurrent(oldRequest), false);
     assert.equal(guard.isCurrent(forcedFinalRefresh), true);
+});
+
+test("provider-only success supplies the personnel id used to load selections", () => {
+    const linkedPersonelId = updateSelectionTarget("", true, "P-1001");
+
+    assert.equal(linkedPersonelId, "P-1001");
+});
+
+test("a later failed YOKSIS request preserves the provider selection target", () => {
+    let linkedPersonelId = updateSelectionTarget("", true, "P-1001");
+
+    linkedPersonelId = updateSelectionTarget(linkedPersonelId, false, undefined);
+
+    assert.equal(linkedPersonelId, "P-1001");
 });
