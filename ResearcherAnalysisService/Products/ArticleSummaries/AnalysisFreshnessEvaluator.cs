@@ -96,9 +96,6 @@ public static class AnalysisFreshnessEvaluator
         if (currentSourceIdentity is null)
             return Create(run.Id, AnalysisFreshnessStatus.Stale,
                 ["SourceAssociationUnavailable"], identity);
-        if (string.IsNullOrWhiteSpace(run.SourceIdentityHash))
-            return Create(run.Id, AnalysisFreshnessStatus.Unknown,
-                ["LegacySourceIdentityUnavailable"], identity);
         if (!string.Equals(run.SourceIdentityHash, currentSourceIdentity, StringComparison.Ordinal))
             return Create(run.Id, AnalysisFreshnessStatus.Stale,
                 ["SourceIdentityChanged"], identity);
@@ -137,7 +134,7 @@ public static class AnalysisFreshnessEvaluator
     private static string Key(int canonicalWorkId, string language) => canonicalWorkId + "\n" + language;
 
     private sealed record RunIdentity(long Id, int CanonicalWorkId, string Language,
-        string? PolicyVersion, string? SourceIdentityHash);
+        string PolicyVersion, string SourceIdentityHash);
     private sealed record LatestIdentity(int CanonicalWorkId, string Language, long RunId);
     private sealed record JobIdentity(int CanonicalWorkId, string Language,
         long? LastSuccessfulAnalysisRunId, string? ProcessedInputHash, string? ProcessedPolicyVersion,

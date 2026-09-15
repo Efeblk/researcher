@@ -8,15 +8,15 @@ public sealed class AddGoogleScholar : Migration
 {
     public override void Up()
     {
-        Alter.Table("Researchers")
+        Alter.Table("Researchers").InSchema("core")
             .AddColumn("ScholarID").AsString(32).Nullable();
 
-        Create.Table("GoogleScholarProfiles")
+        Create.Table("GoogleScholarProfiles").InSchema("googlescholar")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
             .WithColumn("PersonelID").AsString(200).NotNullable()
                 .ForeignKey(
                     "FK_GoogleScholarProfiles_Researchers_PersonelID",
-                    "Researchers",
+                    "core", "Researchers",
                     "PersonelID")
                 .OnDelete(Rule.Cascade)
             .WithColumn("DisplayName").AsString(500).Nullable()
@@ -37,12 +37,12 @@ public sealed class AddGoogleScholar : Migration
             .WithColumn("CitationHistogramJson").AsString(int.MaxValue).Nullable()
             .WithColumn("RawDataJson").AsString(int.MaxValue).Nullable();
 
-        Create.Table("GoogleScholarWorks")
+        Create.Table("GoogleScholarWorks").InSchema("googlescholar")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
             .WithColumn("GoogleScholarProfileId").AsInt32().NotNullable()
                 .ForeignKey(
                     "FK_GoogleScholarWorks_GoogleScholarProfiles_GoogleScholarProfileId",
-                    "GoogleScholarProfiles",
+                    "googlescholar", "GoogleScholarProfiles",
                     "Id")
                 .OnDelete(Rule.Cascade)
             .WithColumn("CitationId").AsString(200).NotNullable()
@@ -56,18 +56,18 @@ public sealed class AddGoogleScholar : Migration
 
         Execute.Sql(
             "CREATE UNIQUE INDEX [IX_Researchers_ScholarID] " +
-            "ON [Researchers] ([ScholarID]) " +
+            "ON [core].[Researchers] ([ScholarID]) " +
             "WHERE [ScholarID] IS NOT NULL;");
 
         Create.Index("IX_GoogleScholarProfiles_PersonelID")
-            .OnTable("GoogleScholarProfiles")
+            .OnTable("GoogleScholarProfiles").InSchema("googlescholar")
             .OnColumn("PersonelID")
             .Ascending()
             .WithOptions()
             .Unique();
 
         Create.Index("IX_GoogleScholarWorks_ProfileId_CitationId")
-            .OnTable("GoogleScholarWorks")
+            .OnTable("GoogleScholarWorks").InSchema("googlescholar")
             .OnColumn("GoogleScholarProfileId")
             .Ascending()
             .OnColumn("CitationId")
@@ -78,9 +78,9 @@ public sealed class AddGoogleScholar : Migration
 
     public override void Down()
     {
-        Delete.Table("GoogleScholarWorks");
-        Delete.Table("GoogleScholarProfiles");
-        Delete.Index("IX_Researchers_ScholarID").OnTable("Researchers");
-        Delete.Column("ScholarID").FromTable("Researchers");
+        Delete.Table("GoogleScholarWorks").InSchema("googlescholar");
+        Delete.Table("GoogleScholarProfiles").InSchema("googlescholar");
+        Delete.Index("IX_Researchers_ScholarID").OnTable("Researchers").InSchema("core");
+        Delete.Column("ScholarID").FromTable("Researchers").InSchema("core");
     }
 }

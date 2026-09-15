@@ -18,58 +18,6 @@ namespace AcademicCollectorDemo.Tests.Integration;
 public sealed class ResearcherProviderMetricsTests(SqlServerFixture fixture)
 {
     [Fact]
-    public async Task Migration_ExistingProfiles_BackfillsResearcherColumns()
-    {
-        string personelId = "backfill-" + Guid.NewGuid().ToString("N");
-        DateTime updatedAt = new(2026, 2, 3, 4, 5, 6, DateTimeKind.Utc);
-        await using (AsyncServiceScope scope = fixture.Services.CreateAsyncScope())
-        {
-            AcademicDbContext database = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
-            database.Researchers.Add(new Researcher
-            {
-                PersonelId = personelId,
-                OpenAlexProfile = new OpenAlexProfile
-                {
-                    OpenAlexAuthorId = "A" + Guid.NewGuid().ToString("N"),
-                    CitedByCount = 101,
-                    HIndex = 11,
-                    I10Index = 7,
-                    WorksCount = 19,
-                    TwoYearMeanCitedness = 3.2579m,
-                    LastUpdatedAt = updatedAt
-                }
-            });
-            await database.SaveChangesAsync();
-        }
-
-        using (IServiceScope scope = fixture.Services.CreateScope())
-        {
-            IMigrationRunner runner = scope.ServiceProvider.GetRequiredService<IMigrationRunner>();
-            runner.MigrateDown(202609090002);
-            runner.MigrateUp();
-        }
-
-        await using SqlConnection connection = new(fixture.ConnectionString);
-        await connection.OpenAsync();
-        await using SqlCommand command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT OpenAlexCitationCount, OpenAlexHIndex, OpenAlexI10Index,
-                   OpenAlexDocumentsCount, OpenAlexTwoYearMeanCitedness,
-                   OpenAlexMetricsUpdatedAt
-            FROM [core].[Researchers] WHERE PersonelID = @personelId;
-            """;
-        command.Parameters.AddWithValue("@personelId", personelId);
-        await using SqlDataReader reader = await command.ExecuteReaderAsync();
-        Assert.True(await reader.ReadAsync());
-        Assert.Equal(101, reader.GetInt32(0));
-        Assert.Equal(11, reader.GetInt32(1));
-        Assert.Equal(7, reader.GetInt32(2));
-        Assert.Equal(19, reader.GetInt32(3));
-        Assert.Equal(3.2579m, reader.GetDecimal(4));
-        Assert.Equal(updatedAt, reader.GetDateTime(5));
-    }
-
-    [Fact]
     public async Task RecalculateMetricsAsync_SavedProfilesAndWorks_UpdatesMetricsIdempotently()
     {
         string personelId = "metrics-" + Guid.NewGuid().ToString("N");

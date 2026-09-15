@@ -28,7 +28,6 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
         ("Yoksis", "Yoksis:ServiceUrl", "https://servisler.yok.gov.tr/ws/OzgecmisV2"),
         ("TrDizin", "TrDizin:ApiBaseUrl", "https://search.trdizin.gov.tr"),
         ("Crossref", "Crossref:ApiBaseUrl", "https://api.crossref.org"),
-        ("Unpaywall", "Unpaywall:ApiBaseUrl", "https://api.unpaywall.org"),
         ("SemanticScholar", "SemanticScholar:ApiBaseUrl", "https://api.semanticscholar.org/graph/v1")
     ];
 
@@ -172,8 +171,7 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
         }
         if ((name is "SearchApi" or "WebOfScience" or "Scopus") && string.IsNullOrWhiteSpace(configuration[name + ":ApiKey"]) ||
             name == "Yoksis" && (string.IsNullOrWhiteSpace(configuration["Yoksis:Username"]) ||
-                string.IsNullOrWhiteSpace(configuration["Yoksis:Password"])) ||
-            name == "Unpaywall" && !IsValidEmail(configuration["Unpaywall:Email"]))
+                string.IsNullOrWhiteSpace(configuration["Yoksis:Password"])))
         {
             result.Status = result.Transport.Status = "NotConfigured";
             return result;
@@ -227,14 +225,11 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
                     JsonElement root = document.RootElement;
                     string expectedProperty = name switch
                     {
-                        "Orcid" => "overallOk", "OpenAlex" => string.IsNullOrWhiteSpace(configuration["OpenAlex:ApiKey"]) ? "results" : "rate_limit", "Scopus" => "search-results", "WebOfScience" => "metadata", "TrDizin" => "orcid", "Crossref" => "message", "SemanticScholar" => "paperId",
-                        "Unpaywall" => "doi", _ => "account"
+                        "Orcid" => "overallOk", "OpenAlex" => string.IsNullOrWhiteSpace(configuration["OpenAlex:ApiKey"]) ? "results" : "rate_limit", "Scopus" => "search-results", "WebOfScience" => "metadata", "TrDizin" => "orcid", "Crossref" => "message", "SemanticScholar" => "paperId", _ => "account"
                     };
                     if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty(expectedProperty, out _))
                         result.Status = "UnexpectedResponse";
                     if (name == "TrDizin" && !IsValidTrDizinResponse(root))
-                        result.Status = "UnexpectedResponse";
-                    if (name == "Unpaywall" && !IsValidUnpaywallResponse(root))
                         result.Status = "UnexpectedResponse";
                     if (name == "Crossref" && !IsValidCrossrefResponse(root))
                         result.Status = "UnexpectedResponse";
@@ -347,8 +342,6 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
             "Crossref" => url + "/works/10.1038/nphys1170" +
                 (string.IsNullOrWhiteSpace(configuration["Crossref:Mailto"]) ? string.Empty :
                     "?mailto=" + Uri.EscapeDataString(configuration["Crossref:Mailto"]!.Trim())),
-            "Unpaywall" => url + "/v2/10.1038/nphys1170?email=" +
-                Uri.EscapeDataString(configuration["Unpaywall:Email"]!.Trim()),
             "SemanticScholar" => url + "/paper/DOI:10.1038/nphys1170?fields=paperId",
             _ => throw new InvalidOperationException("Unknown provider.")
         };
@@ -391,13 +384,6 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
         root.TryGetProperty("id", out JsonElement id) && id.ValueKind == JsonValueKind.Number &&
         id.TryGetInt64(out long authorId) && authorId > 0;
 
-    private static bool IsValidUnpaywallResponse(JsonElement root) =>
-        root.ValueKind == JsonValueKind.Object &&
-        root.TryGetProperty("doi", out JsonElement doi) && doi.ValueKind == JsonValueKind.String &&
-        string.Equals(doi.GetString(), "10.1038/nphys1170", StringComparison.OrdinalIgnoreCase) &&
-        root.TryGetProperty("is_oa", out JsonElement isOpenAccess) &&
-        isOpenAccess.ValueKind is JsonValueKind.True or JsonValueKind.False;
-
     private static bool IsValidCrossrefResponse(JsonElement root) =>
         root.ValueKind == JsonValueKind.Object &&
         root.TryGetProperty("status", out JsonElement status) && status.ValueKind == JsonValueKind.String &&
@@ -411,11 +397,6 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
         root.TryGetProperty("paperId", out JsonElement paperId) && paperId.ValueKind == JsonValueKind.String &&
         !string.IsNullOrWhiteSpace(paperId.GetString());
 
-    private static bool IsValidEmail(string? value)
-    {
-        string email = value?.Trim() ?? string.Empty;
-        return email.Length is > 3 and <= 254 && email.Contains('@') && !email.Any(char.IsWhiteSpace);
-    }
 
     public static List<ProviderQuotaDto> ParseSearchApiQuotas(JsonElement root, DateTime? observedAt = null)
     {

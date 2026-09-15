@@ -23,7 +23,7 @@ public sealed class YoksisCollectionHandler
     private readonly ResearcherRepository _researcherRepository;
     private readonly PublicationSummarySynchronizer _summarySynchronizer;
     private readonly AcademicDbContext _dbContext;
-    private readonly CanonicalWorkSynchronizer? _canonicalWorkSynchronizer;
+    private readonly CanonicalWorkSynchronizer _canonicalWorkSynchronizer;
 
     public YoksisCollectionHandler(
         YoksisCollectionService collectionService,
@@ -40,7 +40,7 @@ public sealed class YoksisCollectionHandler
         _researcherRepository = researcherRepository;
         _summarySynchronizer = summarySynchronizer;
         _dbContext = dbContext;
-        _canonicalWorkSynchronizer = canonicalWorkSynchronizer;
+        _canonicalWorkSynchronizer = canonicalWorkSynchronizer ?? new CanonicalWorkSynchronizer(dbContext);
     }
 
     public async Task<YoksisCollectResponse> CollectAsync(
@@ -60,11 +60,8 @@ public sealed class YoksisCollectionHandler
         {
             await using IDbContextTransaction transaction =
                 await _dbContext.Database.BeginTransactionAsync();
-            if (_canonicalWorkSynchronizer is not null)
-            {
-                await _canonicalWorkSynchronizer.AcquireWriteGateAsync();
-                await _canonicalWorkSynchronizer.AcquireResearcherLockAsync(personelId);
-            }
+            await _canonicalWorkSynchronizer.AcquireWriteGateAsync();
+            await _canonicalWorkSynchronizer.AcquireResearcherLockAsync(personelId);
 
             Researcher? requestedResearcher = CreateResearcher(response);
             requestedResearcher.PersonelId = personelId;
@@ -80,10 +77,7 @@ public sealed class YoksisCollectionHandler
                 researcher.PersonelId,
                 response,
                 isIncremental: request.UpdatedAfter.HasValue);
-            if (_canonicalWorkSynchronizer is not null)
-                await _canonicalWorkSynchronizer.SyncAsync(
-                    researcher.PersonelId);
-
+            await _canonicalWorkSynchronizer.SyncAsync(researcher.PersonelId);
             response.PersonelId = researcher.PersonelId;
             response.ResearcherDisplayName = CreateDisplayName(researcher);
             response.YoksisPublicationCount = publicationCount;

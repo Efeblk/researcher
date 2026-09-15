@@ -16,7 +16,4 @@ public interface IAcademicPerformanceApplicationService
     Task<CanonicalPublicationListResponse> ListCanonicalPublicationsAsync(
         CanonicalPublicationListRequest request,
         CancellationToken cancellationToken = default);
-    Task<CanonicalPublicationRebuildResponse> RebuildCanonicalPublicationsAsync(
-        CanonicalPublicationRebuildRequest request,
-        CancellationToken cancellationToken = default);
 }

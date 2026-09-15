@@ -11,7 +11,7 @@ public sealed record PublicationMetricObservation(
     AcademicWorkCategory CategoryObserved,
     bool HasSavedAbstract,
     bool HasRecordedSourceUrl,
-    AcademicWorkProvider Provider = AcademicWorkProvider.Legacy,
+    AcademicWorkProvider Provider,
     int? CitedByCount = null);
 
 public static class PublicationMetricsCalculator

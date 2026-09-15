@@ -26,14 +26,13 @@ public sealed class AnalysisFreshnessEvaluatorTests(AnalysisProductSqlServerFixt
         CanonicalArticleAnalysisRun sourceChanged = await AddRunAsync(database, personelId, currentPolicy);
         AddJob(database, sourceChanged, "input-a", "input-b", currentPolicy, currentPolicy);
         CanonicalArticleAnalysisRun policyChanged = await AddRunAsync(database, personelId, "freshness-policy-v1");
-        CanonicalArticleAnalysisRun legacy = await AddRunAsync(database, personelId, null);
         CanonicalArticleAnalysisRun replaced = await AddRunAsync(database, personelId, currentPolicy);
         _ = await AddRunAsync(database, personelId, currentPolicy, replaced.CanonicalWorkId);
         await database.SaveChangesWithSourceSeedAsync(fixture.ConnectionString);
 
         IReadOnlyDictionary<long, AnalysisFreshnessResult> result =
             await AnalysisFreshnessEvaluator.EvaluateAsync(database,
-                [current.Id, sourceChanged.Id, policyChanged.Id, legacy.Id, replaced.Id],
+                [current.Id, sourceChanged.Id, policyChanged.Id, replaced.Id],
                 currentPolicy, default);
 
         Assert.Equal(AnalysisFreshnessStatus.Current, result[current.Id].Status);
@@ -41,15 +40,13 @@ public sealed class AnalysisFreshnessEvaluatorTests(AnalysisProductSqlServerFixt
         Assert.Contains("SourceInputChanged", result[sourceChanged.Id].Reasons);
         Assert.Equal(AnalysisFreshnessStatus.Stale, result[policyChanged.Id].Status);
         Assert.Contains("CurrentPolicyChanged", result[policyChanged.Id].Reasons);
-        Assert.Equal(AnalysisFreshnessStatus.Unknown, result[legacy.Id].Status);
-        Assert.Contains("AutomationJobUnavailable", result[legacy.Id].Reasons);
         Assert.Equal(AnalysisFreshnessStatus.Stale, result[replaced.Id].Status);
         Assert.Contains("NewerAnalysisAvailable", result[replaced.Id].Reasons);
         Assert.Equal(64, AnalysisFreshnessEvaluator.CreateFreshnessHash(result.Values, currentPolicy).Length);
     }
 
     private async Task<CanonicalArticleAnalysisRun> AddRunAsync(AnalysisDbContext database,
-        string personelId, string? policyVersion, int? existingWorkId = null)
+        string personelId, string policyVersion, int? existingWorkId = null)
     {
         int canonicalWorkId;
         if (existingWorkId.HasValue)

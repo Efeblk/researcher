@@ -7,12 +7,7 @@ public sealed class OwnFacultyAssistant : Migration
 {
     public override void Up()
     {
-        if (AnalysisMigrationGuard.IsCompleteOrAbsent("faculty assistant",
-            Schema.Schema("faculty").Table("AssistantContextVersions").Exists(),
-            Schema.Schema("faculty").Table("AssistantRuns").Exists()))
-            return;
-
-        Execute.Sql("IF SCHEMA_ID(N'faculty') IS NULL EXEC(N'CREATE SCHEMA [faculty]');");
+Execute.Sql("IF SCHEMA_ID(N'faculty') IS NULL EXEC(N'CREATE SCHEMA [faculty]');");
         Create.Table("AssistantContextVersions").InSchema("faculty")
             .WithColumn("Id").AsInt64().PrimaryKey().Identity()
             .WithColumn("PersonelID").AsString(200).NotNullable()

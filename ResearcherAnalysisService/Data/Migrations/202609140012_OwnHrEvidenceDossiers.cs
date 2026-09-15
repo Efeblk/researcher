@@ -7,12 +7,7 @@ public sealed class OwnHrEvidenceDossiers : Migration
 {
     public override void Up()
     {
-        if (AnalysisMigrationGuard.IsCompleteOrAbsent("HR evidence dossiers",
-            Schema.Schema("hr").Table("EvidenceDossiers").Exists(),
-            Schema.Schema("hr").Table("DossierReviewActions").Exists()))
-            return;
-
-        Execute.Sql("IF SCHEMA_ID(N'hr') IS NULL EXEC(N'CREATE SCHEMA [hr]');");
+Execute.Sql("IF SCHEMA_ID(N'hr') IS NULL EXEC(N'CREATE SCHEMA [hr]');");
         Create.Table("EvidenceDossiers").InSchema("hr")
             .WithColumn("Id").AsInt64().PrimaryKey().Identity()
             .WithColumn("PersonelID").AsString(200).NotNullable()

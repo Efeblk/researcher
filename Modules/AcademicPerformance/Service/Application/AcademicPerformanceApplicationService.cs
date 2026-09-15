@@ -378,29 +378,6 @@ public sealed class AcademicPerformanceApplicationService :
             researcher.PersonelId, request, cancellationToken);
     }
 
-    public async Task<CanonicalPublicationRebuildResponse> RebuildCanonicalPublicationsAsync(
-        CanonicalPublicationRebuildRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        string personelId = request.PersonelId?.Trim() ?? string.Empty;
-        if (personelId.Length == 0 || personelId.Length > 200 ||
-            !await _dbContext.Researchers.AsNoTracking()
-                .AnyAsync(researcher => researcher.PersonelId == personelId, cancellationToken))
-        {
-            throw new ArgumentException("Akademisyen kaydı bulunamadı.");
-        }
-
-        CanonicalWorkSyncResult result = await _canonicalWorkSynchronizer.SyncAsync(
-            personelId, cancellationToken);
-        return new()
-        {
-            PersonelId = personelId,
-            CanonicalWorkCount = result.CanonicalWorkCount,
-            ObservationCount = result.ObservationCount,
-            AssociationCount = result.AssociationCount
-        };
-    }
-
     private async Task<Researcher> ResolveResearcherAsync(
         string? personelId,
         string? orcid,

@@ -46,7 +46,7 @@ public sealed class AcademicGraphProjectionService(AnalysisDbContext database)
                 value.PromptVersion, value.IsPartial, value.SourceIdentityHash))
             .ToListAsync(cancellationToken);
         List<RunRow> runs = runCandidates
-            .Where(value => value.SourceIdentityHash is not null &&
+            .Where(value =>
                 sourceIdentities.GetValueOrDefault(value.CanonicalWorkId) == value.SourceIdentityHash)
             .Select(value => new RunRow(value.Id, value.CanonicalWorkId, value.SourceSnapshotId,
                 value.Language, value.PolicyVersion, value.PromptVersion, value.IsPartial))
@@ -202,10 +202,10 @@ public sealed class AcademicGraphProjectionService(AnalysisDbContext database)
 
     internal sealed record WorkRow(int Id, string? NormalizedDoi, bool HasRetractionObservation);
     internal sealed record RunRow(long Id, int CanonicalWorkId, long SourceSnapshotId,
-        string Language, string? PolicyVersion, string PromptVersion, bool IsPartial);
+        string Language, string PolicyVersion, string PromptVersion, bool IsPartial);
     private sealed record RunCandidate(long Id, int CanonicalWorkId, long SourceSnapshotId,
-        string Language, string? PolicyVersion, string PromptVersion, bool IsPartial,
-        string? SourceIdentityHash);
+        string Language, string PolicyVersion, string PromptVersion, bool IsPartial,
+        string SourceIdentityHash);
     internal sealed record SourceRow(long Id, int CanonicalWorkId, string ExtractedTextHash,
         string SourceKind, string ExtractionVersion);
     internal sealed record SpanRow(long Id, long SourceSnapshotId, string SourceId, int Ordinal,

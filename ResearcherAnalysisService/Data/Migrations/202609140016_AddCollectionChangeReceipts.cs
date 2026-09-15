@@ -7,10 +7,7 @@ public sealed class AddCollectionChangeReceipts : Migration
 {
     public override void Up()
     {
-        if (Schema.Schema("analysis").Table("CollectionChangeReceipts").Exists())
-            return;
-
-        Create.Table("CollectionChangeReceipts").InSchema("analysis")
+Create.Table("CollectionChangeReceipts").InSchema("analysis")
             .WithColumn("EventId").AsGuid().PrimaryKey()
             .WithColumn("ReceivedAtUtc").AsDateTime2().NotNullable()
             .WithColumn("ScheduledAtUtc").AsDateTime2().Nullable();

@@ -47,57 +47,6 @@ public sealed class AnalysisDatabaseMigrationTests
     }
 
     [Fact]
-    public async Task Migration_ExistingAnalysisLedger_PreservesData()
-    {
-        await using TemporaryDatabase database = await TemporaryDatabase.CreateAsync();
-        Guid sentinel = Guid.NewGuid();
-        await database.CreateLedgerAsync("analysis", sentinel);
-        await using ServiceProvider services = CreateServices(database.ConnectionString);
-
-        services.MigrateAnalysisDatabase();
-
-        Assert.Equal(sentinel, await database.ScalarAsync<Guid>(
-            "SELECT [AttemptId] FROM [analysis].[GeminiUsageAttempts]"));
-        Assert.Equal(1, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM [dbo].[ResearcherAnalysisVersionInfo] WHERE [Version]=202609140001"));
-    }
-
-    [Fact]
-    public async Task Migration_LegacyDboLedger_TransfersData()
-    {
-        await using TemporaryDatabase database = await TemporaryDatabase.CreateAsync();
-        Guid sentinel = Guid.NewGuid();
-        await database.CreateLedgerAsync("dbo", sentinel);
-        await using ServiceProvider services = CreateServices(database.ConnectionString);
-
-        services.MigrateAnalysisDatabase();
-
-        Assert.Equal(sentinel, await database.ScalarAsync<Guid>(
-            "SELECT [AttemptId] FROM [analysis].[GeminiUsageAttempts]"));
-        Assert.Equal(0, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE schema_id=SCHEMA_ID('dbo') AND name='GeminiUsageAttempts'"));
-    }
-
-    [Fact]
-    public async Task Migration_BothLedgerLocations_FailsWithoutChangingEither()
-    {
-        await using TemporaryDatabase database = await TemporaryDatabase.CreateAsync();
-        Guid dboSentinel = Guid.NewGuid();
-        Guid analysisSentinel = Guid.NewGuid();
-        await database.CreateLedgerAsync("dbo", dboSentinel);
-        await database.CreateLedgerAsync("analysis", analysisSentinel);
-        await using ServiceProvider services = CreateServices(database.ConnectionString);
-
-        Exception error = Assert.ThrowsAny<Exception>(services.MigrateAnalysisDatabase);
-
-        Assert.Contains("exists in both dbo and analysis", error.ToString(), StringComparison.Ordinal);
-        Assert.Equal(dboSentinel, await database.ScalarAsync<Guid>(
-            "SELECT [AttemptId] FROM [dbo].[GeminiUsageAttempts]"));
-        Assert.Equal(analysisSentinel, await database.ScalarAsync<Guid>(
-            "SELECT [AttemptId] FROM [analysis].[GeminiUsageAttempts]"));
-    }
-
-    [Fact]
     public async Task HostedStartup_MigratesBeforeServiceListens()
     {
         await using TemporaryDatabase database = await TemporaryDatabase.CreateAsync();

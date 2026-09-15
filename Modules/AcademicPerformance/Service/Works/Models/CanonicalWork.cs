@@ -10,4 +10,5 @@ public sealed class CanonicalWork
     public DateTime UpdatedAt { get; set; }
     public List<CanonicalWorkObservation> Observations { get; set; } = [];
     public List<CanonicalResearcherWork> Researchers { get; set; } = [];
+    public List<PublicationSummary> PublicationSummaries { get; set; } = [];
 }

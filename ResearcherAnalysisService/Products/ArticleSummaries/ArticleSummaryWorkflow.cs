@@ -210,28 +210,6 @@ public sealed class ArticleSummaryWorkflow(AnalysisDbContext database, SafeArtic
         return null;
     }
 
-    private async Task<SavedArticleSummaryResponse?> GetLatestLegacyAsync(
-        string personelId,
-        int academicWorkId,
-        string language,
-        CancellationToken cancellationToken)
-    {
-        await foreach (SavedArticleSummary legacy in database.ArticleSummaries.AsNoTracking()
-            .Where(value => value.PersonelId == personelId &&
-                value.OriginalAcademicWorkId == academicWorkId &&
-                !database.CanonicalArticleAnalysisRuns.Any(run =>
-                    run.SavedArticleSummaryId == value.Id))
-            .OrderByDescending(value => value.Id)
-            .AsAsyncEnumerable().WithCancellation(cancellationToken))
-        {
-            ArticleSummaryReport? report = JsonSerializer.Deserialize<ArticleSummaryReport>(
-                legacy.ReportJson, JsonOptions);
-            if (report?.Language == language)
-                return Map(legacy, report);
-        }
-        return null;
-    }
-
     private async Task<SqlApplicationLock?> AcquireExecutionLockAsync(
         int canonicalWorkId, string language, int timeoutMilliseconds,
         CancellationToken cancellationToken) =>

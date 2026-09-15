@@ -7,15 +7,7 @@ public sealed class OwnArticleEvaluations : Migration
 {
     public override void Up()
     {
-        if (AnalysisMigrationGuard.IsCompleteOrAbsent("article evaluations",
-            Schema.Schema("analysis").Table("ArticleEvaluationRuns").Exists(),
-            Schema.Schema("analysis").Table("ArticleEvaluationCases").Exists(),
-            Schema.Schema("analysis").Table("ArticleEvaluationWorkItems").Exists(),
-            Schema.Schema("analysis").Table("ArticleEvaluationAttempts").Exists(),
-            Schema.Schema("analysis").Table("ArticleEvaluationResults").Exists()))
-            return;
-
-        Create.Table("ArticleEvaluationRuns").InSchema("analysis")
+Create.Table("ArticleEvaluationRuns").InSchema("analysis")
             .WithColumn("Id").AsInt64().PrimaryKey().Identity()
             .WithColumn("RunId").AsGuid().NotNullable()
             .WithColumn("OwnerPersonelID").AsString(200).Nullable()

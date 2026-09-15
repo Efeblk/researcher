@@ -42,6 +42,10 @@ History uses short subjects such as `readme ve settings` and `update on feedback
 
 Store API keys and YÖKSİS credentials with each owning project's `dotnet user-secrets`; never commit credentials, T.C. identity numbers, raw secrets, or personal database files. Keep collector non-secret defaults in `academicsettings.json` and `appsettings.json`, and analysis defaults in `ResearcherAnalysisService/appsettings.json`. `DevelopmentPermissionService` supplies permissive Serenity/demo permission checks in the standalone collector host. Analysis API routes except `/health` use `X-Analysis-Key` configured by `Service:ApiKey`. Protected knowledge/graph, evaluation, HR, and faculty product routes additionally use the fail-closed `IAcademicProductAccessService` and require a trusted identity/scope adapter for deployment; the service key never substitutes for subject authorization.
 
+## Development Database Policy
+
+This project is currently in development. Treat the application database as disposable and use reset plus recollection as the normal workflow after schema or identity changes. Do not add legacy-data preservation, backfills, dual-read compatibility, or migration-only repair endpoints unless the user explicitly requests them. Reuse existing endpoints and do not add endpoints solely for a transition. This policy does not authorize deleting an actual database during ordinary code changes or production work.
+
 ## Agent Workflow
 
 Use GPT-6 Astra to coordinate scope and design, write a short acceptance plan, and delegate bounded implementation, debugging, testing, and documentation work to GPT-5.6 Sol by default. Astra reviews Sol's concise diff and test summary, resolves material architectural ambiguities, and avoids duplicating Sol's work.

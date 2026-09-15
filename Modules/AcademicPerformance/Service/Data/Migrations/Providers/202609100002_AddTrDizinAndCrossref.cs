@@ -7,10 +7,10 @@ public sealed class AddTrDizinAndCrossref : Migration
 {
     public override void Up()
     {
-        Create.Table("TrDizinProfiles")
+        Create.Table("TrDizinProfiles").InSchema("trdizin")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
             .WithColumn("PersonelID").AsString(200).NotNullable()
-                .ForeignKey("Researchers", "PersonelID").OnDelete(System.Data.Rule.Cascade)
+                .ForeignKey("FK_TrDizinProfiles_Researchers_PersonelID", "core", "Researchers", "PersonelID").OnDelete(System.Data.Rule.Cascade)
             .WithColumn("Orcid").AsString(19).NotNullable()
             .WithColumn("AuthorId").AsInt64().NotNullable()
             .WithColumn("DisplayName").AsString(500).Nullable()
@@ -20,12 +20,12 @@ public sealed class AddTrDizinAndCrossref : Migration
             .WithColumn("RawAuthorJson").AsString(int.MaxValue).NotNullable()
             .WithColumn("RawPublicationsJson").AsString(int.MaxValue).NotNullable();
         Create.UniqueConstraint("UQ_TrDizinProfiles_PersonelID")
-            .OnTable("TrDizinProfiles").Column("PersonelID");
+            .OnTable("TrDizinProfiles").WithSchema("trdizin").Column("PersonelID");
 
-        Create.Table("TrDizinWorks")
+        Create.Table("TrDizinWorks").InSchema("trdizin")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
             .WithColumn("TrDizinProfileId").AsInt32().NotNullable()
-                .ForeignKey("TrDizinProfiles", "Id").OnDelete(System.Data.Rule.Cascade)
+                .ForeignKey("FK_TrDizinWorks_TrDizinProfiles_TrDizinProfileId", "trdizin", "TrDizinProfiles", "Id").OnDelete(System.Data.Rule.Cascade)
             .WithColumn("PublicationId").AsString(100).NotNullable()
             .WithColumn("Title").AsString(2000).Nullable()
             .WithColumn("Doi").AsString(500).Nullable()
@@ -36,12 +36,12 @@ public sealed class AddTrDizinAndCrossref : Migration
             .WithColumn("CitationCount").AsInt32().Nullable()
             .WithColumn("RawDataJson").AsString(int.MaxValue).NotNullable();
         Create.UniqueConstraint("UQ_TrDizinWorks_Profile_Publication")
-            .OnTable("TrDizinWorks").Columns("TrDizinProfileId", "PublicationId");
+            .OnTable("TrDizinWorks").WithSchema("trdizin").Columns("TrDizinProfileId", "PublicationId");
 
-        Create.Table("CrossrefWorks")
+        Create.Table("CrossrefWorks").InSchema("crossref")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
             .WithColumn("PersonelID").AsString(200).NotNullable()
-                .ForeignKey("Researchers", "PersonelID").OnDelete(System.Data.Rule.Cascade)
+                .ForeignKey("FK_CrossrefWorks_Researchers_PersonelID", "core", "Researchers", "PersonelID").OnDelete(System.Data.Rule.Cascade)
             .WithColumn("Doi").AsString(500).NotNullable()
             .WithColumn("Found").AsBoolean().NotNullable()
             .WithColumn("FetchedAt").AsDateTime2().NotNullable()
@@ -55,12 +55,12 @@ public sealed class AddTrDizinAndCrossref : Migration
             .WithColumn("Url").AsString(2000).Nullable()
             .WithColumn("RawDataJson").AsString(int.MaxValue).Nullable();
         Create.UniqueConstraint("UQ_CrossrefWorks_PersonelID_Doi")
-            .OnTable("CrossrefWorks").Columns("PersonelID", "Doi");
+            .OnTable("CrossrefWorks").WithSchema("crossref").Columns("PersonelID", "Doi");
     }
     public override void Down()
     {
-        Delete.Table("CrossrefWorks");
-        Delete.Table("TrDizinWorks");
-        Delete.Table("TrDizinProfiles");
+        Delete.Table("CrossrefWorks").InSchema("crossref");
+        Delete.Table("TrDizinWorks").InSchema("trdizin");
+        Delete.Table("TrDizinProfiles").InSchema("trdizin");
     }
 }

@@ -7,13 +7,7 @@ public sealed class OwnCanonicalArticleReviews : Migration
 {
     public override void Up()
     {
-        if (AnalysisMigrationGuard.IsCompleteOrAbsent("canonical article reviews",
-            Schema.Schema("analysis").Table("CanonicalArticleReviewRuns").Exists(),
-            Schema.Schema("analysis").Table("CanonicalArticleReviewFindings").Exists(),
-            Schema.Schema("analysis").Table("CanonicalArticleReviewEvidence").Exists()))
-            return;
-
-        Create.Table("CanonicalArticleReviewRuns").InSchema("analysis")
+Create.Table("CanonicalArticleReviewRuns").InSchema("analysis")
             .WithColumn("Id").AsInt64().PrimaryKey().Identity()
             .WithColumn("CanonicalWorkId").AsInt32().NotNullable()
             .WithColumn("BaseAnalysisRunId").AsInt64().NotNullable()

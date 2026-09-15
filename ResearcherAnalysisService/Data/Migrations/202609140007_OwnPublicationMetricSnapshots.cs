@@ -7,12 +7,7 @@ public sealed class OwnPublicationMetricSnapshots : Migration
 {
     public override void Up()
     {
-        if (AnalysisMigrationGuard.IsCompleteOrAbsent("publication metric snapshots",
-            Schema.Schema("analysis").Table("PublicationMetricSnapshots").Exists(),
-            Schema.Schema("analysis").Table("PublicationMetricsRefreshStates").Exists()))
-            return;
-
-        Create.Table("PublicationMetricSnapshots").InSchema("analysis")
+Create.Table("PublicationMetricSnapshots").InSchema("analysis")
             .WithColumn("Id").AsInt64().PrimaryKey().Identity()
             .WithColumn("PersonelID").AsString(200).NotNullable()
             .WithColumn("CatalogVersion").AsString(100).NotNullable()

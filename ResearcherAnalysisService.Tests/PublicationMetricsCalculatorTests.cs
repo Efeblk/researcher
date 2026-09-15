@@ -163,7 +163,8 @@ public sealed class PublicationMetricsCalculatorTests
             date,
             category,
             HasSavedAbstract: false,
-            HasRecordedSourceUrl: false);
+            HasRecordedSourceUrl: false,
+            Provider: AcademicWorkProvider.Orcid);
 
     private static PublicationContextMetricObservation Context(
         int canonicalWorkId,

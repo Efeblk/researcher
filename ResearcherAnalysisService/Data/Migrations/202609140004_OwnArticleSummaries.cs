@@ -7,10 +7,7 @@ public sealed class OwnArticleSummaries : Migration
 {
     public override void Up()
     {
-        if (Schema.Schema("analysis").Table("ArticleSummaries").Exists())
-            return;
-
-        Create.Table("ArticleSummaries").InSchema("analysis")
+Create.Table("ArticleSummaries").InSchema("analysis")
             .WithColumn("Id").AsInt64().PrimaryKey().Identity()
             .WithColumn("AcademicWorkId").AsInt32().Nullable()
             .WithColumn("OriginalAcademicWorkId").AsInt32().NotNullable()

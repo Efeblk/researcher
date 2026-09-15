@@ -7,14 +7,8 @@ public sealed class OwnArticleSummaryAutomation : Migration
 {
     public override void Up()
     {
-        if (AnalysisMigrationGuard.IsCompleteOrAbsent("article summary automation",
-            Schema.Schema("analysis").Table("ArticleSummaryAutomationJobs").Exists(),
-            Schema.Schema("analysis").Table("CanonicalArticleAnalysisRuns")
-                .Column("PolicyVersion").Exists()))
-            return;
-
-        Alter.Table("CanonicalArticleAnalysisRuns").InSchema("analysis")
-            .AddColumn("PolicyVersion").AsString(100).Nullable();
+Alter.Table("CanonicalArticleAnalysisRuns").InSchema("analysis")
+            .AddColumn("PolicyVersion").AsString(100).NotNullable();
 
         Create.Table("ArticleSummaryAutomationJobs").InSchema("analysis")
             .WithColumn("Id").AsInt64().PrimaryKey().Identity()
