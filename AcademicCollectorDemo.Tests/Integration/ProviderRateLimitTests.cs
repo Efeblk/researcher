@@ -67,6 +67,31 @@ public sealed class ProviderRateLimitTests(SqlServerFixture fixture)
         Assert.All(scope.Failures, failure => Assert.True(failure.RetryAt > DateTime.UtcNow.AddMinutes(50)));
     }
 
+    [Theory]
+    [InlineData(1, 4)]
+    [InlineData(900, 14)]
+    public async Task SendAsync_TooManyRequests_AppliesConfiguredMinimumAndPreservesLongerRetryAfter(
+        int retryAfterSeconds, int minimumExpectedMinutes)
+    {
+        string name = Guid.NewGuid().ToString("N");
+        using var first = Client(name, 1, 0, _ =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+            response.Headers.RetryAfter = new(TimeSpan.FromSeconds(retryAfterSeconds));
+            return response;
+        }, rateLimitCooldownSeconds: 300);
+        using ProviderCallScope scope = new();
+
+        using var response = await first.GetAsync("https://provider.test/1");
+        using var second = Client(name, 1, 0,
+            _ => throw new Exception("Cooldown should prevent this request."));
+        using var deferred = await second.GetAsync("https://provider.test/2");
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, deferred.StatusCode);
+        Assert.All(scope.Failures,
+            failure => Assert.True(failure.RetryAt > DateTime.UtcNow.AddMinutes(minimumExpectedMinutes)));
+    }
+
     [Fact]
     public async Task SendAsync_ExhaustedProvider_DoesNotConsumeOtherProviderBudget()
     {
@@ -271,12 +296,14 @@ public sealed class ProviderRateLimitTests(SqlServerFixture fixture)
     }
 
     private HttpClient Client(string name, int interval, int dailyLimit,
-        Func<HttpRequestMessage, HttpResponseMessage> respond, bool enabled = true) => new(new ProviderRateLimitHandler(
+        Func<HttpRequestMessage, HttpResponseMessage> respond, bool enabled = true,
+        int rateLimitCooldownSeconds = 0) => new(new ProviderRateLimitHandler(
             fixture.ConnectionString, [new()
             {
                 Enabled = enabled,
                 Name = name, Host = "provider.test", MinimumIntervalMilliseconds = interval,
-                DailyRequestLimit = dailyLimit
+                DailyRequestLimit = dailyLimit,
+                RateLimitCooldownSeconds = rateLimitCooldownSeconds
             }]) { InnerHandler = new StubHttpHandler(respond) });
 
     private HttpClient AsyncClient(string name, int interval, int dailyLimit,

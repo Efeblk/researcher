@@ -145,8 +145,8 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
             Assert.True(orcid.NextAllowedAt >= orcid.ResetsAt);
             var openAlex = response.Providers.Single(provider => provider.Provider == "OpenAlex").LocalBudget!;
             Assert.Equal(0, openAlex.RequestsToday);
-            Assert.Null(openAlex.DailyRequestLimit);
-            Assert.Null(openAlex.RemainingToday);
+            Assert.Equal(1000, openAlex.DailyRequestLimit);
+            Assert.Equal(1000, openAlex.RemainingToday);
             Assert.Equal("Available", openAlex.Status);
         }
         finally
