@@ -12,7 +12,7 @@ public sealed class TrDizinClient(HttpClient httpClient, IConfiguration configur
     public async Task<TrDizinProfile?> GetByOrcidAsync(string orcid, CancellationToken cancellationToken = default)
     {
         string root = (configuration["TrDizin:ApiBaseUrl"] ?? "https://search.trdizin.gov.tr").TrimEnd('/');
-        string? authorJson = await GetAsync($"{root}/api/public/yazar/orcid?orcid={Uri.EscapeDataString(orcid)}", true, cancellationToken);
+        string? authorJson = await GetAsync($"{root}/api/public/yazar/orcid/?orcid={Uri.EscapeDataString(orcid)}", true, cancellationToken);
         if (authorJson is null)
         {
             return null;
