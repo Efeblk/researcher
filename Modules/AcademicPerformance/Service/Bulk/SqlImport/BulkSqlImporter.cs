@@ -14,6 +14,8 @@ public sealed class BulkSqlImporter(
     public async Task<BulkCollectionStatusResponse> ImportAsync(
         Guid batchId, CancellationToken cancellationToken = default)
     {
+        if (batchId == Guid.Empty)
+            throw new BulkRequestException("Supply a stable, non-empty BatchId for safe resubmission.");
         BulkSqlSourceOptions source = sourceOptions.Value;
         if (!source.Enabled || string.IsNullOrWhiteSpace(source.Query))
             throw new InvalidOperationException("Configure and enable BulkSqlSource before importing.");
@@ -40,7 +42,7 @@ public sealed class BulkSqlImporter(
         while (await reader.ReadAsync(cancellationToken))
         {
             if (rows.Count >= bulkOptions.Value.MaximumBatchSize)
-                throw new ArgumentException("The query exceeds MaximumBatchSize. Import smaller batches.");
+                throw new BulkRequestException("The query exceeds MaximumBatchSize. Import smaller batches.");
             rows.Add(ReadRow(reader, columns, source, rows.Count + 1));
         }
         return await collectionService.SubmitAsync(new() { BatchId = batchId, Researchers = rows }, cancellationToken);

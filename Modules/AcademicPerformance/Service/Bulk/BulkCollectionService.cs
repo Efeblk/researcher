@@ -18,13 +18,13 @@ public sealed class BulkCollectionService(
         BulkCollectionSubmitRequest request, CancellationToken cancellationToken = default)
     {
         if (request.BatchId == Guid.Empty)
-            throw new ArgumentException("Supply a stable, non-empty BatchId for safe resubmission.");
+            throw new BulkRequestException("Supply a stable, non-empty BatchId for safe resubmission.");
         if (request.Researchers is null || request.Researchers.Count == 0 ||
             request.Researchers.Count > options.Value.MaximumBatchSize)
-            throw new ArgumentException($"Supply between 1 and {options.Value.MaximumBatchSize} researchers.");
+            throw new BulkRequestException($"Supply between 1 and {options.Value.MaximumBatchSize} researchers.");
         if (request.Researchers.Any(row => row is null ||
             string.IsNullOrWhiteSpace(row.PersonelId) || row.PersonelId.Length > 200))
-            throw new ArgumentException("Rows require PersonelID of at most 200 characters.");
+            throw new BulkRequestException("Rows require PersonelID of at most 200 characters.");
 
         string hash = Convert.ToHexString(SHA256.HashData(
             Encoding.UTF8.GetBytes(JsonSerializer.Serialize(request.Researchers))));
@@ -38,7 +38,7 @@ public sealed class BulkCollectionService(
         if (existing is not null)
         {
             if (existing.InputHash != hash)
-                throw new ArgumentException("This BatchId already belongs to different input.");
+                throw new BulkRequestException("This BatchId already belongs to different input.");
             return await GetStatusAsync(new() { BatchId = request.BatchId }, cancellationToken);
         }
 
@@ -88,7 +88,7 @@ public sealed class BulkCollectionService(
         BulkCollectionStatusRequest request, CancellationToken cancellationToken = default)
     {
         if (!await database.BulkCollectionBatches.AnyAsync(batch => batch.Id == request.BatchId, cancellationToken))
-            throw new ArgumentException("Batch not found.");
+            throw new BulkRequestException("Batch not found.");
         var jobs = database.BulkCollectionJobs.AsNoTracking().Where(job => job.BatchId == request.BatchId);
         var counts = await jobs.GroupBy(job => job.Status)
             .Select(group => new { Status = group.Key, Count = group.Count() })
