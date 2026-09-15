@@ -17,9 +17,7 @@ export function describeYoksisOutcome(response: YoksisCollectResponse): YoksisOu
     if (successfulCount === 0) {
         return {
             kind: "error",
-            message: failedCount > 0
-                ? `YÖKSİS araştırması başarısız: ${format(failedCount)} kategorinin hiçbiri alınamadı.`
-                : "YÖKSİS araştırması tamamlanamadı: sağlayıcıdan başarılı bir kategori sonucu alınamadı.",
+            message: "YÖKSİS verileri alınamadı. Lütfen tekrar deneyin.",
             hasUsableResult: false
         };
     }
@@ -27,28 +25,26 @@ export function describeYoksisOutcome(response: YoksisCollectResponse): YoksisOu
     if (!saved) {
         return {
             kind: "error",
-            message: "YÖKSİS verileri alındı ancak akademisyen kaydına yazılamadı.",
+            message: "YÖKSİS verileri kaydedilemedi. Lütfen tekrar deneyin.",
             hasUsableResult: false
         };
     }
 
-    const result = publicationCount > 0
-        ? `${format(publicationCount)} yayın kaydedildi.`
-        : failedCount > 0
-            ? "Başarıyla alınan verilerde yayın kaydı bulunamadı."
-            : "Yayın kaydı bulunamadı.";
-
     if (failedCount > 0) {
         return {
             kind: "warning",
-            message: `YÖKSİS araştırması kısmen tamamlandı: ${result} ${format(failedCount)} kategori alınamadı.`,
+            message: publicationCount > 0
+                ? `YÖKSİS: ${format(publicationCount)} yayın bulundu. Bazı YÖKSİS verileri alınamadı.`
+                : "YÖKSİS verilerinin bir kısmı alınamadı; alınan verilerde yayın bulunamadı.",
             hasUsableResult: true
         };
     }
 
     return {
         kind: "success",
-        message: `YÖKSİS araştırması başarıyla tamamlandı: ${result}`,
+        message: publicationCount > 0
+            ? `YÖKSİS: ${format(publicationCount)} yayın bulundu.`
+            : "YÖKSİS araştırması tamamlandı. Yayın bulunamadı.",
         hasUsableResult: true
     };
 }

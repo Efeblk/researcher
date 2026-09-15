@@ -8,7 +8,7 @@ test("reports a successful empty YOKSIS query clearly", () => {
         FailedCategoryCount: 0, YoksisPublicationCount: 0
     }), {
         kind: "success",
-        message: "YÖKSİS araştırması başarıyla tamamlandı: Yayın kaydı bulunamadı.",
+        message: "YÖKSİS araştırması tamamlandı. Yayın bulunamadı.",
         hasUsableResult: true
     });
 });
@@ -21,8 +21,8 @@ test("reports partial YOKSIS category failures as a warning", () => {
 
     assert.equal(outcome.kind, "warning");
     assert.equal(outcome.hasUsableResult, true);
-    assert.match(outcome.message, /4 yayın kaydedildi/);
-    assert.match(outcome.message, /2 kategori alınamadı/);
+    assert.equal(outcome.message,
+        "YÖKSİS: 4 yayın bulundu. Bazı YÖKSİS verileri alınamadı.");
 });
 
 test("does not treat persistence as success when every YOKSIS category fails", () => {
@@ -31,7 +31,7 @@ test("does not treat persistence as success when every YOKSIS category fails", (
         FailedCategoryCount: 12, YoksisPublicationCount: 0
     }), {
         kind: "error",
-        message: "YÖKSİS araştırması başarısız: 12 kategorinin hiçbiri alınamadı.",
+        message: "YÖKSİS verileri alınamadı. Lütfen tekrar deneyin.",
         hasUsableResult: false
     });
 });
@@ -44,4 +44,16 @@ test("reports successful provider data that could not be persisted as failure", 
 
     assert.equal(outcome.kind, "error");
     assert.equal(outcome.hasUsableResult, false);
+    assert.equal(outcome.message, "YÖKSİS verileri kaydedilemedi. Lütfen tekrar deneyin.");
+});
+
+test("describes a partial empty YOKSIS result without claiming no publications exist", () => {
+    const outcome = describeYoksisOutcome({
+        IsSaved: true, PersonelID: "P-1", SuccessfulCategoryCount: 10,
+        FailedCategoryCount: 2, YoksisPublicationCount: 0
+    });
+
+    assert.equal(outcome.kind, "warning");
+    assert.equal(outcome.message,
+        "YÖKSİS verilerinin bir kısmı alınamadı; alınan verilerde yayın bulunamadı.");
 });

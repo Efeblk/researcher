@@ -9,26 +9,39 @@ export interface ProviderOutcome {
 
 export function describeProviderOutcome(response: ResearcherCollectResponse): ProviderOutcome {
     const messages = (response.Messages ?? []).filter(Boolean);
-    const details = messages.join("\n");
     const saved = response.IsSaved === true && Boolean(response.Researcher?.PersonelID);
+    const incomplete = messages.some(message =>
+        /^\[(HATA|EKSİK|UYARI)\]/u.test(message.trim()));
+    const failedSources = findFailedSources(messages);
 
     if (!saved) {
         return {
             kind: "error",
-            message: details || "Akademik sağlayıcı araştırması tamamlanamadı.",
+            message: failedSources.length === 1
+                ? `${failedSources[0]} verileri alınamadı. Lütfen tekrar deneyin.`
+                : "Araştırma tamamlanamadı. Lütfen tekrar deneyin.",
             hasUsableResult: false
         };
     }
 
-    const incomplete = messages.some(message =>
-        /^\[(HATA|EKSİK|UYARI)\]/u.test(message.trim()));
-    const summary = incomplete
-        ? "Akademik sağlayıcı araştırması kısmen tamamlandı."
-        : "Akademik sağlayıcı araştırması başarıyla tamamlandı.";
-
     return {
         kind: incomplete ? "warning" : "success",
-        message: details ? `${summary}\n${details}` : summary,
+        message: incomplete
+            ? failedSources.length === 1
+                ? `${failedSources[0]} bilgilerinin bir kısmı alınamadı. Mevcut sonuçları inceleyebilirsiniz.`
+                : "Bazı bilgiler alınamadı. Mevcut sonuçları inceleyebilirsiniz."
+            : "Araştırma tamamlandı.",
         hasUsableResult: true
     };
+}
+
+function findFailedSources(messages: string[]) {
+    const sources = [
+        "ORCID", "OpenAlex", "Google Scholar", "Web of Science", "Scopus",
+        "TR Dizin", "Crossref", "Semantic Scholar"
+    ];
+
+    return sources.filter(source => messages.some(message =>
+        /^\[(HATA|EKSİK)\]/u.test(message.trim()) &&
+        message.toLocaleLowerCase("tr-TR").includes(source.toLocaleLowerCase("tr-TR"))));
 }
