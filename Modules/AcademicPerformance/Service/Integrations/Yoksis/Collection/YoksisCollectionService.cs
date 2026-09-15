@@ -10,24 +10,38 @@ public sealed class YoksisCollectionService
     }
 
     public async Task<YoksisCollectResponse> CollectAsync(
-        YoksisCollectRequest request)
+        YoksisCollectRequest request,
+        IProgress<YoksisCollectionProgress>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         string tcKimlikNo = ValidateTcKimlikNo(request.TcKimlikNo);
+        _yoksisClient.ValidateConfiguration();
         YoksisCollectResponse? response = new YoksisCollectResponse();
         response.CollectedAt = DateTime.UtcNow;
 
+        int operationIndex = 0;
         foreach (YoksisOperationDefinition operation in YoksisOperationCatalog.All)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            operationIndex++;
             YoksisOperationResult? category = null;
 
             try
             {
+                Report(progress, "category", $"{operation.CategoryName} isteniyor.", operation,
+                    operationIndex, YoksisOperationCatalog.All.Count);
                 category = await _yoksisClient.GetAsync(
                     operation,
                     tcKimlikNo,
-                    request.UpdatedAfter);
+                    request.UpdatedAfter,
+                    cancellationToken);
                 response.Categories.Add(category);
                 AddFeedback(response.Messages, category);
+                Report(progress, category.IsSuccess ? "category-complete" : "category-failed",
+                    category.IsSuccess
+                        ? $"{operation.CategoryName}: {category.RecordCount} kayıt alındı."
+                        : $"{operation.CategoryName} yanıtı başarısız oldu.", operation,
+                    operationIndex, YoksisOperationCatalog.All.Count, category.RecordCount);
 
                 if (HasDetailOperation(operation) && category.IsSuccess)
                 {
@@ -35,16 +49,32 @@ public sealed class YoksisCollectionService
                         operation,
                         category,
                         tcKimlikNo,
-                        request.UpdatedAfter);
+                        request.UpdatedAfter,
+                        progress,
+                        cancellationToken);
                     response.Categories.Add(details);
                     AddFeedback(response.Messages, details);
                 }
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception exception)
             {
+                if (exception is YoksisProviderException { PartialResult: not null } systemic)
+                {
+                    response.Categories.Add(systemic.PartialResult);
+                    AddFeedback(response.Messages, systemic.PartialResult);
+                }
                 category = CreateFailure(operation, exception.Message);
                 response.Categories.Add(category);
                 AddFeedback(response.Messages, category);
+                if (exception is YoksisProviderException { StopsCollection: true })
+                {
+                    response.StopReason = exception.Message;
+                    break;
+                }
             }
         }
 
@@ -79,7 +109,9 @@ public sealed class YoksisCollectionService
         YoksisOperationDefinition operation,
         YoksisOperationResult listResult,
         string tcKimlikNo,
-        DateTime? updatedAfter)
+        DateTime? updatedAfter,
+        IProgress<YoksisCollectionProgress>? progress,
+        CancellationToken cancellationToken)
     {
         YoksisOperationResult? combinedResult = new YoksisOperationResult();
         combinedResult.CategoryName = operation.DetailCategoryName;
@@ -95,16 +127,30 @@ public sealed class YoksisCollectionService
             return combinedResult;
         }
 
+        int detailIndex = 0;
         foreach (string identifier in identifiers)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            detailIndex++;
             try
             {
+                Report(progress, "detail",
+                    $"{operation.DetailCategoryName} ayrıntısı alınıyor ({detailIndex}/{identifiers.Count}).",
+                    operation, detailIndex, identifiers.Count);
                 YoksisOperationResult? detailResult = await _yoksisClient.GetDetailAsync(
                     operation,
                     tcKimlikNo,
                     identifier,
-                    updatedAfter);
+                    updatedAfter,
+                    cancellationToken);
                 Merge(combinedResult, detailResult);
+                Report(progress, "detail-complete",
+                    $"{operation.DetailCategoryName} ayrıntısı tamamlandı ({detailIndex}/{identifiers.Count}).",
+                    operation, detailIndex, identifiers.Count, detailResult.RecordCount);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception exception)
             {
@@ -113,6 +159,13 @@ public sealed class YoksisCollectionService
                 combinedResult.Errors.Add(
                     $"{operation.DetailIdentifierFieldName}={identifier}: " +
                     exception.Message);
+                if (exception is YoksisProviderException { StopsCollection: true })
+                {
+                    combinedResult.RecordCount = combinedResult.Records.Count;
+                    combinedResult.ResultMessage = "Sistemik hata nedeniyle sonraki ayrıntı istekleri gönderilmedi.";
+                    throw new YoksisProviderException(exception.Message, true, exception,
+                        combinedResult);
+                }
             }
         }
 
@@ -121,6 +174,22 @@ public sealed class YoksisCollectionService
             ? "Bütün ayrıntılar alındı."
             : $"{combinedResult.Errors.Count} ayrıntı isteği başarısız oldu.";
         return combinedResult;
+    }
+
+    private static void Report(IProgress<YoksisCollectionProgress>? progress,
+        string stage, string message, YoksisOperationDefinition operation,
+        int current, int total, int? recordCount = null)
+    {
+        progress?.Report(new()
+        {
+            Stage = stage,
+            Message = message,
+            CategoryName = operation.CategoryName,
+            OperationName = operation.OperationName,
+            Current = current,
+            Total = total,
+            RecordCount = recordCount
+        });
     }
 
     private static void Merge(

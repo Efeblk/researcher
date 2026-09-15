@@ -12,6 +12,51 @@ namespace AcademicCollectorDemo.Tests.Integration;
 public sealed class ProviderResponseTests
 {
     [Fact]
+    public async Task CollectAsync_MissingCredentials_StopsBeforeFirstRequest()
+    {
+        var handler = new StubHttpHandler(_ => StubHttpHandler.Json("<Envelope />"));
+        using var http = new HttpClient(handler);
+        var service = new YoksisCollectionService(new(http, Config([])));
+
+        await Assert.ThrowsAnyAsync<Exception>(() => service.CollectAsync(
+            new() { TcKimlikNo = new('1', 11) }));
+
+        Assert.Equal(0, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task CollectAsync_SystemicResponse_StopsRemainingCategories()
+    {
+        var handler = new StubHttpHandler(_ => new HttpResponseMessage(
+            System.Net.HttpStatusCode.TooManyRequests));
+        using var http = new HttpClient(handler);
+        var service = new YoksisCollectionService(new(http, Config(new()
+        {
+            ["Yoksis:Username"] = "user", ["Yoksis:Password"] = "secret"
+        })));
+
+        var response = await service.CollectAsync(new() { TcKimlikNo = new('1', 11) });
+
+        Assert.Equal(1, handler.RequestCount);
+        Assert.Single(response.Categories);
+        Assert.Equal(1, response.FailedCategoryCount);
+    }
+
+    [Fact]
+    public async Task CollectAsync_RequestCancellation_StopsInFlightHttpCall()
+    {
+        using var http = new HttpClient(new CancelAwareHttpHandler());
+        var service = new YoksisCollectionService(new(http, Config(new()
+        {
+            ["Yoksis:Username"] = "user", ["Yoksis:Password"] = "secret"
+        })));
+        using CancellationTokenSource cancellation = new(TimeSpan.FromMilliseconds(50));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.CollectAsync(
+            new() { TcKimlikNo = new('1', 11) }, cancellationToken: cancellation.Token));
+    }
+
+    [Fact]
     public async Task CollectAsync_SuccessfulSoapEchoesSensitiveValues_RedactsRecordsAndRawXml()
     {
         string tc = new('1', 11);
@@ -60,4 +105,14 @@ public sealed class ProviderResponseTests
 
     private static IConfiguration Config(Dictionary<string, string?> values) =>
         new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+
+    private sealed class CancelAwareHttpHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException("Unreachable");
+        }
+    }
 }

@@ -17,7 +17,7 @@ export function describeYoksisOutcome(response: YoksisCollectResponse): YoksisOu
     if (successfulCount === 0) {
         return {
             kind: "error",
-            message: "YÖKSİS verileri alınamadı. Lütfen tekrar deneyin.",
+            message: response.StopReason || "YÖKSİS verileri alınamadı. Lütfen tekrar deneyin.",
             hasUsableResult: false
         };
     }

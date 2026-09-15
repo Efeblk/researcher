@@ -27,13 +27,14 @@ public sealed class YoksisAcademicWorkSynchronizer
     public async Task<int> SyncAsync(
         string personelId,
         YoksisCollectResponse response,
-        bool isIncremental = false)
+        bool isIncremental = false,
+        CancellationToken cancellationToken = default)
     {
         List<AcademicWork>? existingWorks = await _dbContext.AcademicWorks.Include(work => work.Sources)
             .Where(work =>
                 work.PersonelId == personelId &&
                 work.Provider == AcademicWorkProvider.Yoksis)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
         List<AcademicWork>? incomingWorks = CreateWorks(personelId, response);
         HashSet<int>? matchedExistingIds = [];
         HashSet<string>? completedSourceTypes = isIncremental ? [] : GetCompletedSourceTypes(response);
@@ -64,7 +65,7 @@ public sealed class YoksisAcademicWorkSynchronizer
             }
         }
 
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
         return incomingWorks.Count;
     }
 

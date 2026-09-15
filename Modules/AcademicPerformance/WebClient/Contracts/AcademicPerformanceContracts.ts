@@ -100,6 +100,7 @@ export interface YoksisCollectResponse extends ServiceResponse {
     SuccessfulCategoryCount?: number;
     FailedCategoryCount?: number;
     TotalRecordCount?: number;
+    StopReason?: string;
     Messages?: string[];
     Categories?: YoksisOperationResult[];
 }

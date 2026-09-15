@@ -10,6 +10,21 @@
 @academicWorkId = 1
 @tcKimlikNo = TC_KIMLIK_NUMARASINI_BURAYA_YAZ
 
+### YÖKSİS canlı ilerleme akışı [sağlayıcı çağrısı + yazma]
+# NDJSON kategori/ayrıntı ilerlemesini ve bağlantı heartbeat'lerini bildirir.
+# Heartbeat bir YÖKSİS yanıtı değildir. Son satır result veya error olur.
+# Kayıtlar toplama bitince tek işlemde yazılır; bağlantıyı kapatmak isteği iptal eder.
+POST {{api}}/Yoksis/CollectStream
+Content-Type: application/json
+Accept: application/x-ndjson
+
+{
+  "PersonelID": "{{personelId}}",
+  "TcKimlikNo": "{{tcKimlikNo}}",
+  "IncludeRecords": false,
+  "IncludeRawResponses": false
+}
+
 ### 1. Uygulama sağlığını oku [okuma]
 GET {{baseUrl}}/
 Accept: application/json
