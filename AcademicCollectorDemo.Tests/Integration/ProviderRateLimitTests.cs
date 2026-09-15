@@ -1,13 +1,51 @@
 using System.Diagnostics;
 using System.Net;
+using AcademicCollectorDemo.Modules.AcademicPerformance;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Status;
 using AcademicCollectorDemo.Tests.Infrastructure;
+using Microsoft.Extensions.Configuration;
 
 namespace AcademicCollectorDemo.Tests.Integration;
 
 [Collection("SQL Server")]
 public sealed class ProviderRateLimitTests(SqlServerFixture fixture)
 {
+    [Fact]
+    public async Task GetAsync_ConfiguredUnpaywallStatusRequest_UsesSharedPacingPolicy()
+    {
+        Dictionary<string, string?> settings = new()
+        {
+            ["ConnectionStrings:AcademicDatabase"] = fixture.ConnectionString,
+            ["Unpaywall:ApiBaseUrl"] = "https://unpaywall.test",
+            ["Unpaywall:Email"] = "status@example.test",
+            ["ProviderRequestLimits:Unpaywall:MinimumIntervalMilliseconds"] = "1"
+        };
+        foreach (var provider in ProviderStatusService.ProviderDefinitions)
+            settings[$"ProviderRequestLimits:{provider.Name}:Enabled"] =
+                (provider.Name == "Unpaywall").ToString();
+        IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
+        IReadOnlyList<ProviderRequestPolicy> policies =
+            AcademicPerformanceModule.CreateRequestPolicies(configuration);
+        List<Uri> dispatched = [];
+        using HttpClient client = new(new ProviderRateLimitHandler(fixture.ConnectionString, policies)
+        {
+            InnerHandler = new StubHttpHandler(request =>
+            {
+                dispatched.Add(request.RequestUri!);
+                return StubHttpHandler.Json("""{"doi":"10.1038/nphys1170","is_oa":true}""");
+            })
+        });
+
+        var response = await new ProviderStatusService(client, configuration).GetAsync(default);
+
+        Assert.Equal("Healthy", response.Providers.Single(provider =>
+            provider.Provider == "Unpaywall").Status);
+        Uri requestUri = Assert.Single(dispatched);
+        Assert.Equal("unpaywall.test", requestUri.Host);
+        Assert.Equal("?email=status%40example.test", requestUri.Query);
+    }
+
     [Fact]
     public async Task SendAsync_ExpectedNotFound_DoesNotRecordBulkFailure()
     {
