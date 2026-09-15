@@ -102,7 +102,15 @@ public sealed class ProviderRateLimitHandler(
                 HttpStatusCode.RequestTimeout || (int)response.StatusCode >= 500;
             if (retryableResponse)
             {
-                responseRetryAt = GetRetryAt(response, DateTime.UtcNow);
+                DateTime responseAt = DateTime.UtcNow;
+                responseRetryAt = GetRetryAt(response, responseAt);
+                if (response.StatusCode == HttpStatusCode.TooManyRequests &&
+                    policy.RateLimitCooldownSeconds > 0)
+                {
+                    DateTime minimumRetryAt = responseAt.AddSeconds(policy.RateLimitCooldownSeconds);
+                    if (minimumRetryAt > responseRetryAt)
+                        responseRetryAt = minimumRetryAt;
+                }
                 await PersistCooldownAsync(gate, policy.Name, responseRetryAt.Value, cancellationToken);
             }
             // HttpClient normally buffers content after delegating handlers return. Buffer here so a
