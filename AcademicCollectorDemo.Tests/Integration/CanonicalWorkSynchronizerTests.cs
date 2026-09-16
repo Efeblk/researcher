@@ -105,6 +105,7 @@ public sealed class CanonicalWorkSynchronizerTests(SqlServerFixture fixture)
     public async Task SyncAsync_MissingOrDifferentMetadata_DoesNotGroup()
     {
         string personelId = Id("metadata-separate");
+        AcademicWork baseline = Work(personelId, AcademicWorkProvider.Crossref, null, "baseline");
         AcademicWork missingYear = Work(personelId, AcademicWorkProvider.Orcid, null, "missing-year");
         missingYear.PublicationYear = null;
         AcademicWork missingAuthors = Work(personelId, AcademicWorkProvider.OpenAlex, null, "missing-authors");
@@ -113,13 +114,13 @@ public sealed class CanonicalWorkSynchronizerTests(SqlServerFixture fixture)
         differentYear.PublicationYear = 2024;
         AcademicWork differentAuthor = Work(personelId, AcademicWorkProvider.GoogleScholar, null, "different-author");
         differentAuthor.Authors = "Different Author";
-        await SeedAsync(personelId, missingYear, missingAuthors, differentYear, differentAuthor);
+        await SeedAsync(personelId, baseline, missingYear, missingAuthors, differentYear, differentAuthor);
 
         await SyncInScopeAsync(personelId);
 
         await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
         AcademicDbContext db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
-        Assert.Equal(4, await db.CanonicalResearcherWorks.CountAsync(value => value.PersonelId == personelId));
+        Assert.Equal(5, await db.CanonicalResearcherWorks.CountAsync(value => value.PersonelId == personelId));
     }
 
     [Fact]
@@ -182,20 +183,51 @@ public sealed class CanonicalWorkSynchronizerTests(SqlServerFixture fixture)
     }
 
     [Fact]
-    public async Task SyncAsync_AuthorTokenOrderWithInitialAmbiguity_IsDeterministic()
+    public async Task SyncAsync_EquivalentAuthorTokenAndListReordering_PreservesCanonicalId()
     {
         string personelId = Id("author-order");
         AcademicWork first = Work(personelId, AcademicWorkProvider.OpenAlex, null, "first");
-        first.Authors = "A Alice";
+        first.Authors = "Ada Lovelace, Alan Turing";
         AcademicWork second = Work(personelId, AcademicWorkProvider.Scopus, null, "second");
-        second.Authors = "Alice Adam";
+        second.Authors = "Turing Alan; Lovelace Ada";
         await SeedAsync(personelId, first, second);
 
         await SyncInScopeAsync(personelId);
 
         await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
         AcademicDbContext db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
-        Assert.Single(await db.CanonicalResearcherWorks.Where(value => value.PersonelId == personelId).ToListAsync());
+        int canonicalId = await db.CanonicalResearcherWorks.Where(value => value.PersonelId == personelId)
+            .Select(value => value.CanonicalWorkId).SingleAsync();
+        List<AcademicWork> works = await db.AcademicWorks.Where(value => value.PersonelId == personelId)
+            .OrderBy(value => value.ProviderWorkId).ToListAsync();
+        works[0].Authors = "Turing Alan; Lovelace Ada";
+        works[1].Authors = "Ada Lovelace, Alan Turing";
+        await db.SaveChangesAsync();
+        await scope.ServiceProvider.GetRequiredService<CanonicalWorkSynchronizer>().SyncAsync(personelId);
+
+        Assert.Equal(canonicalId, await db.CanonicalResearcherWorks.Where(value => value.PersonelId == personelId)
+            .Select(value => value.CanonicalWorkId).SingleAsync());
+    }
+
+    [Fact]
+    public async Task SyncAsync_TransitiveAuthorBridgeWithoutCompleteCompatibility_KeepsEveryWorkSeparate()
+    {
+        string personelId = Id("author-bridge");
+        AcademicWork first = Work(personelId, AcademicWorkProvider.Crossref, null, "first");
+        first.Authors = "Ada Lovelace";
+        AcademicWork bridge = Work(personelId, AcademicWorkProvider.OpenAlex, null, "bridge");
+        bridge.Authors = "A Lovelace";
+        AcademicWork third = Work(personelId, AcademicWorkProvider.Scopus, null, "third");
+        third.Authors = "Alice Lovelace";
+        await SeedAsync(personelId, first, bridge, third);
+
+        await SyncInScopeAsync(personelId);
+
+        await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
+        AcademicDbContext db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        Assert.Equal(3, await db.CanonicalResearcherWorks.CountAsync(value => value.PersonelId == personelId));
+        Assert.Equal(3, await db.CanonicalWorkObservations.Where(value => value.PersonelId == personelId)
+            .Select(value => value.CanonicalWorkId).Distinct().CountAsync());
     }
 
     [Fact]
