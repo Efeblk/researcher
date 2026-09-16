@@ -128,27 +128,6 @@ public sealed class AcademicPerformanceApplicationService :
                 PersonelId = personelId,
                 TcKimlikNo = tcKimlikNo
             });
-            Researcher? discovered = await _dbContext.Researchers.AsNoTracking()
-                .SingleOrDefaultAsync(researcher => researcher.PersonelId == personelId);
-            if (discovered is not null)
-            {
-                if ((normalization.Input.Orcid != null && discovered.Orcid != null && normalization.Input.Orcid != discovered.Orcid) ||
-                    (normalization.Input.GoogleScholarId != null && discovered.GoogleScholarId != null &&
-                        normalization.Input.GoogleScholarId != discovered.GoogleScholarId) ||
-                    (normalization.Input.ScopusId != null && discovered.ScopusId != null &&
-                        normalization.Input.ScopusId != discovered.ScopusId) ||
-                    (normalization.Input.WebOfScienceResearcherId != null && discovered.WebOfScienceResearcherId != null &&
-                        normalization.Input.WebOfScienceResearcherId != discovered.WebOfScienceResearcherId))
-                    throw new ArgumentException("YÖKSİS sağlayıcı kimliği istekle eşleşmiyor.");
-                normalization.Input.Orcid ??= discovered.Orcid;
-                normalization.Input.GoogleScholarId ??= discovered.GoogleScholarId;
-                normalization.Input.WebOfScienceResearcherId ??= discovered.WebOfScienceResearcherId;
-                if (normalization.Input.ScopusId is null && !string.IsNullOrWhiteSpace(discovered.ScopusId))
-                {
-                    try { normalization.Input.ScopusId = ResearcherIdentifierParser.NormalizeScopusId(discovered.ScopusId); }
-                    catch (ArgumentException) { }
-                }
-            }
         }
         bool hasProviderIdentifier = normalization.Input.Orcid is not null ||
             normalization.Input.GoogleScholarId is not null || normalization.Input.WebOfScienceResearcherId is not null ||

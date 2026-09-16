@@ -35,6 +35,25 @@ export function describeProviderOutcome(response: ResearcherCollectResponse): Pr
     };
 }
 
+export function getTrustedProviderValidationMessage(error: unknown): string | null {
+    if (!error || typeof error !== "object")
+        return null;
+
+    const serviceError = (error as {
+        kind?: unknown;
+        response?: { Error?: { Code?: unknown; Message?: unknown } };
+    });
+    const code = serviceError.response?.Error?.Code;
+    const message = serviceError.response?.Error?.Message;
+
+    if (serviceError.kind !== "service-error" || code !== "ValidationError" ||
+        typeof message !== "string")
+        return null;
+
+    const normalized = message.replace(/\s+/gu, " ").trim();
+    return normalized.length > 0 && normalized.length <= 500 ? normalized : null;
+}
+
 function findFailedSources(messages: string[]) {
     const sources = [
         "ORCID", "OpenAlex", "Google Scholar", "Web of Science", "Scopus",

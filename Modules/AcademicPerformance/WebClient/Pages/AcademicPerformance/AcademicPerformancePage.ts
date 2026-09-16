@@ -15,7 +15,9 @@ import {
     showYoksisSummary
 } from "./ResearcherSummaryPanels";
 import { describeYoksisOutcome, type ResearchOutcomeKind } from "./YoksisFeedback";
-import { describeProviderOutcome } from "./ProviderFeedback";
+import {
+    describeProviderOutcome, getTrustedProviderValidationMessage
+} from "./ProviderFeedback";
 import { collectYoksisStream, getYoksisConnectionSilenceSeconds,
     YoksisStreamError, type YoksisProgressEvent } from "./YoksisProgressStream";
 import {
@@ -331,11 +333,12 @@ form?.addEventListener("submit", async event => {
                     errors.push(outcome.message);
                 }
             }
-            catch {
+            catch (error) {
                 if (!requestCoordinator.isCurrent(run))
                     return;
 
-                errors.push("Akademik veriler alınamadı. Lütfen tekrar deneyin.");
+                errors.push(getTrustedProviderValidationMessage(error) ??
+                    "Akademik veriler alınamadı. Lütfen tekrar deneyin.");
             }
         }
 

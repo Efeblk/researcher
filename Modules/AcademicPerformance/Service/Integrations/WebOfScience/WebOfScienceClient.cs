@@ -47,8 +47,6 @@ public sealed class WebOfScienceClient
 
         WebOfScienceProfile? profile = CreateProfile(researcherIdentifier, documentPagesByDatabase);
 
-        researcher.WebOfScienceResearcherId = researcherIdentifier;
-
         if (researcher.WebOfScienceProfile is null)
         {
             researcher.WebOfScienceProfile = profile;
@@ -183,8 +181,10 @@ public sealed class WebOfScienceClient
 
             if (response.StatusCode == HttpStatusCode.NotFound)
             {
-                throw new ArgumentException(
-                    "Web of Science ResearcherID bulunamadı.");
+                throw new HttpRequestException(
+                    "Web of Science API kaynağı bulunamadı.",
+                    null,
+                    HttpStatusCode.NotFound);
             }
 
             if (!response.IsSuccessStatusCode)
@@ -216,8 +216,12 @@ public sealed class WebOfScienceClient
 
         if (works.Count == 0)
         {
-            throw new ArgumentException(
-                "Bu ResearcherID için Web of Science yayını bulunamadı.");
+            throw new ProviderCollectionException(
+                "NoPublications",
+                "Bu ResearcherID için Web of Science yayını bulunamadı.",
+                0,
+                0,
+                new InvalidOperationException("No Web of Science publications were returned."));
         }
 
         WebOfScienceProfile? profile = new WebOfScienceProfile();
