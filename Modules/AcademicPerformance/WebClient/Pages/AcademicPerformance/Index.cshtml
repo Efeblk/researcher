@@ -6,9 +6,13 @@
 <div class="academic-card">
     <h1>Akademisyen Yayınlarını Araştır</h1>
     <p class="academic-help">
-        Akademisyenin ORCID, Google Scholar ID, Web of Science ResearcherID veya
+        Akademisyenin ORCID, Google Scholar ID, Web of Science ResearcherID, Scopus ID veya
         YÖKSİS sorgusu için T.C. kimlik numarasını girin. Sağlayıcı sorguları
         birbirinden bağımsız çalışır.
+    </p>
+    <p class="academic-help">
+        “Yayınlarımı Getir” için tek kimlik bilgisi yeterlidir; PersonelID gerekmez.
+        Yeni araştırma için PersonelID gereklidir.
     </p>
 
     <form id="ResearcherSearchForm">
@@ -34,6 +38,12 @@
                 <input id="WebOfScienceResearcherId" class="form-control"
                        placeholder="A-1009-2008" autocomplete="off"
                        data-provider-identifier="WebOfScienceResearcherId" />
+            </div>
+            <div class="academic-field">
+                <label for="ScopusId">Scopus ID</label>
+                <input id="ScopusId" class="form-control" inputmode="numeric"
+                       placeholder="57200000001" autocomplete="off" maxlength="20"
+                       data-provider-identifier="ScopusId" />
             </div>
             <div class="academic-field">
                 <label for="TcKimlikNo">T.C. Kimlik No (YÖKSİS)</label>

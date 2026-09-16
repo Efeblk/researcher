@@ -192,6 +192,7 @@ public sealed class AcademicPerformanceApplicationService :
             FailureCode = collectionResponse.FailureCode ??
                 (yoksisResponse?.IsSaved == false ? "YoksisPersistenceFailure" : null),
             YoksisFailedCategoryCount = yoksisResponse?.FailedCategoryCount ?? 0,
+            YoksisPublicationCount = yoksisResponse?.YoksisPublicationCount ?? 0,
             PublicationCount = publicationCount,
             DatabaseProvider = collectionResponse.DatabaseProvider,
             CollectedAt = DateTime.UtcNow,
@@ -208,10 +209,16 @@ public sealed class AcademicPerformanceApplicationService :
             request.PersonelId,
             request.Orcid,
             request.GoogleScholarId,
-            request.WebOfScienceResearcherId);
+            request.WebOfScienceResearcherId,
+            scopusId: request.ScopusId,
+            tcKimlikNo: request.TcKimlikNo);
         int publicationCount = await _dbContext.PublicationSummaries
             .AsNoTracking()
             .CountAsync(summary => summary.PersonelId == researcher.PersonelId);
+        int yoksisPublicationCount = await _dbContext.AcademicWorks
+            .AsNoTracking()
+            .CountAsync(work => work.PersonelId == researcher.PersonelId &&
+                work.Provider == AcademicWorkProvider.Yoksis);
 
         AcademicResearcherDto? researcherDto = AcademicPerformanceDtoMapper.MapResearcher(researcher);
         if (researcherDto?.OpenAlexProfile is not null)
@@ -224,6 +231,7 @@ public sealed class AcademicPerformanceApplicationService :
         {
             Researcher = researcherDto,
             IsSaved = true,
+            YoksisPublicationCount = yoksisPublicationCount,
             PublicationCount = publicationCount,
             CollectedAt = DateTime.UtcNow
         };
@@ -383,21 +391,26 @@ public sealed class AcademicPerformanceApplicationService :
         string? orcid,
         string? googleScholarId,
         string? webOfScienceResearcherId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? scopusId = null,
+        string? tcKimlikNo = null)
     {
         IQueryable<Researcher> query = _dbContext.Researchers
             .AsNoTracking()
             .Include(researcher => researcher.OrcidProfile)
             .Include(researcher => researcher.GoogleScholarProfile)
             .Include(researcher => researcher.OpenAlexProfile)
+            .Include(researcher => researcher.ScopusProfile)
             .Include(researcher => researcher.WebOfScienceProfile)
             .Include(researcher => researcher.TrDizinProfile);
 
         bool hasSelector = !string.IsNullOrWhiteSpace(personelId) ||
             !string.IsNullOrWhiteSpace(orcid) || !string.IsNullOrWhiteSpace(googleScholarId) ||
-            !string.IsNullOrWhiteSpace(webOfScienceResearcherId);
+            !string.IsNullOrWhiteSpace(webOfScienceResearcherId) ||
+            !string.IsNullOrWhiteSpace(scopusId) || !string.IsNullOrWhiteSpace(tcKimlikNo);
         if (!hasSelector)
-            throw new ArgumentException("PersonelID, ORCID, ScholarID veya ResearcherID verilmelidir.");
+            throw new ArgumentException(
+                "PersonelID, ORCID, ScholarID, ResearcherID, ScopusID veya T.C. kimlik no verilmelidir.");
 
         if (!string.IsNullOrWhiteSpace(personelId))
             query = query.Where(researcher => researcher.PersonelId == personelId.Trim());
@@ -418,7 +431,21 @@ public sealed class AcademicPerformanceApplicationService :
             query = query.Where(researcher =>
                 researcher.WebOfScienceResearcherId == normalizedResearcherId);
         }
-        return await query.FirstOrDefaultAsync(cancellationToken)
+        if (!string.IsNullOrWhiteSpace(scopusId))
+        {
+            string normalizedScopusId = ResearcherIdentifierParser.NormalizeScopusId(scopusId);
+            query = query.Where(researcher => researcher.ScopusId == normalizedScopusId);
+        }
+        if (!string.IsNullOrWhiteSpace(tcKimlikNo))
+        {
+            string normalizedTcKimlikNo = YoksisCollectionService.ValidateTcKimlikNo(tcKimlikNo);
+            query = query.Where(researcher => researcher.TcKimlikNo == normalizedTcKimlikNo);
+        }
+
+        List<Researcher> matches = await query.Take(2).ToListAsync(cancellationToken);
+        if (matches.Count > 1)
+            throw new ArgumentException("Kimlik bilgileri birden fazla akademisyen kaydıyla eşleşti.");
+        return matches.SingleOrDefault()
             ?? throw new ArgumentException("Akademisyen kaydı bulunamadı.");
     }
 

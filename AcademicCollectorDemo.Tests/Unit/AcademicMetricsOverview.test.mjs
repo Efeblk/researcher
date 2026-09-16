@@ -7,7 +7,8 @@ test("maps each metric to its provider without combining counts", () => {
         OrcidProfile: { WorksCount: 12 },
         GoogleScholarProfile: { DocumentsCount: 9, CitationCount: 80, HIndex: 4 },
         WebOfScienceProfile: { DocumentsCount: 7, TotalTimesCited: 31, HIndex: 3 },
-        OpenAlexProfile: { WorksCount: 10, CitedByCount: 44, HIndex: 5 }
+        OpenAlexProfile: { WorksCount: 10, CitedByCount: 44, HIndex: 5 },
+        ScopusProfile: { DocumentsCount: 8, CitationCount: 22, HIndex: 3 }
     }, { IsSaved: true, SuccessfulCategoryCount: 12, YoksisPublicationCount: 6 });
 
     assert.deepEqual(providers, [
@@ -15,8 +16,18 @@ test("maps each metric to its provider without combining counts", () => {
         { provider: "Google Scholar", publications: 9, citations: 80, hIndex: 4 },
         { provider: "Web of Science", publications: 7, citations: 31, hIndex: 3 },
         { provider: "OpenAlex", publications: 10, citations: 44, hIndex: 5 },
+        { provider: "Scopus", publications: 8, citations: 22, hIndex: 3 },
         { provider: "YÖKSİS", publications: 6, citations: undefined, hIndex: undefined }
     ]);
+});
+
+test("maps a stored YOKSIS count without fabricating a collection response", () => {
+    const yoksis = mapAcademicMetricProviders(undefined, 3)
+        .find(provider => provider.provider === "YÖKSİS");
+
+    assert.deepEqual(yoksis, {
+        provider: "YÖKSİS", publications: 3, citations: undefined, hIndex: undefined
+    });
 });
 
 test("preserves zeroes and normalizes unavailable values", () => {

@@ -33,11 +33,18 @@ public sealed class AcademicPerformanceEndpoint : ServiceEndpoint
     }
 
     [HttpPost]
-    public Task<AcademicDataResponse> GetResearcher(
+    public async Task<AcademicDataResponse> GetResearcher(
         AcademicResearcherRequest request,
         [FromServices] IAcademicPerformanceApplicationService applicationService)
     {
-        return applicationService.GetResearcherAsync(request);
+        try
+        {
+            return await applicationService.GetResearcherAsync(request);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new ValidationError(exception.Message);
+        }
     }
 
     [HttpPost]

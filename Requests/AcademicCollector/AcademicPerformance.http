@@ -57,7 +57,8 @@ Content-Type: application/json
 }
 
 ### 4. Kaydedilmiş araştırmacıyı oku [okuma]
-# Ön koşul: aynı PersonelID ile başarılı tekil veya toplu toplama.
+# Tek bir PersonelID, ORCID, ScholarID, ResearcherID, ScopusID veya TcKimlikNo yeterlidir.
+# Birden fazla kimlik verilirse hepsi aynı kayda ait olmalıdır. Bu istek sağlayıcı çağrısı yapmaz.
 POST {{api}}/GetResearcher
 Content-Type: application/json
 

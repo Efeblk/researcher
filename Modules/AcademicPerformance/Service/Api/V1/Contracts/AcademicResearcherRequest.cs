@@ -13,4 +13,8 @@ public sealed class AcademicResearcherRequest : ServiceRequest
     public string? GoogleScholarId { get; set; } = null;
     [JsonPropertyName("ResearcherID"), Newtonsoft.Json.JsonProperty("ResearcherID")]
     public string? WebOfScienceResearcherId { get; set; } = null;
+    [JsonPropertyName("ScopusID"), Newtonsoft.Json.JsonProperty("ScopusID")]
+    public string? ScopusId { get; set; } = null;
+    [JsonPropertyName("TcKimlikNo"), Newtonsoft.Json.JsonProperty("TcKimlikNo")]
+    public string? TcKimlikNo { get; set; } = null;
 }
