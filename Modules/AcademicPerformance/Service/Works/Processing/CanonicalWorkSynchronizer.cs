@@ -49,7 +49,7 @@ public sealed class CanonicalWorkSynchronizer
                 .Where(work => work.PersonelId == personelId)
                 .OrderBy(work => work.Id)
                 .ToListAsync(cancellationToken);
-            List<WorkIdentity> identities = works.Select(CreateIdentity).ToList();
+            List<WorkIdentity> identities = CanonicalWorkIdentityResolver.Resolve(works);
             List<CanonicalWorkObservation> existingObservations =
                 await _dbContext.CanonicalWorkObservations
                     .Include(observation => observation.CanonicalWork)
@@ -296,20 +296,6 @@ public sealed class CanonicalWorkSynchronizer
             throw new InvalidOperationException($"Could not acquire canonical work lock (SQL result {result}).");
     }
 
-    private static WorkIdentity CreateIdentity(AcademicWork work)
-    {
-        string? normalizedDoi = AcademicDoiNormalizer.NormalizeValid(work.Doi);
-        if (normalizedDoi is not null)
-            return new("doi:" + normalizedDoi, normalizedDoi, null, Hash("doi:" + normalizedDoi));
-
-        string providerIdentity = string.IsNullOrWhiteSpace(work.ProviderWorkId)
-            ? "academic-work:" + work.Id
-            : "provider-work:" + work.ProviderWorkId.Trim().ToLowerInvariant();
-        string sourceIdentity = $"{work.PersonelId}|{work.Provider}|{providerIdentity}";
-        string sourceScopedKey = Hash(sourceIdentity);
-        return new("source:" + sourceScopedKey, null, sourceScopedKey, Hash("source:" + sourceScopedKey));
-    }
-
     private static void CopyObservation(
         AcademicWork work,
         CanonicalWork canonical,
@@ -345,9 +331,4 @@ public sealed class CanonicalWorkSynchronizer
             ? "source:" + work.SourceScopedKey
             : "doi:" + work.NormalizedDoi);
 
-    private sealed record WorkIdentity(
-        string DictionaryKey,
-        string? NormalizedDoi,
-        string? SourceScopedKey,
-        string LockKey);
 }

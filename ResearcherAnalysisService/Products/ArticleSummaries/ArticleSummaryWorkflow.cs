@@ -41,7 +41,7 @@ public sealed class ArticleSummaryWorkflow(AnalysisDbContext database, SafeArtic
         if (work?.CanonicalObservation?.CanonicalWorkId != canonicalWorkId)
             throw new ArticleSourceException("The article changed before summarization; no report was saved.");
         List<AcademicWork> sourceWorks = ArticleSummaryAutomationScheduler.PrepareWorks(
-            await LoadSameDoiWorksAsync(work, cancellationToken));
+            await LoadPersonCanonicalWorksAsync(canonicalWorkId, personelId, cancellationToken));
         string capturedGlobalInputHash = ArticleSummaryAutomationScheduler.CreateInputHash(
             await LoadCanonicalWorksAsync(canonicalWorkId, cancellationToken));
         WorkflowResult result = await SummarizeCoreAsync(work, sourceWorks, language,
@@ -217,19 +217,17 @@ public sealed class ArticleSummaryWorkflow(AnalysisDbContext database, SafeArtic
             $"AcademicCollector.ArticleSummary.{canonicalWorkId}.{language}",
             timeoutMilliseconds, cancellationToken);
 
-    private async Task<List<AcademicWork>> LoadSameDoiWorksAsync(AcademicWork work, CancellationToken cancellationToken)
-    {
-        List<AcademicWork> result = [work];
-        string doi = AcademicDoiNormalizer.Normalize(work.Doi);
-        if (string.IsNullOrWhiteSpace(doi)) return result;
-        List<int> ids = (await database.AcademicWorks.AsNoTracking()
-            .Where(x => x.PersonelId == work.PersonelId && x.Id != work.Id && x.Doi != null)
-            .Select(x => new { x.Id, x.Doi }).ToListAsync(cancellationToken))
-            .Where(x => AcademicDoiNormalizer.Normalize(x.Doi) == doi).Select(x => x.Id).Take(8).ToList();
-        if (ids.Count != 0) result.AddRange(await database.AcademicWorks.AsNoTracking().Include(x => x.Sources)
-            .Where(x => ids.Contains(x.Id)).ToListAsync(cancellationToken));
-        return result;
-    }
+    private async Task<List<AcademicWork>> LoadPersonCanonicalWorksAsync(
+        int canonicalWorkId, string personelId, CancellationToken cancellationToken) =>
+        await database.AcademicWorks.AsNoTracking()
+            .Include(value => value.Sources)
+            .Include(value => value.CanonicalObservation)
+            .Where(value => value.PersonelId == personelId && value.CanonicalObservation != null &&
+                value.CanonicalObservation.CanonicalWorkId == canonicalWorkId)
+            .OrderBy(value => value.Provider)
+            .ThenBy(value => value.ProviderWorkId)
+            .ThenBy(value => value.Id)
+            .ToListAsync(cancellationToken);
 
     private async Task<List<AcademicWork>> LoadCanonicalWorksAsync(
         int canonicalWorkId, CancellationToken cancellationToken) =>
@@ -322,7 +320,7 @@ public sealed class ArticleSummaryWorkflow(AnalysisDbContext database, SafeArtic
             throw new ArticleSourceException("The article changed during summarization; no report was saved.");
         List<AcademicWork> currentSourceWorks = globalSourceSet
             ? await LoadCanonicalWorksAsync(canonicalWorkId, cancellationToken)
-            : await LoadSameDoiWorksAsync(owned, cancellationToken);
+            : await LoadPersonCanonicalWorksAsync(canonicalWorkId, personelId, cancellationToken);
         if (ArticleSummaryAutomationScheduler.CreateInputHash(currentSourceWorks) != capturedSourceInputHash)
             throw new ArticleSourceException("The article sources changed during summarization; no report was saved.");
         List<AcademicWork> preWriteGlobalWorks = await LoadCanonicalWorksAsync(
