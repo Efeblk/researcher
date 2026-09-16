@@ -12,6 +12,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Persistence;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Collection;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Metrics;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Application;
 
@@ -27,6 +28,7 @@ public sealed class AcademicPerformanceApplicationService :
     private readonly CanonicalWorkQueryService _canonicalWorkQueryService;
     private readonly CanonicalWorkSynchronizer _canonicalWorkSynchronizer;
     private readonly YoksisCollectionHandler? _yoksisCollectionHandler;
+    private readonly ResearcherMetricsService _researcherMetricsService;
 
     public AcademicPerformanceApplicationService(
         ResearcherCollectionHandler collectionHandler,
@@ -34,7 +36,8 @@ public sealed class AcademicPerformanceApplicationService :
         ResearcherProviderInputNormalizer inputNormalizer,
         CanonicalWorkQueryService? canonicalWorkQueryService = null,
         CanonicalWorkSynchronizer? canonicalWorkSynchronizer = null,
-        YoksisCollectionHandler? yoksisCollectionHandler = null)
+        YoksisCollectionHandler? yoksisCollectionHandler = null,
+        ResearcherMetricsService? researcherMetricsService = null)
     {
         _collectionHandler = collectionHandler;
         _dbContext = dbContext;
@@ -42,6 +45,27 @@ public sealed class AcademicPerformanceApplicationService :
         _canonicalWorkQueryService = canonicalWorkQueryService ?? new CanonicalWorkQueryService(dbContext);
         _canonicalWorkSynchronizer = canonicalWorkSynchronizer ?? new CanonicalWorkSynchronizer(dbContext);
         _yoksisCollectionHandler = yoksisCollectionHandler;
+        _researcherMetricsService = researcherMetricsService ??
+            new ResearcherMetricsService(dbContext, _canonicalWorkSynchronizer);
+    }
+
+    public async Task<ResearcherMetricsResponse> RecalculateMetricsAsync(
+        ResearcherMetricsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        string personelId = request.PersonelId?.Trim() ?? string.Empty;
+        if (personelId.Length == 0)
+            throw new ArgumentException("PersonelID is required.");
+        if (personelId.Length > 200)
+            throw new ArgumentException("PersonelID must be at most 200 characters.");
+
+        DateTime recalculatedAt = await _researcherMetricsService.RecalculateAsync(
+            personelId, cancellationToken);
+        return new()
+        {
+            PersonelId = personelId,
+            RecalculatedAt = recalculatedAt
+        };
     }
 
     public async Task<AcademicDataResponse> CollectAsync(
@@ -83,11 +107,13 @@ public sealed class AcademicPerformanceApplicationService :
             ((researcher.PersonelId != personelId &&
               ((normalization.Input.Orcid != null && researcher.Orcid == normalization.Input.Orcid) ||
              (normalization.Input.GoogleScholarId != null && researcher.GoogleScholarId == normalization.Input.GoogleScholarId) ||
+             (normalization.Input.ScopusId != null && researcher.ScopusId == normalization.Input.ScopusId) ||
              (normalization.Input.WebOfScienceResearcherId != null &&
                 researcher.WebOfScienceResearcherId == normalization.Input.WebOfScienceResearcherId))) ||
              (researcher.PersonelId == personelId &&
               ((normalization.Input.Orcid != null && researcher.Orcid != null && researcher.Orcid != normalization.Input.Orcid) ||
                (normalization.Input.GoogleScholarId != null && researcher.GoogleScholarId != null && researcher.GoogleScholarId != normalization.Input.GoogleScholarId) ||
+               (normalization.Input.ScopusId != null && researcher.ScopusId != null && researcher.ScopusId != normalization.Input.ScopusId) ||
                (normalization.Input.WebOfScienceResearcherId != null && researcher.WebOfScienceResearcherId != null &&
                     researcher.WebOfScienceResearcherId != normalization.Input.WebOfScienceResearcherId)))));
         if (providerOwnershipConflict)
@@ -109,16 +135,24 @@ public sealed class AcademicPerformanceApplicationService :
                 if ((normalization.Input.Orcid != null && discovered.Orcid != null && normalization.Input.Orcid != discovered.Orcid) ||
                     (normalization.Input.GoogleScholarId != null && discovered.GoogleScholarId != null &&
                         normalization.Input.GoogleScholarId != discovered.GoogleScholarId) ||
+                    (normalization.Input.ScopusId != null && discovered.ScopusId != null &&
+                        normalization.Input.ScopusId != discovered.ScopusId) ||
                     (normalization.Input.WebOfScienceResearcherId != null && discovered.WebOfScienceResearcherId != null &&
                         normalization.Input.WebOfScienceResearcherId != discovered.WebOfScienceResearcherId))
                     throw new ArgumentException("YÖKSİS sağlayıcı kimliği istekle eşleşmiyor.");
                 normalization.Input.Orcid ??= discovered.Orcid;
                 normalization.Input.GoogleScholarId ??= discovered.GoogleScholarId;
                 normalization.Input.WebOfScienceResearcherId ??= discovered.WebOfScienceResearcherId;
+                if (normalization.Input.ScopusId is null && !string.IsNullOrWhiteSpace(discovered.ScopusId))
+                {
+                    try { normalization.Input.ScopusId = ResearcherIdentifierParser.NormalizeScopusId(discovered.ScopusId); }
+                    catch (ArgumentException) { }
+                }
             }
         }
         bool hasProviderIdentifier = normalization.Input.Orcid is not null ||
-            normalization.Input.GoogleScholarId is not null || normalization.Input.WebOfScienceResearcherId is not null;
+            normalization.Input.GoogleScholarId is not null || normalization.Input.WebOfScienceResearcherId is not null ||
+            normalization.Input.ScopusId is not null;
         if (!hasProviderIdentifier)
         {
             Researcher? savedResearcher = await _dbContext.Researchers.AsNoTracking()
@@ -140,8 +174,7 @@ public sealed class AcademicPerformanceApplicationService :
             ResearcherProviderInputNormalizer.ToCollectionRequest(normalization.Input);
         collectionRequest.PersonelId = personelId;
         collectionRequest.TcKimlikNo = tcKimlikNo;
-        collectionRequest.ScopusId = string.IsNullOrWhiteSpace(request.ScopusId)
-            ? null : request.ScopusId.Trim();
+        collectionRequest.ScopusId = normalization.Input.ScopusId;
         ResearcherCollectResponse? collectionResponse = await _collectionHandler.CollectAsync(collectionRequest);
         string? collectedPersonelId = collectionResponse.Researcher?.PersonelId;
 
@@ -159,6 +192,7 @@ public sealed class AcademicPerformanceApplicationService :
             FailureCode = collectionResponse.FailureCode ??
                 (yoksisResponse?.IsSaved == false ? "YoksisPersistenceFailure" : null),
             YoksisFailedCategoryCount = yoksisResponse?.FailedCategoryCount ?? 0,
+            YoksisPublicationCount = yoksisResponse?.YoksisPublicationCount ?? 0,
             PublicationCount = publicationCount,
             DatabaseProvider = collectionResponse.DatabaseProvider,
             CollectedAt = DateTime.UtcNow,
@@ -176,10 +210,16 @@ public sealed class AcademicPerformanceApplicationService :
             request.PersonelId,
             request.Orcid,
             request.GoogleScholarId,
-            request.WebOfScienceResearcherId);
+            request.WebOfScienceResearcherId,
+            scopusId: request.ScopusId,
+            tcKimlikNo: request.TcKimlikNo);
         int publicationCount = await _dbContext.PublicationSummaries
             .AsNoTracking()
             .CountAsync(summary => summary.PersonelId == researcher.PersonelId);
+        int yoksisPublicationCount = await _dbContext.AcademicWorks
+            .AsNoTracking()
+            .CountAsync(work => work.PersonelId == researcher.PersonelId &&
+                work.Provider == AcademicWorkProvider.Yoksis);
 
         AcademicResearcherDto? researcherDto = AcademicPerformanceDtoMapper.MapResearcher(researcher);
         if (researcherDto?.OpenAlexProfile is not null)
@@ -192,6 +232,7 @@ public sealed class AcademicPerformanceApplicationService :
         {
             Researcher = researcherDto,
             IsSaved = true,
+            YoksisPublicationCount = yoksisPublicationCount,
             PublicationCount = publicationCount,
             CollectedAt = DateTime.UtcNow
         };
@@ -346,49 +387,31 @@ public sealed class AcademicPerformanceApplicationService :
             researcher.PersonelId, request, cancellationToken);
     }
 
-    public async Task<CanonicalPublicationRebuildResponse> RebuildCanonicalPublicationsAsync(
-        CanonicalPublicationRebuildRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        string personelId = request.PersonelId?.Trim() ?? string.Empty;
-        if (personelId.Length == 0 || personelId.Length > 200 ||
-            !await _dbContext.Researchers.AsNoTracking()
-                .AnyAsync(researcher => researcher.PersonelId == personelId, cancellationToken))
-        {
-            throw new ArgumentException("Akademisyen kaydı bulunamadı.");
-        }
-
-        CanonicalWorkSyncResult result = await _canonicalWorkSynchronizer.SyncAsync(
-            personelId, cancellationToken);
-        return new()
-        {
-            PersonelId = personelId,
-            CanonicalWorkCount = result.CanonicalWorkCount,
-            ObservationCount = result.ObservationCount,
-            AssociationCount = result.AssociationCount
-        };
-    }
-
     private async Task<Researcher> ResolveResearcherAsync(
         string? personelId,
         string? orcid,
         string? googleScholarId,
         string? webOfScienceResearcherId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? scopusId = null,
+        string? tcKimlikNo = null)
     {
         IQueryable<Researcher> query = _dbContext.Researchers
             .AsNoTracking()
             .Include(researcher => researcher.OrcidProfile)
             .Include(researcher => researcher.GoogleScholarProfile)
             .Include(researcher => researcher.OpenAlexProfile)
+            .Include(researcher => researcher.ScopusProfile)
             .Include(researcher => researcher.WebOfScienceProfile)
             .Include(researcher => researcher.TrDizinProfile);
 
         bool hasSelector = !string.IsNullOrWhiteSpace(personelId) ||
             !string.IsNullOrWhiteSpace(orcid) || !string.IsNullOrWhiteSpace(googleScholarId) ||
-            !string.IsNullOrWhiteSpace(webOfScienceResearcherId);
+            !string.IsNullOrWhiteSpace(webOfScienceResearcherId) ||
+            !string.IsNullOrWhiteSpace(scopusId) || !string.IsNullOrWhiteSpace(tcKimlikNo);
         if (!hasSelector)
-            throw new ArgumentException("PersonelID, ORCID, ScholarID veya ResearcherID verilmelidir.");
+            throw new ArgumentException(
+                "PersonelID, ORCID, ScholarID, ResearcherID, ScopusID veya T.C. kimlik no verilmelidir.");
 
         if (!string.IsNullOrWhiteSpace(personelId))
             query = query.Where(researcher => researcher.PersonelId == personelId.Trim());
@@ -409,7 +432,21 @@ public sealed class AcademicPerformanceApplicationService :
             query = query.Where(researcher =>
                 researcher.WebOfScienceResearcherId == normalizedResearcherId);
         }
-        return await query.FirstOrDefaultAsync(cancellationToken)
+        if (!string.IsNullOrWhiteSpace(scopusId))
+        {
+            string normalizedScopusId = ResearcherIdentifierParser.NormalizeScopusId(scopusId);
+            query = query.Where(researcher => researcher.ScopusId == normalizedScopusId);
+        }
+        if (!string.IsNullOrWhiteSpace(tcKimlikNo))
+        {
+            string normalizedTcKimlikNo = YoksisCollectionService.ValidateTcKimlikNo(tcKimlikNo);
+            query = query.Where(researcher => researcher.TcKimlikNo == normalizedTcKimlikNo);
+        }
+
+        List<Researcher> matches = await query.Take(2).ToListAsync(cancellationToken);
+        if (matches.Count > 1)
+            throw new ArgumentException("Kimlik bilgileri birden fazla akademisyen kaydıyla eşleşti.");
+        return matches.SingleOrDefault()
             ?? throw new ArgumentException("Akademisyen kaydı bulunamadı.");
     }
 

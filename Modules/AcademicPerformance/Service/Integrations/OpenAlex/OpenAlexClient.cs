@@ -12,7 +12,7 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAle
 public sealed class OpenAlexClient
 {
     private const int DefaultMaximumPages = 100;
-    private const long DefaultMaximumResponseBytes = 4L * 1024 * 1024;
+    private const long DefaultMaximumResponseBytes = 8L * 1024 * 1024;
 
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
@@ -162,12 +162,29 @@ public sealed class OpenAlexClient
         string url,
         CancellationToken cancellationToken = default)
     {
+        long maximumResponseBytes = GetMaximumResponseBytes();
         using HttpRequestMessage request = new(HttpMethod.Get, url);
         request.Headers.Accept.ParseAdd("application/json");
-        request.Options.Set(ProviderRateLimitHandler.ResponseBufferLimit, GetMaximumResponseBytes());
-        using HttpResponseMessage response = await _httpClient.SendAsync(
-            request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        await response.Content.LoadIntoBufferAsync(GetMaximumResponseBytes(), cancellationToken);
+        if (!string.IsNullOrWhiteSpace(_configuration["OpenAlex:ApiKey"]))
+            request.Headers.Authorization = new(
+                "Bearer", _configuration["OpenAlex:ApiKey"]!.Trim());
+        request.Options.Set(ProviderRateLimitHandler.ResponseBufferLimit, maximumResponseBytes);
+        using HttpResponseMessage response = await SendAsync(
+            request, maximumResponseBytes, cancellationToken);
+        if (response.Content.Headers.ContentLength > maximumResponseBytes)
+        {
+            throw CreateResponseTooLargeException(maximumResponseBytes);
+        }
+
+        try
+        {
+            await response.Content.LoadIntoBufferAsync(maximumResponseBytes, cancellationToken);
+        }
+        catch (HttpRequestException exception) when (IsResponseBufferLimitException(exception))
+        {
+            throw CreateResponseTooLargeException(maximumResponseBytes, exception);
+        }
+
         string content = await response.Content.ReadAsStringAsync(cancellationToken);
 
         if (!response.IsSuccessStatusCode)
@@ -297,15 +314,7 @@ public sealed class OpenAlexClient
 
     private string AppendApiKey(string url)
     {
-        string? apiKey = _configuration["OpenAlex:ApiKey"];
-
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            return url;
-        }
-
-        char separator = url.Contains('?') ? '&' : '?';
-        return $"{url}{separator}api_key={Uri.EscapeDataString(apiKey.Trim())}";
+        return url;
     }
 
     private int GetMaximumPages()
@@ -321,11 +330,41 @@ public sealed class OpenAlexClient
     private long GetMaximumResponseBytes()
     {
         return long.TryParse(
-                _configuration["ArticleMetadataEnrichment:MaximumResponseBytes"],
+                _configuration["OpenAlex:MaximumResponseBytes"],
                 out long maximumResponseBytes) &&
             maximumResponseBytes is >= 1024 and <= 16L * 1024 * 1024
                 ? maximumResponseBytes
                 : DefaultMaximumResponseBytes;
+    }
+
+    private static HttpRequestException CreateResponseTooLargeException(
+        long maximumResponseBytes,
+        Exception? innerException = null)
+    {
+        return new HttpRequestException(
+            $"OpenAlex yanıt boyutu yapılandırılmış {maximumResponseBytes} bayt sınırını aştı.",
+            innerException);
+    }
+
+    private async Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request,
+        long maximumResponseBytes,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _httpClient.SendAsync(
+                request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        }
+        catch (HttpRequestException exception) when (IsResponseBufferLimitException(exception))
+        {
+            throw CreateResponseTooLargeException(maximumResponseBytes, exception);
+        }
+    }
+
+    private static bool IsResponseBufferLimitException(HttpRequestException exception)
+    {
+        return exception.HttpRequestError == HttpRequestError.ConfigurationLimitExceeded;
     }
 
     private string GetApiBaseUrl()

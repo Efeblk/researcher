@@ -1008,10 +1008,10 @@ internal static class LiveProductPilot
             ["BulkCollection:WorkerEnabled"] = "false"
         };
         foreach (string provider in new[] { "Orcid", "SearchApi", "OpenAlex", "WebOfScience", "Yoksis",
-                     "TrDizin", "Crossref", "Unpaywall", "SemanticScholar" })
+                     "TrDizin", "Crossref", "SemanticScholar" })
             values[$"ProviderRequestLimits:{provider}:Enabled"] = "false";
         foreach (string key in new[] { "SearchApi:ApiKey", "OpenAlex:ApiKey", "SemanticScholar:ApiKey",
-                     "WebOfScience:ApiKey", "Yoksis:Username", "Yoksis:Password", "Unpaywall:Email" })
+                     "WebOfScience:ApiKey", "Yoksis:Username", "Yoksis:Password" })
             values[key] = "";
         return values;
     }

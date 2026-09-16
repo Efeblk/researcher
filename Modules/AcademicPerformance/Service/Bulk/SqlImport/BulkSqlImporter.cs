@@ -34,7 +34,8 @@ public sealed class BulkSqlImporter(
             throw new InvalidOperationException("The query must return the configured PersonelID column.");
         if (!columns.ContainsKey(source.TcKimlikNoColumn) && !columns.ContainsKey(source.OrcidColumn) &&
             !columns.ContainsKey(source.GoogleScholarIdColumn) &&
-            !columns.ContainsKey(source.WebOfScienceIdColumn))
+            !columns.ContainsKey(source.WebOfScienceIdColumn) &&
+            !columns.ContainsKey(source.ScopusIdColumn))
             throw new InvalidOperationException("The query must return TcKimlikNo or at least one configured provider ID column.");
 
         List<BulkResearcherInput> rows = [];

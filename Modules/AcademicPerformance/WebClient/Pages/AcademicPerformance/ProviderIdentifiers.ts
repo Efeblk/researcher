@@ -5,6 +5,19 @@ interface ProviderIdentifierInput {
 
 export function restoreProviderIdentifiers(
     inputs: ProviderIdentifierInput[], storedValue: string | null): number {
+    const identifiers = readRememberedProviderIdentifiers(storedValue);
+
+    let filledCount = 0;
+    for (const input of inputs) {
+        const name = input.dataset.providerIdentifier;
+        input.value = name && Object.hasOwn(identifiers, name) ? identifiers[name] : "";
+        if (input.value)
+            filledCount++;
+    }
+    return filledCount;
+}
+
+export function readRememberedProviderIdentifiers(storedValue: string | null) {
     let identifiers: Record<string, unknown> = {};
     try {
         const parsed: unknown = storedValue ? JSON.parse(storedValue) : null;
@@ -15,13 +28,10 @@ export function restoreProviderIdentifiers(
         // Invalid or obsolete storage behaves like an empty saved profile.
     }
 
-    let filledCount = 0;
-    for (const input of inputs) {
-        const name = input.dataset.providerIdentifier;
-        const value = name && Object.hasOwn(identifiers, name) ? identifiers[name] : null;
-        input.value = typeof value === "string" ? value.trim() : "";
-        if (input.value)
-            filledCount++;
+    const remembered: Record<string, string> = {};
+    for (const [name, value] of Object.entries(identifiers)) {
+        if (typeof value === "string" && value.trim())
+            remembered[name] = value.trim();
     }
-    return filledCount;
+    return remembered;
 }

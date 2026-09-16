@@ -11,21 +11,46 @@ namespace ResearcherAnalysisService.Tests;
 public sealed class ResearcherSnapshotBuilderTests
 {
     [Fact]
+    public void Build_CanonicalDoiLessPublications_AttachesEvidenceByCanonicalMembership()
+    {
+        const string personelId = "00123-A";
+        List<PublicationSummary> summaries =
+        [
+            new() { Id = 1, PersonelId = personelId, CanonicalWorkId = 101, Title = "Same title", PublicationYear = 2025 },
+            new() { Id = 2, PersonelId = personelId, CanonicalWorkId = 102, Title = "Same title", PublicationYear = 2025 }
+        ];
+        List<AcademicWork> works =
+        [
+            new() { Id = 10, PersonelId = personelId, Title = "Same title", PublicationYear = 2025,
+                Abstract = "First abstract", CanonicalObservation = new() { AcademicWorkId = 10, PersonelId = personelId, CanonicalWorkId = 101 } },
+            new() { Id = 11, PersonelId = personelId, Title = "Same title", PublicationYear = 2025,
+                Abstract = "Second abstract", CanonicalObservation = new() { AcademicWorkId = 11, PersonelId = personelId, CanonicalWorkId = 102 } }
+        ];
+
+        AnalyzeResearcherRequest snapshot = ResearcherSnapshotBuilder.Build(
+            new Researcher { PersonelId = personelId }, summaries, works, new());
+
+        Assert.Equal("First abstract", snapshot.Publications.Single(value => value.Id == "publication-1").Abstract);
+        Assert.Equal("Second abstract", snapshot.Publications.Single(value => value.Id == "publication-2").Abstract);
+        Assert.Equal(2, snapshot.SourceCoverage!.AbstractOnly);
+    }
+
+    [Fact]
     public void Build_AmbiguousTitles_DoesNotAttachAnotherPublicationsAbstract()
     {
+        const string personelId = "00123-A";
         var summaries = new List<PublicationSummary>
         {
-            new() { Id = 1, Title = "Same title", PublicationYear = 2025, Doi = "10.1/first" },
-            new() { Id = 2, Title = "Same title", PublicationYear = 2025, Doi = "10.1/second" }
+            new() { Id = 1, PersonelId = personelId, CanonicalWorkId = 101, Title = "Same title", PublicationYear = 2025 },
+            new() { Id = 2, PersonelId = personelId, CanonicalWorkId = 102, Title = "Same title", PublicationYear = 2025 }
         };
         var works = new List<AcademicWork>
         {
-            new() { Id = 1, Title = "Same title", PublicationYear = 2025, Abstract = "Ambiguous source without DOI." },
-            new() { Id = 2, Title = "Different provider title", Doi = "https://doi.org/10.1/second", Abstract = "Correct source for the second publication." }
+            new() { Id = 1, PersonelId = personelId, Abstract = "Unrelated source.", CanonicalObservation = new() { PersonelId = personelId, CanonicalWorkId = 999 } },
+            new() { Id = 2, PersonelId = personelId, Abstract = "Correct source for the second publication.", CanonicalObservation = new() { PersonelId = personelId, CanonicalWorkId = 102 } }
         };
         var snapshot = ResearcherSnapshotBuilder.Build(new Researcher
-        {
-            PersonelId = "00123-A" }, summaries, works, new());
+        { PersonelId = personelId }, summaries, works, new());
         Assert.Null(snapshot.Publications[0].Abstract);
         Assert.Equal(works[1].Abstract, snapshot.Publications[1].Abstract);
     }
@@ -51,19 +76,20 @@ public sealed class ResearcherSnapshotBuilderTests
     [Fact]
     public void BuildCoverage_ProviderDuplicates_CountsEachPublicationOnceAndSeparatesModelInput()
     {
+        const string personelId = "coverage";
         List<PublicationSummary> summaries =
         [
-            new() { Id = 1, Doi = "10.1/pdf", Title = "PDF" },
-            new() { Id = 2, Doi = "10.1/html", Title = "HTML" },
-            new() { Id = 3, Doi = "10.1/abstract", Title = "Abstract" },
-            new() { Id = 4, Title = "Metadata" }
+            new() { Id = 1, PersonelId = personelId, CanonicalWorkId = 101, Title = "PDF" },
+            new() { Id = 2, PersonelId = personelId, CanonicalWorkId = 102, Title = "HTML" },
+            new() { Id = 3, PersonelId = personelId, CanonicalWorkId = 103, Title = "Abstract" },
+            new() { Id = 4, PersonelId = personelId, CanonicalWorkId = 104, Title = "Metadata" }
         ];
         List<AcademicWork> works =
         [
-            new() { Id = 10, Doi = "https://doi.org/10.1/pdf", FullTextUrl = "https://example.org/a.pdf" },
-            new() { Id = 11, Doi = "10.1/pdf", FullTextUrl = "https://example.org/duplicate.pdf" },
-            new() { Id = 12, Doi = "10.1/html" },
-            new() { Id = 13, Doi = "10.1/abstract", Abstract = "Available abstract" }
+            LinkedWork(10, personelId, 101, fullTextUrl: "https://example.org/a.pdf"),
+            LinkedWork(11, personelId, 101, fullTextUrl: "https://example.org/duplicate.pdf"),
+            LinkedWork(12, personelId, 102),
+            LinkedWork(13, personelId, 103, abstractText: "Available abstract")
         ];
         List<SavedArticleSummary> saved =
         [
@@ -94,18 +120,19 @@ public sealed class ResearcherSnapshotBuilderTests
     [Fact]
     public void BuildCoverage_DoiLessPublication_UsesUnambiguousTitleAndYearEvidence()
     {
+        const string personelId = "doi-less";
         List<PublicationSummary> summaries =
         [
-            new() { Id = 1, Title = "Saved full text", PublicationYear = 2024 },
-            new() { Id = 2, Title = "Recovered abstract", PublicationYear = 2023 },
-            new() { Id = 3, Title = "Conflicting DOI", PublicationYear = 2022 },
-            new() { Id = 4, Title = "Conflicting DOI", PublicationYear = 2022, Doi = "10.1/owned" }
+            new() { Id = 1, PersonelId = personelId, CanonicalWorkId = 101, Title = "Saved full text" },
+            new() { Id = 2, PersonelId = personelId, CanonicalWorkId = 102, Title = "Recovered abstract" },
+            new() { Id = 3, PersonelId = personelId, CanonicalWorkId = 103, Title = "No evidence" },
+            new() { Id = 4, PersonelId = personelId, CanonicalWorkId = 104, Title = "Canonical evidence" }
         ];
         List<AcademicWork> works =
         [
-            new() { Id = 10, Title = "Saved full text", PublicationYear = 2024 },
-            new() { Id = 11, Title = "Recovered abstract", PublicationYear = 2023, Abstract = "Evidence" },
-            new() { Id = 12, Title = "Conflicting DOI", PublicationYear = 2022, Doi = "10.1/owned", Abstract = "Must not attach ambiguously" }
+            LinkedWork(10, personelId, 101),
+            LinkedWork(11, personelId, 102, abstractText: "Evidence"),
+            LinkedWork(12, personelId, 104, abstractText: "Canonical evidence")
         ];
         List<SavedArticleSummary> saved =
         [
@@ -116,11 +143,27 @@ public sealed class ResearcherSnapshotBuilderTests
 
         Assert.Equal(1, coverage.FullTextAvailable);
         Assert.Equal(1, coverage.HtmlAvailable);
-        Assert.Equal(1, coverage.AbstractOnly);
-        Assert.Equal(2, coverage.MetadataOnly);
+        Assert.Equal(2, coverage.AbstractOnly);
+        Assert.Equal(1, coverage.MetadataOnly);
 
         static string Snapshot(bool partial) => JsonSerializer.Serialize(
             new SummarizeArticleRequest("en", "html", "hash", "v1", [new(null, "text")], 1, partial, null),
             new JsonSerializerOptions(JsonSerializerDefaults.Web));
     }
+
+    private static AcademicWork LinkedWork(
+        int id, string personelId, int canonicalWorkId,
+        string? abstractText = null, string? fullTextUrl = null) => new()
+    {
+        Id = id,
+        PersonelId = personelId,
+        Abstract = abstractText,
+        FullTextUrl = fullTextUrl,
+        CanonicalObservation = new()
+        {
+            AcademicWorkId = id,
+            PersonelId = personelId,
+            CanonicalWorkId = canonicalWorkId
+        }
+    };
 }

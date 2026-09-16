@@ -3,6 +3,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleSchol
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
@@ -20,6 +21,7 @@ public sealed class ResearcherCollectionService
     private readonly OpenAlexClient _openAlexClient;
     private readonly WebOfScienceClient _webOfScienceClient;
     private readonly TrDizinClient _trDizinClient;
+    private readonly ScopusClient? _scopusClient;
     private readonly AcademicWorkCategorizer _academicWorkCategorizer;
     private readonly ResearcherCollectionFeedback _collectionFeedback;
     private readonly TimeSpan _providerCacheMaxAge;
@@ -33,7 +35,8 @@ public sealed class ResearcherCollectionService
         TrDizinClient trDizinClient,
         AcademicWorkCategorizer academicWorkCategorizer,
         ResearcherCollectionFeedback collectionFeedback,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        ScopusClient? scopusClient = null)
     {
         int maxAgeHours = 0;
 
@@ -42,6 +45,7 @@ public sealed class ResearcherCollectionService
         _openAlexClient = openAlexClient;
         _webOfScienceClient = webOfScienceClient;
         _trDizinClient = trDizinClient;
+        _scopusClient = scopusClient;
         _academicWorkCategorizer = academicWorkCategorizer;
         _collectionFeedback = collectionFeedback;
         _trDizinEnabled = configuration.GetValue("ProviderRequestLimits:TrDizin:Enabled", true);
@@ -77,10 +81,65 @@ public sealed class ResearcherCollectionService
             researcher,
             requestedIdentifiers.WebOfScienceResearcherId,
             messages, feedback);
+        await CollectScopusAsync(
+            researcher, requestedIdentifiers.ScopusId, messages, feedback);
         _academicWorkCategorizer.Categorize(researcher);
         _collectionFeedback.Add(researcher, requestedIdentifiers, messages, feedback);
         return feedback;
     }
+
+    private async Task CollectScopusAsync(
+        Researcher researcher,
+        string? requestedScopusId,
+        List<string> messages,
+        List<ProviderCollectionFeedback> feedback)
+    {
+        ProviderCollectionFeedback item = NewFeedback(feedback, "Scopus");
+        if (string.IsNullOrWhiteSpace(requestedScopusId))
+        {
+            Skip(item, "MissingIdentifier", "Scopus kimliği verilmedi.");
+            AddMessage(messages, "[ATLANDI] Scopus: kimlik verilmedi.");
+            return;
+        }
+        if (IdentifiersMatch(researcher.ScopusId, requestedScopusId) &&
+            IsProviderDataCurrent(researcher.ScopusProfile?.LastUpdatedAt) &&
+            HasCompleteScopusRawData(researcher.ScopusProfile))
+        {
+            Cached(item, researcher.ScopusProfile?.Works?.Count ?? 0,
+                researcher.ScopusProfile?.DocumentsCount);
+            AddCachedDataMessage(messages, "Scopus", researcher.ScopusProfile?.LastUpdatedAt);
+            return;
+        }
+        try
+        {
+            if (_scopusClient is null)
+                throw new InvalidOperationException();
+            await _scopusClient.FillResearcherAsync(researcher, requestedScopusId);
+            Success(item, researcher.ScopusProfile?.Works?.Count ?? 0,
+                researcher.ScopusProfile?.DocumentsCount);
+            AddMessage(messages, $"[OK] Scopus: {researcher.ScopusProfile?.Works?.Count ?? 0} publication(s) collected.");
+        }
+        catch (ArgumentException exception)
+        {
+            Fail(item, "InvalidIdentifier", "Scopus kimliği geçersiz.");
+            AddMessage(messages, $"[HATA] Invalid Scopus ID: {exception.Message}");
+        }
+        catch (InvalidOperationException)
+        {
+            Fail(item, "Configuration", "Scopus bağlantı ayarı eksik.");
+            AddMessage(messages, "[HATA] Scopus is unavailable because credentials or endpoint configuration are invalid.");
+        }
+        catch (HttpRequestException exception)
+        {
+            FailFromException(item, exception, "Scopus");
+            AddMessage(messages, "[HATA] Scopus request failed; saved complete data was retained.");
+        }
+    }
+
+    private static bool HasCompleteScopusRawData(ScopusProfile? profile) =>
+        profile is not null && !string.IsNullOrWhiteSpace(profile.RawDataJson) &&
+        !string.IsNullOrWhiteSpace(profile.SearchPagesJson) && profile.Works is not null &&
+        profile.Works.All(work => !string.IsNullOrWhiteSpace(work.RawDataJson));
 
     private async Task CollectTrDizinAsync(
         Researcher researcher,

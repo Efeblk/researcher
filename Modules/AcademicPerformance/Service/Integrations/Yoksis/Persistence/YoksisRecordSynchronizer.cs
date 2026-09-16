@@ -26,11 +26,12 @@ public sealed class YoksisRecordSynchronizer
     public async Task<int> SyncAsync(
         string personelId,
         YoksisCollectResponse response,
-        bool isIncremental = false)
+        bool isIncremental = false,
+        CancellationToken cancellationToken = default)
     {
         List<YoksisRecord>? existingRecords = await _dbContext.YoksisRecords
             .Where(record => record.PersonelId == personelId)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
         List<YoksisOperationResult>? categoriesToSynchronize = response.Categories
             .Where(category =>
                 !string.IsNullOrWhiteSpace(category.OperationName) &&
@@ -92,7 +93,7 @@ public sealed class YoksisRecordSynchronizer
             }
         }
 
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
         return await _dbContext.YoksisRecords.CountAsync(record =>
             record.PersonelId == personelId);
     }

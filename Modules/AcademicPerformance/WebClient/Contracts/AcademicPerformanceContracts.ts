@@ -63,6 +63,17 @@ export interface ResearcherCollectResponse extends ServiceResponse {
             TwoYearMeanCitedness?: number;
             LastUpdatedAt?: string;
         };
+        ScopusProfile?: {
+            ScopusAuthorId?: string;
+            DisplayName?: string;
+            CurrentAffiliation?: string;
+            DocumentsCount?: number;
+            CollectedWorksCount?: number;
+            CitationCount?: number;
+            CitedByCount?: number;
+            HIndex?: number;
+            LastUpdatedAt?: string;
+        };
         WebOfScienceProfile?: {
             DisplayName?: string;
             PrimaryOrganization?: string;
@@ -75,6 +86,8 @@ export interface ResearcherCollectResponse extends ServiceResponse {
         };
     };
     IsSaved?: boolean;
+    PublicationCount?: number;
+    YoksisPublicationCount?: number;
     Messages?: string[];
     ProviderFeedback?: ProviderCollectionFeedback[];
 }
@@ -93,6 +106,11 @@ export interface ProviderCollectionFeedback {
     RetainedCount?: number | null;
     ExpectedCount?: number | null;
     Reasons?: ProviderCollectionReason[];
+}
+
+export interface ResearcherMetricsResponse extends ServiceResponse {
+    PersonelID?: string;
+    RecalculatedAt?: string;
 }
 
 export interface YoksisOperationResult {
@@ -127,6 +145,7 @@ export interface YoksisCollectResponse extends ServiceResponse {
     PublicationDetailFailedCount?: number;
     PublicationFailureReasons?: YoksisFailureSummary[];
     FailureReasons?: YoksisFailureSummary[];
+    StopReason?: string;
     Messages?: string[];
     Categories?: YoksisOperationResult[];
 }

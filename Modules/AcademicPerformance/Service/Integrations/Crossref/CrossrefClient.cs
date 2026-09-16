@@ -76,7 +76,7 @@ public sealed class CrossrefClient(HttpClient httpClient, IConfiguration configu
     private long GetMaximumResponseBytes()
     {
         return long.TryParse(
-                configuration["ArticleMetadataEnrichment:MaximumResponseBytes"],
+                configuration["ProviderResponses:MaximumResponseBytes"],
                 out long maximumResponseBytes) &&
             maximumResponseBytes is >= 1024 and <= 16L * 1024 * 1024
                 ? maximumResponseBytes

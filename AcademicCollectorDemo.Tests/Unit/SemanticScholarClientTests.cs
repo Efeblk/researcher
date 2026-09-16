@@ -42,6 +42,98 @@ public sealed class SemanticScholarClientTests
         Assert.Empty(result.Citations);
     }
 
+    [Fact]
+    public async Task GetPaperAsync_RateLimited_PreservesStatusAndRetryAfter()
+    {
+        DateTime before = DateTime.UtcNow.AddMinutes(4);
+        HttpResponseMessage response = new(HttpStatusCode.TooManyRequests);
+        response.Headers.RetryAfter = new(TimeSpan.FromMinutes(5));
+
+        SemanticScholarRequestException exception = await Assert.ThrowsAsync<SemanticScholarRequestException>(
+            () => Create(new QueueHandler(response)).GetPaperAsync("10.1/rate-limited"));
+
+        Assert.Equal("RateLimited", exception.ErrorCode);
+        Assert.Equal(429, exception.ProviderHttpStatusCode);
+        Assert.True(exception.Retryable);
+        Assert.InRange(exception.RetryAt!.Value, before, DateTime.UtcNow.AddMinutes(6));
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    public async Task GetPaperAsync_AuthenticationFailure_IsNonRetryable(HttpStatusCode statusCode)
+    {
+        SemanticScholarRequestException exception = await Assert.ThrowsAsync<SemanticScholarRequestException>(
+            () => Create(new QueueHandler(new HttpResponseMessage(statusCode))).GetPaperAsync("10.1/auth"));
+
+        Assert.Equal("Unauthorized", exception.ErrorCode);
+        Assert.Equal((int)statusCode, exception.ProviderHttpStatusCode);
+        Assert.False(exception.Retryable);
+    }
+
+    [Fact]
+    public async Task GetPaperAsync_UpstreamUnavailable_Preserves503()
+    {
+        SemanticScholarRequestException exception = await Assert.ThrowsAsync<SemanticScholarRequestException>(
+            () => Create(new QueueHandler(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)))
+                .GetPaperAsync("10.1/unavailable"));
+
+        Assert.Equal("Unavailable", exception.ErrorCode);
+        Assert.Equal(503, exception.ProviderHttpStatusCode);
+        Assert.True(exception.Retryable);
+    }
+
+    [Fact]
+    public async Task GetCitationPageAsync_LocalDeferral_OmitsProviderStatusAndPreservesRetryAt()
+    {
+        DateTime retryAt = DateTime.UtcNow.AddMinutes(2);
+        HttpResponseMessage response = new(HttpStatusCode.TooManyRequests);
+        response.Headers.Add("X-Academic-Local-Deferral", "true");
+        response.Headers.RetryAfter = new(new DateTimeOffset(retryAt));
+
+        SemanticScholarRequestException exception = await Assert.ThrowsAsync<SemanticScholarRequestException>(
+            () => Create(new QueueHandler(response)).GetCitationPageAsync("paper", 0, 10));
+
+        Assert.Equal("LocallyLimited", exception.ErrorCode);
+        Assert.Null(exception.ProviderHttpStatusCode);
+        Assert.Equal(retryAt, exception.RetryAt!.Value, TimeSpan.FromSeconds(1));
+        Assert.True(exception.Retryable);
+    }
+
+    [Fact]
+    public async Task GetPaperAsync_TransportFailure_UsesSafeDiagnostics()
+    {
+        SemanticScholarClient client = new(new HttpClient(new ThrowingHandler(
+            new HttpRequestException("https://secret.test/?api-key=secret"))),
+            Options.Create(new SemanticScholarOptions { ApiBaseUrl = "https://example.test" }));
+
+        SemanticScholarRequestException exception = await Assert.ThrowsAsync<SemanticScholarRequestException>(
+            () => client.GetPaperAsync("10.1/transport"));
+
+        Assert.Equal("TransportError", exception.ErrorCode);
+        Assert.Null(exception.ProviderHttpStatusCode);
+        Assert.True(exception.Retryable);
+        Assert.DoesNotContain("secret", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetPaperAsync_Timeout_IsDistinctFromCallerCancellation()
+    {
+        SemanticScholarClient timedOut = new(new HttpClient(new ThrowingHandler(new TaskCanceledException("timeout"))),
+            Options.Create(new SemanticScholarOptions { ApiBaseUrl = "https://example.test" }));
+        SemanticScholarRequestException timeout = await Assert.ThrowsAsync<SemanticScholarRequestException>(
+            () => timedOut.GetPaperAsync("10.1/timeout"));
+        Assert.Equal("Timeout", timeout.ErrorCode);
+        Assert.Null(timeout.ProviderHttpStatusCode);
+
+        using CancellationTokenSource cancellation = new();
+        cancellation.Cancel();
+        SemanticScholarClient cancelled = new(new HttpClient(new CancellationHandler()),
+            Options.Create(new SemanticScholarOptions { ApiBaseUrl = "https://example.test" }));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => cancelled.GetPaperAsync("10.1/cancelled", cancellation.Token));
+    }
+
     private static SemanticScholarClient Create(QueueHandler handler, int maximum = 10, int pageSize = 10) =>
         new(new HttpClient(handler), Options.Create(new SemanticScholarOptions
         { ApiBaseUrl = "https://example.test/graph/v1", MaximumCitationsPerPaper = maximum, CitationPageSize = pageSize }));
@@ -53,5 +145,19 @@ public sealed class SemanticScholarClientTests
         private readonly Queue<HttpResponseMessage> _responses = new(responses);
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromResult(_responses.Dequeue());
+    }
+
+    private sealed class ThrowingHandler(Exception exception) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromException<HttpResponseMessage>(exception);
+    }
+
+    private sealed class CancellationHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromCanceled<HttpResponseMessage>(cancellationToken);
     }
 }

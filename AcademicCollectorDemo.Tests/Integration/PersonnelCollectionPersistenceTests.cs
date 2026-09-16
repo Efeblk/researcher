@@ -40,6 +40,7 @@ public sealed class PersonnelCollectionPersistenceTests(SqlServerFixture fixture
         await database.SaveChangesAsync();
 
         await new AcademicWorkSynchronizer(database).SyncAsync(researcher);
+        await new CanonicalWorkSynchronizer(database).SyncAsync(personelId);
         await new PublicationSummarySynchronizer(database).SyncAsync(personelId);
         database.ChangeTracker.Clear();
 

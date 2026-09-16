@@ -1,10 +1,6 @@
 {
-  "ArticleMetadataEnrichment": {
-    "PositiveCacheMinutes": 1440,
-    "NegativeCacheMinutes": 60,
-    "RequestTimeoutSeconds": 20,
-    "MaximumResponseBytes": 2097152,
-    "MaximumCandidates": 8
+  "ProviderResponses": {
+    "MaximumResponseBytes": 2097152
   },
   "Orcid": {
     "ApiBaseUrl": "https://pub.orcid.org/v3.0"
@@ -16,6 +12,13 @@
   "OpenAlex": {
     "ApiBaseUrl": "https://api.openalex.org",
     "ApiKey": "",
+    "MaximumResponseBytes": 8388608,
+    "MaximumPages": 100
+  },
+  "Scopus": {
+    "ApiBaseUrl": "https://api.elsevier.com/content/",
+    "ApiKey": "",
+    "InstToken": "",
     "MaximumPages": 100
   },
   "WebOfScience": {
@@ -35,10 +38,6 @@
     "ApiBaseUrl": "https://api.crossref.org",
     "Mailto": "",
     "CacheMaxAgeHours": 720
-  },
-  "Unpaywall": {
-    "ApiBaseUrl": "https://api.unpaywall.org",
-    "Email": ""
   },
   "SemanticScholar": {
     "ApiBaseUrl": "https://api.semanticscholar.org/graph/v1",
@@ -83,6 +82,11 @@
       "MinimumIntervalMilliseconds": 20,
       "DailyRequestLimit": 10000
     },
+    "Scopus": {
+      "Enabled": true,
+      "MinimumIntervalMilliseconds": 400,
+      "DailyRequestLimit": 0
+    },
     "WebOfScience": {
       "MinimumIntervalMilliseconds": 250,
       "DailyRequestLimit": 5000
@@ -100,11 +104,6 @@
     "Crossref": {
       "Enabled": true,
       "MinimumIntervalMilliseconds": 200,
-      "DailyRequestLimit": 0
-    },
-    "Unpaywall": {
-      "Enabled": true,
-      "MinimumIntervalMilliseconds": 1000,
       "DailyRequestLimit": 0
     },
     "SemanticScholar": {

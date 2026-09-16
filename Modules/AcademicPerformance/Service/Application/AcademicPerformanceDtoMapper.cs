@@ -3,6 +3,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 
@@ -40,6 +41,10 @@ internal static class AcademicPerformanceDtoMapper
             OpenAlexDocumentsCount = researcher.OpenAlexDocumentsCount,
             OpenAlexTwoYearMeanCitedness = researcher.OpenAlexTwoYearMeanCitedness,
             OpenAlexMetricsUpdatedAt = researcher.OpenAlexMetricsUpdatedAt,
+            ScopusCitationCount = researcher.ScopusCitationCount,
+            ScopusHIndex = researcher.ScopusHIndex,
+            ScopusDocumentsCount = researcher.ScopusDocumentsCount,
+            ScopusMetricsUpdatedAt = researcher.ScopusMetricsUpdatedAt,
             ScholarCitationCount = researcher.ScholarCitationCount,
             ScholarHIndex = researcher.ScholarHIndex,
             ScholarI10Index = researcher.ScholarI10Index,
@@ -53,6 +58,7 @@ internal static class AcademicPerformanceDtoMapper
             GoogleScholarProfile = MapGoogleScholarProfile(
                 researcher.GoogleScholarProfile),
             OpenAlexProfile = MapOpenAlexProfile(researcher.OpenAlexProfile),
+            ScopusProfile = MapScopusProfile(researcher.ScopusProfile),
             TrDizinProfile = researcher.TrDizinProfile is null ? null : new()
             {
                 Orcid = researcher.TrDizinProfile.Orcid,
@@ -64,6 +70,24 @@ internal static class AcademicPerformanceDtoMapper
             },
             WebOfScienceProfile = MapWebOfScienceProfile(
                 researcher.WebOfScienceProfile)
+        };
+    }
+
+    private static ScopusProfileSummaryDto? MapScopusProfile(ScopusProfile? profile)
+    {
+        if (profile is null)
+            return null;
+        return new()
+        {
+            ScopusAuthorId = profile.ScopusAuthorId,
+            DisplayName = profile.DisplayName,
+            CurrentAffiliation = profile.CurrentAffiliation,
+            DocumentsCount = profile.DocumentsCount,
+            CollectedWorksCount = profile.Works?.Count ?? profile.DocumentsCount,
+            CitationCount = profile.CitationCount,
+            CitedByCount = profile.CitedByCount,
+            HIndex = profile.HIndex,
+            LastUpdatedAt = profile.LastUpdatedAt
         };
     }
 

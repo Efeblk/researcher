@@ -21,6 +21,7 @@ public sealed class YoksisCollectResponse : ServiceResponse
     public int PublicationDetailFailedCount { get; set; }
     public List<YoksisFailureSummary> PublicationFailureReasons { get; set; } = [];
     public List<YoksisFailureSummary> FailureReasons { get; set; } = [];
+    public string? StopReason { get; set; } = null;
     public List<string> Messages { get; set; } = [];
     public List<YoksisOperationResult> Categories { get; set; } = [];
 }

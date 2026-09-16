@@ -7,10 +7,7 @@ public sealed class OwnResearcherAnalyses : Migration
 {
     public override void Up()
     {
-        if (Schema.Schema("analysis").Table("ResearcherAnalyses").Exists())
-            return;
-
-        Create.Table("ResearcherAnalyses").InSchema("analysis")
+Create.Table("ResearcherAnalyses").InSchema("analysis")
             .WithColumn("Id").AsInt64().PrimaryKey().Identity()
             .WithColumn("PersonelID").AsString(200).NotNullable()
             .WithColumn("SavedAt").AsDateTimeOffset().NotNullable()

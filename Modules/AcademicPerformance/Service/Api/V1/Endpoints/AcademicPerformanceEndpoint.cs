@@ -17,11 +17,34 @@ public sealed class AcademicPerformanceEndpoint : ServiceEndpoint
     }
 
     [HttpPost]
-    public Task<AcademicDataResponse> GetResearcher(
+    public async Task<ResearcherMetricsResponse> RecalculateMetrics(
+        ResearcherMetricsRequest request,
+        [FromServices] IAcademicPerformanceApplicationService applicationService,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await applicationService.RecalculateMetricsAsync(request, cancellationToken);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new ValidationError(exception.Message);
+        }
+    }
+
+    [HttpPost]
+    public async Task<AcademicDataResponse> GetResearcher(
         AcademicResearcherRequest request,
         [FromServices] IAcademicPerformanceApplicationService applicationService)
     {
-        return applicationService.GetResearcherAsync(request);
+        try
+        {
+            return await applicationService.GetResearcherAsync(request);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new ValidationError(exception.Message);
+        }
     }
 
     [HttpPost]
@@ -47,15 +70,6 @@ public sealed class AcademicPerformanceEndpoint : ServiceEndpoint
         CancellationToken cancellationToken)
     {
         return applicationService.ListCanonicalPublicationsAsync(request, cancellationToken);
-    }
-
-    [HttpPost]
-    public Task<CanonicalPublicationRebuildResponse> RebuildCanonicalPublications(
-        CanonicalPublicationRebuildRequest request,
-        [FromServices] IAcademicPerformanceApplicationService applicationService,
-        CancellationToken cancellationToken)
-    {
-        return applicationService.RebuildCanonicalPublicationsAsync(request, cancellationToken);
     }
 
 }

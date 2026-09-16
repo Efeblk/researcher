@@ -196,13 +196,13 @@ export class PublicationSummaryGrid extends EntityGrid<PublicationSummaryRow> {
             this.slickGrid.render();
             return true;
         }
-        catch (error) {
+        catch {
             if (!this.isContextCurrent(contextVersion) || this.personelId !== personelId)
                 return false;
 
             this.selectionLoadError = true;
-            const message = error instanceof Error ? error.message : String(error);
-            this.callbacks.onError(`Kayıtlı yayın seçimleri okunamadı: ${message}`);
+            this.callbacks.onError(
+                "Kayıtlı yayın seçimleri okunamadı. Lütfen tekrar deneyin.");
             return false;
         }
     }

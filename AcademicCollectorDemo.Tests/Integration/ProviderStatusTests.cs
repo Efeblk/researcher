@@ -27,12 +27,15 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
                 """{"tomcatUp":true,"dbConnectionOk":true,"readOnlyDbConnectionOk":true,"overallOk":true}"""),
             "search.test" => Account(request),
             "openalex.test" => Limited(),
+            "scopus.test" => new(HttpStatusCode.Unauthorized)
+            {
+                Content = new StringContent("{\"error\":\"raw-secret\"}")
+            },
             "wos.test" => new(HttpStatusCode.Unauthorized),
             "yoksis.test" => new(HttpStatusCode.OK) { Content = new StringContent(
                 "<definitions xmlns='http://schemas.xmlsoap.org/wsdl/'/>") },
             "trdizin.test" => TrDizin(request),
             "crossref.test" => Crossref(request),
-            "unpaywall.test" => Unpaywall(request),
             "semantic.test" => SemanticScholar(request),
             _ => throw new HttpRequestException("synthetic secret must not be exposed")
         });
@@ -50,6 +53,8 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         Assert.Equal("RateLimited", providers["OpenAlex"].Status);
         Assert.NotNull(providers["OpenAlex"].RetryAt);
         Assert.Equal("credits", providers["OpenAlex"].ProviderQuotas[0].Unit);
+        Assert.Equal("Unauthorized", providers["Scopus"].Status);
+        Assert.DoesNotContain("raw-secret", JsonSerializer.Serialize(providers["Scopus"]));
         Assert.Equal("Unauthorized", providers["WebOfScience"].Status);
         Assert.Equal("Unavailable", providers["WebOfScience"].RemainingUsage.Status);
         Assert.Equal("Reachable", providers["Yoksis"].Status);
@@ -58,7 +63,6 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         Assert.Equal(5, crossrefQuota.Limit);
         Assert.Null(crossrefQuota.Remaining);
         Assert.Equal("second", crossrefQuota.Window);
-        Assert.Equal("Healthy", providers["Unpaywall"].Status);
         Assert.Equal("Healthy", providers["SemanticScholar"].Status);
         Assert.DoesNotContain("synthetic secret", JsonSerializer.Serialize(responses[0]));
     }
@@ -163,10 +167,10 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         {
             "search.test" => Account(request),
             "openalex.test" => OpenAlexWithQuotaHeaders(),
+            "scopus.test" => ScopusWithQuotaHeaders(),
             "wos.test" => WebOfScienceWithQuotaHeaders(),
             "trdizin.test" => TrDizin(request),
             "crossref.test" => Crossref(request),
-            "unpaywall.test" => Unpaywall(request),
             "semantic.test" => SemanticScholar(request),
             _ => StubHttpHandler.Json("{}")
         }));
@@ -210,6 +214,13 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         Assert.Equal("credits", openAlexQuota.GetProperty("unit").GetString());
         Assert.Equal("daily", openAlexQuota.GetProperty("period").GetString());
         Assert.NotEqual(JsonValueKind.Null, openAlexQuota.GetProperty("resetsAt").ValueKind);
+
+        JsonElement scopusQuota = Assert.Single(providers.Single(provider =>
+            provider.GetProperty("provider").GetString() == "Scopus")
+            .GetProperty("quotas").EnumerateArray());
+        Assert.Equal(20000, scopusQuota.GetProperty("limit").GetDecimal());
+        Assert.Equal(12345, scopusQuota.GetProperty("remaining").GetDecimal());
+        Assert.Equal("weekly", scopusQuota.GetProperty("period").GetString());
 
         JsonElement[] wosQuotas = providers.Single(provider =>
             provider.GetProperty("provider").GetString() == "WebOfScience")
@@ -332,54 +343,6 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         Assert.Null(openAlex.RemainingUsage.Items[0].Value);
     }
 
-    [Fact]
-    public async Task GetAsync_MissingUnpaywallEmail_SkipsRequest()
-    {
-        List<string> requestedHosts = [];
-        using HttpClient client = new(new StubHttpHandler(request =>
-        {
-            lock (requestedHosts) requestedHosts.Add(request.RequestUri!.Host);
-            return StubHttpHandler.Json("{}");
-        }));
-
-        ProviderStatusResponse response = await CreateService(client, credentials: false).GetAsync(default);
-
-        Assert.Equal("NotConfigured", response.Providers.Single(provider =>
-            provider.Provider == "Unpaywall").Status);
-        Assert.DoesNotContain("unpaywall.test", requestedHosts);
-    }
-
-    [Fact]
-    public async Task GetAsync_InvalidUnpaywallPayload_DoesNotClaimHealthy()
-    {
-        using HttpClient client = new(new StubHttpHandler(request => request.RequestUri!.Host == "unpaywall.test"
-            ? StubHttpHandler.Json("""{"doi":"10.9999/wrong","is_oa":true,"secret":"must-not-leak"}""")
-            : ValidResponse(request)));
-
-        ProviderStatusResponse response = await CreateService(client).GetAsync(default);
-
-        ProviderStatusDto unpaywall = response.Providers.Single(provider => provider.Provider == "Unpaywall");
-        Assert.Equal("UnexpectedResponse", unpaywall.Status);
-        Assert.DoesNotContain("must-not-leak", JsonSerializer.Serialize(response));
-    }
-
-    [Fact]
-    public async Task GetAsync_DisabledUnpaywall_SkipsConfiguredProvider()
-    {
-        List<string> requestedHosts = [];
-        using HttpClient client = new(new StubHttpHandler(request =>
-        {
-            lock (requestedHosts) requestedHosts.Add(request.RequestUri!.Host);
-            return ValidResponse(request);
-        }));
-
-        ProviderStatusResponse response = await CreateService(client, unpaywallEnabled: false).GetAsync(default);
-
-        Assert.Equal("Disabled", response.Providers.Single(provider =>
-            provider.Provider == "Unpaywall").Status);
-        Assert.DoesNotContain("unpaywall.test", requestedHosts);
-    }
-
     [Theory]
     [InlineData(false, "RateLimited")]
     [InlineData(true, "LocallyLimited")]
@@ -405,7 +368,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
     }
 
     private ProviderStatusService CreateService(HttpClient client, bool credentials = true,
-        bool openAlexKey = false, bool searchApiEnabled = true, bool unpaywallEnabled = true)
+        bool openAlexKey = false, bool searchApiEnabled = true)
     {
         Dictionary<string, string?> settings = new()
         {
@@ -413,23 +376,21 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
             ["Orcid:ApiBaseUrl"] = "https://orcid.test/v3.0/" + Guid.NewGuid().ToString("N"),
             ["SearchApi:ApiBaseUrl"] = "https://search.test/api/v1/search",
             ["OpenAlex:ApiBaseUrl"] = "https://openalex.test",
+            ["Scopus:ApiBaseUrl"] = "https://scopus.test/content",
             ["WebOfScience:ApiBaseUrl"] = "https://wos.test/v1",
             ["Yoksis:ServiceUrl"] = "https://yoksis.test/ws",
             ["TrDizin:ApiBaseUrl"] = "https://trdizin.test",
             ["Crossref:ApiBaseUrl"] = "https://crossref.test",
             ["Crossref:Mailto"] = "status@example.test",
-            ["Unpaywall:ApiBaseUrl"] = "https://unpaywall.test",
             ["SemanticScholar:ApiBaseUrl"] = "https://semantic.test/graph/v1",
             ["ProviderRequestLimits:Orcid:DailyRequestLimit"] = "2"
         };
         settings["ProviderRequestLimits:SearchApi:Enabled"] = searchApiEnabled.ToString();
-        settings["ProviderRequestLimits:Unpaywall:Enabled"] = unpaywallEnabled.ToString();
         if (credentials)
-            foreach (string key in new[] { "SearchApi:ApiKey", "WebOfScience:ApiKey", "Yoksis:Username", "Yoksis:Password" })
+            foreach (string key in new[] { "SearchApi:ApiKey", "Scopus:ApiKey", "Scopus:InstToken", "WebOfScience:ApiKey", "Yoksis:Username", "Yoksis:Password" })
                 settings[key] = "synthetic";
         if (credentials)
         {
-            settings["Unpaywall:Email"] = "status@example.test";
         }
         if (openAlexKey) settings["OpenAlex:ApiKey"] = "synthetic";
         settings["SemanticScholar:ApiKey"] = "synthetic-semantic-key";
@@ -452,6 +413,17 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         response.Headers.Add("X-RateLimit-Limit", "900");
         response.Headers.Add("X-RateLimit-Remaining", "321");
         response.Headers.Add("X-RateLimit-Reset", "3600");
+        return response;
+    }
+
+    private static HttpResponseMessage ScopusWithQuotaHeaders()
+    {
+        HttpResponseMessage response = StubHttpHandler.Json(
+            """{"search-results":{"opensearch:totalResults":"0","entry":[]}}""");
+        response.Headers.Add("X-RateLimit-Limit", "20000");
+        response.Headers.Add("X-RateLimit-Remaining", "12345");
+        response.Headers.Add("X-RateLimit-Reset",
+            DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds().ToString());
         return response;
     }
 
@@ -503,25 +475,18 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         return response;
     }
 
-    private static HttpResponseMessage Unpaywall(HttpRequestMessage request)
-    {
-        Assert.Equal("/v2/10.1038/nphys1170", request.RequestUri!.AbsolutePath);
-        Assert.Equal("?email=status%40example.test", request.RequestUri.Query);
-        return StubHttpHandler.Json("""{"doi":"10.1038/nphys1170","is_oa":true}""");
-    }
-
     private static HttpResponseMessage ValidResponse(HttpRequestMessage request) => request.RequestUri!.Host switch
     {
         "orcid.test" => StubHttpHandler.Json(
             """{"tomcatUp":true,"dbConnectionOk":true,"readOnlyDbConnectionOk":true,"overallOk":true}"""),
         "search.test" => Account(request),
         "openalex.test" => StubHttpHandler.Json("""{"results":[]}"""),
+        "scopus.test" => StubHttpHandler.Json("""{"search-results":{"opensearch:totalResults":"0","entry":[]}}"""),
         "wos.test" => StubHttpHandler.Json("""{"metadata":{}}"""),
         "yoksis.test" => new(HttpStatusCode.OK) { Content = new StringContent(
             "<definitions xmlns='http://schemas.xmlsoap.org/wsdl/'/>") },
         "trdizin.test" => TrDizin(request),
         "crossref.test" => Crossref(request),
-        "unpaywall.test" => Unpaywall(request),
         "semantic.test" => SemanticScholar(request),
         _ => throw new InvalidOperationException("Unexpected test host.")
     };

@@ -7,14 +7,7 @@ public sealed class OwnArticleReviewCheckpoints : Migration
 {
     public override void Up()
     {
-        if (AnalysisMigrationGuard.IsCompleteOrAbsent("article review checkpoints",
-            Schema.Schema("analysis").Table("ArticleReviewWorkItems").Exists(),
-            Schema.Schema("analysis").Table("ArticleReviewStageCheckpoints").Exists(),
-            Schema.Schema("analysis").Table("CanonicalArticleReviewRuns")
-                .Column("SettingsFingerprint").Exists()))
-            return;
-
-        Alter.Table("CanonicalArticleReviewRuns").InSchema("analysis")
+Alter.Table("CanonicalArticleReviewRuns").InSchema("analysis")
             .AddColumn("SettingsFingerprint").AsString(64).Nullable();
         Execute.Sql("ALTER TABLE [analysis].[CanonicalArticleReviewRuns] ALTER COLUMN [SettingsFingerprint] nvarchar(64) COLLATE Latin1_General_100_BIN2 NULL;");
 

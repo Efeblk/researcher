@@ -99,7 +99,7 @@ public sealed class PublicationMetricsEndpointTests(AnalysisProductSqlServerFixt
             source.Add(new AcademicWork
             {
                 PersonelId = ownerId,
-                Provider = AcademicWorkProvider.Legacy,
+                Provider = AcademicWorkProvider.Orcid,
                 ProviderWorkId = "unmapped-" + suffix,
                 Title = "Unmapped source row",
                 PublicationYear = 2025,

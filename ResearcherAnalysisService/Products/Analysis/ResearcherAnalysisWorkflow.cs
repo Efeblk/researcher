@@ -31,9 +31,15 @@ public sealed class ResearcherAnalysisWorkflow(
                 .Where(value => value.PersonelId == personelId)
                 .Select(value => new ResearcherAnalysisService.SourceData.Works.AcademicWork
                 {
-                    Id = value.Id, Title = value.Title, Doi = value.Doi,
+                    Id = value.Id, PersonelId = value.PersonelId, Title = value.Title, Doi = value.Doi,
                     PublicationYear = value.PublicationYear, Abstract = value.Abstract, Keywords = value.Keywords,
-                    FullTextUrl = value.FullTextUrl, Sources = value.Sources.ToList()
+                    FullTextUrl = value.FullTextUrl, Sources = value.Sources.ToList(),
+                    CanonicalObservation = value.CanonicalObservation == null ? null : new()
+                    {
+                        CanonicalWorkId = value.CanonicalObservation.CanonicalWorkId,
+                        PersonelId = value.CanonicalObservation.PersonelId,
+                        AcademicWorkId = value.CanonicalObservation.AcademicWorkId
+                    }
                 }).ToListAsync(cancellationToken);
             var articleSummaries = await database.ArticleSummaries.AsNoTracking()
                 .Where(value => value.PersonelId == personelId).ToListAsync(cancellationToken);
@@ -75,7 +81,8 @@ public sealed class ResearcherAnalysisWorkflow(
         if (!exists) return null;
         List<ResearcherAnalysisService.SourceData.Works.PublicationSummary> summaries = await database.PublicationSummaries.AsNoTracking()
             .Where(value => value.PersonelId == personelId).ToListAsync(cancellationToken);
-        List<ResearcherAnalysisService.SourceData.Works.AcademicWork> works = await database.AcademicWorks.AsNoTracking().Include(value => value.Sources)
+        List<ResearcherAnalysisService.SourceData.Works.AcademicWork> works = await database.AcademicWorks.AsNoTracking()
+            .Include(value => value.Sources).Include(value => value.CanonicalObservation)
             .Where(value => value.PersonelId == personelId).ToListAsync(cancellationToken);
         List<ArticleSummaries.SavedArticleSummary> saved = await database.ArticleSummaries.AsNoTracking()
             .Where(value => value.PersonelId == personelId).ToListAsync(cancellationToken);

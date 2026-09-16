@@ -237,9 +237,9 @@ public sealed class AnalysisDbContext : DbContext
             entity.ToTable("CanonicalArticleAnalysisRuns", "analysis");
             entity.HasKey(run => run.Id);
             entity.Property(run => run.Language).HasMaxLength(20);
-            entity.Property(run => run.PolicyVersion).HasMaxLength(100);
+            entity.Property(run => run.PolicyVersion).HasMaxLength(100).IsRequired();
             entity.Property(run => run.SourceIdentityHash).HasMaxLength(64)
-                .UseCollation("Latin1_General_100_BIN2");
+                .UseCollation("Latin1_General_100_BIN2").IsRequired();
             entity.Property(run => run.Model).HasMaxLength(200);
             entity.Property(run => run.PromptVersion).HasMaxLength(100);
             entity.Property(run => run.ExtractionMethod).HasMaxLength(50);
@@ -890,6 +890,10 @@ public sealed class AnalysisDbContext : DbContext
 
             entity.Property(summary => summary.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
             entity.HasIndex(summary => summary.PersonelId);
+            entity.HasIndex(summary => new { summary.PersonelId, summary.CanonicalWorkId })
+                .IsUnique()
+                .HasFilter("[CanonicalWorkId] IS NOT NULL")
+                .HasDatabaseName("UX_PublicationSummaries_PersonelID_CanonicalWorkId");
             entity.HasIndex(summary => new
             {
                 summary.PersonelId,

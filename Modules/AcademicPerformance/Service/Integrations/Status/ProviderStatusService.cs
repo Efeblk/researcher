@@ -18,16 +18,16 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private ProviderStatusResponse? _cached = null;
-    private static readonly (string Name, string Key, string Url)[] Providers =
+    internal static readonly (string Name, string Key, string Url)[] ProviderDefinitions =
     [
         ("Orcid", "Orcid:ApiBaseUrl", "https://pub.orcid.org/v3.0"),
         ("SearchApi", "SearchApi:ApiBaseUrl", "https://www.searchapi.io/api/v1/search"),
         ("OpenAlex", "OpenAlex:ApiBaseUrl", "https://api.openalex.org"),
+        ("Scopus", "Scopus:ApiBaseUrl", "https://api.elsevier.com/content/"),
         ("WebOfScience", "WebOfScience:ApiBaseUrl", "https://api.clarivate.com/apis/wos-starter/v1"),
         ("Yoksis", "Yoksis:ServiceUrl", "https://servisler.yok.gov.tr/ws/OzgecmisV2"),
         ("TrDizin", "TrDizin:ApiBaseUrl", "https://search.trdizin.gov.tr"),
         ("Crossref", "Crossref:ApiBaseUrl", "https://api.crossref.org"),
-        ("Unpaywall", "Unpaywall:ApiBaseUrl", "https://api.unpaywall.org"),
         ("SemanticScholar", "SemanticScholar:ApiBaseUrl", "https://api.semanticscholar.org/graph/v1")
     ];
 
@@ -41,7 +41,7 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
                 RefreshRemainingUsage(_cached, DateTime.UtcNow);
                 return _cached;
             }
-            ProviderStatusDto[] results = await Task.WhenAll(Providers.Select(provider => provider.Name == "Orcid"
+            ProviderStatusDto[] results = await Task.WhenAll(ProviderDefinitions.Select(provider => provider.Name == "Orcid"
                 ? CheckOrcidAsync(configuration[provider.Key] ?? provider.Url, cancellationToken)
                 : CheckAsync(provider.Name, configuration[provider.Key] ?? provider.Url, cancellationToken)));
             DateTime budgetAt = DateTime.UtcNow;
@@ -163,16 +163,15 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
             CheckKind = name == "Orcid" ? "OfficialStatus" : name == "Yoksis" ? "WsdlReachability" :
                 name == "SearchApi" ? "AccountUsage" : name == "OpenAlex" &&
                 !string.IsNullOrWhiteSpace(configuration["OpenAlex:ApiKey"]) ? "AccountQuota" :
-                "ApiRequest" };
+                name == "Scopus" ? "AuthenticatedSearchApiRequest" : "ApiRequest" };
         if (!configuration.GetValue($"ProviderRequestLimits:{name}:Enabled", true))
         {
             result.Status = result.Transport.Status = "Disabled";
             return result;
         }
-        if ((name is "SearchApi" or "WebOfScience") && string.IsNullOrWhiteSpace(configuration[name + ":ApiKey"]) ||
+        if ((name is "SearchApi" or "WebOfScience" or "Scopus") && string.IsNullOrWhiteSpace(configuration[name + ":ApiKey"]) ||
             name == "Yoksis" && (string.IsNullOrWhiteSpace(configuration["Yoksis:Username"]) ||
-                string.IsNullOrWhiteSpace(configuration["Yoksis:Password"])) ||
-            name == "Unpaywall" && !IsValidEmail(configuration["Unpaywall:Email"]))
+                string.IsNullOrWhiteSpace(configuration["Yoksis:Password"])))
         {
             result.Status = result.Transport.Status = "NotConfigured";
             return result;
@@ -201,9 +200,12 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
                 HttpStatusCode = result.HttpStatusCode };
             if (response.Headers.RetryAfter is not null)
                 result.RetryAt = ProviderRateLimitHandler.GetRetryAt(response, DateTime.UtcNow);
-            result.ProviderQuotas = name == "Crossref"
-                ? ParseCrossrefQuotas(response, result.CheckedAt)
-                : ParseHeaderQuotas(response, result.CheckedAt);
+            result.ProviderQuotas = name switch
+            {
+                "Crossref" => ParseCrossrefQuotas(response, result.CheckedAt),
+                "Scopus" => ParseScopusQuotas(response, result.CheckedAt),
+                _ => ParseHeaderQuotas(response, result.CheckedAt)
+            };
             if (result.ProviderQuotas.Count > 0) { result.QuotaAvailability = "Available"; result.QuotaSource = "ObservedHeaders"; }
             if (response.IsSuccessStatusCode)
             {
@@ -223,14 +225,11 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
                     JsonElement root = document.RootElement;
                     string expectedProperty = name switch
                     {
-                        "Orcid" => "overallOk", "OpenAlex" => string.IsNullOrWhiteSpace(configuration["OpenAlex:ApiKey"]) ? "results" : "rate_limit", "WebOfScience" => "metadata", "TrDizin" => "orcid", "Crossref" => "message", "SemanticScholar" => "paperId",
-                        "Unpaywall" => "doi", _ => "account"
+                        "Orcid" => "overallOk", "OpenAlex" => string.IsNullOrWhiteSpace(configuration["OpenAlex:ApiKey"]) ? "results" : "rate_limit", "Scopus" => "search-results", "WebOfScience" => "metadata", "TrDizin" => "orcid", "Crossref" => "message", "SemanticScholar" => "paperId", _ => "account"
                     };
                     if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty(expectedProperty, out _))
                         result.Status = "UnexpectedResponse";
                     if (name == "TrDizin" && !IsValidTrDizinResponse(root))
-                        result.Status = "UnexpectedResponse";
-                    if (name == "Unpaywall" && !IsValidUnpaywallResponse(root))
                         result.Status = "UnexpectedResponse";
                     if (name == "Crossref" && !IsValidCrossrefResponse(root))
                         result.Status = "UnexpectedResponse";
@@ -281,6 +280,8 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
                         quota.Unit = "requests";
                         quota.Scope = "api-key";
                     }
+            if (name == "Scopus")
+                result.Message = "Authentication and the Scopus Search endpoint were checked; quota values apply only to that endpoint.";
             DateTime expiresAt = (result.CheckedAt ?? DateTime.UtcNow).AddSeconds(60);
             result.Transport.ExpiresAt = expiresAt;
             foreach (ProviderQuotaDto quota in result.ProviderQuotas) quota.ExpiresAt = expiresAt;
@@ -308,6 +309,12 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
         request.Headers.Accept.ParseAdd(name == "Yoksis" ? "text/xml" : "application/json");
         if (name == "OpenAlex" && !string.IsNullOrWhiteSpace(configuration["OpenAlex:ApiKey"]))
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", configuration["OpenAlex:ApiKey"]!.Trim());
+        if (name == "Scopus")
+        {
+            request.Headers.Add("X-ELS-APIKey", configuration["Scopus:ApiKey"]!.Trim());
+            if (!string.IsNullOrWhiteSpace(configuration["Scopus:InstToken"]))
+                request.Headers.Add("X-ELS-Insttoken", configuration["Scopus:InstToken"]!.Trim());
+        }
         if (name == "SearchApi")
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", configuration["SearchApi:ApiKey"]!.Trim());
         if (name == "WebOfScience")
@@ -328,14 +335,13 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
             "Orcid" => url + (new Uri(url).Host.Equals("api.orcid.org", StringComparison.OrdinalIgnoreCase) ? "/apiStatus" : "/pubStatus"),
             "SearchApi" => new Uri(new Uri(url), "me").AbsoluteUri,
             "OpenAlex" => url + (string.IsNullOrWhiteSpace(configuration["OpenAlex:ApiKey"]) ? "/works?per_page=1&select=id" : "/rate-limit"),
+            "Scopus" => url + "/search/scopus?query=AU-ID%280%29&count=1&view=STANDARD",
             "WebOfScience" => url + "/documents?q=PY%3D1900&db=WOS&limit=1&page=1",
             "Yoksis" => url + "?wsdl",
             "TrDizin" => url + "/api/public/yazar/orcid?orcid=0000-0001-8560-7482",
             "Crossref" => url + "/works/10.1038/nphys1170" +
                 (string.IsNullOrWhiteSpace(configuration["Crossref:Mailto"]) ? string.Empty :
                     "?mailto=" + Uri.EscapeDataString(configuration["Crossref:Mailto"]!.Trim())),
-            "Unpaywall" => url + "/v2/10.1038/nphys1170?email=" +
-                Uri.EscapeDataString(configuration["Unpaywall:Email"]!.Trim()),
             "SemanticScholar" => url + "/paper/DOI:10.1038/nphys1170?fields=paperId",
             _ => throw new InvalidOperationException("Unknown provider.")
         };
@@ -378,13 +384,6 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
         root.TryGetProperty("id", out JsonElement id) && id.ValueKind == JsonValueKind.Number &&
         id.TryGetInt64(out long authorId) && authorId > 0;
 
-    private static bool IsValidUnpaywallResponse(JsonElement root) =>
-        root.ValueKind == JsonValueKind.Object &&
-        root.TryGetProperty("doi", out JsonElement doi) && doi.ValueKind == JsonValueKind.String &&
-        string.Equals(doi.GetString(), "10.1038/nphys1170", StringComparison.OrdinalIgnoreCase) &&
-        root.TryGetProperty("is_oa", out JsonElement isOpenAccess) &&
-        isOpenAccess.ValueKind is JsonValueKind.True or JsonValueKind.False;
-
     private static bool IsValidCrossrefResponse(JsonElement root) =>
         root.ValueKind == JsonValueKind.Object &&
         root.TryGetProperty("status", out JsonElement status) && status.ValueKind == JsonValueKind.String &&
@@ -398,11 +397,6 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
         root.TryGetProperty("paperId", out JsonElement paperId) && paperId.ValueKind == JsonValueKind.String &&
         !string.IsNullOrWhiteSpace(paperId.GetString());
 
-    private static bool IsValidEmail(string? value)
-    {
-        string email = value?.Trim() ?? string.Empty;
-        return email.Length is > 3 and <= 254 && email.Contains('@') && !email.Any(char.IsWhiteSpace);
-    }
 
     public static List<ProviderQuotaDto> ParseSearchApiQuotas(JsonElement root, DateTime? observedAt = null)
     {
@@ -483,6 +477,33 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
             Source = "ResponseHeaders", Window = window, Unit = "requests", Limit = limit,
             Remaining = null, Scope = "request-pool", ValueKind = "ProviderReported",
             SourceFields = "X-Rate-Limit-Limit,X-Rate-Limit-Interval", ObservedAt = observedAt
+        }];
+    }
+
+    public static List<ProviderQuotaDto> ParseScopusQuotas(
+        HttpResponseMessage response,
+        DateTime? observedAt = null)
+    {
+        decimal? limit = Header(response, "X-RateLimit-Limit");
+        decimal? remaining = Header(response, "X-RateLimit-Remaining");
+        decimal? reset = Header(response, "X-RateLimit-Reset");
+        if (!limit.HasValue && !remaining.HasValue && !reset.HasValue)
+            return [];
+        DateTime? resetsAt = null;
+        if (reset.HasValue && reset.Value <= long.MaxValue)
+        {
+            try { resetsAt = DateTimeOffset.FromUnixTimeSeconds((long)reset.Value).UtcDateTime; }
+            catch (ArgumentOutOfRangeException) { }
+        }
+        List<string> fields = [];
+        if (limit.HasValue) fields.Add("X-RateLimit-Limit");
+        if (remaining.HasValue) fields.Add("X-RateLimit-Remaining");
+        if (reset.HasValue) fields.Add("X-RateLimit-Reset");
+        return [new()
+        {
+            Source = "ResponseHeaders", Window = "week", Unit = "requests",
+            Limit = limit, Remaining = remaining, Scope = "api-key", ValueKind = "ProviderReported",
+            SourceFields = string.Join(',', fields), ObservedAt = observedAt, ResetsAt = resetsAt
         }];
     }
 
@@ -573,11 +594,17 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
         bool documentedWosHeaders = quota.SourceFields is
             "X-RateLimit-Limit-Day,X-RateLimit-Remaining-Day" or
             "X-RateLimit-Limit-Second,X-RateLimit-Remaining-Second";
+        bool documentedScopusHeaders = providerName == "Scopus" &&
+            !string.IsNullOrWhiteSpace(quota.SourceFields) &&
+            quota.SourceFields!.Split(',').All(field => field is "X-RateLimit-Limit" or
+                "X-RateLimit-Remaining" or "X-RateLimit-Reset");
         bool recognizedSource = quota.Source == "AccountApi" ||
             (providerName == "OpenAlex" && quota.Source == "ResponseHeaders" &&
                 quota.Scope is "api-key" or "anonymous" && standardOpenAlexHeaders) ||
             (providerName == "WebOfScience" && quota.Source == "ResponseHeaders" &&
-                quota.Scope == "api-key" && documentedWosHeaders);
+                quota.Scope == "api-key" && documentedWosHeaders) ||
+            (providerName == "Scopus" && quota.Source == "ResponseHeaders" &&
+                quota.Scope == "api-key" && documentedScopusHeaders);
         if (!recognizedSource || quota.ValueKind is not ("ProviderReported" or "DerivedFromProviderValues"))
         {
             item.Reason = "The remaining value does not have recognized provider provenance.";

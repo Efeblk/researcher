@@ -117,6 +117,7 @@ public sealed class YoksisPersistenceTests(SqlServerFixture fixture)
         db.AcademicWorks.Add(new() { PersonelId = researcher.PersonelId, Provider = AcademicWorkProvider.Yoksis, ProviderWorkId = "Makale:old", SourceType = "Makale", Title = "Existing publication", SyncedAt = DateTime.UtcNow });
         await db.SaveChangesAsync();
         var summaries = new PublicationSummarySynchronizer(db);
+        await new CanonicalWorkSynchronizer(db).SyncAsync(researcher.PersonelId);
         await summaries.SyncAsync(researcher.PersonelId);
         var summary = await db.PublicationSummaries.SingleAsync(x => x.PersonelId == researcher.PersonelId);
         db.PublicationDisplayApprovals.Add(new() { PersonelId = researcher.PersonelId, PublicationSummaryId = summary.Id, ApprovedAt = DateTime.UtcNow });

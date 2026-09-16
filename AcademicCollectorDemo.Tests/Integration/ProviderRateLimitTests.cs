@@ -1,13 +1,51 @@
 using System.Diagnostics;
 using System.Net;
+using AcademicCollectorDemo.Modules.AcademicPerformance;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Status;
 using AcademicCollectorDemo.Tests.Infrastructure;
+using Microsoft.Extensions.Configuration;
 
 namespace AcademicCollectorDemo.Tests.Integration;
 
 [Collection("SQL Server")]
 public sealed class ProviderRateLimitTests(SqlServerFixture fixture)
 {
+    [Fact]
+    public async Task GetAsync_ConfiguredCrossrefStatusRequest_UsesSharedPacingPolicy()
+    {
+        Dictionary<string, string?> settings = new()
+        {
+            ["ConnectionStrings:AcademicDatabase"] = fixture.ConnectionString,
+            ["Crossref:ApiBaseUrl"] = "https://crossref.test",
+            ["Crossref:Mailto"] = "status@example.test",
+            ["ProviderRequestLimits:Crossref:MinimumIntervalMilliseconds"] = "1"
+        };
+        foreach (var provider in ProviderStatusService.ProviderDefinitions)
+            settings[$"ProviderRequestLimits:{provider.Name}:Enabled"] =
+                (provider.Name == "Crossref").ToString();
+        IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
+        IReadOnlyList<ProviderRequestPolicy> policies =
+            AcademicPerformanceModule.CreateRequestPolicies(configuration);
+        List<Uri> dispatched = [];
+        using HttpClient client = new(new ProviderRateLimitHandler(fixture.ConnectionString, policies)
+        {
+            InnerHandler = new StubHttpHandler(request =>
+            {
+                dispatched.Add(request.RequestUri!);
+                return StubHttpHandler.Json("""{"status":"ok","message":{"DOI":"10.1038/nphys1170"}}""");
+            })
+        });
+
+        var response = await new ProviderStatusService(client, configuration).GetAsync(default);
+
+        Assert.Equal("Healthy", response.Providers.Single(provider =>
+            provider.Provider == "Crossref").Status);
+        Uri requestUri = Assert.Single(dispatched);
+        Assert.Equal("crossref.test", requestUri.Host);
+        Assert.Equal("?mailto=status%40example.test", requestUri.Query);
+    }
+
     [Fact]
     public async Task SendAsync_ExpectedNotFound_DoesNotRecordBulkFailure()
     {

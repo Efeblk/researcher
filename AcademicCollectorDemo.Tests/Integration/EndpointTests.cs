@@ -33,9 +33,9 @@ public sealed class EndpointTests(SqlServerFixture fixture)
             SyncedAt = DateTime.UtcNow
         });
         await db.SaveChangesAsync();
-        await new PublicationSummarySynchronizer(db).SyncAsync(researcher.PersonelId);
         await scope.ServiceProvider.GetRequiredService<CanonicalWorkSynchronizer>()
             .SyncAsync(researcher.PersonelId);
+        await new PublicationSummarySynchronizer(db).SyncAsync(researcher.PersonelId);
 
         string collectedPersonelId = "endpoint-canonical-" + Guid.NewGuid().ToString("N");
         const string collectedResearcherId = "C-7391-2098";
@@ -179,18 +179,5 @@ public sealed class EndpointTests(SqlServerFixture fixture)
         Assert.False(canonicalObservation.TryGetProperty("PersonelID", out _));
         Assert.False(canonicalObservation.TryGetProperty("ProviderPayload", out _));
 
-        using var rebuild = await host.Client.PostAsJsonAsync(
-            "/Services/AcademicPerformance/V1/RebuildCanonicalPublications",
-            new { PersonelID = researcher.PersonelId });
-        rebuild.EnsureSuccessStatusCode();
-        JsonElement rebuildBody = await rebuild.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(1, rebuildBody.GetProperty("CanonicalWorkCount").GetInt32());
-        Assert.Equal(1, rebuildBody.GetProperty("ObservationCount").GetInt32());
-
-        using var missingRebuild = await host.Client.PostAsJsonAsync(
-            "/Services/AcademicPerformance/V1/RebuildCanonicalPublications",
-            new { PersonelID = "missing-canonical-researcher" });
-        JsonElement missingBody = await missingRebuild.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.True(missingBody.TryGetProperty("Error", out _));
     }
 }

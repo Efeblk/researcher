@@ -35,4 +35,14 @@ public sealed class ResearcherIdentifierParserTests
         Assert.Throws<ArgumentException>(() => new ResearcherIdentifierParser()
             .Create(new() { Identifiers = ["0000-0001-8560-7482", "--orcid", "0000-0002-1825-009X"] }));
     }
+
+    [Fact]
+    public void Create_ScopusOnly_NormalizesNamedIdentifier()
+    {
+        var researcher = new ResearcherIdentifierParser().Create(new()
+        {
+            Identifiers = ["--scopus", " 57200000001 "]
+        });
+        Assert.Equal("57200000001", researcher.ScopusId);
+    }
 }

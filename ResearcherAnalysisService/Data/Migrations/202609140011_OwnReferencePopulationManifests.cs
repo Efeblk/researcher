@@ -7,12 +7,7 @@ public sealed class OwnReferencePopulationManifests : Migration
 {
     public override void Up()
     {
-        if (AnalysisMigrationGuard.IsCompleteOrAbsent("reference population manifests",
-            Schema.Schema("analysis").Table("ReferencePopulationManifests").Exists(),
-            Schema.Schema("analysis").Table("ReferencePopulationMembers").Exists()))
-            return;
-
-        Create.Table("ReferencePopulationManifests").InSchema("analysis")
+Create.Table("ReferencePopulationManifests").InSchema("analysis")
             .WithColumn("Id").AsInt64().PrimaryKey().Identity()
             .WithColumn("ManifestVersion").AsString(100).NotNullable()
             .WithColumn("Fingerprint").AsString(64).NotNullable()

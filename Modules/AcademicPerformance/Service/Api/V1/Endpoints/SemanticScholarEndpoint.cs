@@ -30,14 +30,12 @@ public sealed class SemanticScholarEndpoint : ServiceEndpoint
         catch (SemanticScholarPartialEnrichmentException exception)
         {
             await sourceSynchronizer.SyncAsync(personelId, cancellationToken);
-            return Ok(new SemanticScholarCollectResponse { ProcessedDoiCount = exception.CompletedCount,
-                HasPendingWork = true, Message = exception.Message });
+            return Ok(FailureResponse(exception.CompletedCount, exception.Message, exception.RequestFailure));
         }
-        catch (HttpRequestException)
+        catch (SemanticScholarRequestException exception)
         {
             return StatusCode(StatusCodes.Status503ServiceUnavailable,
-                new SemanticScholarCollectResponse { HasPendingWork = true,
-                    Message = "Semantic Scholar is temporarily unavailable; saved progress can be resumed." });
+                FailureResponse(0, FullFailureMessage(exception), exception));
         }
     }
 
@@ -110,4 +108,23 @@ public sealed class SemanticScholarEndpoint : ServiceEndpoint
         InfluentialCitationCount = x.InfluentialCitationCount, Url = x.Url, TldrJson = x.TldrJson,
         TextAvailability = x.TextAvailability
     };
+
+    private static SemanticScholarCollectResponse FailureResponse(int processedDoiCount, string message,
+        SemanticScholarRequestException? exception) => new()
+    {
+        ProcessedDoiCount = processedDoiCount,
+        HasPendingWork = true,
+        Message = message,
+        ErrorCode = exception?.ErrorCode,
+        ProviderHttpStatusCode = exception?.ProviderHttpStatusCode,
+        RetryAt = exception?.RetryAt,
+        Retryable = exception?.Retryable
+    };
+
+    private static string FullFailureMessage(SemanticScholarRequestException exception) =>
+        exception.ErrorCode == "Disabled"
+            ? "Semantic Scholar collection is disabled."
+            : exception.Retryable
+                ? "Semantic Scholar is temporarily unavailable; saved progress can be resumed."
+                : "Semantic Scholar could not complete the request.";
 }

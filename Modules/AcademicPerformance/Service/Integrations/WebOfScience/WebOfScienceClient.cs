@@ -151,13 +151,6 @@ public sealed class WebOfScienceClient
             return databaseIds;
         }
 
-        string? legacyDatabaseId = _configuration["WebOfScience:DatabaseId"];
-
-        if (!string.IsNullOrWhiteSpace(legacyDatabaseId))
-        {
-            return [legacyDatabaseId.Trim().ToUpperInvariant()];
-        }
-
         return [.. DefaultDatabaseIds];
     }
 
@@ -231,9 +224,9 @@ public sealed class WebOfScienceClient
         profile.DisplayName = FindResearcherDisplayName(
             allDocumentPages,
             researcherIdentifier);
-        profile.HIndex = CalculateHIndex(works);
+        profile.HIndex = null;
         profile.DocumentsCount = works.Count;
-        profile.TotalTimesCited = CalculateTotalTimesCited(works);
+        profile.TotalTimesCited = null;
         profile.LastUpdatedAt = DateTime.UtcNow;
         profile.DocumentPagesJson = CreateRawDatabasePages(
             documentPagesByDatabase);
@@ -289,41 +282,6 @@ public sealed class WebOfScienceClient
         }
 
         return null;
-    }
-
-    private static int? CalculateHIndex(List<WebOfScienceWork> works)
-    {
-        int index = 0;
-
-        if (works.Count == 0 || works.Any(work => !work.TimesCited.HasValue))
-        {
-            return null;
-        }
-
-        List<int>? citationCounts = works
-            .Select(work => work.TimesCited!.Value)
-            .OrderByDescending(count => count)
-            .ToList();
-
-        for (index = 0; index < citationCounts.Count; index++)
-        {
-            if (citationCounts[index] < index + 1)
-            {
-                return index;
-            }
-        }
-
-        return citationCounts.Count;
-    }
-
-    private static int? CalculateTotalTimesCited(List<WebOfScienceWork> works)
-    {
-        if (works.Count == 0 || works.Any(work => !work.TimesCited.HasValue))
-        {
-            return null;
-        }
-
-        return works.Sum(work => work.TimesCited!.Value);
     }
 
     private static List<WebOfScienceWork> CreateWorks(

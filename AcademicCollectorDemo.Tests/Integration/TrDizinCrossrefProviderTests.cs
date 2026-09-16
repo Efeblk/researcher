@@ -29,7 +29,7 @@ public sealed class TrDizinCrossrefProviderTests(SqlServerFixture fixture)
         IConfiguration config = Config("TrDizin", "https://tr.example");
         using HttpClient http = new(new StubHttpHandler(request => request.RequestUri!.AbsolutePath switch
         {
-            "/api/public/yazar/orcid" => StubHttpHandler.Json("""{"id":42,"orcid":"0000-0002-1825-0097","fullName":"Ada Test","orderPublicationCount":1}"""),
+            "/api/public/yazar/orcid/" => StubHttpHandler.Json("""{"id":42,"orcid":"0000-0002-1825-0097","fullName":"Ada Test","orderPublicationCount":1}"""),
             "/api/authorPublicationsById/42" => StubHttpHandler.Json("""{"hits":{"total":{"value":1},"hits":[{"_id":"7","fields":{"id":["7"]}}]}}"""),
             "/api/publicationById/7" => StubHttpHandler.Json("""{"hits":{"hits":[{"_source":{"orderTitle":"A paper","doi":"10.1/test","publicationYear":"2024","orderCitationCount":null,"journal":{"name":"Test Journal"},"issue":{"year":"2024"},"authors":[{"inPublicationName":"Ada Test"}]}}]}}"""),
             _ => throw new InvalidOperationException(request.RequestUri.ToString())
@@ -278,7 +278,7 @@ public sealed class TrDizinCrossrefProviderTests(SqlServerFixture fixture)
             {
                 return new(HttpStatusCode.NotFound);
             }
-            if (host == "trdizin.example" && path == "/api/public/yazar/orcid")
+            if (host == "trdizin.example" && path == "/api/public/yazar/orcid/")
             {
                 return StubHttpHandler.Json(
                     """{"id":42,"orcid":"ORCID_VALUE","fullName":"Ada Test","orderPublicationCount":1}"""

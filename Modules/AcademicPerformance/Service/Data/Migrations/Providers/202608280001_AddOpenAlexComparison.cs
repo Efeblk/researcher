@@ -8,19 +8,19 @@ public sealed class AddOpenAlexComparison : Migration
 {
     public override void Up()
     {
-        Create.Table("OpenAlexProfiles")
+        Create.Table("OpenAlexProfiles").InSchema("openalex")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
             .WithColumn("PersonelID").AsString(200).NotNullable()
                 .ForeignKey(
                     "FK_OpenAlexProfiles_Researchers_PersonelID",
-                    "Researchers",
+                    "core", "Researchers",
                     "PersonelID")
                 .OnDelete(Rule.Cascade)
             .WithColumn("OpenAlexAuthorId").AsString(100).NotNullable()
             .WithColumn("DisplayName").AsString(500).Nullable()
             .WithColumn("LastKnownInstitution").AsString(1000).Nullable()
-            .WithColumn("WorksCount").AsInt32().NotNullable()
-            .WithColumn("CitedByCount").AsInt32().NotNullable()
+            .WithColumn("WorksCount").AsInt32().Nullable()
+            .WithColumn("CitedByCount").AsInt32().Nullable()
             .WithColumn("HIndex").AsInt32().Nullable()
             .WithColumn("I10Index").AsInt32().Nullable()
             .WithColumn("TwoYearMeanCitedness").AsDecimal(18, 4).Nullable()
@@ -29,12 +29,12 @@ public sealed class AddOpenAlexComparison : Migration
             .WithColumn("RawDataJson").AsString(int.MaxValue).Nullable()
             .WithColumn("WorksPagesJson").AsString(int.MaxValue).Nullable();
 
-        Create.Table("OpenAlexWorks")
+        Create.Table("OpenAlexWorks").InSchema("openalex")
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
             .WithColumn("OpenAlexProfileId").AsInt32().NotNullable()
                 .ForeignKey(
                     "FK_OpenAlexWorks_OpenAlexProfiles_OpenAlexProfileId",
-                    "OpenAlexProfiles",
+                    "openalex", "OpenAlexProfiles",
                     "Id")
                 .OnDelete(Rule.Cascade)
             .WithColumn("OpenAlexWorkId").AsString(100).NotNullable()
@@ -43,7 +43,7 @@ public sealed class AddOpenAlexComparison : Migration
             .WithColumn("PublicationDate").AsDateTime().Nullable()
             .WithColumn("Doi").AsString(500).Nullable()
             .WithColumn("WorkType").AsString(100).Nullable()
-            .WithColumn("CitedByCount").AsInt32().NotNullable()
+            .WithColumn("CitedByCount").AsInt32().Nullable()
             .WithColumn("Authors").AsString(4000).Nullable()
             .WithColumn("SourceName").AsString(2000).Nullable()
             .WithColumn("Url").AsString(2000).Nullable()
@@ -51,21 +51,21 @@ public sealed class AddOpenAlexComparison : Migration
             .WithColumn("RawDataJson").AsString(int.MaxValue).Nullable();
 
         Create.Index("IX_OpenAlexProfiles_PersonelID")
-            .OnTable("OpenAlexProfiles")
+            .OnTable("OpenAlexProfiles").InSchema("openalex")
             .OnColumn("PersonelID")
             .Ascending()
             .WithOptions()
             .Unique();
 
         Create.Index("IX_OpenAlexProfiles_OpenAlexAuthorId")
-            .OnTable("OpenAlexProfiles")
+            .OnTable("OpenAlexProfiles").InSchema("openalex")
             .OnColumn("OpenAlexAuthorId")
             .Ascending()
             .WithOptions()
             .Unique();
 
         Create.Index("IX_OpenAlexWorks_ProfileId_WorkId")
-            .OnTable("OpenAlexWorks")
+            .OnTable("OpenAlexWorks").InSchema("openalex")
             .OnColumn("OpenAlexProfileId")
             .Ascending()
             .OnColumn("OpenAlexWorkId")
@@ -76,7 +76,7 @@ public sealed class AddOpenAlexComparison : Migration
 
     public override void Down()
     {
-        Delete.Table("OpenAlexWorks");
-        Delete.Table("OpenAlexProfiles");
+        Delete.Table("OpenAlexWorks").InSchema("openalex");
+        Delete.Table("OpenAlexProfiles").InSchema("openalex");
     }
 }

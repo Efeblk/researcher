@@ -8,5 +8,6 @@ public enum AcademicWorkCategorySource
     Yoksis = 3,
     OpenAlex = 4,
     TrDizin = 5,
-    Crossref = 6
+    Crossref = 6,
+    Scopus = 7
 }

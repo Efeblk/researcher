@@ -1,6 +1,6 @@
 # Canonical academic data
 
-The canonical layer links the existing provider-specific `AcademicWork` observations to a global work identity. It is additive: provider tables, `AcademicWorks`, `PublicationSummaries`, display approvals, and the existing UI remain authoritative for their current responsibilities.
+The canonical layer links the existing provider-specific `AcademicWork` observations to a global work identity. `CanonicalWorks` owns publication identity. `PublicationSummaries` is the researcher-specific display projection: each rebuilt row has one `(PersonelID, CanonicalWorkId)` and derives its preferred metadata from that researcher's current observations. Display approvals remain attached to summary IDs.
 
 ## Identity and provenance
 
@@ -20,14 +20,9 @@ Every successful V1 `Collect` reconciles canonical links after normalized `Acade
 
 All canonical writers take a transaction-owned SQL Server application lock named as the canonical write gate before changing normalized works. They then take the researcher lock and sorted identity locks. The gate serializes the short database persistence phase to avoid delete/rebuild lock inversion; provider network calls occur before the transaction and do not hold it. Unique database indexes remain the final identity guard. Application lock waits are bounded and every negative SQL result is treated as a failure.
 
-The read-only `GetResearcher` and canonical list actions do not initiate collection or change stored data. Development databases can be reset and recollected; an existing researcher can also be submitted through individual or bulk `Collect`, which uses current provider cache data when available. The rebuild action remains an optional repair tool for unusual direct database imports or interrupted operational work:
+The read-only `GetResearcher` and canonical list actions do not initiate collection or change stored data. During development, reset the disposable database and recollect after this identity-model change. Normal individual, bulk, and YÖKSİS collection refresh canonical membership and the summary projection in one transaction.
 
-```text
-POST /Services/AcademicPerformance/V1/RebuildCanonicalPublications
-{ "PersonelID": "..." }
-```
-
-Normal individual and bulk collection do not require this repair action.
+Summary IDs and approvals remain stable while `CanonicalWorkId` remains the same. A canonical identity change creates a new summary and requires a new display selection. DOI-less records from different providers keep their source-scoped canonical identities even when title and year match, so the displayed summary count may be higher than the old title/year grouping.
 
 The paged read endpoint is:
 

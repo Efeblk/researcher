@@ -133,7 +133,13 @@ body {
 .academic-status.visible { display: block; }
 .academic-status.info { background: #eaf3fb; color: #285f8f; }
 .academic-status.success { background: #e9f6ee; color: #24663d; }
+.academic-status.warning { background: #fff4d6; color: #795500; }
 .academic-status.error { background: #fbecec; color: #9b2c2c; }
+
+.academic-yoksis-progress { margin-top: 12px; padding: 12px 14px; border-left: 4px solid #2878b5; background: #f3f8fc; color: #234e70; }
+.academic-yoksis-progress strong, .academic-yoksis-progress span { display: block; }
+.academic-yoksis-progress span { margin-top: 4px; font-size: .9rem; }
+.academic-yoksis-progress.stalled { border-left-color: #b7791f; background: #fff8e8; color: #704f13; }
 
 .academic-metrics-grid {
     display: grid;

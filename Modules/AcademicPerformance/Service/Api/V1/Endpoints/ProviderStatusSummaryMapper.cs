@@ -90,6 +90,10 @@ public static class ProviderStatusSummaryMapper
             (provider == "WebOfScience" && quota.Scope == "api-key" &&
                 quota.SourceFields is "X-RateLimit-Limit-Day,X-RateLimit-Remaining-Day" or
                     "X-RateLimit-Limit-Second,X-RateLimit-Remaining-Second") ||
+            (provider == "Scopus" && quota.Scope == "api-key" &&
+                !string.IsNullOrWhiteSpace(quota.SourceFields) &&
+                quota.SourceFields!.Split(',').All(field => field is "X-RateLimit-Limit" or
+                    "X-RateLimit-Remaining" or "X-RateLimit-Reset")) ||
             (provider == "Crossref" && quota.Scope == "request-pool" &&
                 quota.SourceFields == "X-Rate-Limit-Limit,X-Rate-Limit-Interval");
     }

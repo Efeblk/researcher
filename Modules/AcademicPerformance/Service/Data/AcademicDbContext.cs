@@ -8,6 +8,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Pers
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.SemanticScholar;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 
@@ -25,6 +26,8 @@ public sealed class AcademicDbContext : DbContext
     public DbSet<GoogleScholarWork> GoogleScholarWorks { get; set; } = null!;
     public DbSet<OpenAlexProfile> OpenAlexProfiles { get; set; } = null!;
     public DbSet<OpenAlexWork> OpenAlexWorks { get; set; } = null!;
+    public DbSet<ScopusProfile> ScopusProfiles { get; set; } = null!;
+    public DbSet<ScopusWork> ScopusWorks { get; set; } = null!;
     public DbSet<WebOfScienceProfile> WebOfScienceProfiles { get; set; } = null!;
     public DbSet<WebOfScienceWork> WebOfScienceWorks { get; set; } = null!;
     public DbSet<WebOfSciencePeerReview> WebOfSciencePeerReviews { get; set; } = null!;
@@ -48,20 +51,6 @@ public sealed class AcademicDbContext : DbContext
     public AcademicDbContext(DbContextOptions<AcademicDbContext> options)
         : base(options)
     {
-    }
-
-    public override int SaveChanges(bool acceptAllChangesOnSuccess)
-    {
-        ResearcherProviderMetricsSynchronizer.Synchronize(this);
-        return base.SaveChanges(acceptAllChangesOnSuccess);
-    }
-
-    public override async Task<int> SaveChangesAsync(
-        bool acceptAllChangesOnSuccess,
-        CancellationToken cancellationToken = default)
-    {
-        await ResearcherProviderMetricsSynchronizer.SynchronizeAsync(this, cancellationToken);
-        return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -169,6 +158,11 @@ public sealed class AcademicDbContext : DbContext
             entity.HasOne(researcher => researcher.OpenAlexProfile)
                 .WithOne(profile => profile.Researcher)
                 .HasForeignKey<OpenAlexProfile>(profile => profile.PersonelId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(researcher => researcher.ScopusProfile)
+                .WithOne(profile => profile.Researcher)
+                .HasForeignKey<ScopusProfile>(profile => profile.PersonelId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(researcher => researcher.WebOfScienceProfile)
@@ -368,6 +362,40 @@ public sealed class AcademicDbContext : DbContext
             }).IsUnique();
         });
 
+        modelBuilder.Entity<ScopusProfile>(entity =>
+        {
+            entity.ToTable("ScopusProfiles", "scopus");
+            entity.HasKey(profile => profile.Id);
+            entity.Property(profile => profile.ScopusAuthorId).HasMaxLength(20);
+            entity.Property(profile => profile.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
+            entity.Property(profile => profile.DisplayName).HasMaxLength(500);
+            entity.Property(profile => profile.CurrentAffiliation).HasMaxLength(1000);
+            entity.Property(profile => profile.RawDataJson).HasColumnType("nvarchar(max)");
+            entity.Property(profile => profile.SearchPagesJson).HasColumnType("nvarchar(max)");
+            entity.HasIndex(profile => profile.PersonelId).IsUnique();
+            entity.HasIndex(profile => profile.ScopusAuthorId).IsUnique();
+            entity.HasMany(profile => profile.Works)
+                .WithOne(work => work.ScopusProfile)
+                .HasForeignKey(work => work.ScopusProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ScopusWork>(entity =>
+        {
+            entity.ToTable("ScopusWorks", "scopus");
+            entity.HasKey(work => work.Id);
+            entity.Property(work => work.ScopusWorkId).HasMaxLength(100);
+            entity.Property(work => work.Eid).HasMaxLength(100);
+            entity.Property(work => work.Title).HasMaxLength(2000);
+            entity.Property(work => work.Doi).HasMaxLength(500);
+            entity.Property(work => work.WorkType).HasMaxLength(200);
+            entity.Property(work => work.Authors).HasColumnType("nvarchar(max)");
+            entity.Property(work => work.SourceName).HasMaxLength(2000);
+            entity.Property(work => work.Url).HasMaxLength(2000);
+            entity.Property(work => work.RawDataJson).HasColumnType("nvarchar(max)");
+            entity.HasIndex(work => new { work.ScopusProfileId, work.ScopusWorkId }).IsUnique();
+        });
+
         modelBuilder.Entity<WebOfScienceProfile>(entity =>
         {
             entity.ToTable("WebOfScienceProfiles", "wos");
@@ -555,12 +583,21 @@ public sealed class AcademicDbContext : DbContext
 
             entity.Property(summary => summary.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
             entity.HasIndex(summary => summary.PersonelId);
+            entity.HasIndex(summary => new { summary.PersonelId, summary.CanonicalWorkId })
+                .IsUnique()
+                .HasFilter("[CanonicalWorkId] IS NOT NULL")
+                .HasDatabaseName("UX_PublicationSummaries_PersonelID_CanonicalWorkId");
             entity.HasIndex(summary => new
             {
                 summary.PersonelId,
                 summary.Fingerprint
             })
                 .IsUnique();
+
+            entity.HasOne(summary => summary.CanonicalWork)
+                .WithMany(work => work.PublicationSummaries)
+                .HasForeignKey(summary => summary.CanonicalWorkId)
+                .OnDelete(DeleteBehavior.NoAction);
 
             entity.HasOne(summary => summary.DisplayApproval)
                 .WithOne(approval => approval.PublicationSummary)

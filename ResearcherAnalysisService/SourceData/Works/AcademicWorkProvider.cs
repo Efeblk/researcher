@@ -6,7 +6,6 @@ public enum AcademicWorkProvider
     GoogleScholar = 1,
     WebOfScience = 2,
     Yoksis = 3,
-    Legacy = 4,
     OpenAlex = 5,
     TrDizin = 6,
     Crossref = 7

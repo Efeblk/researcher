@@ -215,6 +215,7 @@ public sealed class CanonicalWorkSynchronizerTests(SqlServerFixture fixture)
             Work(personelId, AcademicWorkProvider.Orcid, "10.5000/approval", "approval"));
         await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
         AcademicDbContext db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        await new CanonicalWorkSynchronizer(db).SyncAsync(personelId);
         await new PublicationSummarySynchronizer(db).SyncAsync(personelId);
         PublicationSummary summary = await db.PublicationSummaries.SingleAsync(work => work.PersonelId == personelId);
         db.PublicationDisplayApprovals.Add(new()

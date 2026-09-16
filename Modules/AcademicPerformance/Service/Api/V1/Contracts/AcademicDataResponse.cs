@@ -9,6 +9,7 @@ public sealed class AcademicDataResponse : ServiceResponse
     public bool IsSaved { get; set; }
     public string? FailureCode { get; set; } = null;
     public int YoksisFailedCategoryCount { get; set; }
+    public int YoksisPublicationCount { get; set; }
     public int PublicationCount { get; set; }
     public string? DatabaseProvider { get; set; } = null;
     public DateTime CollectedAt { get; set; }

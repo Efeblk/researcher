@@ -31,6 +31,10 @@ public sealed class AcademicResearcherDto
     public int? OpenAlexDocumentsCount { get; set; } = null;
     public decimal? OpenAlexTwoYearMeanCitedness { get; set; } = null;
     public DateTime? OpenAlexMetricsUpdatedAt { get; set; } = null;
+    public int? ScopusCitationCount { get; set; } = null;
+    public int? ScopusHIndex { get; set; } = null;
+    public int? ScopusDocumentsCount { get; set; } = null;
+    public DateTime? ScopusMetricsUpdatedAt { get; set; } = null;
     public int? ScholarCitationCount { get; set; } = null;
     public int? ScholarHIndex { get; set; } = null;
     public int? ScholarI10Index { get; set; } = null;
@@ -43,6 +47,7 @@ public sealed class AcademicResearcherDto
     public OrcidProfileSummaryDto? OrcidProfile { get; set; } = null;
     public GoogleScholarProfileSummaryDto? GoogleScholarProfile { get; set; } = null;
     public OpenAlexProfileSummaryDto? OpenAlexProfile { get; set; } = null;
+    public ScopusProfileSummaryDto? ScopusProfile { get; set; } = null;
     public TrDizinProfileSummaryDto? TrDizinProfile { get; set; } = null;
     public WebOfScienceProfileSummaryDto? WebOfScienceProfile { get; set; } = null;
 }

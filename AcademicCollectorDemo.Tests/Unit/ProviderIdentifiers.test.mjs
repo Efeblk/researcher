@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { restoreProviderIdentifiers } from "../../Modules/AcademicPerformance/WebClient/Pages/AcademicPerformance/ProviderIdentifiers.ts";
+import {
+    readRememberedProviderIdentifiers, restoreProviderIdentifiers
+} from "../../Modules/AcademicPerformance/WebClient/Pages/AcademicPerformance/ProviderIdentifiers.ts";
 
 test("restoring one identity clears a previous researcher's other identities", () => {
     const inputs = [
@@ -18,3 +20,10 @@ for (const stored of ["null", "[]", "42", "broken-json", '{"Orcid":123}', '{"Orc
         assert.equal(input.value, "");
     });
 }
+
+test("reads remembered identifiers without modifying current inputs", () => {
+    assert.deepEqual(readRememberedProviderIdentifiers(
+        '{"Orcid":" saved-orcid ","ScopusId":" 57200000001 ","Ignored":42}'), {
+        Orcid: "saved-orcid", ScopusId: "57200000001"
+    });
+});
