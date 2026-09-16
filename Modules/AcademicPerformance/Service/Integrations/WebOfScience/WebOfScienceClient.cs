@@ -47,8 +47,6 @@ public sealed class WebOfScienceClient
 
         WebOfScienceProfile? profile = CreateProfile(researcherIdentifier, documentPagesByDatabase);
 
-        researcher.WebOfScienceResearcherId = researcherIdentifier;
-
         if (researcher.WebOfScienceProfile is null)
         {
             researcher.WebOfScienceProfile = profile;

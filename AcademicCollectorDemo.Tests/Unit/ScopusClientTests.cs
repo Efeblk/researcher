@@ -40,6 +40,7 @@ public sealed class ScopusClientTests
         Assert.Contains("cursor=next-token", requests[2].RequestUri!.Query);
         Assert.Equal("Synthetic Researcher", researcher.ScopusProfile!.DisplayName);
         Assert.Equal("Synthetic University", researcher.ScopusProfile.CurrentAffiliation);
+        Assert.Equal(" 57200000001 ", researcher.ScopusId);
         Assert.Equal(17, researcher.ScopusProfile.HIndex);
         Assert.Equal(2, researcher.ScopusProfile.Works!.Count);
         ScopusWork work = researcher.ScopusProfile.Works[0];

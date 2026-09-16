@@ -90,7 +90,6 @@ public sealed class GoogleScholarClient
         profile.RawDataJson = JsonSerializer.Serialize(pages);
         profile.LastUpdatedAt = DateTime.UtcNow;
 
-        researcher.GoogleScholarId = googleScholarId;
         researcher.GoogleScholarProfile = profile;
         ApplyNameWhenMissing(researcher, profile.DisplayName);
     }

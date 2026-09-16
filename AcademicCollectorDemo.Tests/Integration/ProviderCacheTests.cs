@@ -36,6 +36,7 @@ public sealed class ProviderCacheTests
         await new WebOfScienceClient(http, config, logger)
             .FillResearcherAsync(researcher, "A-1009-2008");
 
+        Assert.Null(researcher.WebOfScienceResearcherId);
         Assert.Equal(4, handler.RequestCount);
         Assert.Contains(("WOS", "1"), requests);
         Assert.Contains(("WOS", "2"), requests);
