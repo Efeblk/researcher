@@ -156,11 +156,10 @@ public sealed class ArticleEvaluationTests
             settings: new Dictionary<string, string?> { ["Gemini:ApiKey"] = "synthetic-key" });
         ArticleEvaluationRequest request = new(profileId, taskKind, "irrelevant", Source());
 
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync("api/v1/evaluations/execute", request);
-
-        Assert.Equal(expectedStatus, response.StatusCode);
-        using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.Equal(expectedErrorCode, document.RootElement.GetProperty("errorCode").GetString());
+        ArticleEvaluationRequestException exception = await Assert.ThrowsAsync<ArticleEvaluationRequestException>(
+            () => ExecuteAsync(host, request));
+        Assert.Equal((int)expectedStatus, exception.StatusCode);
+        Assert.Equal(expectedErrorCode, exception.ErrorCode);
         Assert.Equal(0, calls);
     }
 
@@ -177,9 +176,9 @@ public sealed class ArticleEvaluationTests
             settings: new Dictionary<string, string?> { ["Gemini:ApiKey"] = "synthetic-key" });
         ArticleEvaluationRequest request = CalibrationRequest("gemini-baseline", "stale");
 
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync("api/v1/evaluations/execute", request);
-
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        ArticleEvaluationRequestException exception = await Assert.ThrowsAsync<ArticleEvaluationRequestException>(
+            () => ExecuteAsync(host, request));
+        Assert.Equal(409, exception.StatusCode);
         Assert.Equal(0, calls);
     }
 
@@ -197,11 +196,8 @@ public sealed class ArticleEvaluationTests
             settings: new Dictionary<string, string?> { ["Gemini:ApiKey"] = "synthetic-key" });
         ArticleEvaluationProfile profile = await Profile(host, "gemini-baseline");
 
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync("api/v1/evaluations/execute",
+        ArticleEvaluationResponse result = await ExecuteAsync(host,
             CalibrationRequest(profile.ProfileId, profile.SettingsFingerprint));
-
-        response.EnsureSuccessStatusCode();
-        ArticleEvaluationResponse result = (await response.Content.ReadFromJsonAsync<ArticleEvaluationResponse>())!;
         Assert.Equal("completed", result.Outcome);
         Assert.Equal("supported", result.Verdicts!.Single().Verdict);
         ArticleEvaluationAttemptTelemetry attempt = Assert.Single(result.Telemetry.Attempts);
@@ -223,9 +219,8 @@ public sealed class ArticleEvaluationTests
             settings: new Dictionary<string, string?> { ["Gemini:ApiKey"] = "synthetic-key" });
         ArticleEvaluationProfile profile = await Profile(host, "gemini-baseline");
 
-        ArticleEvaluationResponse result = (await (await host.Client.PostAsJsonAsync(
-            "api/v1/evaluations/execute", CalibrationRequest(profile.ProfileId, profile.SettingsFingerprint)))
-            .Content.ReadFromJsonAsync<ArticleEvaluationResponse>())!;
+        ArticleEvaluationResponse result = await ExecuteAsync(host,
+            CalibrationRequest(profile.ProfileId, profile.SettingsFingerprint));
 
         Assert.Equal("failed", result.Outcome);
         Assert.Null(result.Verdicts);
@@ -279,8 +274,7 @@ public sealed class ArticleEvaluationTests
             ]
         };
 
-        ArticleEvaluationResponse result = (await (await host.Client.PostAsJsonAsync(
-            "api/v1/evaluations/execute", request)).Content.ReadFromJsonAsync<ArticleEvaluationResponse>())!;
+        ArticleEvaluationResponse result = await ExecuteAsync(host, request);
 
         Assert.Equal("completed", result.Outcome);
         Assert.Equal(2, result.Verdicts!.Count);
@@ -304,12 +298,10 @@ public sealed class ArticleEvaluationTests
         await using AnalysisTestHost host = await AnalysisTestHost.StartAsync(evaluationHandler: handler);
         ArticleEvaluationProfile profile = await Profile(host, "ollama-qwen-baseline");
 
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync("api/v1/evaluations/execute",
-            CalibrationRequest(profile.ProfileId, profile.SettingsFingerprint));
-
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.Equal("model_revision_mismatch", document.RootElement.GetProperty("errorCode").GetString());
+        ArticleEvaluationRequestException exception = await Assert.ThrowsAsync<ArticleEvaluationRequestException>(
+            () => ExecuteAsync(host, CalibrationRequest(profile.ProfileId, profile.SettingsFingerprint)));
+        Assert.Equal(409, exception.StatusCode);
+        Assert.Equal("model_revision_mismatch", exception.ErrorCode);
         Assert.Equal(0, generationCalls);
     }
 
@@ -355,8 +347,7 @@ public sealed class ArticleEvaluationTests
         ArticleEvaluationRequest request = new(profile.ProfileId, ArticleEvaluationTaskKinds.Review,
             profile.SettingsFingerprint, source);
 
-        ArticleEvaluationResponse result = (await (await host.Client.PostAsJsonAsync(
-            "api/v1/evaluations/execute", request)).Content.ReadFromJsonAsync<ArticleEvaluationResponse>())!;
+        ArticleEvaluationResponse result = await ExecuteAsync(host, request);
 
         Assert.Equal("completed", result.Outcome);
         Assert.Equal(8, calls);
@@ -373,9 +364,8 @@ public sealed class ArticleEvaluationTests
             settings: new Dictionary<string, string?> { ["Gemini:ApiKey"] = "synthetic-key" });
         ArticleEvaluationProfile profile = await Profile(host, "gemini-baseline");
 
-        ArticleEvaluationResponse result = (await (await host.Client.PostAsJsonAsync(
-            "api/v1/evaluations/execute", CalibrationRequest(profile.ProfileId, profile.SettingsFingerprint)))
-            .Content.ReadFromJsonAsync<ArticleEvaluationResponse>())!;
+        ArticleEvaluationResponse result = await ExecuteAsync(host,
+            CalibrationRequest(profile.ProfileId, profile.SettingsFingerprint));
 
         Assert.Equal("failed", result.Outcome);
         Assert.Equal("invalid_provider_response", result.ErrorCode);
@@ -397,8 +387,7 @@ public sealed class ArticleEvaluationTests
         ArticleEvaluationRequest request = new(profile.ProfileId, ArticleEvaluationTaskKinds.Review,
             profile.SettingsFingerprint, Source());
 
-        ArticleEvaluationResponse result = (await (await host.Client.PostAsJsonAsync(
-            "api/v1/evaluations/execute", request)).Content.ReadFromJsonAsync<ArticleEvaluationResponse>())!;
+        ArticleEvaluationResponse result = await ExecuteAsync(host, request);
 
         Assert.Equal("failed", result.Outcome);
         Assert.Equal("invalid_provider_response", result.ErrorCode);
@@ -420,9 +409,8 @@ public sealed class ArticleEvaluationTests
             settings: new Dictionary<string, string?> { ["Gemini:ApiKey"] = "synthetic-key" });
         ArticleEvaluationProfile profile = await Profile(host, "gemini-baseline");
 
-        ArticleEvaluationResponse result = (await (await host.Client.PostAsJsonAsync(
-            "api/v1/evaluations/execute", CalibrationRequest(profile.ProfileId, profile.SettingsFingerprint)))
-            .Content.ReadFromJsonAsync<ArticleEvaluationResponse>())!;
+        ArticleEvaluationResponse result = await ExecuteAsync(host,
+            CalibrationRequest(profile.ProfileId, profile.SettingsFingerprint));
 
         Assert.Equal("failed", result.Outcome);
         ArticleEvaluationAttemptTelemetry attempt = Assert.Single(result.Telemetry.Attempts);
@@ -558,9 +546,7 @@ public sealed class ArticleEvaluationTests
                 [Evidence(source) with { Quote = "fabricated quote" }])]
         };
 
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync("api/v1/evaluations/execute", request);
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await Assert.ThrowsAsync<ArticleEvaluationRequestException>(() => ExecuteAsync(host, request));
         Assert.Equal(0, calls);
     }
 
@@ -579,11 +565,9 @@ public sealed class ArticleEvaluationTests
         ArticleEvaluationRequest valid = CalibrationRequest(profile.ProfileId, profile.SettingsFingerprint);
         ArticleEvaluationRequest request = valid with { Source = valid.Source with { SourceHash = new string('0', 64) } };
 
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync("api/v1/evaluations/execute", request);
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.Equal("source_hash_mismatch", document.RootElement.GetProperty("errorCode").GetString());
+        ArticleEvaluationRequestException exception = await Assert.ThrowsAsync<ArticleEvaluationRequestException>(
+            () => ExecuteAsync(host, request));
+        Assert.Equal("source_hash_mismatch", exception.ErrorCode);
         Assert.Equal(0, calls);
     }
 
@@ -596,6 +580,10 @@ public sealed class ArticleEvaluationTests
                 [source.SourceSpans!.Single().SourceId])]
         };
     }
+
+    private static Task<ArticleEvaluationResponse> ExecuteAsync(AnalysisTestHost host,
+        ArticleEvaluationRequest request) => host.InvokeAsync<ArticleEvaluationService, ArticleEvaluationResponse>(
+        service => service.ExecuteAsync(request, default));
 
     private static ReviewArticleRequest Source()
     {

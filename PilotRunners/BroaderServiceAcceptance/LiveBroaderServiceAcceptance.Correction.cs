@@ -349,7 +349,7 @@ internal static partial class LiveBroaderServiceAcceptance
             Guid runId = sourceResult[$"faculty-{name}"]?["completed"]?["runId"]?
                 .GetValue<Guid>() ?? throw new InvalidOperationException($"Saved run ID is absent for {name}.");
             FacultyAssistantRunResponse saved = await PostAsync<FacultyAssistantRunResponse>(client,
-                AnalysisUrl + "/api/v1/products/GetFacultyAssistantRun",
+                AnalysisUrl + "/api/v1/faculty/assistant/run",
                 new GetFacultyAssistantRunRequest
                 {
                     PersonelId = BroaderAcceptanceHost.PrimarySubjectId,

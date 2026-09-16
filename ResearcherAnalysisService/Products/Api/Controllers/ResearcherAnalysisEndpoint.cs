@@ -10,10 +10,10 @@ namespace ResearcherAnalysisService.Products.Api.Controllers;
 [ApiController]
 [ResearcherAnalysisService.Products.Api.ProductJsonContract]
 [ServiceFilter<AnalysisAccessFilter>]
-[Route("api/v1/products/[action]")]
+[Route("api/v1")]
 public sealed class ResearcherAnalysisEndpoint : ControllerBase
 {
-    [HttpPost]
+    [HttpPost("researchers/analysis/generate")]
     public async Task<ActionResult<SavedResearcherAnalysisResponse>> AnalyzeResearcher(
         [FromBody] ResearcherAnalysisIdRequest? request,
         [FromServices] ResearcherAnalysisWorkflow workflow, CancellationToken cancellationToken)
@@ -45,25 +45,14 @@ public sealed class ResearcherAnalysisEndpoint : ControllerBase
         }
     }
 
-    [HttpPost]
-    public async Task<ActionResult<SavedResearcherAnalysisResponse>> GetResearcherAnalysis(
+    [HttpPost("researchers/analysis")]
+    public async Task<ActionResult<ResearcherAnalysisReadResponse>> GetResearcherAnalysis(
         [FromBody] ResearcherAnalysisIdRequest? request,
         [FromServices] ResearcherAnalysisWorkflow workflow, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid || request is null || string.IsNullOrWhiteSpace(request.PersonelId))
             return BadRequest(new { Message = "PersonelID is required." });
-        SavedResearcherAnalysisResponse? result = await workflow.GetLatestAsync(request.PersonelId.Trim(), cancellationToken);
-        return result is null ? NotFound(new { Message = "No saved analysis exists for this researcher." }) : Ok(result);
-    }
-
-    [HttpPost]
-    public async Task<ActionResult<ResearcherSourceCoverage>> GetResearcherSourceCoverage(
-        [FromBody] ResearcherAnalysisIdRequest? request,
-        [FromServices] ResearcherAnalysisWorkflow workflow, CancellationToken cancellationToken)
-    {
-        if (!ModelState.IsValid || request is null || string.IsNullOrWhiteSpace(request.PersonelId))
-            return BadRequest(new { Message = "PersonelID is required." });
-        ResearcherSourceCoverage? result = await workflow.GetCoverageAsync(request.PersonelId.Trim(), cancellationToken);
+        ResearcherAnalysisReadResponse? result = await workflow.GetAnalysisAsync(request.PersonelId.Trim(), cancellationToken);
         return result is null ? NotFound(new { Message = "Researcher not found." }) : Ok(result);
     }
 }

@@ -11,10 +11,10 @@ namespace ResearcherAnalysisService.Products.Api.Controllers;
 [ApiController]
 [ResearcherAnalysisService.Products.Api.ProductJsonContract]
 [ServiceFilter<AnalysisAccessFilter>]
-[Route("api/v1/products/[action]")]
+[Route("api/v1")]
 public sealed class AcademicKnowledgeEndpoint : ControllerBase
 {
-    [HttpPost]
+    [HttpPost("knowledge/search")]
     public async Task<ActionResult<AcademicEvidenceSearchResponse>> SearchAcademicEvidence(
         [FromBody] AcademicEvidenceSearchRequest request,
         [FromServices] IAcademicProductAccessService access,
@@ -35,7 +35,7 @@ public sealed class AcademicKnowledgeEndpoint : ControllerBase
         { return UnprocessableEntity(new { Message = exception.Message }); }
     }
 
-    [HttpPost]
+    [HttpPost("knowledge/reference-population")]
     public async Task<ActionResult<ReferencePopulationManifestResponse>> GetReferencePopulation(
         [FromBody] ReferencePopulationManifestRequest request,
         [FromServices] IAcademicProductAccessService access,
@@ -56,7 +56,7 @@ public sealed class AcademicKnowledgeEndpoint : ControllerBase
         { return AcademicProductEndpoint.Error(exception); }
     }
 
-    [HttpPost]
+    [HttpPost("knowledge/reference-population/import")]
     public async Task<ActionResult<ReferencePopulationManifestResponse>> ImportReferencePopulation(
         [FromBody] ReferencePopulationImportRequest request,
         [FromServices] IAcademicProductAccessService access,
@@ -79,7 +79,7 @@ public sealed class AcademicKnowledgeEndpoint : ControllerBase
         { return Conflict(new { Message = exception.Message }); }
     }
 
-    [HttpPost]
+    [HttpPost("knowledge/graph/export")]
     public async Task<ActionResult<AcademicGraphProjectionBundle>> ExportAcademicEvidenceGraph(
         [FromBody] GraphProjectionRequest request,
         [FromServices] IAcademicProductAccessService access,

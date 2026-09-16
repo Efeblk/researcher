@@ -9,10 +9,10 @@ namespace ResearcherAnalysisService.Products.Api.Controllers;
 [ApiController]
 [ResearcherAnalysisService.Products.Api.ProductJsonContract]
 [ServiceFilter<AnalysisAccessFilter>]
-[Route("api/v1/products/[action]")]
+[Route("api/v1")]
 public sealed class PublicationMetricsController : ControllerBase
 {
-    [HttpPost]
+    [HttpPost("researchers/metrics")]
     public async Task<ActionResult<ResearcherPublicationMetricsStatusResponse>> GetResearcherPublicationMetrics(
         [FromBody] JsonElement requestBody,
         [FromServices] PublicationMetricsReadService readService,
@@ -26,7 +26,7 @@ public sealed class PublicationMetricsController : ControllerBase
         return result.Data is null ? Accepted(result) : Ok(result);
     }
 
-    [HttpPost]
+    [HttpPost("researchers/metrics/refresh")]
     public async Task<ActionResult<ResearcherPublicationMetricsStatusResponse>> RefreshResearcherPublicationMetrics(
         [FromBody] JsonElement requestBody,
         [FromServices] PublicationMetricsRefreshService refreshService,

@@ -1,0 +1,59 @@
+# Günlük makale akışı
+@baseUrl = http://localhost:5011
+@api = {{baseUrl}}/api/v1
+@analysisKey = REPLACE_WITH_SERVICE_API_KEY
+@personelId = P-1001
+@canonicalWorkId = 1
+@academicWorkId = 1
+@language = tr
+
+# canonicalWorkId = ListCanonicalPublications.Entities[].Id; academicWorkId = aynı kaydın Observations[].AcademicWorkId alanı.
+
+### 1. Kanonik analiz durumunu, kanıtı ve incelemeyi birlikte oku
+# Evidence veya Review null olabilir; bu durum ilişkinin bulunmadığı anlamına gelmez.
+POST {{api}}/articles/analysis
+Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
+
+{
+  "PersonelID": "{{personelId}}",
+  "CanonicalWorkId": {{canonicalWorkId}},
+  "Language": "{{language}}",
+  "Skip": 0,
+  "Take": 100
+}
+
+### 2. Gözlem özetini oku
+POST {{api}}/articles/summary
+Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
+
+{
+  "PersonelID": "{{personelId}}",
+  "AcademicWorkId": {{academicWorkId}},
+  "Language": "{{language}}"
+}
+
+### 3. Özet üret [AI + yazma]
+POST {{api}}/articles/summary/generate
+Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
+
+{
+  "PersonelID": "{{personelId}}",
+  "AcademicWorkId": {{academicWorkId}},
+  "Language": "{{language}}"
+}
+
+### 4. Uzman incelemesi üret [AI + yazma]
+# Ön koşul: aynı dilde başarılı, kaydedilmiş kanonik makale analizi.
+POST {{api}}/articles/review/generate
+Content-Type: application/json
+X-Analysis-Key: {{analysisKey}}
+
+{
+  "PersonelID": "{{personelId}}",
+  "CanonicalWorkId": {{canonicalWorkId}},
+  "Language": "{{language}}",
+  "ForceRegeneration": false
+}

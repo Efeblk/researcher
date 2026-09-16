@@ -1,12 +1,12 @@
 # Analiz hattı
 
-`ResearcherAnalysisService`, araştırmacı ve makale analizlerinin, özet/inceleme/değerlendirme akışlarının, yayın metriklerinin, bilgi/grafik ürünlerinin ve İK/fakülte işlerinin bağımsız .NET 10 sahibidir. Kalıcı ürünler aynı SQL veritabanındaki collector kaynaklarını salt okunur modellerle çözer; stateless uçlar ise gerekli snapshot veya kanıt bağlamının tamamını gövdede alır. İki yüzey de çıktıyı yalnız Analysis Service'in `analysis`, `hr` ve `faculty` tablolarına yazar.
+`ResearcherAnalysisService`, araştırmacı ve makale analizlerinin, özet/inceleme/değerlendirme akışlarının, yayın metriklerinin, bilgi/grafik ürünlerinin ve İK/fakülte işlerinin bağımsız .NET 10 sahibidir. Ürünler aynı SQL veritabanındaki collector kaynaklarını salt okunur modellerle çözer; analiz motorları ürün iş akışlarınca süreç içinde çağrılır. Çıktılar yalnız Analysis Service'in `analysis`, `hr` ve `faculty` tablolarına yazılır.
 
 ## Çalışma ve veritabanı sınırı
 
 Yerel varsayılanlarda collector'ın `ConnectionStrings:AcademicDatabase` ve Analysis Service'in `ConnectionStrings:UsageDatabase` değerleri aynı LocalDB veritabanını gösterir. Deployment'ta aynı SQL veritabanı hedefini iki projeye ayrı güvenli yapılandırmayla verin. Analysis hesabı collector tablolarında yalnız okur; startup migration açıksa kendi şema/history nesneleri için DDL ve kendi tabloları için okuma/yazma izni de gerekir.
 
-Collector `dbo.VersionInfo`, Analysis Service `dbo.ResearcherAnalysisVersionInfo` geçmişini kullanır ve her servis yalnız kendi DDL'ini başlangıçta uygular. Analysis-first collector şeması olmadan başlar; stateless uçlar çalışır, kaynak bağımlı ürünler `503` verebilir ve worker'lar kaynak hazır olana kadar bekler. Collector-first Analysis tabloları oluşturmaz. Eşzamanlı migration ortak SQL uygulama kilidiyle koordine edilir.
+Collector `dbo.VersionInfo`, Analysis Service `dbo.ResearcherAnalysisVersionInfo` geçmişini kullanır ve her servis yalnız kendi DDL'ini başlangıçta uygular. Analysis-first collector şeması olmadan başlar; kaynak bağımlı ürünler `503` verebilir ve worker'lar kaynak hazır olana kadar bekler. Collector-first Analysis tabloları oluşturmaz. Eşzamanlı migration ortak SQL uygulama kilidiyle koordine edilir.
 
 Collector her başarılı normalize/kanonik transaction'ında `core.CollectionChanges` sinyali yazar. Analysis worker'ları bunu `analysis.CollectionChangeReceipts` ile idempotent tüketir ve kendi özet/metrik kuyruklarını planlar. Collector Analysis HTTP çağrısı veya AI sağlık proxy'si yapmaz. Analysis Service kapalıysa sinyaller SQL'de kalır; collector kapalıysa Analysis Service mevcut normalize kaynaklardan ürün okumaya ve bekleyen işleri yürütmeye devam eder.
 
@@ -14,27 +14,26 @@ Analysis'in tek `AnalysisDbContext` modeli kendi yazılabilir entity'leriyle öz
 
 ## Araştırmacı analizi
 
-Kalıcı ürün yüzeyi `POST http://localhost:5011/api/v1/products/[action]` altında üç işlem sunar:
+Araştırmacı ürün yüzeyi `POST http://localhost:5011/api/v1/...` altında iki işlem sunar:
 
 | İşlem | Davranış |
 | --- | --- |
-| `AnalyzeResearcher` | `PersonelID` için güncel salt okunur kaynaklardan snapshot üretir, raporu oluşturur ve kaydeder. |
-| `GetResearcherAnalysis` | Son başarılı raporu sağlayıcı çağrısı yapmadan getirir. |
-| `GetResearcherSourceCoverage` | Mevcut kayıtlı kaynak kapsamını dış çağrı yapmadan getirir. |
+| `/api/v1/researchers/analysis/generate` | `PersonelID` için güncel salt okunur kaynaklardan snapshot üretir, raporu oluşturur ve kaydeder. |
+| `/api/v1/researchers/analysis` | Güncel kaynak kapsamını ve nullable son başarılı raporu sağlayıcı çağrısı yapmadan birlikte getirir. |
 
-Örnekler [ResearcherProducts.http](../ResearcherAnalysisService/Requests/ResearcherProducts.http) dosyasındadır. `snapshotAt` yalnız oluşturulan snapshot'ın metadata etiketidir; geçmiş veriyi yeniden kurmaz. Başarısız üretim önceki başarılı raporu değiştirmez.
+Örnekler [Researchers.http](../ResearcherAnalysisService/Requests/Researchers.http) dosyasındadır. `snapshotAt` yalnız oluşturulan snapshot'ın metadata etiketidir; geçmiş veriyi yeniden kurmaz. Başarısız üretim önceki başarılı raporu değiştirmez.
 
-Stateless `POST /api/v1/analyze` ise `PersonelID` yanında ad, zaman, dil, yayın örnekleri ve metrikleri içeren tam snapshot ister; bu kimlikle SQL'den yayın aramaz. Tam gövde [ResearcherAnalysis.http](../ResearcherAnalysisService/Requests/ResearcherAnalysis.http) içindedir. Yerel varsayılan araştırmacı sağlayıcısı Ollama/Qwen'dir.
+Yinelenen stateless araştırmacı üretim yolu kaldırılmıştır. Yerel varsayılan araştırmacı sağlayıcısı Ollama/Qwen'dir.
 
 ## Kalıcı ürünler ve worker'lar
 
-Analysis Service'in `/api/v1/products/[action]` yüzeyi ayrıca şunları sunar:
+Analysis Service'in `/api/v1/...` yüzeyi ayrıca şunları sunar:
 
-- makale özeti/kanıtı/incelemesi: `SummarizeArticle`, `GetArticleSummary`, `GetArticleSummaryAutomationStatus`, `GetCanonicalArticleEvidence`, `ReviewCanonicalArticle`, `GetCanonicalArticleReview`;
-- metrik, bilgi ve grafik: `GetResearcherPublicationMetrics`, `RefreshResearcherPublicationMetrics`, `SearchAcademicEvidence`, `GetReferencePopulation`, `ImportReferencePopulation`, `ExportAcademicEvidenceGraph`;
-- değerlendirme: `StartArticleEvaluation`, `GetArticleEvaluation`;
-- İK: `CreateHrEvidenceDossier`, `GetHrEvidenceDossier`, `AppendHrDossierReviewAction`, `ListHrDossierReviewActions`;
-- fakülte: `SaveFacultyAssistantContext`, `GetFacultyAssistantContext`, `StartFacultyAssistant`, `GetFacultyAssistantRun`.
+- makale özeti/kanıtı/incelemesi: `/api/v1/articles/summary/generate`, `/api/v1/articles/summary`, `/api/v1/articles/analysis`, `/api/v1/articles/review/generate`;
+- metrik, bilgi ve grafik: `/api/v1/researchers/metrics`, `/api/v1/researchers/metrics/refresh`, `/api/v1/knowledge/search`, `/api/v1/knowledge/reference-population`, `/api/v1/knowledge/reference-population/import`, `/api/v1/knowledge/graph/export`;
+- değerlendirme: `/api/v1/evaluations/start`, `/api/v1/evaluations/status`;
+- İK: `/api/v1/hr/dossiers/create`, `/api/v1/hr/dossiers`, `/api/v1/hr/dossiers/actions/append`, `/api/v1/hr/dossiers/actions`;
+- fakülte: `/api/v1/faculty/context/save`, `/api/v1/faculty/context`, `/api/v1/faculty/assistant/start`, `/api/v1/faculty/assistant/run`.
 
 Kesin payload'lar [Analysis Service HTTP rehberindedir](../ResearcherAnalysisService/Requests/README.md). `/health` dışındaki Analysis API uçları `X-Analysis-Key` servis erişim denetimini kullanır. Bilgi/grafik, değerlendirme, İK ve fakülte kalıcı ürünleri buna ek olarak veri okumadan önce `IAcademicProductAccessService` ile özne erişimini denetler; servis anahtarı özne yetkisi yerine geçmez ve korunan ürünlerde `PersonelID` tek başına yetki değildir. Varsayılan adaptör kapalıdır; deployment güvenilir kimlik/kapsam eşlemesi sağlamalıdır. Araştırmacı, makale ve metrik uyumluluk işlemleri mevcut kaynak ilişkisi kontrollerini korur.
 
@@ -42,9 +41,9 @@ Kesin payload'lar [Analysis Service HTTP rehberindedir](../ResearcherAnalysisSer
 
 ## Makale özeti ve kaynak edinme
 
-Kalıcı `SummarizeArticle`, yetkili `PersonelID`, ilişkili `AcademicWorkId` ve dili alır. `GetArticleSummary` son başarılı sonucu AI çağrısı olmadan döndürür. Analysis Service salt okunur kaynaklardan uygun kanonik gözlem ve kaydedilmiş adayları çözer; ayrıntılı istekler [ArticleSummary.http](../ResearcherAnalysisService/Requests/ArticleSummary.http) dosyasındadır.
+Kalıcı `/api/v1/articles/summary/generate`, yetkili `PersonelID`, ilişkili `AcademicWorkId` ve dili alır. `/api/v1/articles/summary` son başarılı sonucu AI çağrısı olmadan döndürür. Analysis Service salt okunur kaynaklardan uygun kanonik gözlem ve kaydedilmiş adayları çözer; ayrıntılı istekler [Articles.http](../ResearcherAnalysisService/Requests/Articles.http) dosyasındadır.
 
-Stateless `POST /api/v1/articles/summarize` çıkarılmış sayfaları, kaynak hash'ini, extraction metadata'sını ve deterministik `SourceSpans` listesini doğrudan ister. [ArticleAnalysis.http](../ResearcherAnalysisService/Requests/ArticleAnalysis.http) collector verisi gerektirmeyen tam sentetik örnektir.
+`POST /api/v1/articles/analysis`, kanonik durum, sayfalı kanıt ve nullable uzman incelemesini tek salt okunur yanıtta birleştirir.
 
 Kalıcı kaynak edinme sırası şöyledir:
 

@@ -62,7 +62,7 @@ internal static class RetainedTeachingDiagnostic
                 RetainedTeachingBaselineAudit.ConnectionString, CollectorUrl, AnalysisUrl, "idle"))
             using (HttpClient client = Client(TimeSpan.FromSeconds(30)))
                 queued = await PostAsync<FacultyAssistantRunResponse>(client,
-                    AnalysisUrl + "/api/v1/products/StartFacultyAssistant", request, HttpStatusCode.Accepted);
+                    AnalysisUrl + "/api/v1/faculty/assistant/start", request, HttpStatusCode.Accepted);
             Require(!queued.Reused && queued.Status == "Pending", "The diagnostic did not create one fresh pending row.");
             result["request"] = Node(request); result["queued"] = Node(queued);
             await artifacts.WritePhaseAsync("teaching-queued", (JsonObject)result.DeepClone(), budget.Snapshot());
@@ -124,7 +124,7 @@ internal static class RetainedTeachingDiagnostic
         while (DateTimeOffset.UtcNow < deadline)
         {
             FacultyAssistantRunResponse response = await PostAsync<FacultyAssistantRunResponse>(client,
-                AnalysisUrl + "/api/v1/products/GetFacultyAssistantRun",
+                AnalysisUrl + "/api/v1/faculty/assistant/run",
                 new GetFacultyAssistantRunRequest { PersonelId = RetainedAcceptanceHost.SubjectId, RunId = runId });
             if (response.Status is "Completed" or "Failed" or "Interrupted") return response;
             await Task.Delay(500);

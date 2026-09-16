@@ -1,6 +1,6 @@
 # Academic AI products
 
-The Analysis Service product APIs at `/api/v1/products/[action]` expose two separate authorization and persistence domains over saved academic evidence.
+The Analysis Service product APIs at `/api/v1/...` expose two separate authorization and persistence domains over saved academic evidence.
 They do not make personnel suitability or publication-quality decisions.
 
 ## Service access boundary
@@ -21,7 +21,7 @@ are in [AcademicAiProducts.http](../ResearcherAnalysisService/Requests/AcademicA
 
 ## HR evidence dossiers
 
-`CreateHrEvidenceDossier` captures saved facts only. It stores an immutable dossier, its policy version, an input
+`/api/v1/hr/dossiers/create` captures saved facts only. It stores an immutable dossier, its policy version, an input
 manifest, and a SHA-256 fingerprint covering the exact captured content. The dossier includes the chosen publication
 metric snapshot with catalog definitions, formulas, denominators, coverage, conflicts, provider-specific scope and
 quality metadata; current owner-scoped canonical observations; and the latest saved specialist review for each selected
@@ -31,7 +31,7 @@ The response omits the T.C. identity number, raw provider payloads, faculty priv
 provider acquisition URLs. Retraction values remain provider observations. Exact citations establish where text was
 found, not scientific correctness, completeness, quality, or personnel suitability.
 
-`AppendHrDossierReviewAction` supports only `Opened`, `NoteAdded`, `EvidenceQuestioned`, `FollowUpRequested`, and
+`/api/v1/hr/dossiers/actions/append` supports only `Opened`, `NoteAdded`, `EvidenceQuestioned`, `FollowUpRequested`, and
 `ReviewCompleted`. Actions are append-only and receive actor/time on the server. `ClientRequestId` makes an identical
 retry idempotent; reusing it for different normalized content returns `409`. There are no hire, reject, rank, score,
 quality, or suitability action types.
@@ -41,7 +41,7 @@ quality, or suitability action types.
 Faculty context lives only in the `faculty` schema as immutable, owner-authorized versions with optimistic concurrency.
 It is supplied only to a faculty assistant request and never enters the HR dossier or shared retrieval corpus.
 
-`StartFacultyAssistant` returns `202` after saving the exact authorized input and retrieval identity. Evidence search is
+`/api/v1/faculty/assistant/start` returns `202` after saving the exact authorized input and retrieval identity. Evidence search is
 deterministic and owner-bound: only current valid latest canonical source spans are eligible, and every model-facing
 evidence ID is globally scoped as `work:{work}:snapshot:{snapshot}:span:{span}`. The original document-local source ID,
 offsets, exact text, extraction version, and hash remain separate provenance.
@@ -67,7 +67,7 @@ exact direct phrases remain protected from weaker intent matches.
 The worker has `Pending`, `Running`, `Completed`, `Failed`, and `Interrupted` outcomes. It rechecks the server-issued
 authorization grant and all current work associations before any model request. It fences completion by attempt token,
 does not automatically retry a call whose remote cost may be unknown, and persists a bounded safe error instead of a
-provider body. `GetFacultyAssistantRun` rechecks owner authorization and current associations.
+provider body. `/api/v1/faculty/assistant/run` rechecks owner authorization and current associations.
 Its response includes the pinned retrieval policy, context version ID/version/fingerprint, corpus, query-plan,
 claim-bridge and complete input hashes, direct and bridge coverage/truncation, and selected evidence provenance including
 partial-source coverage and bridge claim/run/language IDs. The immutable saved manifest is reused on an idempotent replay.

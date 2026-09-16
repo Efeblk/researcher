@@ -12,25 +12,4 @@ public sealed class ArticleEvaluationController : ControllerBase
     public ActionResult<ArticleEvaluationProfilesResponse> Profiles(
         [FromServices] ArticleEvaluationService service) => Ok(service.GetProfiles());
 
-    [HttpPost("execute"), ServiceFilter<AnalysisAccessFilter>]
-    public async Task<ActionResult<ArticleEvaluationResponse>> Execute(
-        [FromBody] ArticleEvaluationRequest request,
-        [FromServices] ArticleEvaluationService service,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            return Ok(await service.ExecuteAsync(request, cancellationToken));
-        }
-        catch (ArticleEvaluationRequestException exception)
-        {
-            ProblemDetails problem = new()
-            {
-                Status = exception.StatusCode,
-                Title = exception.Message
-            };
-            problem.Extensions["errorCode"] = exception.ErrorCode;
-            return StatusCode(exception.StatusCode, problem);
-        }
-    }
 }

@@ -9,10 +9,10 @@ namespace ResearcherAnalysisService.Products.Api.Controllers;
 [ApiController]
 [ResearcherAnalysisService.Products.Api.ProductJsonContract]
 [ServiceFilter<AnalysisAccessFilter>]
-[Route("api/v1/products/[action]")]
+[Route("api/v1")]
 public sealed class FacultyAssistantEndpoint : ControllerBase
 {
-    [HttpPost]
+    [HttpPost("faculty/context/save")]
     public async Task<ActionResult<FacultyAssistantContextResponse>> SaveFacultyAssistantContext(
         [FromBody] SaveFacultyAssistantContextRequest request, [FromServices] IAcademicProductAccessService access,
         [FromServices] FacultyAssistantContextService service, CancellationToken cancellationToken)
@@ -32,7 +32,7 @@ public sealed class FacultyAssistantEndpoint : ControllerBase
         catch (FacultyAssistantConflictException) { return Conflict(new { Message = "The private context version changed." }); }
     }
 
-    [HttpPost]
+    [HttpPost("faculty/context")]
     public async Task<ActionResult<FacultyAssistantContextResponse>> GetFacultyAssistantContext(
         [FromBody] GetFacultyAssistantContextRequest request, [FromServices] IAcademicProductAccessService access,
         [FromServices] FacultyAssistantContextService service, CancellationToken cancellationToken)
@@ -50,7 +50,7 @@ public sealed class FacultyAssistantEndpoint : ControllerBase
         { return AcademicProductEndpoint.Error(exception); }
     }
 
-    [HttpPost]
+    [HttpPost("faculty/assistant/start")]
     public async Task<ActionResult<FacultyAssistantRunResponse>> StartFacultyAssistant(
         [FromBody] StartFacultyAssistantRequest request, [FromServices] IAcademicProductAccessService access,
         [FromServices] FacultyAssistantScheduler scheduler, CancellationToken cancellationToken)
@@ -69,7 +69,7 @@ public sealed class FacultyAssistantEndpoint : ControllerBase
         catch (FacultyAssistantConflictException) { return Conflict(new { Message = "The request ID was already used for different input." }); }
     }
 
-    [HttpPost]
+    [HttpPost("faculty/assistant/run")]
     public async Task<ActionResult<FacultyAssistantRunResponse>> GetFacultyAssistantRun(
         [FromBody] GetFacultyAssistantRunRequest request, [FromServices] IAcademicProductAccessService access,
         [FromServices] FacultyAssistantReadService service, CancellationToken cancellationToken)

@@ -1,8 +1,9 @@
 using System.Net;
-using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using AcademicCollector.Analysis.Contracts;
+using Microsoft.AspNetCore.Http;
+using ResearcherAnalysisService.Products.ArticleReviews;
 using ResearcherAnalysisService.Tests.Infrastructure;
 
 namespace ResearcherAnalysisService.Tests;
@@ -15,8 +16,8 @@ public sealed class ArticleReviewStageTests
         RecordingGenerationHandler handler = new();
         await using AnalysisTestHost host = await AnalysisTestHost.StartAsync(geminiHandler: handler);
         ReviewArticleRequest source = Source();
-        ArticleReviewRuntimeConfiguration configuration = (await host.Client.GetFromJsonAsync<
-            ArticleReviewRuntimeConfiguration>("/api/v1/articles/review/configuration"))!;
+        ArticleReviewRuntimeConfiguration configuration = await host.InvokeAsync<ArticleReviewServiceClient,
+            ArticleReviewRuntimeConfiguration>(client => client.GetConfigurationAsync(default));
         Assert.Equal(ArticleReviewGenerationRecovery.PolicyVersion,
             configuration.GenerationRecoveryPolicyVersion);
         Assert.Equal("high", configuration.GenerationThinkingLevel);
@@ -42,17 +43,16 @@ public sealed class ArticleReviewStageTests
             GenerationThinkingLevel = ArticleReviewGenerationRecovery.RecoveryThinkingLevel,
             RecoveryOfAttemptId = Guid.NewGuid()
         };
-        using HttpResponseMessage staleResponse = await host.Client.PostAsJsonAsync(
-            "/api/v1/articles/review/stages/generate", stale);
-        Assert.Equal(HttpStatusCode.BadRequest, staleResponse.StatusCode);
+        await Assert.ThrowsAsync<BadHttpRequestException>(() =>
+            host.InvokeAsync<ArticleReviewServiceClient, ArticleReviewGenerationStageResult>(
+                client => client.GenerateAsync(stale, default)));
 
         ArticleReviewStageDispatchRequest dispatch = stale with
         {
             RecoveryOfAttemptId = initialAttemptId
         };
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync(
-            "/api/v1/articles/review/stages/generate", dispatch);
-        response.EnsureSuccessStatusCode();
+        await host.InvokeAsync<ArticleReviewServiceClient, ArticleReviewGenerationStageResult>(
+            client => client.GenerateAsync(dispatch, default));
 
         using JsonDocument body = JsonDocument.Parse(handler.Body!);
         JsonElement generation = body.RootElement.GetProperty("generationConfig");
@@ -73,11 +73,11 @@ public sealed class ArticleReviewStageTests
         ArticleReviewStageDispatchRequest dispatch = new(attemptId, quote.SettingsFingerprint,
             quote.RequestFingerprint, quote.MaximumChargeUsd, "method", source);
 
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync(
-            "/api/v1/articles/review/stages/generate", dispatch);
-        AnalysisErrorResponse error = (await response.Content.ReadFromJsonAsync<AnalysisErrorResponse>())!;
+        ArticleReviewAnalysisException error = await Assert.ThrowsAsync<ArticleReviewAnalysisException>(() =>
+            host.InvokeAsync<ArticleReviewServiceClient, ArticleReviewGenerationStageResult>(
+                client => client.GenerateAsync(dispatch, default)));
 
-        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        Assert.Equal(HttpStatusCode.BadGateway, error.StatusCode);
         Assert.Equal("output_limit", error.ErrorCode);
         Assert.Equal(attemptId, error.ProviderAttempt!.AttemptId);
         Assert.Equal("Unknown", error.ProviderAttempt.Outcome);
@@ -99,19 +99,16 @@ public sealed class ArticleReviewStageTests
             [source.SourceSpans![0].SourceId]);
         ArticleReviewStageQuoteRequest quoteRequest = new(ArticleReviewStageKinds.Verification,
             "teaching", source) { Findings = [finding] };
-        using HttpResponseMessage quoteResponse = await host.Client.PostAsJsonAsync(
-            "/api/v1/articles/review/stages/quote", quoteRequest);
-        quoteResponse.EnsureSuccessStatusCode();
-        ArticleReviewStageQuote quote = (await quoteResponse.Content.ReadFromJsonAsync<ArticleReviewStageQuote>())!;
+        ArticleReviewStageQuote quote = await QuoteAsync(host, quoteRequest);
         Guid attemptId = Guid.NewGuid();
         ArticleReviewStageDispatchRequest dispatch = new(attemptId, quote.SettingsFingerprint,
             quote.RequestFingerprint, quote.MaximumChargeUsd, "teaching", source) { Findings = [finding] };
 
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync(
-            "/api/v1/articles/review/stages/verify", dispatch);
-        AnalysisErrorResponse error = (await response.Content.ReadFromJsonAsync<AnalysisErrorResponse>())!;
+        ArticleReviewAnalysisException error = await Assert.ThrowsAsync<ArticleReviewAnalysisException>(() =>
+            host.InvokeAsync<ArticleReviewServiceClient, ArticleReviewVerificationStageResult>(
+                client => client.VerifyAsync(dispatch, default)));
 
-        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        Assert.Equal(HttpStatusCode.BadGateway, error.StatusCode);
         Assert.Equal("output_limit", error.ErrorCode);
         Assert.Equal(attemptId, error.ProviderAttempt!.AttemptId);
         Assert.Equal("OutputLimit", error.ProviderAttempt.Outcome);
@@ -134,10 +131,8 @@ public sealed class ArticleReviewStageTests
     private static async Task<ArticleReviewStageQuote> QuoteAsync(AnalysisTestHost host,
         ArticleReviewStageQuoteRequest request)
     {
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync(
-            "/api/v1/articles/review/stages/quote", request);
-        response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<ArticleReviewStageQuote>())!;
+        return await host.InvokeAsync<ArticleReviewServiceClient, ArticleReviewStageQuote>(
+            client => client.QuoteAsync(request, default));
     }
 
     private sealed class RecordingGenerationHandler : HttpMessageHandler

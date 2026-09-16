@@ -34,7 +34,7 @@ Collector HTTP test sırası ve çalıştırılabilir örnekleri [Requests/Acade
 
 İki proje aynı SQL Server veritabanını kullanır: collector'ın `ConnectionStrings:AcademicDatabase` ve Analysis Service'in `ConnectionStrings:UsageDatabase` değerleri aynı veritabanı hedefini göstermelidir; bağlantı kimlik bilgileri aynı olmak zorunda değildir. Servisler herhangi bir sırada, tek başına veya birlikte başlatılabilir. Her servis yalnız kendi migration grubunu ve ayrı sürüm geçmişini uygular: collector `core`, provider, `bulk` ve `integrations` tablolarının; Analysis Service `analysis`, `hr` ve `faculty` tablolarının DDL/yazma sahibidir. Analysis Service collector kaynaklarını aynı veritabanındaki salt okunur kaynak modelleriyle okur ve onları yazmaz.
 
-Analysis Service kurulumu, ayarları, `/api/v1/products/[action]` kalıcı ürün yüzeyi, doğrudan tam bağlamlı API örnekleri ve çalıştırma komutları [kendi README dosyasındadır](ResearcherAnalysisService/README.md).
+Analysis Service kurulumu, ayarları, `/api/v1/...` kalıcı ürün yüzeyi, doğrudan tam bağlamlı API örnekleri ve çalıştırma komutları [kendi README dosyasındadır](ResearcherAnalysisService/README.md).
 
 ```powershell
 dotnet build AcademicCollectorDemo.csproj

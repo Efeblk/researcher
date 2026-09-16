@@ -13,6 +13,20 @@ namespace ResearcherAnalysisService.Tests.Infrastructure;
 internal sealed class AnalysisTestHost(WebApplication application, HttpClient client) : IAsyncDisposable
 {
     public HttpClient Client { get; } = client;
+    public IServiceProvider Services => application.Services;
+
+    public async Task<TResult> InvokeAsync<TService, TResult>(
+        Func<TService, Task<TResult>> action) where TService : notnull
+    {
+        await using AsyncServiceScope scope = application.Services.CreateAsyncScope();
+        return await action(scope.ServiceProvider.GetRequiredService<TService>());
+    }
+
+    public TResult Invoke<TService, TResult>(Func<TService, TResult> action) where TService : notnull
+    {
+        using IServiceScope scope = application.Services.CreateScope();
+        return action(scope.ServiceProvider.GetRequiredService<TService>());
+    }
 
     public static async Task<AnalysisTestHost> StartAsync(IResearcherReportGenerator? generator = null,
         bool configureAccessKey = true, string environment = "Testing", HttpMessageHandler? geminiHandler = null,

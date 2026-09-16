@@ -38,16 +38,16 @@ public sealed class AcademicKnowledgeEndpointAuthorizationTests(AnalysisProductS
                 CanonicalWorkIds = Enumerable.Range(1, 20).ToList()
             }
         ];
-        string[] actions =
+        string[] routes =
         [
-            "SearchAcademicEvidence",
-            "ImportReferencePopulation", "GetReferencePopulation", "ExportAcademicEvidenceGraph"
+            "knowledge/search",
+            "knowledge/reference-population/import", "knowledge/reference-population", "knowledge/graph/export"
         ];
 
-        for (int index = 0; index < actions.Length; index++)
+        for (int index = 0; index < routes.Length; index++)
         {
             using HttpResponseMessage response = await host.Client.PostAsJsonAsync(
-                "/api/v1/products/" + actions[index], requests[index]);
+                "/api/v1/" + routes[index], requests[index]);
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         }
     }
@@ -57,21 +57,21 @@ public sealed class AcademicKnowledgeEndpointAuthorizationTests(AnalysisProductS
     {
         using HostProcess host = new(fixture.ConnectionString);
         await host.WaitUntilReadyAsync();
-        (string Action, object Body)[] cases =
+        (string Route, object Body)[] cases =
         [
-            ("SearchAcademicEvidence", new { PersonelID = "subject", Query = "evidence",
+            ("knowledge/search", new { PersonelID = "subject", Query = "evidence",
                 CanonicalWorkIds = (int[]?)null, Take = 5 }),
-            ("ImportReferencePopulation", new { PersonelID = "subject", ManifestVersion = "v1",
+            ("knowledge/reference-population/import", new { PersonelID = "subject", ManifestVersion = "v1",
                 CohortDefinition = "x", EligibilityPolicyVersion = "p", Provenance = "x",
                 SamplingAndCoverage = "x", Members = (object[]?)null }),
-            ("ExportAcademicEvidenceGraph", new { PersonelID = "subject",
+            ("knowledge/graph/export", new { PersonelID = "subject",
                 CanonicalWorkIds = (int[]?)null })
         ];
 
-        foreach ((string action, object body) in cases)
+        foreach ((string route, object body) in cases)
         {
             using HttpResponseMessage response = await host.Client.PostAsJsonAsync(
-                "/api/v1/products/" + action, body);
+                "/api/v1/" + route, body);
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         }
     }

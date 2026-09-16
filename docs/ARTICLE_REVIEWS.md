@@ -1,8 +1,8 @@
 # Specialist article reviews
 
-Specialist review is an opt-in, evidence-bound Analysis Service workflow over an already saved canonical article analysis. `POST /api/v1/products/ReviewCanonicalArticle` creates or reuses it; `POST /api/v1/products/GetCanonicalArticleReview` reads it. The workflow never fetches a URL, recollects provider data, reads private HR or faculty context, or runs from article-summary automation. The caller must pass `X-Analysis-Key`; a current `PersonelID`–canonical-work association and a successful canonical article analysis in the requested language must already exist. These compatibility actions do not use the separate protected-product access adapter. Runnable requests are in [ArticleReview.http](../ResearcherAnalysisService/Requests/ArticleReview.http).
+Specialist review is an opt-in, evidence-bound Analysis Service workflow over an already saved canonical article analysis. `POST /api/v1/articles/review/generate` creates or reuses it; `POST /api/v1/articles/analysis` reads it together with status and evidence. The workflow never fetches a URL, recollects provider data, reads private HR or faculty context, or runs from article-summary automation. The caller must pass `X-Analysis-Key`; a current `PersonelID`–canonical-work association and a successful canonical article analysis in the requested language must already exist. These compatibility actions do not use the separate protected-product access adapter. Runnable requests are in [Articles.http](../ResearcherAnalysisService/Requests/Articles.http).
 
-`ReviewCanonicalArticle` runs four fixed passes in deterministic order:
+`/api/v1/articles/review/generate` runs four fixed passes in deterministic order:
 
 | Role | Allowed finding kinds | Purpose |
 | --- | --- | --- |
@@ -21,7 +21,7 @@ The source coverage block comes from the original immutable `SavedArticleSummary
 
 Review runs are append-only SQL artifacts linked to the exact base analysis run, source snapshot, canonical work, and span evidence. Durable work additionally pins the saved source request, policy, prompt/model settings fingerprint, and force-generation identity. An ordinary retry resumes the newest matching unfinished work, including an interrupted forced run; otherwise it reuses the latest matching completed report. Set `forceRegeneration` to `true` to start another work item for the same source. Source, policy, prompt, model, thinking, output-limit, or pricing changes cannot reuse mismatched checkpoints.
 
-`GetCanonicalArticleReview` only reads the stored report JSON. It makes no network request and performs no write. It returns `isStale=true` when a newer base analysis exists or the configured review policy changed. Both generation and read paths recheck the current researcher association; responses contain the caller's `PersonelID`, canonical identifiers, review metadata, findings, evidence, coverage, and staleness, but no source URL or other researcher identifier.
+`/api/v1/articles/analysis` only reads the combined saved state. It makes no network request and performs no write. Its nullable `Review` returns `isStale=true` when a newer base analysis exists or the configured review policy changed. Both generation and read paths recheck the current researcher association; responses contain the caller's `PersonelID`, canonical identifiers, review metadata, findings, evidence, coverage, and staleness, but no source URL or other researcher identifier.
 
 Configure the Analysis product workflow in `ResearcherAnalysisService/appsettings.json`:
 

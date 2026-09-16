@@ -102,6 +102,19 @@ public sealed class ArticleReviewWorkflowTests(AnalysisProductSqlServerFixture f
         Assert.Equal(2, staleBoth.StaleReasons.Count);
         Assert.Equal(5, handler.DispatchCount);
         Assert.Equal(before, await database.CanonicalArticleReviewRuns.CountAsync());
+
+        await using AnalysisTestHost host = await AnalysisTestHost.StartAsync(
+            geminiHandler: new SuccessfulReviewGeminiHandler(),
+            usageDatabase: fixture.ConnectionString);
+        using HttpResponseMessage combined = await host.Client.PostAsJsonAsync(
+            "/api/v1/articles/analysis",
+            new { PersonelID = seeded.PersonelId, seeded.CanonicalWorkId, Language = "en" });
+        combined.EnsureSuccessStatusCode();
+        CanonicalArticleAnalysisResponse envelope =
+            (await combined.Content.ReadFromJsonAsync<CanonicalArticleAnalysisResponse>())!;
+        Assert.True(envelope.Review!.IsStale);
+        Assert.Single(envelope.Review.StaleReasons);
+        Assert.Equal(before, await database.CanonicalArticleReviewRuns.CountAsync());
     }
 
     [Fact]
@@ -476,19 +489,19 @@ public sealed class ArticleReviewWorkflowTests(AnalysisProductSqlServerFixture f
             usageDatabase: fixture.ConnectionString);
 
         using HttpResponseMessage generated = await host.Client.PostAsJsonAsync(
-            "/api/v1/products/ReviewCanonicalArticle",
+            "/api/v1/articles/review/generate",
             new { PersonelID = seeded.PersonelId, seeded.CanonicalWorkId, Language = "en" });
         Assert.True(generated.IsSuccessStatusCode, await generated.Content.ReadAsStringAsync());
         CanonicalArticleReviewResponse created =
             (await generated.Content.ReadFromJsonAsync<CanonicalArticleReviewResponse>())!;
         using HttpResponseMessage read = await host.Client.PostAsJsonAsync(
-            "/api/v1/products/GetCanonicalArticleReview",
+            "/api/v1/articles/analysis",
             new { PersonelID = seeded.PersonelId, seeded.CanonicalWorkId, Language = "en" });
         read.EnsureSuccessStatusCode();
         CanonicalArticleReviewResponse saved =
-            (await read.Content.ReadFromJsonAsync<CanonicalArticleReviewResponse>())!;
+            (await read.Content.ReadFromJsonAsync<CanonicalArticleAnalysisResponse>())!.Review!;
         using HttpResponseMessage isolated = await host.Client.PostAsJsonAsync(
-            "/api/v1/products/GetCanonicalArticleReview",
+            "/api/v1/articles/analysis",
             new { PersonelID = "other-researcher", seeded.CanonicalWorkId, Language = "en" });
 
         Assert.Equal(created.ReviewRunId, saved.ReviewRunId);

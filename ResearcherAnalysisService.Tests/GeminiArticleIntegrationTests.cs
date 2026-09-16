@@ -232,10 +232,8 @@ public sealed class GeminiArticleIntegrationTests
         SummarizeArticleRequest request = new("en", "pdf", "synthetic-hash", "synthetic-v1", [page], 1,
             false, null) { SourceSpans = [span] };
 
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync("/api/v1/articles/summarize", request);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        ArticleSummaryReport report = (await response.Content.ReadFromJsonAsync<ArticleSummaryReport>())!;
+        ArticleSummaryReport report = await host.InvokeAsync<ArticleSummarizer, ArticleSummaryReport>(
+            summarizer => summarizer.SummarizeAsync(request, default));
         Assert.Equal("automatically_checked", report.Verification!.Status);
         Assert.Single(report.Sections.Findings);
         Assert.Equal("gemini-3.8-flash", report.Model);
@@ -291,12 +289,8 @@ public sealed class GeminiArticleIntegrationTests
         SummarizeArticleRequest request = new("tr", "pdf", "conditional-fixture-hash",
             "synthetic-v1", pages, pages.Count, false, null) { SourceSpans = spans };
 
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync(
-            "/api/v1/articles/summarize", request);
-
-        Assert.True(response.StatusCode == HttpStatusCode.OK,
-            $"Unexpected HTTP {(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
-        ArticleSummaryReport report = (await response.Content.ReadFromJsonAsync<ArticleSummaryReport>())!;
+        ArticleSummaryReport report = await host.InvokeAsync<ArticleSummarizer, ArticleSummaryReport>(
+            summarizer => summarizer.SummarizeAsync(request, default));
         ArticleClaim finding = Assert.Single(report.Sections.Findings);
         Assert.Contains("sınırlı gradyanlar", finding.Text);
         Assert.Equal("automatically_checked", report.Verification!.Status);

@@ -11,10 +11,10 @@ namespace ResearcherAnalysisService.Products.Api.Controllers;
 [ApiController]
 [ResearcherAnalysisService.Products.Api.ProductJsonContract]
 [ServiceFilter<AnalysisAccessFilter>]
-[Route("api/v1/products/[action]")]
+[Route("api/v1")]
 public sealed class ArticleSummaryEndpoint : ControllerBase
 {
-    [HttpPost]
+    [HttpPost("articles/summary/generate")]
     public async Task<ActionResult<SavedArticleSummaryResponse>> SummarizeArticle([FromBody] ArticleSummaryRequest request,
         [FromServices] ArticleSummaryWorkflow workflow, CancellationToken cancellationToken)
     {
@@ -31,7 +31,7 @@ public sealed class ArticleSummaryEndpoint : ControllerBase
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return StatusCode(504, new { Message = "Article summary generation timed out; no report was saved." }); }
     }
 
-    [HttpPost]
+    [HttpPost("articles/summary")]
     public async Task<ActionResult<SavedArticleSummaryResponse>> GetArticleSummary([FromBody] ArticleSummaryRequest request,
         [FromServices] ArticleSummaryWorkflow workflow, CancellationToken cancellationToken)
     {
@@ -41,36 +41,22 @@ public sealed class ArticleSummaryEndpoint : ControllerBase
         return result is null ? NotFound(new { Message = "No saved summary exists for this article and researcher." }) : Ok(result);
     }
 
-    [HttpPost]
-    public async Task<ActionResult<ArticleSummaryAutomationStatusResponse>> GetArticleSummaryAutomationStatus(
-        [FromBody] ArticleSummaryAutomationStatusRequest request,
-        [FromServices] ArticleSummaryAutomationStatusService statusService,
+    [HttpPost("articles/analysis")]
+    public async Task<ActionResult<CanonicalArticleAnalysisResponse>> GetCanonicalArticleAnalysis(
+        [FromBody] CanonicalArticleAnalysisRequest request,
+        [FromServices] CanonicalArticleAnalysisQueryService queryService,
         CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
-        ArticleSummaryAutomationStatusResponse? result = await statusService.GetAsync(
-            request.PersonelId.Trim(), request.CanonicalWorkId, request.Language, cancellationToken);
+        CanonicalArticleAnalysisResponse? result = await queryService.GetAsync(
+            request.PersonelId.Trim(), request.CanonicalWorkId, request.Language,
+            request.Skip, request.Take, cancellationToken);
         return result is null
             ? NotFound(new { Message = "No current researcher association was found." })
             : Ok(result);
     }
 
-    [HttpPost]
-    public async Task<ActionResult<CanonicalArticleEvidenceResponse>> GetCanonicalArticleEvidence(
-        [FromBody] CanonicalArticleEvidenceRequest request,
-        [FromServices] CanonicalArticleEvidenceQueryService queryService,
-        CancellationToken cancellationToken)
-    {
-        if (!ModelState.IsValid) return BadRequest(ModelState);
-        CanonicalArticleEvidenceResponse? result = await queryService.GetLatestAsync(
-            request.PersonelId.Trim(), request.CanonicalWorkId, request.Language,
-            request.Skip, request.Take, cancellationToken);
-        return result is null
-            ? NotFound(new { Message = "No current researcher association or saved canonical article analysis was found." })
-            : Ok(result);
-    }
-
-    [HttpPost]
+    [HttpPost("articles/review/generate")]
     public async Task<ActionResult<CanonicalArticleReviewResponse>> ReviewCanonicalArticle(
         [FromBody] CanonicalArticleReviewRequest request,
         [FromServices] ArticleReviewWorkflow workflow,
@@ -99,17 +85,4 @@ public sealed class ArticleSummaryEndpoint : ControllerBase
         { return StatusCode(504, new { Message = "Article review generation timed out; no report was saved." }); }
     }
 
-    [HttpPost]
-    public async Task<ActionResult<CanonicalArticleReviewResponse>> GetCanonicalArticleReview(
-        [FromBody] CanonicalArticleReviewRequest request,
-        [FromServices] ArticleReviewWorkflow workflow,
-        CancellationToken cancellationToken)
-    {
-        if (!ModelState.IsValid) return BadRequest(ModelState);
-        CanonicalArticleReviewResponse? result = await workflow.GetLatestAsync(
-            request.PersonelId.Trim(), request.CanonicalWorkId, request.Language, cancellationToken);
-        return result is null
-            ? NotFound(new { Message = "No current researcher association or saved canonical article review was found." })
-            : Ok(result);
-    }
 }

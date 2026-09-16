@@ -24,9 +24,8 @@ public sealed class ServiceEndpointBoundaryTests
         await using BoundaryHost host = await BoundaryHost.StartAsync(UnreachableDatabaseConnectionString());
         IReadOnlyList<RouteEndpoint> routes = host.AnalysisApiRoutes;
 
-        Assert.Equal(36, routes.Count);
-        Assert.Equal(25, routes.Count(route => route.RoutePattern.RawText?.StartsWith(
-            "api/v1/products/", StringComparison.OrdinalIgnoreCase) == true));
+        Assert.Equal(24, routes.Count);
+        Assert.Equal(22, host.ProductRoutes.Count);
 
         foreach (RouteEndpoint route in routes)
         {
@@ -49,9 +48,14 @@ public sealed class ServiceEndpointBoundaryTests
         await using BoundaryHost host = await BoundaryHost.StartAsync(UnreachableDatabaseConnectionString());
         IReadOnlyList<RouteEndpoint> routes = host.ProductRoutes;
 
-        Assert.Equal(25, routes.Count);
+        Assert.Equal(22, routes.Count);
+        Assert.Equal(22, routes.Select(route => route.RoutePattern.RawText)
+            .Distinct(StringComparer.OrdinalIgnoreCase).Count());
         Assert.All(routes, route =>
         {
+            Assert.Matches("^api/v1/[a-z0-9/-]+$", route.RoutePattern.RawText!);
+            Assert.DoesNotContain("/products/", route.RoutePattern.RawText!, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("[action]", route.RoutePattern.RawText, StringComparison.OrdinalIgnoreCase);
             ControllerActionDescriptor action = Assert.IsType<ControllerActionDescriptor>(
                 route.Metadata.GetMetadata<ControllerActionDescriptor>());
             Assert.Equal(typeof(ResearcherAnalysisService.Program).Assembly, action.ControllerTypeInfo.Assembly);
@@ -68,6 +72,32 @@ public sealed class ServiceEndpointBoundaryTests
             using HttpResponseMessage wrong = await host.SendAsync(path, key: "wrong-boundary-key");
             Assert.Equal(HttpStatusCode.Unauthorized, wrong.StatusCode);
         }
+    }
+
+    [Fact]
+    public async Task RemovedRoutes_WithValidServiceKey_ReturnNotFound()
+    {
+        await using BoundaryHost host = await BoundaryHost.StartAsync(UnreachableDatabaseConnectionString());
+        string[] removed =
+        [
+            "/api/v1/analyze", "/api/v1/articles/summarize", "/api/v1/articles/review",
+            "/api/v1/articles/review/stages/quote",
+            "/api/v1/articles/review/stages/generate", "/api/v1/articles/review/stages/verify",
+            "/api/v1/faculty-assistant", "/api/v1/evaluations/execute",
+            "/api/v1/researchers/coverage", "/api/v1/articles/summary/status",
+            "/api/v1/articles/evidence"
+        ];
+
+        foreach (string path in removed)
+        {
+            using HttpResponseMessage response = await host.SendAsync(path, ServiceKey);
+            Assert.True(response.StatusCode == HttpStatusCode.NotFound,
+                $"{path} returned {(int)response.StatusCode}.");
+        }
+
+        using HttpResponseMessage configuration = await host.SendAsync(
+            "/api/v1/articles/review/configuration", "GET", ServiceKey);
+        Assert.Equal(HttpStatusCode.NotFound, configuration.StatusCode);
     }
 
     [Fact]
@@ -89,7 +119,7 @@ public sealed class ServiceEndpointBoundaryTests
         await using BoundaryHost host = await BoundaryHost.StartAsync(database.ConnectionString);
 
         using HttpResponseMessage response = await host.SendAsync(
-            "/api/v1/products/GetResearcherSourceCoverage", ServiceKey,
+            "/api/v1/researchers/analysis", ServiceKey,
             "{\"personelId\":\"missing-source\"}");
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
@@ -106,8 +136,8 @@ public sealed class ServiceEndpointBoundaryTests
         public IReadOnlyList<RouteEndpoint> ProductRoutes => application.Services
             .GetRequiredService<EndpointDataSource>().Endpoints
             .OfType<RouteEndpoint>()
-            .Where(endpoint => endpoint.RoutePattern.RawText?.StartsWith(
-                "api/v1/products/", StringComparison.OrdinalIgnoreCase) == true)
+            .Where(endpoint => endpoint.Metadata.GetMetadata<ControllerActionDescriptor>()?
+                .ControllerTypeInfo.Namespace == "ResearcherAnalysisService.Products.Api.Controllers")
             .OrderBy(endpoint => endpoint.RoutePattern.RawText, StringComparer.Ordinal)
             .ToArray();
 

@@ -99,7 +99,7 @@ internal static class ServiceAcceptanceRehearsal
             using (HttpClient client = Client())
             {
                 _ = await PostTypedAsync<ResearcherPublicationMetricsStatusResponse>(client,
-                    AnalysisUrl + "/api/v1/products/RefreshResearcherPublicationMetrics",
+                    AnalysisUrl + "/api/v1/researchers/metrics/refresh",
                     new { PersonelID = ServiceAcceptanceHost.SubjectId });
                 metrics = await PollMetricsAsync(client);
             }
@@ -116,18 +116,18 @@ internal static class ServiceAcceptanceRehearsal
             using (HttpClient client = Client(authenticated: true))
             {
                 context = await PostTypedAsync<FacultyAssistantContextResponse>(client,
-                    AnalysisUrl + "/api/v1/products/SaveFacultyAssistantContext", new
+                    AnalysisUrl + "/api/v1/faculty/context/save", new
                     {
                         PersonelID = ServiceAcceptanceHost.SubjectId, ExpectedVersion = 0,
                         Context = new { Language = "tr", ResearchGoals = new[] { "Yöntem incelemesi" },
                             Courses = new[] { "Makine öğrenmesi" }, TeachingAudience = "Lisansüstü" }
                     });
                 createdDossier = await PostTypedAsync<HrEvidenceDossierResponse>(client,
-                    AnalysisUrl + "/api/v1/products/CreateHrEvidenceDossier", new
+                    AnalysisUrl + "/api/v1/hr/dossiers/create", new
                     { PersonelID = ServiceAcceptanceHost.SubjectId, PublicationMetricSnapshotId = metrics.SnapshotId,
                         CanonicalWorkIds = canonicalIds, Language = "tr" });
                 HrEvidenceDossierResponse readDossier = await PostTypedAsync<HrEvidenceDossierResponse>(client,
-                    AnalysisUrl + "/api/v1/products/GetHrEvidenceDossier",
+                    AnalysisUrl + "/api/v1/hr/dossiers",
                     new { PersonelID = ServiceAcceptanceHost.SubjectId, createdDossier.DossierId });
                 if (readDossier.InputFingerprint != createdDossier.InputFingerprint ||
                     readDossier.Dossier.PublicationMetrics is null ||
@@ -268,7 +268,7 @@ internal static class ServiceAcceptanceRehearsal
         while (DateTime.UtcNow < deadline)
         {
             ResearcherPublicationMetricsStatusResponse value = await PostTypedAsync<ResearcherPublicationMetricsStatusResponse>(client,
-                AnalysisUrl + "/api/v1/products/GetResearcherPublicationMetrics",
+                AnalysisUrl + "/api/v1/researchers/metrics",
                 new { PersonelID = ServiceAcceptanceHost.SubjectId });
             if (value.Status == "Current" && value.SnapshotId.HasValue && value.Data is not null &&
                 value.RequestedRevision == value.ComputedRevision && !value.IsStale) return value;
@@ -281,7 +281,7 @@ internal static class ServiceAcceptanceRehearsal
     private static Task<FacultyAssistantRunResponse> StartFacultyAsync(HttpClient client, Guid requestId,
         string mode, string query, int canonicalWorkId, int contextVersion) =>
         PostTypedAsync<FacultyAssistantRunResponse>(client,
-            AnalysisUrl + "/api/v1/products/StartFacultyAssistant", new
+            AnalysisUrl + "/api/v1/faculty/assistant/start", new
             {
                 PersonelID = ServiceAcceptanceHost.SubjectId, ClientRequestId = requestId,
                 Mode = mode, Language = "tr", Query = query, CanonicalWorkIds = new[] { canonicalWorkId },
@@ -294,7 +294,7 @@ internal static class ServiceAcceptanceRehearsal
         while (DateTime.UtcNow < deadline)
         {
             FacultyAssistantRunResponse value = await PostTypedAsync<FacultyAssistantRunResponse>(client,
-                AnalysisUrl + "/api/v1/products/GetFacultyAssistantRun",
+                AnalysisUrl + "/api/v1/faculty/assistant/run",
                 new { PersonelID = ServiceAcceptanceHost.SubjectId, RunId = runId });
             if (value.Status == "Completed") return value;
             if (value.Status is "Failed" or "Interrupted")
@@ -334,7 +334,7 @@ internal static class ServiceAcceptanceRehearsal
         WebApplicationBuilder builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls(AnalysisUrl);
         WebApplication application = builder.Build();
-        application.MapPost("/api/v1/articles/summarize", (SummarizeArticleRequest request) =>
+        application.MapPost("/api/v1/articles/summary/generate", (SummarizeArticleRequest request) =>
         {
             capture.AddSummary();
             ArticleSourceSpan span = request.SourceSpans!.First(value => !string.IsNullOrWhiteSpace(value.Text));

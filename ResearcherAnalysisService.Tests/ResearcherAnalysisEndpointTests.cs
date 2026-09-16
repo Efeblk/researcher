@@ -17,7 +17,7 @@ namespace ResearcherAnalysisService.Tests;
 [Collection("Analysis Product SQL Server")]
 public sealed class ResearcherAnalysisEndpointTests(AnalysisProductSqlServerFixture fixture)
 {
-    private const string Api = "/api/v1/products/";
+    private const string Api = "/api/v1/";
 
     [Fact]
     public async Task AnalyzeResearcher_RepeatedThenFailed_PreservesHistoryAndRetrievesWithoutAi()
@@ -43,11 +43,19 @@ public sealed class ResearcherAnalysisEndpointTests(AnalysisProductSqlServerFixt
         await using (AnalysisTestHost host = await AnalysisTestHost.StartAsync(
             generator, usageDatabase: fixture.ConnectionString))
         {
-            using var missing = await host.Client.PostAsJsonAsync(Api + "GetResearcherAnalysis", input);
-            Assert.True(missing.StatusCode == HttpStatusCode.NotFound, await missing.Content.ReadAsStringAsync());
+            using var missing = await host.Client.PostAsJsonAsync(Api + "researchers/analysis", input);
+            missing.EnsureSuccessStatusCode();
+            string emptyBody = await missing.Content.ReadAsStringAsync();
+            Assert.Contains("\"Analysis\":null", emptyBody, StringComparison.Ordinal);
+            Assert.Contains("\"Coverage\":", emptyBody, StringComparison.Ordinal);
+            Assert.Null((await missing.Content.ReadFromJsonAsync<ResearcherAnalysisReadResponse>())!.Analysis);
+
+            using var unknown = await host.Client.PostAsJsonAsync(Api + "researchers/analysis",
+                new { PersonelID = "missing-" + Guid.NewGuid().ToString("N") });
+            Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
             for (int index = 0; index < 2; index++)
             {
-                using var response = await host.Client.PostAsJsonAsync(Api + "AnalyzeResearcher", input);
+                using var response = await host.Client.PostAsJsonAsync(Api + "researchers/analysis/generate", input);
                 Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             }
             var saved = await database.ResearcherAnalyses.AsNoTracking().Where(value => value.PersonelId == researcher.PersonelId)
@@ -58,18 +66,18 @@ public sealed class ResearcherAnalysisEndpointTests(AnalysisProductSqlServerFixt
             Assert.Equal("Coastal water monitoring", Assert.Single(snapshot.Publications).Title);
             Assert.Equal(snapshotAt, snapshot.SnapshotAt);
             generator.Fail = true;
-            using var failed = await host.Client.PostAsJsonAsync(Api + "AnalyzeResearcher", input);
+            using var failed = await host.Client.PostAsJsonAsync(Api + "researchers/analysis/generate", input);
             Assert.Equal(HttpStatusCode.BadGateway, failed.StatusCode);
             Assert.Equal(2, await database.ResearcherAnalyses.CountAsync(value => value.PersonelId == researcher.PersonelId));
         }
         await using AnalysisTestHost restarted = await AnalysisTestHost.StartAsync(
             new StubResearcherReportGenerator(researcher.PersonelId, snapshotAt) { Fail = true },
             usageDatabase: fixture.ConnectionString);
-        using var retrieved = await restarted.Client.PostAsJsonAsync(Api + "GetResearcherAnalysis", input);
+        using var retrieved = await restarted.Client.PostAsJsonAsync(Api + "researchers/analysis", input);
         retrieved.EnsureSuccessStatusCode();
-        var result = await retrieved.Content.ReadFromJsonAsync<SavedResearcherAnalysisResponse>();
-        Assert.Equal(latestId, result!.Id);
-        Assert.Equal("synthetic-model", result.Report.Model);
+        var result = await retrieved.Content.ReadFromJsonAsync<ResearcherAnalysisReadResponse>();
+        Assert.Equal(latestId, result!.Analysis!.Id);
+        Assert.Equal("synthetic-model", result.Analysis.Report.Model);
         Assert.Equal(3, generator.Calls);
     }
 
@@ -87,7 +95,7 @@ public sealed class ResearcherAnalysisEndpointTests(AnalysisProductSqlServerFixt
         await host.WaitUntilReadyAsync();
         foreach (DateTimeOffset invalidDate in new[] { default(DateTimeOffset), DateTimeOffset.UtcNow.AddDays(1) })
         {
-            using var invalid = await host.Client.PostAsJsonAsync(Api + "AnalyzeResearcher",
+            using var invalid = await host.Client.PostAsJsonAsync(Api + "researchers/analysis/generate",
                 new { PersonelID = researcher.PersonelId, SnapshotAt = invalidDate });
             Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
         }
@@ -97,7 +105,7 @@ public sealed class ResearcherAnalysisEndpointTests(AnalysisProductSqlServerFixt
             (researcher.PersonelId, HttpStatusCode.UnprocessableEntity)
         })
         {
-            using var response = await host.Client.PostAsJsonAsync(Api + "AnalyzeResearcher", new { PersonelID = id });
+            using var response = await host.Client.PostAsJsonAsync(Api + "researchers/analysis/generate", new { PersonelID = id });
             Assert.True(status == response.StatusCode, await response.Content.ReadAsStringAsync());
         }
         Assert.False(await database.ResearcherAnalyses.AnyAsync(value => value.PersonelId == researcher.PersonelId));

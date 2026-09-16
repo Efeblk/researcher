@@ -23,15 +23,15 @@ Modules/AcademicPerformance/
   Background/BulkCollectionWorker.cs            collector'ın tek kalıcı worker'ı
 ResearcherAnalysisService/
   Program.cs                                    analysis host, DI ve migration başlangıcı
-  Api/V1/                                       stateless, tam bağlamlı AI HTTP yüzeyi
-  Products/Api/                                 kalıcı ürün sözleşmeleri ve controller'lar
+  Api/V1/                                       sağlayıcı tanısı ve profil keşfi controller'ları
+  Products/Api/                                 ürün sözleşmeleri ve controller'lar
   Products/                                     analiz/özet/inceleme/metrik/bilgi/İK/fakülte akışları
   Products/Data/                                AnalysisDbContext ve yazılabilir product entity'leri
   SourceData/                                   aynı DB'deki collector tablolarının özel salt okunur modelleri
   Background/                                   summary, metrics, evaluation ve faculty worker'ları
   Data/Migrations/                              analysis/hr/faculty DDL'i; dbo.ResearcherAnalysisVersionInfo
-  Requests/                                     kalıcı ve stateless Analysis HTTP örnekleri
-ResearcherAnalysis.Contracts/                   stateless servis sözleşmeleri
+  Requests/                                     Analysis HTTP örnekleri
+ResearcherAnalysis.Contracts/                   paylaşılan analiz motoru sözleşmeleri
 Requests/AcademicCollector/                     yalnız collector HTTP örnekleri
 ```
 
@@ -64,9 +64,9 @@ Collector `http://localhost:5001/Services/AcademicPerformance/V1/[action]` altı
 - `Bulk/{Submit,Status,ImportSql}`;
 - YÖKSİS, Semantic Scholar ve toplama sağlayıcısı `ProviderStatus` işlemleri.
 
-Analysis Service kalıcı ürünleri `http://localhost:5011/api/v1/products/[action]` altında sunar. Bunlar araştırmacı analizi, makale özeti/kanıtı/incelemesi, metrik, kanıt araması, referans popülasyonu, grafik dışa aktarımı, model değerlendirmesi, İK kanıt dosyası ve fakülte asistanıdır. `/health` dışındaki Analysis API uçları `X-Analysis-Key` servis erişim denetimini kullanır. Bilgi/grafik, değerlendirme, İK ve fakülte ürünlerinde `IAcademicProductAccessService` buna ek olarak veri okunmadan önce özneyi yetkilendirir; anahtar özne grant'i yerine geçmez. Varsayılan uygulama kapalıdır; deployment güvenilir kimlik ve kapsam adaptörü sağlamalıdır. Araştırmacı, makale ve metrik uyumluluk işlemleri mevcut kaynak ilişkisi kontrollerini korur. Kaynak şeması veya satırı henüz hazır değilse bağımlı ürün açık `503` verir.
+Analysis Service kalıcı ürünleri `http://localhost:5011/api/v1/...` altında sunar. Bunlar araştırmacı analizi, makale özeti/kanıtı/incelemesi, metrik, kanıt araması, referans popülasyonu, grafik dışa aktarımı, model değerlendirmesi, İK kanıt dosyası ve fakülte asistanıdır. `/health` dışındaki Analysis API uçları `X-Analysis-Key` servis erişim denetimini kullanır. Bilgi/grafik, değerlendirme, İK ve fakülte ürünlerinde `IAcademicProductAccessService` buna ek olarak veri okunmadan önce özneyi yetkilendirir; anahtar özne grant'i yerine geçmez. Varsayılan uygulama kapalıdır; deployment güvenilir kimlik ve kapsam adaptörü sağlamalıdır. Araştırmacı, makale ve metrik uyumluluk işlemleri mevcut kaynak ilişkisi kontrollerini korur. Kaynak şeması veya satırı henüz hazır değilse bağımlı ürün açık `503` verir.
 
-Stateless `/api/v1/*` uçları tam araştırmacı snapshot'ı, sayfalar, deterministik span'lar veya kanıt kataloğunu gövdede alır. Bunlar `PersonelID` üzerinden kaynak çözmez. Collector Analysis HTTP çağrısı veya AI sağlık proxy'si yapmaz.
+Yinelenen tam bağlamlı HTTP üretim uçları kaldırılmıştır; ürün iş akışları analiz motorlarını süreç içinde çağırır. Collector Analysis HTTP çağrısı veya AI sağlık proxy'si yapmaz.
 
 Collector'da yalnız `BulkCollectionWorker` bulunur. Analysis Service'teki `ArticleSummaryAutomationWorker`, `PublicationMetricsWorker`, `ArticleEvaluationWorker` ve `FacultyAssistantWorker`, collector'ın `core.CollectionChanges` sinyalini kendi `analysis.CollectionChangeReceipts` kaydıyla idempotent tüketir. Servislerden biri offline iken diğeri kendi alanında çalışmaya devam eder.
 
@@ -82,7 +82,7 @@ Collector'da yalnız `BulkCollectionWorker` bulunur. Analysis Service'teki `Arti
 | Kalıcı analiz API/iş akışı | `ResearcherAnalysisService/Products/Api/` ve ilgili `Products/` klasörü |
 | Salt okunur collector kaynak eşlemesi | `ResearcherAnalysisService/SourceData/` |
 | Analysis veritabanı | `ResearcherAnalysisService/Data/Migrations/` ve `Products/Data/` |
-| Stateless analiz/model adaptörü | `ResearcherAnalysisService/Api/V1/`, `Analysis/`, `Integrations/` |
+| Analiz motoru/model adaptörü ve tanı | `ResearcherAnalysisService/Analysis/`, `Integrations/`, `Api/V1/` |
 | Web formu/paneller/grid | `Modules/AcademicPerformance/WebClient/` |
 
 Doğrulama komutları ve PR akışı [katkı rehberindedir](../CONTRIBUTING.md). Entegrasyon testleri izole SQL Server veritabanı ve sentetik sağlayıcı/model yanıtları kullanır; canlı veya ücretli çağrı yapmaz. Toplu akış için [toplu toplama](BULK_COLLECTION.md), analiz akışları için [analiz hattı](ANALYSIS_PIPELINE.md), dış servis davranışı için [sağlayıcılar](PROVIDERS.md) belgesine bakın.

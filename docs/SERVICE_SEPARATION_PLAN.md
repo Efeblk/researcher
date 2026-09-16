@@ -58,31 +58,31 @@ Collector'da yalnız `BulkCollectionWorker` kalır. `ArticleSummaryAutomationWor
 
 Collector `http://localhost:5001` altında `Collect`, `GetResearcher`, `ListPublications`, `SavePublicationSelections`, `ListCanonicalPublications`, `Bulk/{Submit,Status,ImportSql}`, YÖKSİS, Semantic Scholar ve yalnız toplama sağlayıcılarının `ProviderStatus` işlemlerini tutar.
 
-Analysis Service 25 kalıcı ürün sözleşmesini `http://localhost:5011/api/v1/products/[action]` altında aynı action adları ve gövde anlamlarıyla sunar:
+Analysis Service 22 ürün işlemini `http://localhost:5011/api/v1/...` altında konu bazlı yollarla sunar:
 
-- Araştırmacı analizi: `AnalyzeResearcher`, `GetResearcherAnalysis`, `GetResearcherSourceCoverage`.
-- Makale özeti/incelemesi: `SummarizeArticle`, `GetArticleSummary`, `GetArticleSummaryAutomationStatus`, `GetCanonicalArticleEvidence`, `ReviewCanonicalArticle`, `GetCanonicalArticleReview`.
-- Metrik: `GetResearcherPublicationMetrics`, `RefreshResearcherPublicationMetrics`.
-- Bilgi/grafik: `SearchAcademicEvidence`, `GetReferencePopulation`, `ImportReferencePopulation`, `ExportAcademicEvidenceGraph`.
-- Değerlendirme: `StartArticleEvaluation`, `GetArticleEvaluation`.
-- İK: `CreateHrEvidenceDossier`, `GetHrEvidenceDossier`, `AppendHrDossierReviewAction`, `ListHrDossierReviewActions`.
-- Fakülte: `SaveFacultyAssistantContext`, `GetFacultyAssistantContext`, `StartFacultyAssistant`, `GetFacultyAssistantRun`.
+- Araştırmacı analizi: `/api/v1/researchers/analysis/generate`, `/api/v1/researchers/analysis`.
+- Makale özeti/incelemesi: `/api/v1/articles/summary/generate`, `/api/v1/articles/summary`, `/api/v1/articles/analysis`, `/api/v1/articles/review/generate`.
+- Metrik: `/api/v1/researchers/metrics`, `/api/v1/researchers/metrics/refresh`.
+- Bilgi/grafik: `/api/v1/knowledge/search`, `/api/v1/knowledge/reference-population`, `/api/v1/knowledge/reference-population/import`, `/api/v1/knowledge/graph/export`.
+- Değerlendirme: `/api/v1/evaluations/start`, `/api/v1/evaluations/status`.
+- İK: `/api/v1/hr/dossiers/create`, `/api/v1/hr/dossiers`, `/api/v1/hr/dossiers/actions/append`, `/api/v1/hr/dossiers/actions`.
+- Fakülte: `/api/v1/faculty/context/save`, `/api/v1/faculty/context`, `/api/v1/faculty/assistant/start`, `/api/v1/faculty/assistant/run`.
 
-Mevcut stateless generation uçları (`/api/v1/analyze`, `/api/v1/articles/*`, `/api/v1/evaluations/*`, `/api/v1/faculty-assistant`) korunur. `/health` dışındaki Analysis API uçları `X-Analysis-Key` denetimini kullanır. Bilgi/grafik, değerlendirme, İK ve fakülte ürünleri buna ek olarak güvenilir kimlik/özne kapsamı denetimini uygular; servis anahtarı özne yetkisi yerine geçmez ve korunan ürünlerde `PersonelID` tek başına yetki değildir. Araştırmacı, makale ve metrik uyumluluk işlemleri mevcut kaynak ilişkisi kontrollerini korur. Analysis sağlayıcı durumu Analysis Service'te kalır; collector sağlayıcı durumu AI proxy çağrısı yapmaz.
+Yinelenen stateless generation uçları kaldırılmıştır; analiz motorları kalıcı ürün iş akışlarınca süreç içinde çağrılır. `/health` dışındaki Analysis API uçları `X-Analysis-Key` denetimini kullanır. Bilgi/grafik, değerlendirme, İK ve fakülte ürünleri buna ek olarak güvenilir kimlik/özne kapsamı denetimini uygular; servis anahtarı özne yetkisi yerine geçmez ve korunan ürünlerde `PersonelID` tek başına yetki değildir. Araştırmacı, makale ve metrik uyumluluk işlemleri mevcut kaynak ilişkisi kontrollerini korur. Analysis sağlayıcı durumu Analysis Service'te kalır; collector sağlayıcı durumu AI proxy çağrısı yapmaz.
 
 ## Çalışma ve veri akışı kabulü
 
 1. Collector dış sağlayıcıları çağırır, provider/core tablolarını tek normalizasyon transaction'ında günceller ve aynı sahiplik sınırında kalıcı değişiklik sinyali yazar.
 2. Analysis Service aynı veritabanındaki collector tablolarını özel salt okunur kaynak modelleriyle okur. Analiz kanıtı için gereken değişmez snapshot temsillerini kendi tablolarında saklar; collector tablolarını kopyalamaz, collector modellerini yazmaz ve bir ayna veritabanı üretmez.
 3. Analysis worker'ları değişiklik sinyalini kendi receipt kaydıyla idempotent işler; özet, metrik ve diğer ürün durumlarını yalnız `analysis`, `hr` ve `faculty` tablolarına yazar.
-4. Collector kapalıyken Analysis Service mevcut normalize kaynaklardan ürün okuma/işleme yapabilir. Collector şeması henüz yoksa Analysis Service başlar, stateless uçları çalışır ve kalıcı worker'lar kaynak hazır olana kadar hata üretmeden bekler.
+4. Collector kapalıyken Analysis Service mevcut normalize kaynaklardan ürün okuma/işleme yapabilir. Collector şeması henüz yoksa Analysis Service başlar; sağlık, profil keşfi ve sağlayıcı tanısı çalışır, worker'lar kaynak hazır olana kadar hata üretmeden bekler.
 5. Analysis Service kapalıyken collector toplama, normalize etme, kanonik listeleme, bulk ve sağlayıcı durumu işlemlerine devam eder; bir Analysis endpoint'ine veya sağlık proxy'sine bağımlı değildir.
 6. Her iki servis aynı SQL veritabanı hedefini farklı, en-az-yetkili hesaplarla kullanabilir. Startup migration açıkken her hesap kendi şema/history nesneleri için gereken DDL yetkisini de alır; migration dışarıda uygulanıyorsa collector kendi tablolarında yazma, Analysis kendi tablolarında yazma ve collector kaynaklarında yalnız okuma yetkisiyle çalışır.
 
 ## Değişmez davranış ve doğrulama
 
 - Taşıma, dış sağlayıcı toplama eşlemesini, kanonikleştirme kurallarını, yayın seçimini, prompt/sözleşme sürümlerini, model adlarını, thinking/timeout/token/maliyet varsayılanlarını veya AI fail-closed kullanım defteri davranışını değiştirmez.
-- Kalıcı product request/response alanları, action adları, idempotency anahtarları, pagination ve erişim hata semantiği korunur. Host/prefix değişir; collector kaynak şeması veya gerekli kaynak satırı henüz hazır değilse Analysis Service'in verdiği açık `503` kaynak-hazır-değil yanıtı yeni servis sınırının kasıtlı sonucudur. Stateless uç sözleşmeleri ve `X-Analysis-Key` davranışı değişmez.
+- Korunan ürünlerin idempotency anahtarları, pagination ve erişim hata semantiği korunur. Birleşik okumalar açık nullable alanlarla kaydedilmemiş durumu bildirir; collector kaynak şeması veya gerekli kaynak satırı henüz hazır değilse Analysis Service açık `503` verir. `/health` dışındaki uçlarda `X-Analysis-Key` davranışı korunur.
 - Fresh Collector-only, fresh Analysis-only, iki başlangıç sırası, eşzamanlı migration ve servislerden birinin offline olduğu senaryolar ayrı entegrasyon kontrolleriyle doğrulanır.
 - Şema envanteri testinde her tablo tam bir DDL/yazma sahibine aittir; Analysis DbContext/modeli collector yazma operasyonu içermez, collector assembly/DI/API/worker ağacında analitik ürün tipi kalmaz.
 - HTTP örnekleri collector ve Analysis klasörlerine yeni host/prefix'e göre ayrılır; değişkenler genişletildiğinde JSON geçerlidir, salt okuma ve ücretli/worker yazma ön koşulları açıktır. Dokümanlarda collector'ın analitik ürün veya AI proxy sahibi olduğu eski anlatım kalmaz.

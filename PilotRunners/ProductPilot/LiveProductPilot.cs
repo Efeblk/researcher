@@ -50,7 +50,7 @@ internal static class LiveProductPilot
     private const string AnalysisUrl = "http://127.0.0.1:5098";
     private const string CollectorUrl = "http://127.0.0.1:5198";
     private const string ServiceKey = "product-pilot-synthetic-analysis-key";
-    private const string Api = AnalysisUrl + "/api/v1/products/";
+    private const string Api = AnalysisUrl + "/api/v1/";
     private const string PrivateSentinel = "PRIVATE_PRODUCT_PILOT_CONTEXT_7F2A";
     private const string AdamPdfHash = "935a5a15616961aff21529d86a754570028843407adfe858f1d18584b84293a7";
     private const string AdamSourceHash = "ef1663dd32671bce737af77d0cfd0777fd8ebd95bb86f5d0ff2b4aa457675fa3";
@@ -430,11 +430,11 @@ internal static class LiveProductPilot
         RetestBaseline baseline)
     {
         RetestCounts before = await ReadRetestCountsAsync(baseline.Database);
-        HttpCapture getContext = await PostAsync(client, Api + "GetFacultyAssistantContext",
+        HttpCapture getContext = await PostAsync(client, Api + "faculty/context",
             new { PersonelID = PilotAccessService.SubjectId, Version = baseline.Fixture.ContextVersion });
-        HttpCapture getHr = await PostAsync(client, Api + "GetHrEvidenceDossier",
+        HttpCapture getHr = await PostAsync(client, Api + "hr/dossiers",
             new { PersonelID = PilotAccessService.SubjectId, DossierId = baseline.Fixture.DossierId });
-        HttpCapture list = await PostAsync(client, Api + "ListHrDossierReviewActions",
+        HttpCapture list = await PostAsync(client, Api + "hr/dossiers/actions",
             new { PersonelID = PilotAccessService.SubjectId, DossierId = baseline.Fixture.DossierId, Skip = 0, Take = 100 });
         FacultyAssistantContextResponse context = Deserialize<FacultyAssistantContextResponse>(getContext);
         HrEvidenceDossierResponse dossier = Deserialize<HrEvidenceDossierResponse>(getHr);
@@ -718,7 +718,7 @@ internal static class LiveProductPilot
     {
         (long metricSnapshotId, ResearcherPublicationMetricsResponse metricData) =
             await CreateMetricSnapshotAsync(services, database);
-        HttpCapture saveContext = await PostAsync(client, Api + "SaveFacultyAssistantContext", new
+        HttpCapture saveContext = await PostAsync(client, Api + "faculty/context/save", new
         {
             PersonelID = PilotAccessService.SubjectId, ExpectedVersion = 0,
             Context = new { Language = "tr", ResearchGoals = new[] { "Adam optimizasyon yöntemini geliştirmek" },
@@ -727,21 +727,21 @@ internal static class LiveProductPilot
         });
         FacultyAssistantContextResponse saved = Deserialize<FacultyAssistantContextResponse>(saveContext);
         fixture.ContextVersion = saved.Version;
-        HttpCapture getContext = await PostAsync(client, Api + "GetFacultyAssistantContext",
+        HttpCapture getContext = await PostAsync(client, Api + "faculty/context",
             new { PersonelID = PilotAccessService.SubjectId, Version = saved.Version });
-        HttpCapture createHr = await PostAsync(client, Api + "CreateHrEvidenceDossier", new
+        HttpCapture createHr = await PostAsync(client, Api + "hr/dossiers/create", new
             { PersonelID = PilotAccessService.SubjectId, PublicationMetricSnapshotId = metricSnapshotId,
                 CanonicalWorkIds = new[] { fixture.CanonicalWorkId }, Language = "tr" });
         HrEvidenceDossierResponse dossier = Deserialize<HrEvidenceDossierResponse>(createHr);
-        HttpCapture getHr = await PostAsync(client, Api + "GetHrEvidenceDossier",
+        HttpCapture getHr = await PostAsync(client, Api + "hr/dossiers",
             new { PersonelID = PilotAccessService.SubjectId, dossier.DossierId });
         Guid actionId = Guid.Parse("8ee6b75f-0dc8-4ed8-991e-2d95c3e958cb");
         object actionBody = new { PersonelID = PilotAccessService.SubjectId, dossier.DossierId,
             ClientRequestId = actionId, ActionType = "NoteAdded", EvidenceReference = "adam:method",
             Note = "Kaynak bağlantısı pilot sırasında incelendi." };
-        HttpCapture append = await PostAsync(client, Api + "AppendHrDossierReviewAction", actionBody);
-        HttpCapture appendRepeat = await PostAsync(client, Api + "AppendHrDossierReviewAction", actionBody);
-        HttpCapture list = await PostAsync(client, Api + "ListHrDossierReviewActions",
+        HttpCapture append = await PostAsync(client, Api + "hr/dossiers/actions/append", actionBody);
+        HttpCapture appendRepeat = await PostAsync(client, Api + "hr/dossiers/actions/append", actionBody);
+        HttpCapture list = await PostAsync(client, Api + "hr/dossiers/actions",
             new { PersonelID = PilotAccessService.SubjectId, dossier.DossierId, Skip = 0, Take = 100 });
         HrEvidenceDossierResponse readDossier = Deserialize<HrEvidenceDossierResponse>(getHr);
         HrDossierReviewActionResponse createdAction = Deserialize<HrDossierReviewActionResponse>(append);
@@ -853,7 +853,7 @@ internal static class LiveProductPilot
             Take = 10, ContextVersion = contextVersion };
         ProductPilotBudgetSnapshot before = budget.Snapshot();
         int sqlBefore = await CountUsageAsync(database);
-        HttpCapture start = await PostAsync(client, Api + "StartFacultyAssistant", request);
+        HttpCapture start = await PostAsync(client, Api + "faculty/assistant/start", request);
         FacultyAssistantRunResponse queued = Deserialize<FacultyAssistantRunResponse>(start);
         await using (AnalysisDbContext db = Database(database))
         {
@@ -869,16 +869,16 @@ internal static class LiveProductPilot
         while (current.Status is "Pending" or "Running" && timer.Elapsed < TimeSpan.FromMinutes(6))
         {
             await Task.Delay(500);
-            HttpCapture poll = await PostAsync(client, Api + "GetFacultyAssistantRun",
+            HttpCapture poll = await PostAsync(client, Api + "faculty/assistant/run",
                 new { PersonelID = PilotAccessService.SubjectId, queued.RunId });
             polls.Add(poll);
             current = Deserialize<FacultyAssistantRunResponse>(poll);
         }
         ProductPilotBudgetSnapshot afterCompletion = budget.Snapshot();
         int sqlAfterCompletion = await CountUsageAsync(database);
-        HttpCapture duplicateStart = await PostAsync(client, Api + "StartFacultyAssistant", request);
+        HttpCapture duplicateStart = await PostAsync(client, Api + "faculty/assistant/start", request);
         FacultyAssistantRunResponse duplicate = Deserialize<FacultyAssistantRunResponse>(duplicateStart);
-        HttpCapture repeatedRead = await PostAsync(client, Api + "GetFacultyAssistantRun",
+        HttpCapture repeatedRead = await PostAsync(client, Api + "faculty/assistant/run",
             new { PersonelID = PilotAccessService.SubjectId, queued.RunId });
         await Task.Delay(1500);
         ProductPilotBudgetSnapshot afterReads = budget.Snapshot();
@@ -1044,7 +1044,10 @@ internal static class LiveProductPilot
         JsonNode summaryNode = adam["savedReadsAndCache"]!["savedSummary"]!["body"]!;
         JsonNode reviewNode = adam["savedReadsAndCache"]!["savedReview"]!["body"]!;
         SavedArticleSummaryResponse priorSummary = summaryNode.Deserialize<SavedArticleSummaryResponse>(JsonOptions)!;
-        CanonicalArticleReviewResponse priorReview = reviewNode.Deserialize<CanonicalArticleReviewResponse>(JsonOptions)!;
+        CanonicalArticleReviewResponse priorReview = reviewNode
+            .Deserialize<CanonicalArticleAnalysisResponse>(JsonOptions)?.Review ??
+            throw new InvalidOperationException(
+                "The full-text pilot artifact must be regenerated with the combined article-analysis contract.");
 
         await using AcademicDbContext sourceDb = SourceDatabase(database);
         Researcher researcher = new()

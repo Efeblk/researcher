@@ -1,5 +1,5 @@
 @baseUrl = http://localhost:5011
-@api = {{baseUrl}}/api/v1/products
+@api = {{baseUrl}}/api/v1
 @analysisKey = REPLACE_WITH_SERVICE_API_KEY
 @personelId = P-1001
 @canonicalWorkId = 1
@@ -12,7 +12,7 @@
 # Varsayılan kurulum: anonim 401, kimliği doğrulanmış fakat adaptörü yapılandırılmamış istek 503.
 
 ### 1. Kaydedilmiş akademik kanıtta ara [okuma]
-POST {{api}}/SearchAcademicEvidence
+POST {{api}}/knowledge/search
 Content-Type: application/json
 X-Analysis-Key: {{analysisKey}}
 
@@ -24,7 +24,7 @@ X-Analysis-Key: {{analysisKey}}
 }
 
 ### 2. Kaydedilmiş referans popülasyonu manifestini oku [okuma]
-POST {{api}}/GetReferencePopulation
+POST {{api}}/knowledge/reference-population
 Content-Type: application/json
 X-Analysis-Key: {{analysisKey}}
 
@@ -35,7 +35,7 @@ X-Analysis-Key: {{analysisKey}}
 
 ### 3. İsteğe bağlı: sentetik referans popülasyonu manifestini içe aktar [yazma]
 # approvedForInternalNormalization=false bilimsel onayın verilmediğini açıkça korur.
-POST {{api}}/ImportReferencePopulation
+POST {{api}}/knowledge/reference-population/import
 Content-Type: application/json
 X-Analysis-Key: {{analysisKey}}
 
@@ -67,7 +67,7 @@ X-Analysis-Key: {{analysisKey}}
 ### 4. İsteğe bağlı: 20 kanonik yayın için yeniden üretilebilir grafik projeksiyonu oluştur [hesaplama]
 # İstek en az 20, en çok 50 CanonicalWorkId ister. Aşağıdaki 20 örnek değerin tamamını
 # bu PersonelID'ye ait gerçek ListCanonicalPublications kimlikleriyle değiştirin.
-POST {{api}}/ExportAcademicEvidenceGraph
+POST {{api}}/knowledge/graph/export
 Content-Type: application/json
 X-Analysis-Key: {{analysisKey}}
 
