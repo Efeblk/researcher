@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
@@ -261,4 +261,3 @@ internal sealed record WorkIdentity(
     string? NormalizedDoi,
     string? SourceScopedKey,
     string LockKey);
-
