@@ -3,6 +3,8 @@ import type { ResearcherCollectResponse, ResearcherMetricsResponse, YoksisCollec
 import { PublicationSummaryGrid } from "../../Publications/PublicationSummaryGrid";
 import { readRememberedProviderIdentifiers } from "./ProviderIdentifiers";
 import { recalculateAndReadResearcher } from "./ResearcherMetricsWorkflow";
+import { recalculateMetricsStream, ResearcherMetricsStreamError,
+    type ResearcherMetricsProgressEvent } from "./ResearcherMetricsProgressStream";
 import {
     PublicationRefreshPoller, ResearchRequestCoordinator, updateSelectionTarget
 } from "./ResearchRequestCoordinator";
@@ -43,6 +45,7 @@ const yoksisProgressMessage = document.querySelector<HTMLElement>("#YoksisProgre
 const yoksisProgressElapsed = document.querySelector<HTMLElement>("#YoksisProgressElapsed");
 let researchBusy = false;
 let lastYoksisProgressMessage = "";
+let lastMetricsProgressMessage = "";
 initializeAcademicMetricsOverview();
 addLocalText({
     Controls: {
@@ -131,6 +134,25 @@ function showStatus(kind: "info" | ResearchOutcomeKind, message: string) {
 
     researchStatus.className = `academic-status visible ${kind}`;
     researchStatus.textContent = message;
+}
+
+function showMetricsProgress(event: ResearcherMetricsProgressEvent) {
+    const elapsed = event.ElapsedSeconds == null
+        ? "" : ` Geçen süre: ${Math.round(event.ElapsedSeconds)} saniye.`;
+    const stalled = (event.Type === "heartbeat" || event.Stage === "connection-silent") &&
+        (event.LastProgressElapsedSeconds ?? 0) >= 10;
+    const connectionSilent = event.Stage === "connection-silent";
+    const waiting = connectionSilent
+        ? ` Sunucudan ${Math.round(event.LastProgressElapsedSeconds ?? 0)} saniyedir durum mesajı alınamadı; bağlantı durumu doğrulanamıyor.`
+        : stalled
+        ? ` Son gerçek ilerleme ${Math.round(event.LastProgressElapsedSeconds!)} saniye önceydi.`
+        : event.Type === "heartbeat" ? " Sunucu bağlantısı etkin." : "";
+    if (event.Type === "progress" && event.Stage !== "connection-silent" && event.Message)
+        lastMetricsProgressMessage = event.Message;
+    const message = event.Type === "heartbeat" || event.Stage === "connection-silent"
+        ? lastMetricsProgressMessage || "Akademik metrikler güncelleniyor."
+        : event.Message ?? "Akademik metrikler güncelleniyor.";
+    showStatus("info", `${message}${elapsed}${waiting}`);
 }
 
 function showSelectionStatus(
@@ -424,12 +446,37 @@ form?.addEventListener("submit", async event => {
         if (hasSuccessfulResult && linkedPersonelId) {
             try {
                 showStatus("info", "Sonuçlar hazırlanıyor...");
+                lastMetricsProgressMessage = "";
+                const metricsStartedAt = Date.now();
+                let lastMetricsEventAt = metricsStartedAt;
+                const metricsConnectionTimer = globalThis.setInterval(() => {
+                    if (!requestCoordinator.isCurrent(run))
+                        return;
+                    const now = Date.now();
+                    if (now - lastMetricsEventAt >= 12_000)
+                        showMetricsProgress({
+                            Type: "heartbeat", Stage: "connection-silent",
+                            ElapsedSeconds: (now - metricsStartedAt) / 1000,
+                            LastProgressElapsedSeconds: (now - lastMetricsEventAt) / 1000
+                        });
+                }, 1000);
                 const refreshed = await recalculateAndReadResearcher(
                     linkedPersonelId,
                     (action, body) => serviceRequest<ResearcherMetricsResponse | ResearcherCollectResponse>(
                         action, body, undefined,
                         { blockUI: false, errorMode: "none", signal: run.signal }),
-                    () => requestCoordinator.isCurrent(run));
+                    () => requestCoordinator.isCurrent(run),
+                    event => {
+                        if (!requestCoordinator.isCurrent(run))
+                            return;
+                        lastMetricsEventAt = Date.now();
+                        showMetricsProgress(event);
+                    },
+                    (id, signal, onEvent) => recalculateMetricsStream(
+                        id, signal, onEvent, globalThis.fetch,
+                        resolveUrl("~/Services/AcademicPerformance/V1/RecalculateMetrics"))
+                        .finally(() => globalThis.clearInterval(metricsConnectionTimer)),
+                    run.signal);
                 if (!requestCoordinator.isCurrent(run))
                     return;
                 showProfileSummary(refreshed.Researcher);
@@ -440,11 +487,15 @@ form?.addEventListener("submit", async event => {
                 showAcademicMetricsOverview(latestResearcher, yoksisResponse);
                 showProviderComparison(refreshed.Researcher);
             }
-            catch {
+            catch (error) {
                 if (!requestCoordinator.isCurrent(run))
                     return;
-                errors.push(
-                    "Akademik metrikler güncellenemedi. Mevcut sonuçları inceleyebilirsiniz.");
+                const detail = error instanceof ResearcherMetricsStreamError
+                    ? error.message
+                    : "Akademik metrikler güncellenemedi.";
+                const lastStage = lastMetricsProgressMessage
+                    ? ` Son aşama: ${lastMetricsProgressMessage}` : "";
+                errors.push(`${detail}${lastStage} Mevcut sonuçları inceleyebilirsiniz.`);
             }
         }
 

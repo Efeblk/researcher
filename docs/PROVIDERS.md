@@ -22,6 +22,11 @@ ORCID toplaması OpenAlex ve TR Dizin'i de tetikler; Scopus yalnız doğrulanmı
 
 `make collect` yalnız `Collect` çağrısını yapar. Tekil komut satırı akışında ardından `Requests/AcademicCollector/AcademicPerformance.http` içindeki `RecalculateMetrics` ve `GetResearcher` adımlarını çalıştırın.
 
+`RecalculateMetrics` normal JSON yanıtını korur. Aynı istekte `Accept: application/x-ndjson`
+gönderildiğinde kilit bekleme, yükleme, sağlayıcı hesaplama, kaydetme ve commit aşamaları ile
+bağlantı heartbeat olayları satırlarla ayrılmış JSON olarak iletilir. Heartbeat bağlantının açık
+olduğunu gösterir; `LastProgressElapsedSeconds` son gerçek aşama değişiminden geçen süredir.
+
 Scopus için `Scopus:ApiKey` zorunludur; kurumsal abonelik gerekiyorsa `Scopus:InstToken` da user-secrets veya güvenli deployment yapılandırmasından verilir. İstekler yalnız yapılandırılmış `Scopus:ApiBaseUrl` altında oluşturulur ve sırlar `X-ELS-APIKey` / `X-ELS-Insttoken` başlıklarında taşınır. Search sonuçları 25 kayıtlık COMPLETE sayfaları ve cursor ile, `Scopus:MaximumPages` sınırına kadar alınır. Sayfa eksik veya hatalıysa önceki tam profil ve yayınlar değiştirilmez.
 
 ## Durum ve kota anlamı

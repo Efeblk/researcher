@@ -7,10 +7,12 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Persistence;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 
 namespace AcademicCollectorDemo.Tests.Integration;
@@ -123,6 +125,105 @@ public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture 
             "/Services/AcademicPerformance/V1/RecalculateMetrics",
             new { PersonelID = "unknown-" + Guid.NewGuid().ToString("N") });
         Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
+    }
+
+    [Fact]
+    public async Task RecalculateMetricsEndpoint_Ndjson_ReportsRealStagesAndCompletes()
+    {
+        string personelId = "metrics-stream-" + Guid.NewGuid().ToString("N");
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+            db.Researchers.Add(new Researcher { PersonelId = personelId });
+            await db.SaveChangesAsync();
+        }
+        using HostProcess host = new(fixture.ConnectionString);
+        await host.WaitUntilReadyAsync();
+        using HttpRequestMessage request = new(HttpMethod.Post,
+            "/Services/AcademicPerformance/V1/RecalculateMetrics");
+        request.Headers.Accept.ParseAdd("application/x-ndjson");
+        request.Content = new StringContent(
+            JsonSerializer.Serialize(new { PersonelID = personelId }), Encoding.UTF8, "application/json");
+
+        using HttpResponseMessage response = await host.Client.SendAsync(request);
+        string body = await response.Content.ReadAsStringAsync();
+        JsonElement[] events = body.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => JsonSerializer.Deserialize<JsonElement>(line)).ToArray();
+
+        response.EnsureSuccessStatusCode();
+        Assert.StartsWith("application/x-ndjson", response.Content.Headers.ContentType?.ToString());
+        string[] stages = events.Select(item => item.GetProperty("Stage").GetString()!).ToArray();
+        Assert.Contains("waiting-global-gate", stages);
+        Assert.Contains("waiting-researcher-lock", stages);
+        Assert.Contains("loading", stages);
+        Assert.Contains("calculating-openalex", stages);
+        Assert.Contains("saving", stages);
+        Assert.Contains("committing", stages);
+        Assert.Equal("result", events[^1].GetProperty("Type").GetString());
+        Assert.Equal(personelId,
+            events[^1].GetProperty("Result").GetProperty("PersonelID").GetString());
+    }
+
+    [Fact]
+    public async Task RecalculateMetricsEndpoint_Ndjson_UnknownResearcherEndsAtLoadingWithSafeError()
+    {
+        using HostProcess host = new(fixture.ConnectionString);
+        await host.WaitUntilReadyAsync();
+        using HttpRequestMessage request = new(HttpMethod.Post,
+            "/Services/AcademicPerformance/V1/RecalculateMetrics");
+        request.Headers.Accept.ParseAdd("application/x-ndjson");
+        request.Content = JsonContent.Create(new { PersonelID = "unknown-" + Guid.NewGuid().ToString("N") });
+
+        using HttpResponseMessage response = await host.Client.SendAsync(request);
+        string body = await response.Content.ReadAsStringAsync();
+        JsonElement terminal = JsonSerializer.Deserialize<JsonElement>(
+            body.Split('\n', StringSplitOptions.RemoveEmptyEntries)[^1]);
+
+        response.EnsureSuccessStatusCode();
+        Assert.Equal("error", terminal.GetProperty("Type").GetString());
+        Assert.Equal("loading", terminal.GetProperty("Stage").GetString());
+        Assert.Contains("bulunamadı", terminal.GetProperty("Message").GetString());
+        Assert.DoesNotContain("unknown-", body);
+    }
+
+    [Fact]
+    public async Task RecalculateMetricsEndpoint_Ndjson_FlushesWaitAndHeartbeatWhileGlobalGateIsHeld()
+    {
+        string personelId = "metrics-lock-" + Guid.NewGuid().ToString("N");
+        await using AsyncServiceScope lockScope = fixture.Services.CreateAsyncScope();
+        var db = lockScope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        db.Researchers.Add(new Researcher { PersonelId = personelId });
+        await db.SaveChangesAsync();
+        await using var heldTransaction = await db.Database.BeginTransactionAsync();
+        await new CanonicalWorkSynchronizer(db).AcquireWriteGateAsync();
+
+        using HostProcess host = new(fixture.ConnectionString);
+        await host.WaitUntilReadyAsync();
+        using HttpRequestMessage request = new(HttpMethod.Post,
+            "/Services/AcademicPerformance/V1/RecalculateMetrics");
+        request.Headers.Accept.ParseAdd("application/x-ndjson");
+        request.Content = JsonContent.Create(new { PersonelID = personelId });
+        using HttpResponseMessage response = await host.Client.SendAsync(
+            request, HttpCompletionOption.ResponseHeadersRead);
+        await using Stream stream = await response.Content.ReadAsStreamAsync();
+        using StreamReader reader = new(stream);
+
+        JsonElement first = JsonSerializer.Deserialize<JsonElement>(
+            (await reader.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(3)))!);
+        JsonElement waiting = JsonSerializer.Deserialize<JsonElement>(
+            (await reader.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(3)))!);
+        JsonElement heartbeat = JsonSerializer.Deserialize<JsonElement>(
+            (await reader.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(7)))!);
+
+        Assert.Equal("connecting-database", first.GetProperty("Stage").GetString());
+        Assert.Equal("waiting-global-gate", waiting.GetProperty("Stage").GetString());
+        Assert.Equal("heartbeat", heartbeat.GetProperty("Type").GetString());
+        Assert.Equal("waiting-global-gate", heartbeat.GetProperty("Stage").GetString());
+        Assert.True(heartbeat.GetProperty("LastProgressElapsedSeconds").GetDouble() >= 4);
+
+        await heldTransaction.RollbackAsync();
+        string remaining = await reader.ReadToEndAsync().WaitAsync(TimeSpan.FromSeconds(8));
+        Assert.Contains("\"Type\":\"result\"", remaining);
     }
 
     [Fact]
