@@ -49,7 +49,6 @@ internal static class LiveProductPilot
     private const string RetestRunId = "product-pilot-20260913-retest3";
     private const string AnalysisUrl = "http://127.0.0.1:5098";
     private const string CollectorUrl = "http://127.0.0.1:5198";
-    private const string ServiceKey = "product-pilot-synthetic-analysis-key";
     private const string Api = AnalysisUrl + "/api/v1/";
     private const string PrivateSentinel = "PRIVATE_PRODUCT_PILOT_CONTEXT_7F2A";
     private const string AdamPdfHash = "935a5a15616961aff21529d86a754570028843407adfe858f1d18584b84293a7";
@@ -926,7 +925,7 @@ internal static class LiveProductPilot
                 builder.Configuration.Sources.Clear();
                 builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    ["Urls"] = AnalysisUrl, ["Service:ApiKey"] = ServiceKey,
+                    ["Urls"] = AnalysisUrl,
                     ["ConnectionStrings:UsageDatabase"] = database, ["Gemini:ApiKey"] = apiKey,
                     ["Ai:Provider"] = "Ollama", ["Ai:ArticleProvider"] = "Gemini",
                     ["Ai:ArticleModel"] = ProductPilotBudgetState.RequiredModel,
@@ -1341,7 +1340,6 @@ internal static class LiveProductPilot
     {
         HttpClient client = new() { BaseAddress = new Uri(baseAddress), Timeout = TimeSpan.FromMinutes(7) };
         client.DefaultRequestHeaders.Add("X-Product-Pilot-Auth", "synthetic-faculty");
-        client.DefaultRequestHeaders.Add("X-Analysis-Key", ServiceKey);
         return client;
     }
 

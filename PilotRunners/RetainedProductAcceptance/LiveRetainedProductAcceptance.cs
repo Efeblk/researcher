@@ -682,7 +682,6 @@ internal static class LiveRetainedProductAcceptance
     { state["phase"] = phase; state["budget"] = Node(budget.Snapshot()); await artifacts.WritePhaseAsync(phase, (JsonObject)state.DeepClone(), budget.Snapshot()); }
     private static HttpClient Client(bool authenticated, TimeSpan? timeout = null)
     { HttpClient c = new() { BaseAddress = new(CollectorUrl), Timeout = timeout ?? TimeSpan.FromSeconds(30) };
-      c.DefaultRequestHeaders.Add("X-Analysis-Key", RetainedAcceptanceHost.ServiceKey);
       if (authenticated) c.DefaultRequestHeaders.Add(RetainedAcceptanceHost.Header, RetainedAcceptanceHost.HeaderValue); return c; }
     private static async Task<T> PostAsync<T>(HttpClient client, string path, object request,
         params HttpStatusCode[] accepted)

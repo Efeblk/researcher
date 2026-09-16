@@ -1,5 +1,4 @@
 @baseUrl = http://localhost:5011
-@analysisKey = REPLACE_WITH_SERVICE_API_KEY
 
 ### 1. Servis sürecinin sağlığını oku [okuma]
 GET {{baseUrl}}/health
@@ -9,4 +8,3 @@ Accept: application/json
 # Sağlayıcıya durum isteği gönderebilir ve UsageDatabase'i okur; generateContent çağrısı yapmaz.
 GET {{baseUrl}}/api/v1/internal/provider-status/gemini
 Accept: application/json
-X-Analysis-Key: {{analysisKey}}

@@ -1,6 +1,5 @@
 @baseUrl = http://localhost:5011
 @api = {{baseUrl}}/api/v1
-@analysisKey = REPLACE_WITH_SERVICE_API_KEY
 @personelId = P-1001
 @canonicalWorkId = 1
 @facultyClientRequestId = 22222222-2222-2222-2222-222222222222
@@ -9,14 +8,12 @@
 
 # Fakülte ürünleri. canonicalWorkId = collector ListCanonicalPublications.Entities[].Id.
 # Bu uçlar güvenilir ürün erişim adaptörü ister; kimlik bilgisinin cookie/header biçimini kurulu adaptör belirler.
-# X-Analysis-Key servis erişimini açar, özne yetkisi yerine geçmez.
 # Varsayılan kurulum: anonim 401, kimliği doğrulanmış fakat adaptörü yapılandırılmamış istek 503.
 
 ### 1. Bağlamı oku [okuma]
 # Version gönderilmediği için son sürüm gelir.
 POST {{api}}/faculty/context
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}"
@@ -27,7 +24,6 @@ X-Analysis-Key: {{analysisKey}}
 # Başarılı yanıtın Version değerini sonraki güncellemede expectedVersion değişkenine kopyalayın.
 POST {{api}}/faculty/context/save
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",
@@ -51,7 +47,6 @@ X-Analysis-Key: {{analysisKey}}
 # Yanıttaki RunId değerini facultyRunId'ye kopyalayın.
 POST {{api}}/faculty/assistant/start
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",
@@ -66,7 +61,6 @@ X-Analysis-Key: {{analysisKey}}
 ### 4. Sonucu oku [okuma]
 POST {{api}}/faculty/assistant/run
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",

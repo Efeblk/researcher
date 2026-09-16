@@ -9,7 +9,6 @@ namespace ResearcherAnalysisService.Products.Api.Controllers;
 
 [ApiController]
 [ResearcherAnalysisService.Products.Api.ProductJsonContract]
-[ServiceFilter<AnalysisAccessFilter>]
 [Route("api/v1")]
 public sealed class ResearcherAnalysisEndpoint : ControllerBase
 {

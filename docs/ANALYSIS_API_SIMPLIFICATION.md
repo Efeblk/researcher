@@ -16,7 +16,7 @@ Reduce the public analysis HTTP surface from 36 protected operations to 24, whil
 ## Acceptance checks
 
 - Controller metadata exposes exactly 24 protected operations, including 22 product operations, and no retained product route contains `/products`.
-- Removed URLs return `404` when called with a valid service key.
+- Removed URLs return `404`.
 - Combined reads cover empty saved state, missing researcher/work association, validation, evidence paging and serialization, and do not invoke model providers.
 - Existing consumers and HTTP examples use the combined response envelopes and the retained persistent workflows.
 - The full analysis test project passes; affected pilot projects compile sequentially; HTTP examples contain valid JSON and only live retained routes.

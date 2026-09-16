@@ -254,7 +254,6 @@ internal static class RetainedFacultyCompletion
     }
 
     private static HttpClient Client() { HttpClient c = new() { BaseAddress = new(CollectorUrl), Timeout = TimeSpan.FromSeconds(1800) };
-        c.DefaultRequestHeaders.Add("X-Analysis-Key", RetainedAcceptanceHost.ServiceKey);
         c.DefaultRequestHeaders.Add(RetainedAcceptanceHost.Header, RetainedAcceptanceHost.HeaderValue); return c; }
     private static async Task<T> PostAsync<T>(HttpClient client, string path, object request)
     { using HttpResponseMessage response = await client.PostAsJsonAsync(path, request, JsonOptions); string body = await response.Content.ReadAsStringAsync();

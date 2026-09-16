@@ -40,7 +40,7 @@ History uses short subjects such as `readme ve settings` and `update on feedback
 
 ## Security & Configuration
 
-Store API keys and YÖKSİS credentials with each owning project's `dotnet user-secrets`; never commit credentials, T.C. identity numbers, raw secrets, or personal database files. Keep collector non-secret defaults in `academicsettings.json` and `appsettings.json`, and analysis defaults in `ResearcherAnalysisService/appsettings.json`. `DevelopmentPermissionService` supplies permissive Serenity/demo permission checks in the standalone collector host. Analysis API routes except `/health` use `X-Analysis-Key` configured by `Service:ApiKey`. Protected knowledge/graph, evaluation, HR, and faculty product routes additionally use the fail-closed `IAcademicProductAccessService` and require a trusted identity/scope adapter for deployment; the service key never substitutes for subject authorization.
+Store provider API keys and YÖKSİS credentials with each owning project's `dotnet user-secrets`; never commit credentials, T.C. identity numbers, raw secrets, or personal database files. Keep collector non-secret defaults in `academicsettings.json` and `appsettings.json`, and analysis defaults in `ResearcherAnalysisService/appsettings.json`. `DevelopmentPermissionService` supplies permissive Serenity/demo permission checks in the standalone collector host. Do not introduce a service-level Analysis API authentication requirement unless the user explicitly requests one. Knowledge/graph, evaluation, HR, and faculty product routes use the fail-closed `IAcademicProductAccessService` and require a trusted identity/scope adapter for deployment.
 
 ## Development Database Policy
 

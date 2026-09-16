@@ -16,10 +16,8 @@ namespace ResearcherAnalysisService.Tests;
 
 public sealed class ServiceEndpointBoundaryTests
 {
-    private const string ServiceKey = "synthetic-boundary-key";
-
     [Fact]
-    public async Task AnalysisApiRoutes_ExceptHealth_RejectMissingOrWrongServiceKey()
+    public async Task AnalysisApiRoutes_NoServiceKey_InNonDevelopmentHostAreReachable()
     {
         await using BoundaryHost host = await BoundaryHost.StartAsync(UnreachableDatabaseConnectionString());
         IReadOnlyList<RouteEndpoint> routes = host.AnalysisApiRoutes;
@@ -27,23 +25,13 @@ public sealed class ServiceEndpointBoundaryTests
         Assert.Equal(24, routes.Count);
         Assert.Equal(22, host.ProductRoutes.Count);
 
-        foreach (RouteEndpoint route in routes)
-        {
-            IReadOnlyList<string> methods = route.Metadata
-                .GetRequiredMetadata<IHttpMethodMetadata>().HttpMethods;
-            string method = Assert.Single(methods);
-            string path = "/" + route.RoutePattern.RawText;
-
-            using HttpResponseMessage missing = await host.SendAsync(path, method, key: null);
-            Assert.Equal(HttpStatusCode.Unauthorized, missing.StatusCode);
-
-            using HttpResponseMessage wrong = await host.SendAsync(path, method, key: "wrong-boundary-key");
-            Assert.Equal(HttpStatusCode.Unauthorized, wrong.StatusCode);
-        }
+        using HttpResponseMessage response = await host.SendAsync(
+            "/api/v1/evaluations/profiles", method: "GET");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
-    public async Task ProductRoutes_ResideInAnalysisAndRejectMissingOrWrongServiceKey()
+    public async Task ProductRoutes_ResideInAnalysisAndPreserveSubjectAuthorization()
     {
         await using BoundaryHost host = await BoundaryHost.StartAsync(UnreachableDatabaseConnectionString());
         IReadOnlyList<RouteEndpoint> routes = host.ProductRoutes;
@@ -63,19 +51,13 @@ public sealed class ServiceEndpointBoundaryTests
                 route.Metadata.GetRequiredMetadata<IHttpMethodMetadata>().HttpMethods);
         });
 
-        foreach (RouteEndpoint route in routes)
-        {
-            string path = "/" + route.RoutePattern.RawText;
-            using HttpResponseMessage missing = await host.SendAsync(path, key: null);
-            Assert.Equal(HttpStatusCode.Unauthorized, missing.StatusCode);
-
-            using HttpResponseMessage wrong = await host.SendAsync(path, key: "wrong-boundary-key");
-            Assert.Equal(HttpStatusCode.Unauthorized, wrong.StatusCode);
-        }
+        using HttpResponseMessage response = await host.SendAsync(
+            "/api/v1/knowledge/search", body: "{\"personelId\":\"P-1001\",\"query\":\"test\"}");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
-    public async Task RemovedRoutes_WithValidServiceKey_ReturnNotFound()
+    public async Task RemovedRoutes_ReturnNotFound()
     {
         await using BoundaryHost host = await BoundaryHost.StartAsync(UnreachableDatabaseConnectionString());
         string[] removed =
@@ -90,13 +72,13 @@ public sealed class ServiceEndpointBoundaryTests
 
         foreach (string path in removed)
         {
-            using HttpResponseMessage response = await host.SendAsync(path, ServiceKey);
+            using HttpResponseMessage response = await host.SendAsync(path);
             Assert.True(response.StatusCode == HttpStatusCode.NotFound,
                 $"{path} returned {(int)response.StatusCode}.");
         }
 
         using HttpResponseMessage configuration = await host.SendAsync(
-            "/api/v1/articles/review/configuration", "GET", ServiceKey);
+            "/api/v1/articles/review/configuration", method: "GET");
         Assert.Equal(HttpStatusCode.NotFound, configuration.StatusCode);
     }
 
@@ -119,7 +101,7 @@ public sealed class ServiceEndpointBoundaryTests
         await using BoundaryHost host = await BoundaryHost.StartAsync(database.ConnectionString);
 
         using HttpResponseMessage response = await host.SendAsync(
-            "/api/v1/researchers/analysis", ServiceKey,
+            "/api/v1/researchers/analysis",
             "{\"personelId\":\"missing-source\"}");
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
@@ -160,7 +142,6 @@ public sealed class ServiceEndpointBoundaryTests
                         ["Urls"] = "http://127.0.0.1:0",
                         ["ConnectionStrings:UsageDatabase"] = connectionString,
                         ["DatabaseMigrations:Enabled"] = "false",
-                        ["Service:ApiKey"] = ServiceKey,
                         ["CollectionChanges:WorkerEnabled"] = "false",
                         ["ArticleSummaryAutomation:Enabled"] = "false",
                         ["ArticleSummaryAutomation:WorkerEnabled"] = "false",
@@ -181,18 +162,12 @@ public sealed class ServiceEndpointBoundaryTests
             return new BoundaryHost(application, client);
         }
 
-        public async Task<HttpResponseMessage> SendAsync(string path, string? key,
-            string body = "{}")
-            => await SendAsync(path, "POST", key, body);
-
-        public async Task<HttpResponseMessage> SendAsync(string path, string method, string? key,
-            string body = "{}")
+        public async Task<HttpResponseMessage> SendAsync(string path, string body = "{}",
+            string method = "POST")
         {
             using HttpRequestMessage request = new(new HttpMethod(method), path);
             if (!HttpMethods.IsGet(method))
                 request.Content = new StringContent(body, Encoding.UTF8, "application/json");
-            if (key is not null)
-                request.Headers.Add("X-Analysis-Key", key);
             return await Client.SendAsync(request);
         }
 

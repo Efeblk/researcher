@@ -5,8 +5,7 @@ They do not make personnel suitability or publication-quality decisions.
 
 ## Service access boundary
 
-Every product endpoint first passes the Analysis `X-Analysis-Key` service-access filter and then calls
-`IAcademicProductAccessService` before looking up the subject or product record. The key never substitutes for subject authorization.
+Protected product endpoints call `IAcademicProductAccessService` before looking up the subject or product record.
 The default implementation fails closed: anonymous callers receive `401`, and an authenticated caller receives
 `503` because no principal-to-scope or principal-to-`PersonelID` mapping is configured. The service/API deliverable
 ends at this generic access boundary. A consuming deployment may supply a trusted adapter, including a BYS adapter,

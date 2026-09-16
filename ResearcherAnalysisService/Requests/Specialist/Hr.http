@@ -1,6 +1,5 @@
 @baseUrl = http://localhost:5011
 @api = {{baseUrl}}/api/v1
-@analysisKey = REPLACE_WITH_SERVICE_API_KEY
 @personelId = P-1001
 @canonicalWorkId = 1
 @dossierId = 1
@@ -8,14 +7,12 @@
 
 # İK ürünleri. canonicalWorkId = collector ListCanonicalPublications.Entities[].Id.
 # Bu uçlar güvenilir ürün erişim adaptörü ister; kimlik bilgisinin cookie/header biçimini kurulu adaptör belirler.
-# X-Analysis-Key servis erişimini açar, özne yetkisi yerine geçmez.
 # Varsayılan kurulum: anonim 401, kimliği doğrulanmış fakat adaptörü yapılandırılmamış istek 503.
 
 ### 1. İK kanıt dosyası oluştur [yazma]
 # Yanıttaki DossierId değerini dossierId değişkenine kopyalayın.
 POST {{api}}/hr/dossiers/create
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",
@@ -27,7 +24,6 @@ X-Analysis-Key: {{analysisKey}}
 ### 2. İK kanıt dosyasını oku [okuma]
 POST {{api}}/hr/dossiers
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",
@@ -37,7 +33,6 @@ X-Analysis-Key: {{analysisKey}}
 ### 3. İK inceleme işlemlerini listele [okuma]
 POST {{api}}/hr/dossiers/actions
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",
@@ -50,7 +45,6 @@ X-Analysis-Key: {{analysisKey}}
 # Aynı gövde için aynı clientRequestId yeniden kullanılabilir; gövde değişirse yeni UUID üretin.
 POST {{api}}/hr/dossiers/actions/append
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",

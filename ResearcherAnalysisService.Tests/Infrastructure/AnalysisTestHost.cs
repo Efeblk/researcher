@@ -29,7 +29,7 @@ internal sealed class AnalysisTestHost(WebApplication application, HttpClient cl
     }
 
     public static async Task<AnalysisTestHost> StartAsync(IResearcherReportGenerator? generator = null,
-        bool configureAccessKey = true, string environment = "Testing", HttpMessageHandler? geminiHandler = null,
+        string environment = "Testing", HttpMessageHandler? geminiHandler = null,
         IReadOnlyDictionary<string, string?>? settings = null, IGeminiUsageRepository? usageRepository = null,
         IArticleReviewGenerator? reviewGenerator = null, IArticleReviewVerifier? reviewVerifier = null,
         HttpMessageHandler? evaluationHandler = null, string? usageDatabase = null)
@@ -45,7 +45,6 @@ internal sealed class AnalysisTestHost(WebApplication application, HttpClient cl
                 ["ConnectionStrings:UsageDatabase"] =
                     usageDatabase ?? (@"Server=(localdb)\MSSQLLocalDB;Database=ResearcherAnalysisStatelessTests;" +
                     "Integrated Security=true;Encrypt=true;TrustServerCertificate=true"),
-                ["Service:ApiKey"] = configureAccessKey ? "synthetic-service-key" : null,
                 ["Gemini:ApiKey"] = geminiHandler is null ? null : "synthetic-gemini-key",
                 ["CollectionChanges:WorkerEnabled"] = "false",
                 ["ArticleSummaryAutomation:Enabled"] = "false",
@@ -87,7 +86,6 @@ internal sealed class AnalysisTestHost(WebApplication application, HttpClient cl
         string address = application.Services.GetRequiredService<IServer>()
             .Features.Get<IServerAddressesFeature>()!.Addresses.Single();
         HttpClient client = new() { BaseAddress = new Uri(address), Timeout = TimeSpan.FromSeconds(10) };
-        client.DefaultRequestHeaders.Add("X-Analysis-Key", "synthetic-service-key");
         return new AnalysisTestHost(application, client);
     }
 

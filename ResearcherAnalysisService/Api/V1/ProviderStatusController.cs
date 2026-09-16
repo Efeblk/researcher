@@ -7,7 +7,7 @@ namespace ResearcherAnalysisService.Api.V1;
 [ApiController, Route("api/v1/internal/provider-status")]
 public sealed class ProviderStatusController : ControllerBase
 {
-    [HttpGet("gemini"), ServiceFilter<AnalysisAccessFilter>]
+    [HttpGet("gemini")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<ActionResult<ProviderStatusResponse>> Gemini(
         [FromServices] GeminiArticleClient client, [FromServices] IGeminiUsageRepository usageRepository,

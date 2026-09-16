@@ -436,7 +436,6 @@ internal static class LiveFinalServiceAcceptance
             BaseAddress = new(CollectorUrl),
             Timeout = timeout ?? TimeSpan.FromSeconds(340)
         };
-        client.DefaultRequestHeaders.Add("X-Analysis-Key", ServiceAcceptanceHost.ServiceKey);
         if (authenticated)
             client.DefaultRequestHeaders.Add(ServiceAcceptanceHost.Header, ServiceAcceptanceHost.HeaderValue);
         return client;

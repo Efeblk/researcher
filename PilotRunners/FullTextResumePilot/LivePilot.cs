@@ -31,7 +31,6 @@ public static class LivePilot
     internal const string AcceptanceRunId = "fulltext-citation-alignment-pilot-20260912";
     private const string AnalysisUrl = "http://127.0.0.1:5097";
     private const string CollectorUrl = "http://127.0.0.1:5197";
-    private const string ServiceKey = "fulltext-resume-pilot-synthetic-service-key";
     private const string Api = AnalysisUrl + "/api/v1/";
     private const int MaximumCalls = 64;
     private const decimal MaximumSpendUsd = 2m;
@@ -101,9 +100,7 @@ public static class LivePilot
             result["status"] = "hosts_started";
             await artifacts.WritePhaseAsync("hosts-started", result, budget.Snapshot());
             using HttpClient client = new() { BaseAddress = new(CollectorUrl), Timeout = TimeSpan.FromMinutes(12) };
-            client.DefaultRequestHeaders.Add("X-Analysis-Key", ServiceKey);
             using HttpClient analysisClient = new() { BaseAddress = new(AnalysisUrl), Timeout = TimeSpan.FromMinutes(12) };
-            analysisClient.DefaultRequestHeaders.Add("X-Analysis-Key", ServiceKey);
             bool cachedProbePassed = result["citationProbeGate"]?["passed"]?.GetValue<bool>() == true;
             bool cachedProbeCurrent = cachedProbePassed &&
                 await CachedProbeGateMatchesCurrentProfileAsync(analysisClient, result["citationProbeGate"] as JsonObject);
@@ -510,7 +507,7 @@ public static class LivePilot
                 builder.Configuration.Sources.Clear();
                 builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    ["Urls"] = AnalysisUrl, ["Service:ApiKey"] = ServiceKey,
+                    ["Urls"] = AnalysisUrl,
                     ["ConnectionStrings:UsageDatabase"] = connectionString, ["Gemini:ApiKey"] = apiKey,
                     ["Ai:Provider"] = "Ollama", ["Ai:ArticleProvider"] = "Gemini",
                     ["Ai:ArticleModel"] = "gemini-3.8-flash", ["Ai:ArticleVerifierModel"] = "gemini-3.8-flash",

@@ -70,7 +70,6 @@ public sealed class HostProcess : IDisposable
                 publicationMetricsBatchSize.Value.ToString();
         start.Environment["ArticleEvaluation__WorkerEnabled"] = articleEvaluationWorkerEnabled.ToString();
         start.Environment["FacultyAssistant__WorkerEnabled"] = "false";
-        start.Environment["AnalysisService__ApiKey"] = "";
         start.Environment["SearchApi__ApiKey"] = "";
         start.Environment["OpenAlex__ApiKey"] = "";
         start.Environment["SemanticScholar__ApiKey"] = "";

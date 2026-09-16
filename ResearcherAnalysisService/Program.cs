@@ -49,7 +49,6 @@ public static class Program
                 "Evaluation:DeepSeek pricing must be absent or contain a version and all non-negative rates.")
             .ValidateOnStart();
         builder.Services.AddSingleton<IGeminiUsageRepository, GeminiUsageRepository>();
-        builder.Services.AddScoped<AnalysisAccessFilter>();
         builder.Services.AddScoped<ResearcherAnalysis>();
         builder.Services.AddScoped<ArticleSummarizer>();
         builder.Services.AddScoped<ArticleReviewer>();

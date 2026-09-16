@@ -8,7 +8,7 @@ namespace ResearcherAnalysisService.Api.V1;
 [ApiController, Route("api/v1/evaluations")]
 public sealed class ArticleEvaluationController : ControllerBase
 {
-    [HttpGet("profiles"), ServiceFilter<AnalysisAccessFilter>]
+    [HttpGet("profiles")]
     public ActionResult<ArticleEvaluationProfilesResponse> Profiles(
         [FromServices] ArticleEvaluationService service) => Ok(service.GetProfiles());
 
