@@ -37,7 +37,6 @@ public sealed class HostProcess : IDisposable
             BaseAddress = new Uri($"http://127.0.0.1:{port}"),
             Timeout = TimeSpan.FromSeconds(5)
         };
-        Client.DefaultRequestHeaders.Add("X-Analysis-Key", "synthetic-service-key");
         DirectoryInfo? root = new(AppContext.BaseDirectory);
         while (root is not null &&
             !File.Exists(Path.Combine(root.FullName, "ResearcherAnalysisService", "ResearcherAnalysisService.csproj")))
@@ -57,7 +56,6 @@ public sealed class HostProcess : IDisposable
         start.Environment["ASPNETCORE_ENVIRONMENT"] = "Testing";
         start.Environment["DOTNET_ENVIRONMENT"] = "Testing";
         start.Environment["ConnectionStrings__UsageDatabase"] = connectionString;
-        start.Environment["Service__ApiKey"] = "synthetic-service-key";
         start.Environment["DatabaseMigrations__Enabled"] = "false";
         start.Environment["CollectionChanges__WorkerEnabled"] = "false";
         start.Environment["ArticleSummaryAutomation__Enabled"] =

@@ -1,6 +1,5 @@
 @baseUrl = http://localhost:5011
 @api = {{baseUrl}}/api/v1
-@analysisKey = REPLACE_WITH_SERVICE_API_KEY
 @personelId = P-1001
 @canonicalWorkId = 1
 @manifestVersion = synthetic-reference-v1
@@ -8,13 +7,11 @@
 # Gelişmiş bilgi, referans popülasyonu ve grafik örnekleri. canonicalWorkId değerlerini
 # collector ListCanonicalPublications.Entities[].Id alanından alın. Bu uçlar güvenilir ürün erişim adaptörü ister;
 # kimlik bilgisinin cookie/header biçimini kurulu adaptör belirler.
-# X-Analysis-Key servis erişimini açar, özne yetkisi yerine geçmez.
 # Varsayılan kurulum: anonim 401, kimliği doğrulanmış fakat adaptörü yapılandırılmamış istek 503.
 
 ### 1. Kaydedilmiş akademik kanıtta ara [okuma]
 POST {{api}}/knowledge/search
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",
@@ -26,7 +23,6 @@ X-Analysis-Key: {{analysisKey}}
 ### 2. Kaydedilmiş referans popülasyonu manifestini oku [okuma]
 POST {{api}}/knowledge/reference-population
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",
@@ -37,7 +33,6 @@ X-Analysis-Key: {{analysisKey}}
 # approvedForInternalNormalization=false bilimsel onayın verilmediğini açıkça korur.
 POST {{api}}/knowledge/reference-population/import
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",
@@ -69,7 +64,6 @@ X-Analysis-Key: {{analysisKey}}
 # bu PersonelID'ye ait gerçek ListCanonicalPublications kimlikleriyle değiştirin.
 POST {{api}}/knowledge/graph/export
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",

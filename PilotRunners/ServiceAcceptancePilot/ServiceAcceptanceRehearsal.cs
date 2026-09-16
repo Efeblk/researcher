@@ -212,7 +212,6 @@ internal static class ServiceAcceptanceRehearsal
     private static HttpClient Client()
     {
         HttpClient client = new() { BaseAddress = new(Url), Timeout = TimeSpan.FromSeconds(30) };
-        client.DefaultRequestHeaders.Add("X-Analysis-Key", ServiceAcceptanceHost.ServiceKey);
         return client;
     }
 

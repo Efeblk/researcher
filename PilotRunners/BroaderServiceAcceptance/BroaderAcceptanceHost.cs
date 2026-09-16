@@ -32,7 +32,6 @@ internal static class BroaderAcceptanceHost
     public const string SecondaryOrcid = "0000-0001-5109-3700";
     public const string Header = "X-Broader-Acceptance-Auth";
     public const string HeaderValue = "synthetic-primary-faculty";
-    public const string ServiceKey = "broader-acceptance-analysis-key";
 
     public static async Task<WebApplication> StartCollectorAsync(string root, string database,
         string url, string analysisUrl, string mode, string sourceDirectory, BroaderReplayAudit audit)
@@ -106,7 +105,6 @@ internal static class BroaderAcceptanceHost
                 builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["Urls"] = url,
-                    ["Service:ApiKey"] = ServiceKey,
                     ["ConnectionStrings:UsageDatabase"] = database,
                     ["Gemini:ApiKey"] = apiKey,
                     ["Ai:Provider"] = "Ollama",

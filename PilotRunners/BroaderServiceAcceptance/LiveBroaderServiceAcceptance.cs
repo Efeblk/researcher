@@ -830,7 +830,6 @@ internal static partial class LiveBroaderServiceAcceptance
     {
         HttpClient client = new() { BaseAddress = new(CollectorUrl),
             Timeout = timeout ?? TimeSpan.FromSeconds(30) };
-        client.DefaultRequestHeaders.Add("X-Analysis-Key", BroaderAcceptanceHost.ServiceKey);
         if (authenticated)
             client.DefaultRequestHeaders.Add(BroaderAcceptanceHost.Header,
                 BroaderAcceptanceHost.HeaderValue);

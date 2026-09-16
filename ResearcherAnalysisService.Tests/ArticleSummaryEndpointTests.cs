@@ -306,7 +306,6 @@ public sealed class ArticleSummaryEndpointTests(AnalysisProductSqlServerFixture 
                         ["Urls"] = "http://127.0.0.1:0",
                         ["ConnectionStrings:UsageDatabase"] = connectionString,
                         ["DatabaseMigrations:Enabled"] = "false",
-                        ["Service:ApiKey"] = "synthetic-service-key",
                         ["CollectionChanges:WorkerEnabled"] = "false",
                         ["ArticleSummaryAutomation:Enabled"] = "false",
                         ["ArticleSummaryAutomation:WorkerEnabled"] = "false",
@@ -325,7 +324,6 @@ public sealed class ArticleSummaryEndpointTests(AnalysisProductSqlServerFixture 
             string address = application.Services.GetRequiredService<IServer>()
                 .Features.Get<IServerAddressesFeature>()!.Addresses.Single();
             HttpClient client = new() { BaseAddress = new Uri(address), Timeout = TimeSpan.FromSeconds(30) };
-            client.DefaultRequestHeaders.Add("X-Analysis-Key", "synthetic-service-key");
             return new EndpointHost(application, client);
         }
 

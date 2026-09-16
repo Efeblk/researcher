@@ -30,7 +30,6 @@ internal static class ServiceAcceptanceHost
     public const string Orcid = "0000-0002-1825-0097";
     public const string Header = "X-Service-Acceptance-Auth";
     public const string HeaderValue = "synthetic-faculty";
-    public const string ServiceKey = "service-acceptance-analysis-key";
     private static readonly string SourceDirectory =
         Environment.GetEnvironmentVariable("ACADEMIC_ACCEPTANCE_SOURCE_DIRECTORY") ??
         Path.Combine(Path.GetTempPath(), "academic-fulltext-source-t9aqbsak");
@@ -83,7 +82,7 @@ internal static class ServiceAcceptanceHost
                 builder.Configuration.Sources.Clear();
                 builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    ["Urls"] = url, ["Service:ApiKey"] = ServiceKey,
+                    ["Urls"] = url,
                     ["ConnectionStrings:UsageDatabase"] = database, ["Gemini:ApiKey"] = apiKey,
                     ["Ai:Provider"] = "Ollama", ["Ai:ArticleProvider"] = "Gemini",
                     ["Ai:ArticleModel"] = ServiceAcceptanceBudget.RequiredModel,

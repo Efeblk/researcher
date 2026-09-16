@@ -183,7 +183,6 @@ internal static class LiveServiceAcceptance
     private static HttpClient Client(bool authenticated = false)
     {
         HttpClient value = new() { BaseAddress = new(CollectorUrl), Timeout = TimeSpan.FromSeconds(340) };
-        value.DefaultRequestHeaders.Add("X-Analysis-Key", ServiceAcceptanceHost.ServiceKey);
         if (authenticated) value.DefaultRequestHeaders.Add(ServiceAcceptanceHost.Header, ServiceAcceptanceHost.HeaderValue);
         return value;
     }

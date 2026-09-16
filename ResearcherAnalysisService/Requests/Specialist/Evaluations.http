@@ -1,25 +1,21 @@
 @baseUrl = http://localhost:5011
 @api = {{baseUrl}}/api/v1
-@analysisKey = REPLACE_WITH_SERVICE_API_KEY
 @personelId = P-1001
 @canonicalWorkId = 1
 @evaluationRunId = 11111111-1111-1111-1111-111111111111
 
 # Bu uçlar güvenilir ürün erişim adaptörü ister; kimlik bilgisinin cookie/header biçimini kurulu adaptör belirler.
-# X-Analysis-Key servis erişimini açar, özne yetkisi yerine geçmez.
 # Varsayılan kurulum: anonim 401, kimliği doğrulanmış fakat adaptörü yapılandırılmamış istek 503.
 # PersonelID sentetik kalibrasyon dahil her başlatma ve okuma isteğinde zorunludur.
 
 ### 1. Sabit değerlendirme profillerini keşfet [metadata okuma]
 GET {{baseUrl}}/api/v1/evaluations/profiles
 Accept: application/json
-X-Analysis-Key: {{analysisKey}}
 
 ### 2. Yerel modelle kontrollü kalibrasyonu kuyruğa al [AI kuyruğu + yazma]
 # Yanıttaki RunId değerini evaluationRunId değişkenine kopyalayın.
 POST {{api}}/evaluations/start
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",
@@ -33,7 +29,6 @@ X-Analysis-Key: {{analysisKey}}
 # İki profilli çapraz kontrol Gemini'ı birçok kez çağırabilir ve ücret doğurabilir.
 POST {{api}}/evaluations/start
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",
@@ -51,7 +46,6 @@ X-Analysis-Key: {{analysisKey}}
 # Başlatma yanıtındaki RunId ve aynı PersonelID kullanılmalıdır; model çağrısı yapmaz.
 POST {{api}}/evaluations/status
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "RunId": "{{evaluationRunId}}",

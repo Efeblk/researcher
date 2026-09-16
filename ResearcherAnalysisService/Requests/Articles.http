@@ -1,7 +1,6 @@
 # Günlük makale akışı
 @baseUrl = http://localhost:5011
 @api = {{baseUrl}}/api/v1
-@analysisKey = REPLACE_WITH_SERVICE_API_KEY
 @personelId = P-1001
 @canonicalWorkId = 1
 @academicWorkId = 1
@@ -13,7 +12,6 @@
 # Evidence veya Review null olabilir; bu durum ilişkinin bulunmadığı anlamına gelmez.
 POST {{api}}/articles/analysis
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",
@@ -26,7 +24,6 @@ X-Analysis-Key: {{analysisKey}}
 ### 2. Gözlem özetini oku
 POST {{api}}/articles/summary
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",
@@ -37,7 +34,6 @@ X-Analysis-Key: {{analysisKey}}
 ### 3. Özet üret [AI + yazma]
 POST {{api}}/articles/summary/generate
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",
@@ -49,7 +45,6 @@ X-Analysis-Key: {{analysisKey}}
 # Ön koşul: aynı dilde başarılı, kaydedilmiş kanonik makale analizi.
 POST {{api}}/articles/review/generate
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}",

@@ -68,7 +68,7 @@ Analysis Service 22 ürün işlemini `http://localhost:5011/api/v1/...` altında
 - İK: `/api/v1/hr/dossiers/create`, `/api/v1/hr/dossiers`, `/api/v1/hr/dossiers/actions/append`, `/api/v1/hr/dossiers/actions`.
 - Fakülte: `/api/v1/faculty/context/save`, `/api/v1/faculty/context`, `/api/v1/faculty/assistant/start`, `/api/v1/faculty/assistant/run`.
 
-Yinelenen stateless generation uçları kaldırılmıştır; analiz motorları kalıcı ürün iş akışlarınca süreç içinde çağrılır. `/health` dışındaki Analysis API uçları `X-Analysis-Key` denetimini kullanır. Bilgi/grafik, değerlendirme, İK ve fakülte ürünleri buna ek olarak güvenilir kimlik/özne kapsamı denetimini uygular; servis anahtarı özne yetkisi yerine geçmez ve korunan ürünlerde `PersonelID` tek başına yetki değildir. Araştırmacı, makale ve metrik uyumluluk işlemleri mevcut kaynak ilişkisi kontrollerini korur. Analysis sağlayıcı durumu Analysis Service'te kalır; collector sağlayıcı durumu AI proxy çağrısı yapmaz.
+Yinelenen stateless generation uçları kaldırılmıştır; analiz motorları kalıcı ürün iş akışlarınca süreç içinde çağrılır. Bilgi/grafik, değerlendirme, İK ve fakülte ürünleri güvenilir kimlik/özne kapsamı denetimini uygular; korunan ürünlerde `PersonelID` tek başına yetki değildir. Araştırmacı, makale ve metrik uyumluluk işlemleri mevcut kaynak ilişkisi kontrollerini korur. Analysis sağlayıcı durumu Analysis Service'te kalır; collector sağlayıcı durumu AI proxy çağrısı yapmaz.
 
 ## Çalışma ve veri akışı kabulü
 
@@ -82,7 +82,7 @@ Yinelenen stateless generation uçları kaldırılmıştır; analiz motorları k
 ## Değişmez davranış ve doğrulama
 
 - Taşıma, dış sağlayıcı toplama eşlemesini, kanonikleştirme kurallarını, yayın seçimini, prompt/sözleşme sürümlerini, model adlarını, thinking/timeout/token/maliyet varsayılanlarını veya AI fail-closed kullanım defteri davranışını değiştirmez.
-- Korunan ürünlerin idempotency anahtarları, pagination ve erişim hata semantiği korunur. Birleşik okumalar açık nullable alanlarla kaydedilmemiş durumu bildirir; collector kaynak şeması veya gerekli kaynak satırı henüz hazır değilse Analysis Service açık `503` verir. `/health` dışındaki uçlarda `X-Analysis-Key` davranışı korunur.
+- Korunan ürünlerin idempotency anahtarları, pagination ve erişim hata semantiği korunur. Birleşik okumalar açık nullable alanlarla kaydedilmemiş durumu bildirir; collector kaynak şeması veya gerekli kaynak satırı henüz hazır değilse Analysis Service açık `503` verir.
 - Fresh Collector-only, fresh Analysis-only, iki başlangıç sırası, eşzamanlı migration ve servislerden birinin offline olduğu senaryolar ayrı entegrasyon kontrolleriyle doğrulanır.
 - Şema envanteri testinde her tablo tam bir DDL/yazma sahibine aittir; Analysis DbContext/modeli collector yazma operasyonu içermez, collector assembly/DI/API/worker ağacında analitik ürün tipi kalmaz.
 - HTTP örnekleri collector ve Analysis klasörlerine yeni host/prefix'e göre ayrılır; değişkenler genişletildiğinde JSON geçerlidir, salt okuma ve ücretli/worker yazma ön koşulları açıktır. Dokümanlarda collector'ın analitik ürün veya AI proxy sahibi olduğu eski anlatım kalmaz.

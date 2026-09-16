@@ -1,14 +1,12 @@
 # Günlük araştırmacı akışı
 @baseUrl = http://localhost:5011
 @api = {{baseUrl}}/api/v1
-@analysisKey = REPLACE_WITH_SERVICE_API_KEY
 @personelId = P-1001
 
 ### 1. Kapsamı ve kaydedilmiş analizi birlikte oku
 # Analysis=null, araştırmacı mevcut fakat henüz analiz üretilmemiş demektir.
 POST {{api}}/researchers/analysis
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}"
@@ -17,7 +15,6 @@ X-Analysis-Key: {{analysisKey}}
 ### 2. Analiz üret [AI + yazma]
 POST {{api}}/researchers/analysis/generate
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}"
@@ -26,7 +23,6 @@ X-Analysis-Key: {{analysisKey}}
 ### 3. Metrikleri oku
 POST {{api}}/researchers/metrics
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}"
@@ -35,7 +31,6 @@ X-Analysis-Key: {{analysisKey}}
 ### 4. Metrikleri yenile [kuyruk yazması]
 POST {{api}}/researchers/metrics/refresh
 Content-Type: application/json
-X-Analysis-Key: {{analysisKey}}
 
 {
   "PersonelID": "{{personelId}}"

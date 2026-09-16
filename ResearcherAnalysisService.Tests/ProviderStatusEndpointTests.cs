@@ -144,17 +144,16 @@ public sealed class ProviderStatusEndpointTests
     }
 
     [Fact]
-    public async Task Gemini_InvalidAnalysisAccessKey_DoesNotCallProvider()
+    public async Task Gemini_NoServiceKey_CallsProvider()
     {
-        using RecordingHandler handler = new(_ => throw new InvalidOperationException("Must not be called."));
+        using RecordingHandler handler = new(_ => Json(
+            """{"name":"models/gemini-test","supportedGenerationMethods":["generateContent"]}"""));
         await using AnalysisTestHost host = await AnalysisTestHost.StartAsync(geminiHandler: handler,
             settings: ConfiguredSettings());
-        host.Client.DefaultRequestHeaders.Remove("X-Analysis-Key");
-
         using HttpResponseMessage response = await host.Client.GetAsync("/api/v1/internal/provider-status/gemini");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-        Assert.Equal(0, handler.RequestCount);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(1, handler.RequestCount);
     }
 
     [Fact]

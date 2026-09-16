@@ -172,7 +172,6 @@ internal static class RetainedTeachingDiagnostic
     private static HttpClient Client(TimeSpan timeout)
     {
         HttpClient client = new() { BaseAddress = new(CollectorUrl), Timeout = timeout };
-        client.DefaultRequestHeaders.Add("X-Analysis-Key", RetainedAcceptanceHost.ServiceKey);
         client.DefaultRequestHeaders.Add(RetainedAcceptanceHost.Header, RetainedAcceptanceHost.HeaderValue);
         return client;
     }

@@ -11,7 +11,6 @@ Analysis Service başlangıçta `ResearcherAnalysisService/Data/Migrations` alt�
 ```powershell
 dotnet restore ResearcherAnalysisService/ResearcherAnalysisService.csproj
 dotnet user-secrets set "ConnectionStrings:UsageDatabase" "<SQL_SERVER_CONNECTION_STRING>" --project ResearcherAnalysisService/ResearcherAnalysisService.csproj
-dotnet user-secrets set "Service:ApiKey" "<ANALYSIS_SERVICE_KEY>" --project ResearcherAnalysisService/ResearcherAnalysisService.csproj
 dotnet run --project ResearcherAnalysisService/ResearcherAnalysisService.csproj --launch-profile http
 ```
 
@@ -47,7 +46,7 @@ dotnet user-secrets set "Ai:ApiKey" "<OPENAI_KEY>" --project ResearcherAnalysisS
 
 AI sağlayıcı, model, timeout ve context ayarlarının kayıtlı değerleri [appsettings.json](appsettings.json) içindedir. `AnalysisProducts`, `ArticleSummary`, `ArticleSummaryAutomation`, `FacultyAssistant`, `ArticleReview`, `ArticleEvaluation`, `PublicationMetrics` ve `CollectionChanges` bölümleri kalıcı ürün/worker ayarlarına; `Ai`, `Gemini` ve `Evaluation` stateless model yürütmesine aittir. Değerlendirme varsayılanları [ArticleEvaluationOptions.cs](Configuration/ArticleEvaluationOptions.cs), sürümlü profil/model tanımları [ArticleEvaluationProfileCatalog.cs](Analysis/ArticleEvaluationProfileCatalog.cs) kaynak kodundadır; çalışırken geçerli parmak izi ve kullanılabilirlik için `GET /api/v1/evaluations/profiles` kullanın. Collector'ın `academicsettings.json` dosyası bu ürün bölümlerini taşımaz.
 
-`/health` dışındaki Analysis API uçları `Authorization: Bearer` yerine `X-Analysis-Key` header'ını kullanır; değer `Service:ApiKey` ile yapılandırılır. Development'ta anahtar yoksa yalnız loopback erişimine izin verilir; diğer ortamlarda eksik anahtar uzaktan erişimi kapatır. Bilgi/grafik, değerlendirme, İK ve fakülte kalıcı ürünleri buna ek olarak `IAcademicProductAccessService` sınırını kullanır; servis anahtarı özne yetkisi yerine geçmez. Varsayılan ürün adaptörü kapalıdır: anonim istek `401`, kimliği doğrulanmış fakat eşlemesi yapılandırılmamış istek `503`, yetki reddi ise kayıt varlığını açığa çıkarmayan `404` alır. Güvenilir kimlik, actor ve `PersonelID` kapsamını deployment adaptörü sağlar; korunan ürünlerde `PersonelID` tek başına yetki değildir. Araştırmacı, makale ve metrik uyumluluk işlemleri mevcut kaynak ilişkisi kontrollerini korur, ayrıca ürün adaptörü çağırmaz.
+Bilgi/grafik, değerlendirme, İK ve fakülte kalıcı ürünleri `IAcademicProductAccessService` sınırını kullanır. Varsayılan ürün adaptörü kapalıdır: anonim istek `401`, kimliği doğrulanmış fakat eşlemesi yapılandırılmamış istek `503`, yetki reddi ise kayıt varlığını açığa çıkarmayan `404` alır. Güvenilir kimlik, actor ve `PersonelID` kapsamını deployment adaptörü sağlar; korunan ürünlerde `PersonelID` tek başına yetki değildir. Araştırmacı, makale ve metrik uyumluluk işlemleri mevcut kaynak ilişkisi kontrollerini korur, ayrıca ürün adaptörü çağırmaz.
 
 Gemini üretim denemesi gönderilmeden önce kullanım kaydı `Pending` yazılır. Kullanım defteri erişilemiyorsa ücretli çağrı gönderilmez. Migration zinciri fresh veritabanında Analysis Service'in güncel final şemasını doğrudan oluşturur; şema değişikliklerinde geliştirme veritabanı sıfırlanır.
 
