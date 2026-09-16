@@ -233,6 +233,11 @@ public sealed class ServiceBoundaryFlowTests
         Assert.NotNull(await manualWorkflow.SummarizeAsync(
             "person-1", 1, "tr", CancellationToken.None));
         Assert.Equal(1, manualGenerations);
+        SavedArticleSummary manualSummary = await database.ArticleSummaries.AsNoTracking()
+            .Where(value => value.PersonelId == "person-1" && value.OriginalAcademicWorkId == 1)
+            .OrderByDescending(value => value.Id).FirstAsync();
+        Assert.Contains("Different synthetic abstract", manualSummary.SnapshotJson);
+        Assert.DoesNotContain("Other person's canonical source", manualSummary.SnapshotJson);
         CanonicalArticleEvidenceResponse? currentEvidence =
             await new CanonicalArticleEvidenceQueryService(database).GetLatestAsync(
                 "person-1", 101, "tr", 0, 20, CancellationToken.None);
@@ -433,13 +438,23 @@ public sealed class ServiceBoundaryFlowTests
             await ExecuteAsync("""
                 INSERT INTO [core].[AcademicWorks]
                     ([Id],[PersonelID],[Provider],[ProviderWorkId],[Title],[Doi],[Category],[CategorySource],[Abstract],[SyncedAt])
-                VALUES (1,N'person-1',N'Orcid',N'recycled-work',N'Different work',N'10.1000/recycled',
-                    N'Article',N'Orcid',N'Different synthetic abstract.',SYSUTCDATETIME());
+                VALUES
+                    (1,N'person-1',N'Orcid',N'recycled-work',N'Different work',N'10.1000/recycled',
+                        N'Article',N'Orcid',NULL,SYSUTCDATETIME()),
+                    (3,N'person-1',N'OpenAlex',N'recycled-metadata-match',N'Different work',NULL,
+                        N'Article',N'OpenAlex',N'Different synthetic abstract.',SYSUTCDATETIME()),
+                    (4,N'person-2',N'OpenAlex',N'other-person-source',N'Different work',NULL,
+                        N'Article',N'OpenAlex',N'Other person''s canonical source.',SYSUTCDATETIME());
                 INSERT INTO [core].[CanonicalWorkObservations]
                     ([Id],[CanonicalWorkId],[AcademicWorkId],[PersonelID],[Provider],[ProviderWorkId],
                      [TitleObserved],[DoiObserved],[CategoryObserved],[ObservedAt])
-                VALUES (1,101,1,N'person-1',N'Orcid',N'recycled-work',N'Different work',N'10.1000/recycled',
-                    N'Article',SYSUTCDATETIME());
+                VALUES
+                    (1,101,1,N'person-1',N'Orcid',N'recycled-work',N'Different work',N'10.1000/recycled',
+                        N'Article',SYSUTCDATETIME()),
+                    (3,101,3,N'person-1',N'OpenAlex',N'recycled-metadata-match',N'Different work',NULL,
+                        N'Article',SYSUTCDATETIME()),
+                    (4,101,4,N'person-2',N'OpenAlex',N'other-person-source',N'Different work',NULL,
+                        N'Article',SYSUTCDATETIME());
                 INSERT INTO [core].[CanonicalResearcherWorks] ([CanonicalWorkId],[PersonelID],[LastObservedAt])
                 VALUES (101,N'person-1',SYSUTCDATETIME());
                 INSERT INTO [core].[CollectionChanges]
