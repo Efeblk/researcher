@@ -13,18 +13,23 @@ public sealed class ResearcherMetricsService(
 {
     public async Task<DateTime> RecalculateAsync(
         string personelId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IProgress<ResearcherMetricsProgress>? progress = null)
     {
         if (dbContext.ChangeTracker.HasChanges())
             throw new InvalidOperationException("Metric recalculation requires all pending changes to be saved first.");
 
+        Report(progress, "connecting-database", "Metrik işlemi için veritabanı bağlantısı hazırlanıyor.");
         await using IDbContextTransaction transaction =
             await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        Report(progress, "waiting-global-gate", "Diğer veri yazma işlemlerinin tamamlanması bekleniyor.");
         await canonicalWorkSynchronizer.AcquireWriteGateAsync(cancellationToken);
+        Report(progress, "waiting-researcher-lock", "Akademisyene ait etkin işlemlerin tamamlanması bekleniyor.");
         await canonicalWorkSynchronizer.AcquireResearcherLockAsync(personelId, cancellationToken);
         // The lock may have waited behind a collector using another DbContext; reload saved state.
         dbContext.ChangeTracker.Clear();
 
+        Report(progress, "loading", "Kayıtlı akademisyen ve sağlayıcı verileri yükleniyor.");
         Researcher researcher = await dbContext.Researchers
             .Include(value => value.OpenAlexProfile)
             .Include(value => value.GoogleScholarProfile)
@@ -36,9 +41,13 @@ public sealed class ResearcherMetricsService(
 
         object?[] before = MetricValues(researcher);
 
+        Report(progress, "calculating-openalex", "OpenAlex metrikleri hesaplanıyor.");
         ApplyOpenAlex(researcher);
+        Report(progress, "calculating-google-scholar", "Google Scholar metrikleri hesaplanıyor.");
         ApplyScholar(researcher);
+        Report(progress, "calculating-scopus", "Scopus metrikleri hesaplanıyor.");
         ApplyScopus(researcher);
+        Report(progress, "calculating-web-of-science", "Web of Science metrikleri hesaplanıyor.");
         ApplyWebOfScience(researcher);
 
         if (!before.SequenceEqual(MetricValues(researcher)))
@@ -55,10 +64,16 @@ public sealed class ResearcherMetricsService(
         }
 
         DateTime recalculatedAt = DateTime.UtcNow;
+        Report(progress, "saving", "Hesaplanan metrikler kaydediliyor.");
         await dbContext.SaveChangesAsync(cancellationToken);
+        Report(progress, "committing", "Metrik güncellemesi tamamlanıyor.");
         await transaction.CommitAsync(cancellationToken);
         return recalculatedAt;
     }
+
+    private static void Report(
+        IProgress<ResearcherMetricsProgress>? progress, string stage, string message) =>
+        progress?.Report(new() { Stage = stage, Message = message });
 
     private static void ApplyOpenAlex(Researcher researcher)
     {

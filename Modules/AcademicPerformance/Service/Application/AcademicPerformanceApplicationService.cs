@@ -53,6 +53,14 @@ public sealed class AcademicPerformanceApplicationService :
         ResearcherMetricsRequest request,
         CancellationToken cancellationToken = default)
     {
+        return await RecalculateMetricsAsync(request, progress: null, cancellationToken);
+    }
+
+    public async Task<ResearcherMetricsResponse> RecalculateMetricsAsync(
+        ResearcherMetricsRequest request,
+        IProgress<ResearcherMetricsProgress>? progress,
+        CancellationToken cancellationToken = default)
+    {
         string personelId = request.PersonelId?.Trim() ?? string.Empty;
         if (personelId.Length == 0)
             throw new ArgumentException("PersonelID is required.");
@@ -60,7 +68,7 @@ public sealed class AcademicPerformanceApplicationService :
             throw new ArgumentException("PersonelID must be at most 200 characters.");
 
         DateTime recalculatedAt = await _researcherMetricsService.RecalculateAsync(
-            personelId, cancellationToken);
+            personelId, cancellationToken, progress);
         return new()
         {
             PersonelId = personelId,

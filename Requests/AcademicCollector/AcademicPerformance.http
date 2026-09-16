@@ -56,6 +56,15 @@ Content-Type: application/json
   "PersonelID": "{{personelId}}"
 }
 
+### Recalculate saved metrics with live NDJSON progress (same route)
+POST {{api}}/RecalculateMetrics
+Content-Type: application/json
+Accept: application/x-ndjson
+
+{
+  "PersonelID": "P-1001"
+}
+
 ### 4. Kaydedilmiş araştırmacıyı oku [okuma]
 # Tek bir PersonelID, ORCID, ScholarID, ResearcherID, ScopusID veya TcKimlikNo yeterlidir.
 # Birden fazla kimlik verilirse hepsi aynı kayda ait olmalıdır. Bu istek sağlayıcı çağrısı yapmaz.
