@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Persistence;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
@@ -11,13 +10,6 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.
 
 public sealed class YoksisCollectionHandler
 {
-    private static readonly Regex OrcidPattern = new(
-        @"^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-    private static readonly Regex WebOfScienceResearcherIdPattern = new(
-        @"^[A-Z]{1,3}-\d{4}-\d{4}$",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-
     private readonly YoksisCollectionService _collectionService;
     private readonly YoksisRecordSynchronizer _recordSynchronizer;
     private readonly YoksisAcademicWorkSynchronizer _workSynchronizer;
@@ -161,32 +153,11 @@ public sealed class YoksisCollectionHandler
             return researcher;
         }
 
-        researcher.Orcid = NormalizeOrcid(Get(identityRecord, "ORCID"));
-        researcher.WebOfScienceResearcherId = NormalizeResearcherId(
-            Get(identityRecord, "RESEARCHER_ID"));
         researcher.FirstName = Get(identityRecord, "PERSONEL_ADI");
         researcher.LastName = Get(identityRecord, "PERSONEL_SOYADI");
         researcher.AcademicTitle = Get(identityRecord, "KADRO_UNVAN_ADI");
         researcher.Department = Get(identityRecord, "KADRO_YERI");
         return researcher;
-    }
-
-    private static string? NormalizeOrcid(string? value)
-    {
-        string? normalized = value?.Trim();
-        return !string.IsNullOrWhiteSpace(normalized) &&
-            OrcidPattern.IsMatch(normalized)
-            ? normalized.ToUpperInvariant()
-            : null;
-    }
-
-    private static string? NormalizeResearcherId(string? value)
-    {
-        string? normalized = value?.Trim();
-        return !string.IsNullOrWhiteSpace(normalized) &&
-            WebOfScienceResearcherIdPattern.IsMatch(normalized)
-            ? normalized.ToUpperInvariant()
-            : null;
     }
 
     private static string? Get(

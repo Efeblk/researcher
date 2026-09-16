@@ -6,20 +6,6 @@ namespace AcademicCollectorDemo.Tests.Unit;
 public sealed class ResearcherCollectionHandlerFeedbackTests
 {
     [Fact]
-    public void ApplySemanticPartial_Deferred_PreservesOnlyDeferredReason()
-    {
-        ProviderCollectionFeedback feedback = new() { ExpectedCount = 4 };
-        feedback.Reasons.Add(new() { Code = "Deferred", Description = "later", AffectedCount = 2 });
-
-        ResearcherCollectionHandler.ApplySemanticPartial(feedback, 2,
-            new InvalidOperationException("bounded"));
-
-        Assert.Equal("Partial", feedback.Status);
-        Assert.Single(feedback.Reasons);
-        Assert.Equal("Deferred", feedback.Reasons[0].Code);
-    }
-
-    [Fact]
     public void PartialEnrichment_FirstCallUnauthorized_ReportsAuthAndRemainingAfterCache()
     {
         ProviderCollectionFeedback feedback = new() { ExpectedCount = 6 };

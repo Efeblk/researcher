@@ -12,6 +12,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using AcademicCollectorDemo.Modules.AcademicPerformance;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Application;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 
 namespace AcademicCollectorDemo.Tests.Integration;
 
@@ -22,6 +23,7 @@ public sealed class YoksisPersistenceTests(SqlServerFixture fixture)
     public async Task CollectAsync_TcOnly_UsesYoksisAndPersistsIdentityWithoutNormalProviderCalls()
     {
         int requestCount = 0;
+        List<Uri> requestedUris = [];
         string personelId = "test-tc-only-" + Guid.NewGuid().ToString("N");
         string tcKimlikNo = new('4', 11);
         IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(
@@ -37,11 +39,15 @@ public sealed class YoksisPersistenceTests(SqlServerFixture fixture)
         services.AddLogging();
         services.AddSingleton(configuration);
         services.AddAcademicPerformanceModule(configuration);
-        services.AddSingleton(new HttpClient(new StubHttpHandler(_ =>
+        services.AddSingleton(new HttpClient(new StubHttpHandler(request =>
         {
             requestCount++;
+            requestedUris.Add(request.RequestUri!);
             return StubHttpHandler.Json(
-                "<Envelope><Body><Response><Sonuc><SonucKod>1</SonucKod></Sonuc></Response></Body></Envelope>");
+                "<Envelope><Body><Response><Sonuc><SonucKod>1</SonucKod></Sonuc>" +
+                "<Record><ORCID>0000-0002-1825-0097</ORCID>" +
+                "<RESEARCHER_ID>A-1009-2008</RESEARCHER_ID></Record>" +
+                "</Response></Body></Envelope>");
         })));
         await using ServiceProvider provider = services.BuildServiceProvider();
         using IServiceScope scope = provider.CreateScope();
@@ -51,6 +57,8 @@ public sealed class YoksisPersistenceTests(SqlServerFixture fixture)
             .CollectAsync(new() { PersonelId = personelId, TcKimlikNo = tcKimlikNo });
 
         Assert.True(requestCount > 0);
+        Assert.All(requestedUris, uri =>
+            Assert.Equal("servisler.yok.gov.tr", uri.Host));
         Assert.True(response.IsSaved, string.Join("\n", response.Messages));
         var saved = await scope.ServiceProvider.GetRequiredService<AcademicDbContext>()
             .Researchers.AsNoTracking().SingleAsync(item => item.PersonelId == personelId);
@@ -58,6 +66,83 @@ public sealed class YoksisPersistenceTests(SqlServerFixture fixture)
         Assert.Null(saved.Orcid);
         Assert.Null(saved.GoogleScholarId);
         Assert.Null(saved.WebOfScienceResearcherId);
+    }
+
+    [Fact]
+    public async Task CollectAsync_ProviderIdentityResponse_DoesNotChangeManuallySuppliedIdentifiers()
+    {
+        string personelId = "test-manual-identity-" + Guid.NewGuid().ToString("N");
+        string tcKimlikNo = new('6', 11);
+        string identitySuffix = Random.Shared.Next(1000, 9999).ToString();
+        string manualOrcid = $"9999-9999-9999-{identitySuffix}";
+        string manualResearcherId = $"Z-{identitySuffix}-{identitySuffix}";
+        List<Uri> requestedUris = [];
+        IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:AcademicDatabase"] = fixture.ConnectionString,
+                ["BulkCollection:WorkerEnabled"] = "false",
+                ["Yoksis:Username"] = Guid.NewGuid().ToString("N"),
+                ["Yoksis:Password"] = Guid.NewGuid().ToString("N"),
+                ["ProviderRequestLimits:Yoksis:MinimumIntervalMilliseconds"] = "0"
+            }).Build();
+        ServiceCollection services = new();
+        services.AddLogging();
+        services.AddSingleton(configuration);
+        services.AddAcademicPerformanceModule(configuration);
+        services.AddSingleton(new HttpClient(new StubHttpHandler(request =>
+        {
+            requestedUris.Add(request.RequestUri!);
+            return StubHttpHandler.Json(
+                "<Envelope><Body><Response><Sonuc><SonucKod>1</SonucKod></Sonuc>" +
+                "<Record><ORCID>0000-0002-1825-0097</ORCID>" +
+                "<RESEARCHER_ID>A-1009-2008</RESEARCHER_ID>" +
+                "<PERSONEL_ADI>Ada</PERSONEL_ADI></Record>" +
+                "</Response></Body></Envelope>");
+        })));
+        await using ServiceProvider provider = services.BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        db.Researchers.Add(new Researcher
+        {
+            PersonelId = personelId,
+            TcKimlikNo = tcKimlikNo,
+            Orcid = manualOrcid,
+            WebOfScienceResearcherId = manualResearcherId,
+            WebOfScienceProfile = new WebOfScienceProfile
+            {
+                LastUpdatedAt = DateTime.UtcNow,
+                DocumentPagesJson = "{\"WOS\":[{}]}",
+                Works = []
+            }
+        });
+        await db.SaveChangesAsync();
+
+        var service = scope.ServiceProvider
+            .GetRequiredService<IAcademicPerformanceApplicationService>();
+        var tcOnlyResponse = await service
+            .CollectAsync(new()
+            {
+                PersonelId = personelId,
+                TcKimlikNo = tcKimlikNo
+            });
+        var explicitIdResponse = await service
+            .CollectAsync(new()
+            {
+                PersonelId = personelId,
+                TcKimlikNo = tcKimlikNo,
+                WebOfScienceResearcherId = manualResearcherId
+            });
+
+        Assert.True(tcOnlyResponse.IsSaved, string.Join("\n", tcOnlyResponse.Messages));
+        Assert.True(explicitIdResponse.IsSaved, string.Join("\n", explicitIdResponse.Messages));
+        Assert.All(requestedUris, uri =>
+            Assert.Equal("servisler.yok.gov.tr", uri.Host));
+        db.ChangeTracker.Clear();
+        Researcher saved = await db.Researchers.SingleAsync(item => item.PersonelId == personelId);
+        Assert.Equal(manualOrcid, saved.Orcid);
+        Assert.Equal(manualResearcherId, saved.WebOfScienceResearcherId);
+        Assert.Equal("Ada", saved.FirstName);
     }
 
     [Fact]

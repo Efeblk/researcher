@@ -13,6 +13,37 @@ namespace AcademicCollectorDemo.Tests.Integration;
 public sealed class CanonicalWorkSynchronizerTests(SqlServerFixture fixture)
 {
     [Fact]
+    public async Task AcquireWriteGateAsync_CommitAndRollback_ReleaseGateForNextResearcher()
+    {
+        await HoldAndReleaseGateAsync(commit: true);
+        await SyncInScopeAsync(Id("after-commit"));
+
+        await HoldAndReleaseGateAsync(commit: false);
+        await SyncInScopeAsync(Id("after-rollback"));
+    }
+
+    [Fact]
+    public async Task SyncAsync_GlobalGateTimeout_IsRetryableAndSucceedsAfterHolderRollsBack()
+    {
+        string personelId = Id("gate-timeout");
+        await using AsyncServiceScope holderScope = fixture.Services.CreateAsyncScope();
+        AcademicDbContext holderDb = holderScope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        await using IDbContextTransaction holderTransaction =
+            await holderDb.Database.BeginTransactionAsync();
+        await holderScope.ServiceProvider.GetRequiredService<CanonicalWorkSynchronizer>()
+            .AcquireWriteGateAsync();
+
+        CanonicalWorkLockException exception = await Assert.ThrowsAsync<CanonicalWorkLockException>(
+            () => SyncInScopeAsync(personelId));
+
+        Assert.Equal(-1, exception.SqlResult);
+        Assert.Equal("ortak yayın kayıt kilidi", exception.LockScope);
+        Assert.True(exception.IsRetryable);
+        await holderTransaction.RollbackAsync();
+        await SyncInScopeAsync(personelId);
+    }
+
+    [Fact]
     public async Task SyncAsync_ConcurrentDoiVariants_CreatesOneCanonicalWithCompleteProvenance()
     {
         string firstId = Id("canonical-a");
@@ -420,6 +451,19 @@ public sealed class CanonicalWorkSynchronizerTests(SqlServerFixture fixture)
         await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<CanonicalWorkSynchronizer>()
             .SyncAsync(personelId);
+    }
+
+    private async Task HoldAndReleaseGateAsync(bool commit)
+    {
+        await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
+        AcademicDbContext db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync();
+        await scope.ServiceProvider.GetRequiredService<CanonicalWorkSynchronizer>()
+            .AcquireWriteGateAsync();
+        if (commit)
+            await transaction.CommitAsync();
+        else
+            await transaction.RollbackAsync();
     }
 
     private async Task SeedAsync(string personelId, params AcademicWork[] works)

@@ -133,6 +133,7 @@ Content-Type: application/json
 }
 
 ### 9. İsteğe bağlı: Semantic Scholar verisini yenile [sağlayıcı çağrısı + yazma]
+# Semantic Scholar normal Collect ve bulk akışında otomatik çağrılmaz; bu endpoint PersonelID için açıkça çalıştırır.
 # Ön koşul: DOI içeren kaydedilmiş yayın. Yanıttaki HasPendingWork=true ise çağrı güvenle tekrarlanabilir.
 # Hata/ertelenme yanıtları ErrorCode, ProviderHttpStatusCode, RetryAt ve Retryable tanı alanlarını içerir.
 # Yerel kota ertelemesinde ProviderHttpStatusCode null kalır; RetryAt varsa o zamandan sonra yeniden deneyin.

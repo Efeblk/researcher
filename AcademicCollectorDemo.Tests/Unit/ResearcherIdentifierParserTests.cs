@@ -37,6 +37,17 @@ public sealed class ResearcherIdentifierParserTests
     }
 
     [Fact]
+    public void Create_ReportedWebOfScienceResearcherId_AcceptsExactValue()
+    {
+        var researcher = new ResearcherIdentifierParser().Create(new()
+        {
+            Identifiers = ["C-5899-2018"]
+        });
+
+        Assert.Equal("C-5899-2018", researcher.WebOfScienceResearcherId);
+    }
+
+    [Fact]
     public void Create_ScopusOnly_NormalizesNamedIdentifier()
     {
         var researcher = new ResearcherIdentifierParser().Create(new()

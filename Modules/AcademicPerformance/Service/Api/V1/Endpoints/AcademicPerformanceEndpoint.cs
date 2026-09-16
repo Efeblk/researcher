@@ -13,11 +13,18 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Endpoints;
 public sealed class AcademicPerformanceEndpoint : ServiceEndpoint
 {
     [HttpPost]
-    public Task<AcademicDataResponse> Collect(
+    public async Task<AcademicDataResponse> Collect(
         AcademicDataCollectRequest request,
         [FromServices] IAcademicPerformanceApplicationService applicationService)
     {
-        return applicationService.CollectAsync(request);
+        try
+        {
+            return await applicationService.CollectAsync(request);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new ValidationError("ValidationError", exception.Message);
+        }
     }
 
     [HttpPost]

@@ -73,7 +73,6 @@ public sealed class ScopusClient(HttpClient httpClient, IConfiguration configura
         profile.SearchPagesJson = JsonSerializer.Serialize(
             pages.Select(pageJson => JsonNode.Parse(pageJson)).ToList());
         profile.LastUpdatedAt = DateTime.UtcNow;
-        researcher.ScopusId = normalizedId;
         researcher.ScopusProfile = profile;
     }
 
