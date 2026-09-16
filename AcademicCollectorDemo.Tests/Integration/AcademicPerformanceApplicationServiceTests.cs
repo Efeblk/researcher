@@ -3,9 +3,12 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Application;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Persistence;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 using System.Net;
 using System.Net.Http.Json;
 
@@ -14,6 +17,24 @@ namespace AcademicCollectorDemo.Tests.Integration;
 [Collection("SQL Server")]
 public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture fixture)
 {
+    [Fact]
+    public async Task GetResearcherEndpoint_InvalidOrUnknownSelector_ReturnsSafeValidationError()
+    {
+        using HostProcess host = new(fixture.ConnectionString);
+        await host.WaitUntilReadyAsync();
+
+        using HttpResponseMessage invalid = await host.Client.PostAsJsonAsync(
+            "/Services/AcademicPerformance/V1/GetResearcher", new { ScopusID = "invalid" });
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+
+        using HttpResponseMessage unknown = await host.Client.PostAsJsonAsync(
+            "/Services/AcademicPerformance/V1/GetResearcher",
+            new { PersonelID = "unknown-" + Guid.NewGuid().ToString("N") });
+        Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
+        string responseBody = await unknown.Content.ReadAsStringAsync();
+        Assert.Contains("Akademisyen kaydı bulunamadı.", responseBody);
+    }
+
     [Fact]
     public async Task RecalculateMetricsEndpoint_InvalidOrUnknownPersonelId_ReturnsValidationError()
     {
@@ -57,6 +78,113 @@ public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture 
         var response = await service.GetResearcherAsync(new() { PersonelId = personelId });
         Assert.Equal(7, response.Researcher!.OpenAlexProfile!.WorksCount);
         Assert.Equal(1, response.Researcher.OpenAlexProfile.CollectedWorksCount);
+    }
+
+    [Fact]
+    public async Task GetResearcherAsync_EachIdentityWithoutPersonelId_ReturnsStoredDataWithoutWrites()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        string suffix = Guid.NewGuid().ToString("N");
+        string digits = string.Concat(suffix.Select(value => (char)('0' + (value % 10))));
+        string personelId = "lookup-" + suffix;
+        string orcid = $"{digits[..4]}-{digits[4..8]}-{digits[8..12]}-{digits[12..16]}";
+        string scholarId = suffix[..12];
+        string researcherId = $"A-{digits[16..20]}-{digits[20..24]}";
+        string scopusId = "57" + digits[24..31];
+        string tcKimlikNo = "1" + digits[..10];
+        DateTime lastUpdatedAt = DateTime.UtcNow.AddDays(-2);
+        var researcher = new Researcher
+        {
+            PersonelId = personelId,
+            Orcid = orcid.ToUpperInvariant(),
+            GoogleScholarId = scholarId,
+            WebOfScienceResearcherId = researcherId.ToUpperInvariant(),
+            ScopusId = scopusId,
+            TcKimlikNo = tcKimlikNo,
+            LastUpdatedAt = lastUpdatedAt,
+            ScopusProfile = new ScopusProfile
+            {
+                ScopusAuthorId = scopusId,
+                DisplayName = "Synthetic Researcher",
+                DocumentsCount = 2,
+                HIndex = 1,
+                LastUpdatedAt = lastUpdatedAt
+            }
+        };
+        db.Researchers.Add(researcher);
+        db.AcademicWorks.Add(new AcademicWork
+        {
+            PersonelId = personelId,
+            Provider = AcademicWorkProvider.Yoksis,
+            ProviderWorkId = "synthetic-work",
+            Title = "Synthetic publication",
+            SyncedAt = lastUpdatedAt
+        });
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        DateTime? storedLastUpdatedAt = (await db.Researchers.AsNoTracking()
+            .SingleAsync(value => value.PersonelId == personelId)).LastUpdatedAt;
+        var service = scope.ServiceProvider
+            .GetRequiredService<IAcademicPerformanceApplicationService>();
+        AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts.AcademicResearcherRequest[] requests =
+        [
+            new() { PersonelId = "  " + personelId + "  " },
+            new() { Orcid = "  " + orcid.ToLowerInvariant() + "  " },
+            new() { GoogleScholarId = "  " + scholarId + "  " },
+            new() { WebOfScienceResearcherId = "  " + researcherId.ToLowerInvariant() + "  " },
+            new() { ScopusId = "  " + scopusId + "  " },
+            new() { TcKimlikNo = "  " + tcKimlikNo + "  " }
+        ];
+
+        foreach (var request in requests)
+        {
+            var response = await service.GetResearcherAsync(request);
+            Assert.Equal(personelId, response.Researcher!.PersonelId);
+            Assert.Equal("Synthetic Researcher", response.Researcher.ScopusProfile!.DisplayName);
+            Assert.Equal(1, response.YoksisPublicationCount);
+        }
+
+        db.ChangeTracker.Clear();
+        Assert.Equal(storedLastUpdatedAt, (await db.Researchers.AsNoTracking()
+            .SingleAsync(value => value.PersonelId == personelId)).LastUpdatedAt);
+    }
+
+    [Fact]
+    public async Task GetResearcherAsync_ConflictingSelectors_FailsClosed()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        string suffix = Guid.NewGuid().ToString("N");
+        string digits = string.Concat(suffix.Select(value => (char)('0' + (value % 10))));
+        string orcid = $"{digits[..4]}-{digits[4..8]}-{digits[8..12]}-{digits[12..16]}";
+        string scopusId = "57" + digits[..9];
+        db.Researchers.AddRange(
+            new Researcher { PersonelId = "lookup-a-" + suffix, Orcid = orcid.ToUpperInvariant() },
+            new Researcher { PersonelId = "lookup-b-" + suffix, ScopusId = scopusId });
+        await db.SaveChangesAsync();
+        var service = scope.ServiceProvider
+            .GetRequiredService<IAcademicPerformanceApplicationService>();
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.GetResearcherAsync(new()
+        {
+            Orcid = orcid,
+            ScopusId = scopusId
+        }));
+    }
+
+    [Fact]
+    public async Task GetResearcherAsync_EmptyOrInvalidSelector_RejectsSafely()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var service = scope.ServiceProvider
+            .GetRequiredService<IAcademicPerformanceApplicationService>();
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.GetResearcherAsync(new()));
+        await Assert.ThrowsAsync<ArgumentException>(() => service.GetResearcherAsync(new()
+        {
+            TcKimlikNo = "synthetic-invalid"
+        }));
     }
 
     [Fact]

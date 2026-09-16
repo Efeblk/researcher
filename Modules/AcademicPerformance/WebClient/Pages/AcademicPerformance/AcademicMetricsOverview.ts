@@ -3,6 +3,7 @@ import type {
 } from "../../Contracts/AcademicPerformanceContracts";
 
 type Researcher = ResearcherCollectResponse["Researcher"];
+type YoksisMetricSource = YoksisCollectResponse | number;
 
 export interface AcademicMetricProvider {
     provider: string;
@@ -13,7 +14,7 @@ export interface AcademicMetricProvider {
 
 export function mapAcademicMetricProviders(
     researcher?: Researcher,
-    yoksis?: YoksisCollectResponse): AcademicMetricProvider[] {
+    yoksis?: YoksisMetricSource): AcademicMetricProvider[] {
     return [
         {
             provider: "ORCID",
@@ -40,11 +41,14 @@ export function mapAcademicMetricProviders(
             hIndex: definedNumber(researcher?.OpenAlexProfile?.HIndex)
         },
         {
+            provider: "Scopus",
+            publications: definedNumber(researcher?.ScopusProfile?.DocumentsCount),
+            citations: definedNumber(researcher?.ScopusProfile?.CitationCount),
+            hIndex: definedNumber(researcher?.ScopusProfile?.HIndex)
+        },
+        {
             provider: "YÖKSİS",
-            publications: yoksis?.IsSaved === true &&
-                (yoksis.SuccessfulCategoryCount ?? 0) > 0
-                ? definedNumber(yoksis?.YoksisPublicationCount)
-                : undefined,
+            publications: getYoksisPublicationCount(yoksis),
             citations: undefined,
             hIndex: undefined
         }
@@ -53,7 +57,7 @@ export function mapAcademicMetricProviders(
 
 export function showAcademicMetricsOverview(
     researcher?: Researcher,
-    yoksis?: YoksisCollectResponse,
+    yoksis?: YoksisMetricSource,
     root: ParentNode = document) {
     const panel = root.querySelector<HTMLDetailsElement>("#AcademicMetricsOverview");
     const grid = root.querySelector<HTMLElement>("#AcademicMetricsProviderGrid");
@@ -132,4 +136,12 @@ function formatMetric(value: number | undefined) {
 
 function definedNumber(value: number | null | undefined) {
     return value == null ? undefined : value;
+}
+
+function getYoksisPublicationCount(source?: YoksisMetricSource) {
+    if (typeof source === "number")
+        return source;
+    return source?.IsSaved === true && (source.SuccessfulCategoryCount ?? 0) > 0
+        ? definedNumber(source.YoksisPublicationCount)
+        : undefined;
 }
