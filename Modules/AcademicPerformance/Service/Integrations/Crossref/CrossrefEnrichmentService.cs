@@ -1,16 +1,19 @@
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref;
 
 public sealed class CrossrefEnrichmentService(AcademicDbContext dbContext, CrossrefClient client,
     IConfiguration configuration)
 {
-    public async Task<int> EnrichAsync(string personelId, CancellationToken cancellationToken = default)
+    public async Task<int> EnrichAsync(string personelId, CancellationToken cancellationToken = default,
+        ProviderCollectionFeedback? feedback = null)
     {
         if (!configuration.GetValue("ProviderRequestLimits:Crossref:Enabled", true))
         {
+            SetSkipped(feedback, "Disabled", "Crossref yerel yapılandırmada devre dışı.");
             return 0;
         }
         int cacheHours = configuration.GetValue("Crossref:CacheMaxAgeHours", 720);
@@ -26,6 +29,15 @@ public sealed class CrossrefEnrichmentService(AcademicDbContext dbContext, Cross
             .Where(x => x.PersonelId == personelId)
             .ToListAsync(cancellationToken);
         int fetched = 0;
+        int notFound = 0;
+        if (feedback is not null)
+        {
+            feedback.Unit = "DOI";
+            feedback.ExpectedCount = dois.Count;
+            int freshCount = cached.Count(x => dois.Contains(x.Doi, StringComparer.OrdinalIgnoreCase) &&
+                x.FetchedAt >= freshAfter);
+            if (freshCount > 0) feedback.Reasons.Add(new() { Code = "Cached", Description = "DOI önbellekte güncel.", AffectedCount = freshCount });
+        }
         foreach (string doi in dois)
         {
             CrossrefWork? existing = cached.FirstOrDefault(x => x.Doi == doi);
@@ -53,8 +65,21 @@ public sealed class CrossrefEnrichmentService(AcademicDbContext dbContext, Cross
             }
             await dbContext.SaveChangesAsync(cancellationToken);
             fetched++;
+            if (!incoming.Found) notFound++;
+        }
+        if (feedback is not null)
+        {
+            feedback.RetrievedCount = fetched; feedback.Status = "Succeeded";
+            if (notFound > 0) feedback.Reasons.Add(new() { Code = "NotFound", Description = "Crossref DOI kaydı bulunamadı.", AffectedCount = notFound });
         }
         return fetched;
+    }
+
+    private static void SetSkipped(ProviderCollectionFeedback? feedback, string code, string description)
+    {
+        if (feedback is null) return;
+        feedback.Status = "Skipped";
+        feedback.Reasons.Add(new() { Code = code, Description = description });
     }
 
     private static bool IsDoi(string value) =>

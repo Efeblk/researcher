@@ -16,6 +16,11 @@ public sealed class YoksisCollectResponse : ServiceResponse
     public int SuccessfulCategoryCount { get; set; }
     public int FailedCategoryCount { get; set; }
     public int TotalRecordCount { get; set; }
+    public int? PublicationDetailTotalCount { get; set; } = null;
+    public int PublicationDetailRetrievedCount { get; set; }
+    public int PublicationDetailFailedCount { get; set; }
+    public List<YoksisFailureSummary> PublicationFailureReasons { get; set; } = [];
+    public List<YoksisFailureSummary> FailureReasons { get; set; } = [];
     public List<string> Messages { get; set; } = [];
     public List<YoksisOperationResult> Categories { get; set; } = [];
 }

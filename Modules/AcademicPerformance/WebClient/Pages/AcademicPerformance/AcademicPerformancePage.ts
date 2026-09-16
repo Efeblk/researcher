@@ -10,7 +10,8 @@ import {
 } from "./AcademicMetricsOverview";
 import {
     showProfileSummary, showWebOfScienceSummary, showProviderComparison,
-    showGoogleScholarSummary, showOpenAlexSummary, showYoksisSummary
+    showGoogleScholarSummary, showOpenAlexSummary, showProviderCollectionFeedback,
+    showYoksisSummary
 } from "./ResearcherSummaryPanels";
 
 const providerIdentifierStorageKey = "AcademicPerformance.ProviderIdentifiers.v1";
@@ -164,6 +165,7 @@ function showPublicationState(count: number) {
 }
 
 function clearResearcherResults() {
+    showProviderCollectionFeedback();
     grid.setResearcher("");
     showProfileSummary(undefined);
     showGoogleScholarSummary(undefined);
@@ -243,6 +245,7 @@ form?.addEventListener("submit", async event => {
 
                 const savedPersonelId = response.Researcher?.PersonelID ?? "";
                 const messages = (response.Messages ?? []).filter(Boolean).join("\n");
+                showProviderCollectionFeedback(response.ProviderFeedback);
 
                 if (response.IsSaved && savedPersonelId) {
                     researcherDisplayName = [
@@ -306,6 +309,14 @@ form?.addEventListener("submit", async event => {
 
                 showYoksisSummary(response);
 
+                const retrievedPublicationCount = response.PublicationDetailRetrievedCount ?? 0;
+                const publicationTotal = response.PublicationDetailTotalCount;
+                statusMessages.push(publicationTotal == null
+                    ? `YÖKSİS yayın ayrıntısı: ${retrievedPublicationCount.toLocaleString("tr-TR")} alındı; ` +
+                        "toplam sayı belirlenemedi. Nedenler YÖKSİS özetinde gösteriliyor."
+                    : `YÖKSİS yayın ayrıntısı: ${retrievedPublicationCount.toLocaleString("tr-TR")} / ` +
+                        `${publicationTotal.toLocaleString("tr-TR")} alındı.`);
+
                 if (response.IsSaved && savedPersonelId) {
                     linkedPersonelId = updateSelectionTarget(
                         linkedPersonelId, response.IsSaved, savedPersonelId);
@@ -328,7 +339,8 @@ form?.addEventListener("submit", async event => {
 
                 if (failedCount > 0) {
                     errors.push(
-                        `YÖKSİS: ${failedCount.toLocaleString("tr-TR")} kategori alınamadı.`);
+                        `YÖKSİS: ${failedCount.toLocaleString("tr-TR")} kategori eksik kaldı; ` +
+                        "nedenler YÖKSİS özetinde gösteriliyor.");
                 }
             }
             catch (error) {

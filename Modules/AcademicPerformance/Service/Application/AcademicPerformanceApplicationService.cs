@@ -164,7 +164,8 @@ public sealed class AcademicPerformanceApplicationService :
             CollectedAt = DateTime.UtcNow,
             Messages = (yoksisResponse?.Messages ?? []).Concat(collectionResponse.Messages)
                 .Concat(normalization.Warnings.Select(warning => "[UYARI] " + warning)).ToList(),
-            Warnings = normalization.Warnings
+            Warnings = normalization.Warnings,
+            ProviderFeedback = collectionResponse.ProviderFeedback
         };
     }
 

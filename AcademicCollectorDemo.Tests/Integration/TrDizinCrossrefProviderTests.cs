@@ -79,12 +79,17 @@ public sealed class TrDizinCrossrefProviderTests(SqlServerFixture fixture)
             configuration);
         List<string> messages = [];
 
-        await service.CollectAsync(
+        List<ProviderCollectionFeedback> feedback = await service.CollectAsync(
             new Researcher { PersonelId = "disabled", Orcid = "0000-0001-8560-7482" },
             new Researcher { Orcid = "0000-0001-8560-7482" },
             messages);
 
         Assert.Equal(0, trDizinRequests);
+        ProviderCollectionFeedback trDizin = Assert.Single(feedback,
+            item => item.Provider == "TR Dizin");
+        Assert.Equal("Skipped", trDizin.Status);
+        Assert.Contains(trDizin.Reasons, reason => reason.Code == "Disabled" &&
+            reason.AffectedCount is null);
         Assert.Contains(messages, message => message.Contains("TR Dizin") && message.StartsWith("[ATLANDI]"));
     }
 

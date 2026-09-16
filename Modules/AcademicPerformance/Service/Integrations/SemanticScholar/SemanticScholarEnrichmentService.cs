@@ -5,6 +5,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimitin
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.SemanticScholar;
 
@@ -12,9 +13,14 @@ public sealed class SemanticScholarEnrichmentService(
     AcademicDbContext dbContext, SemanticScholarClient client,
     IConfiguration configuration, IOptions<SemanticScholarOptions> configured)
 {
-    public async Task<int> EnrichAsync(string personelId, CancellationToken cancellationToken = default)
+    public async Task<int> EnrichAsync(string personelId, CancellationToken cancellationToken = default,
+        ProviderCollectionFeedback? feedback = null)
     {
-        if (!configuration.GetValue("ProviderRequestLimits:SemanticScholar:Enabled", true)) return 0;
+        if (!configuration.GetValue("ProviderRequestLimits:SemanticScholar:Enabled", true))
+        {
+            if (feedback is not null) { feedback.Status = "Skipped"; feedback.Reasons.Add(new() { Code = "Disabled", Description = "Semantic Scholar yerel yapılandırmada devre dışı." }); }
+            return 0;
+        }
         SemanticScholarOptions options = configured.Value;
         DateTime freshAfter = DateTime.UtcNow.AddHours(-options.CacheMaxAgeHours);
         List<string> dois = (await dbContext.AcademicWorks.AsNoTracking()
@@ -27,21 +33,69 @@ public sealed class SemanticScholarEnrichmentService(
                 (!x.Found || x.CitationsComplete || x.CitationNextOffset >= options.MaximumCitationsPerPaper))
             .Select(x => x.NormalizedDoi).ToListAsync(cancellationToken);
         List<string> pending = dois.Except(fresh, StringComparer.OrdinalIgnoreCase).ToList();
+        if (feedback is not null)
+        {
+            feedback.Unit = "DOI"; feedback.ExpectedCount = dois.Count;
+            if (fresh.Count > 0) feedback.Reasons.Add(new() { Code = "Cached", Description = "DOI önbellekte güncel.", AffectedCount = fresh.Count });
+        }
         int completed = 0;
         foreach (string doi in pending.Take(options.MaximumPapersPerRun))
         {
-            try { if (await EnrichDoiAsync(doi, freshAfter, options, cancellationToken)) completed++; }
+            try
+            {
+                if (await EnrichDoiAsync(doi, freshAfter, options, cancellationToken))
+                {
+                    completed++;
+                    if (feedback is not null)
+                    {
+                        SemanticScholarPaper? state = await dbContext.SemanticScholarPapers.AsNoTracking()
+                            .SingleOrDefaultAsync(x => x.NormalizedDoi == doi, cancellationToken);
+                        if (state?.Found == false)
+                        {
+                            AddReason(feedback, "NotFound",
+                                "Semantic Scholar DOI kaydı bulunamadı.");
+                        }
+                        if (state is { Found: true, CitationsComplete: false } &&
+                            state.CitationNextOffset >= options.MaximumCitationsPerPaper)
+                        {
+                            AddReason(feedback, "CitationLimit",
+                                "DOI işlendi; atıf sayfalaması güvenlik sınırında eksik kaldı.");
+                        }
+                        feedback.RetrievedCount = completed;
+                    }
+                }
+            }
             catch (Exception exception) when (completed > 0 && exception is not OperationCanceledException)
             { throw new SemanticScholarPartialEnrichmentException(completed, exception); }
         }
         if (pending.Count > options.MaximumPapersPerRun)
         {
+            if (feedback is not null) feedback.Reasons.Add(new() { Code = "Deferred", Description = "DOI sonraki sınırlı çalışmaya ertelendi.", AffectedCount = pending.Count - options.MaximumPapersPerRun });
             DateTime retryAt = DateTime.UtcNow.AddSeconds(5);
             ProviderCallScope.Record("SemanticScholar", true, retryAt, true);
             throw new SemanticScholarPartialEnrichmentException(completed,
                 new InvalidOperationException($"{pending.Count - options.MaximumPapersPerRun} DOI remains for a later bounded run."));
         }
+        if (feedback is not null) feedback.Status = "Succeeded";
         return completed;
+    }
+
+    private static void AddReason(ProviderCollectionFeedback feedback,
+        string code, string description)
+    {
+        ProviderCollectionReason? reason = feedback.Reasons.FirstOrDefault(item => item.Code == code);
+        if (reason is null)
+        {
+            feedback.Reasons.Add(new()
+            {
+                Code = code,
+                Description = description,
+                AffectedCount = 1
+            });
+            return;
+        }
+
+        reason.AffectedCount = (reason.AffectedCount ?? 0) + 1;
     }
 
     private async Task<bool> EnrichDoiAsync(string doi, DateTime freshAfter,

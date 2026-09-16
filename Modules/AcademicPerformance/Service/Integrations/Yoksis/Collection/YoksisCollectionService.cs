@@ -26,6 +26,8 @@ public sealed class YoksisCollectionService
                     operation,
                     tcKimlikNo,
                     request.UpdatedAfter);
+                if (!category.IsSuccess)
+                    AddProviderFailure(category);
                 response.Categories.Add(category);
                 AddFeedback(response.Messages, category);
 
@@ -42,18 +44,19 @@ public sealed class YoksisCollectionService
             }
             catch (Exception exception)
             {
-                category = CreateFailure(operation, exception.Message);
+                category = CreateFailure(operation, exception);
                 response.Categories.Add(category);
                 AddFeedback(response.Messages, category);
             }
         }
 
+        PopulatePublicationCoverage(response);
+
         response.SuccessfulCategoryCount = response.Categories.Count(item =>
             item.IsSuccess);
         response.FailedCategoryCount = response.Categories.Count(item =>
             !item.IsSuccess);
-        response.TotalRecordCount = response.Categories.Sum(item =>
-            item.RecordCount);
+        response.TotalRecordCount = response.Categories.Sum(item => item.RecordCount);
         return response;
     }
 
@@ -88,10 +91,20 @@ public sealed class YoksisCollectionService
         List<string>? identifiers = GetDistinctIdentifiers(
             listResult,
             operation.DetailIdentifierFieldName!);
+        int missingIdentifierCount = listResult.Records.Count(record =>
+            string.IsNullOrWhiteSpace(record.GetValueOrDefault(
+                operation.DetailIdentifierFieldName!)));
+        combinedResult.ExpectedDetailCount = identifiers.Count + missingIdentifierCount;
+        for (int index = 0; index < missingIdentifierCount; index++)
+            AddFailure(combinedResult, "MissingIdentifier");
 
         if (identifiers.Count == 0)
         {
-            combinedResult.ResultMessage = "Ayrıntı istenecek kayıt bulunamadı.";
+            combinedResult.FailedDetailCount = missingIdentifierCount;
+            combinedResult.IsSuccess = missingIdentifierCount == 0;
+            combinedResult.ResultMessage = missingIdentifierCount == 0
+                ? "Ayrıntı istenecek kayıt bulunamadı."
+                : $"{missingIdentifierCount} liste kaydında ayrıntı kimliği yok.";
             return combinedResult;
         }
 
@@ -104,38 +117,186 @@ public sealed class YoksisCollectionService
                     tcKimlikNo,
                     identifier,
                     updatedAfter);
-                Merge(combinedResult, detailResult);
+                MergeDetail(
+                    combinedResult,
+                    detailResult,
+                    operation.DetailIdentifierFieldName!,
+                    identifier);
             }
             catch (Exception exception)
             {
-                combinedResult.IsSuccess = false;
                 combinedResult.RequestCount++;
-                combinedResult.Errors.Add(
-                    $"{operation.DetailIdentifierFieldName}={identifier}: " +
-                    exception.Message);
+                AddFailure(combinedResult, ClassifyFailure(exception));
             }
         }
 
         combinedResult.RecordCount = combinedResult.Records.Count;
-        combinedResult.ResultMessage = combinedResult.Errors.Count == 0
+        combinedResult.FailedDetailCount = combinedResult.ExpectedDetailCount.Value -
+            combinedResult.RetrievedDetailCount;
+        combinedResult.IsSuccess = combinedResult.FailedDetailCount == 0;
+        combinedResult.ResultMessage = combinedResult.FailedDetailCount == 0
             ? "Bütün ayrıntılar alındı."
-            : $"{combinedResult.Errors.Count} ayrıntı isteği başarısız oldu.";
+            : $"{combinedResult.FailedDetailCount} ayrıntı isteği tamamlanamadı.";
         return combinedResult;
     }
 
-    private static void Merge(
+    private static void MergeDetail(
         YoksisOperationResult target,
-        YoksisOperationResult source)
+        YoksisOperationResult source,
+        string identifierFieldName,
+        string requestedIdentifier)
     {
         target.RequestCount += source.RequestCount;
-        target.Records.AddRange(source.Records);
         target.RawResponsesXml.AddRange(source.RawResponsesXml);
-        target.Errors.AddRange(source.Errors);
-
-        if (!source.IsSuccess)
+        bool hasMatchingRecord = source.Records.Any(record =>
+            string.Equals(
+                record.GetValueOrDefault(identifierFieldName),
+                requestedIdentifier,
+                StringComparison.Ordinal));
+        if (source.IsSuccess && hasMatchingRecord)
         {
-            target.IsSuccess = false;
+            target.Records.AddRange(source.Records.Where(record =>
+                string.Equals(
+                    record.GetValueOrDefault(identifierFieldName),
+                    requestedIdentifier,
+                    StringComparison.Ordinal)));
+            target.RetrievedDetailCount++;
+            return;
         }
+
+        if (source.IsSuccess)
+        {
+            target.Errors.Add(AddFailure(target, "EmptyDetail"));
+        }
+        else
+        {
+            string resultCode = source.ExternalResultCode ??
+                source.ResultCode?.ToString(System.Globalization.CultureInfo.InvariantCulture) ??
+                "Unknown";
+            string? explanation = SafeProviderExplanation(source.ResultMessage);
+            target.Errors.Add(AddFailure(
+                target,
+                $"ProviderRejected:{resultCode}",
+                explanation is null
+                    ? $"YÖKSİS isteği reddetti (sonuç kodu: {resultCode})"
+                    : $"YÖKSİS isteği reddetti (sonuç kodu: {resultCode}): {explanation}"));
+        }
+    }
+
+    private static void PopulatePublicationCoverage(YoksisCollectResponse response)
+    {
+        string[] publicationDetails = YoksisOperationCatalog.All
+            .Where(x => x.IsPublication)
+            .Select(x => x.DetailOperationName!)
+            .ToArray();
+        string[] publicationLists = YoksisOperationCatalog.All
+            .Where(x => x.IsPublication)
+            .Select(x => x.OperationName)
+            .ToArray();
+        List<YoksisOperationResult> details = response.Categories
+            .Where(x => publicationDetails.Contains(x.OperationName, StringComparer.Ordinal))
+            .ToList();
+        bool allListsSucceeded = publicationLists.All(name => response.Categories
+            .Any(x => x.OperationName == name && x.IsSuccess));
+
+        response.PublicationDetailRetrievedCount = details.Sum(x => x.RetrievedDetailCount);
+        response.PublicationDetailFailedCount = details.Sum(x => x.FailedDetailCount);
+        response.PublicationDetailTotalCount = allListsSucceeded &&
+            details.All(x => x.ExpectedDetailCount.HasValue)
+            ? details.Sum(x => x.ExpectedDetailCount!.Value)
+            : null;
+        response.PublicationFailureReasons = details.SelectMany(x => x.FailureReasons)
+            .GroupBy(x => new { x.Code, x.Description })
+            .Select(group => new YoksisFailureSummary
+            {
+                Code = group.Key.Code,
+                Description = group.Key.Description,
+                AffectedCount = group.Sum(x => x.AffectedCount)
+            })
+            .OrderByDescending(x => x.AffectedCount)
+            .ToList();
+        response.FailureReasons = response.Categories.SelectMany(x => x.FailureReasons)
+            .GroupBy(x => new { x.Code, x.Description })
+            .Select(group => new YoksisFailureSummary
+            {
+                Code = group.Key.Code,
+                Description = group.Key.Description,
+                AffectedCount = group.Sum(x => x.AffectedCount)
+            })
+            .OrderByDescending(x => x.AffectedCount)
+            .ToList();
+    }
+
+    private static string AddFailure(
+        YoksisOperationResult result,
+        string code,
+        string? descriptionOverride = null)
+    {
+        string description = code switch
+        {
+            "EmptyDetail" => "YÖKSİS ayrıntı kaydı döndürmedi",
+            "MissingIdentifier" => "YÖKSİS liste kaydında ayrıntı kimliği yok",
+            "AccessDenied" => "YÖKSİS erişimi reddetti",
+            "TimedOut" => "YÖKSİS zamanında yanıt vermedi",
+            "Configuration" => "YÖKSİS bağlantı ayarı eksik",
+            "ProviderRejected" => "YÖKSİS ayrıntı isteğini kabul etmedi",
+            _ => "YÖKSİS hizmetine ulaşılamadı"
+        };
+        description = descriptionOverride ?? description;
+        YoksisFailureSummary? existing = result.FailureReasons
+            .FirstOrDefault(x => x.Code == code && x.Description == description);
+        if (existing is null)
+        {
+            result.FailureReasons.Add(new()
+            {
+                Code = code,
+                Description = description,
+                AffectedCount = 1
+            });
+        }
+        else
+        {
+            existing.AffectedCount++;
+        }
+        return description;
+    }
+
+    private static string? SafeProviderExplanation(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+            return null;
+        string normalized = string.Join(' ', message.Split(
+            ['\r', '\n', '\t'], StringSplitOptions.RemoveEmptyEntries));
+        return normalized.Length <= 160 ? normalized : normalized[..157] + "...";
+    }
+
+    private static void AddProviderFailure(YoksisOperationResult result)
+    {
+        string resultCode = result.ExternalResultCode ??
+            result.ResultCode?.ToString(System.Globalization.CultureInfo.InvariantCulture) ??
+            "Unknown";
+        string? explanation = SafeProviderExplanation(result.ResultMessage);
+        string safeError = AddFailure(
+            result,
+            $"ProviderRejected:{resultCode}",
+            explanation is null
+                ? $"YÖKSİS isteği reddetti (sonuç kodu: {resultCode})"
+                : $"YÖKSİS isteği reddetti (sonuç kodu: {resultCode}): {explanation}");
+        result.Errors.Clear();
+        result.Errors.Add(safeError);
+    }
+
+    private static string ClassifyFailure(Exception exception)
+    {
+        if (exception is TaskCanceledException or TimeoutException)
+            return "TimedOut";
+        if (exception is InvalidOperationException)
+            return "Configuration";
+        if (exception is HttpRequestException httpException &&
+            httpException.StatusCode is System.Net.HttpStatusCode.Unauthorized or
+                System.Net.HttpStatusCode.Forbidden)
+            return "AccessDenied";
+        return "Unavailable";
     }
 
     private static List<string> GetDistinctIdentifiers(
@@ -160,13 +321,13 @@ public sealed class YoksisCollectionService
 
     private static YoksisOperationResult CreateFailure(
         YoksisOperationDefinition operation,
-        string error)
+        Exception exception)
     {
         YoksisOperationResult? result = new YoksisOperationResult();
         result.CategoryName = operation.CategoryName;
         result.OperationName = operation.OperationName;
         result.IsSuccess = false;
-        result.Errors.Add(error);
+        result.Errors.Add(AddFailure(result, ClassifyFailure(exception)));
         return result;
     }
 

@@ -10,4 +10,5 @@ public sealed class ResearcherCollectResponse : ServiceResponse
     public bool IsSaved { get; set; }
     public string? FailureCode { get; set; } = null;
     public List<string> Messages { get; set; } = [];
+    public List<ProviderCollectionFeedback> ProviderFeedback { get; set; } = [];
 }

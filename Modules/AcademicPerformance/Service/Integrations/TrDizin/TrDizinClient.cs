@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
 using Microsoft.Extensions.Configuration;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
 
@@ -42,13 +43,32 @@ public sealed class TrDizinClient(HttpClient httpClient, IConfiguration configur
             {
                 throw new InvalidDataException("TR Dizin publication id was missing.");
             }
-            string detailJson = (await GetAsync($"{root}/api/publicationById/{Uri.EscapeDataString(publicationId)}", false, cancellationToken))!;
-            using JsonDocument detailDocument = JsonDocument.Parse(detailJson);
-            JsonElement detailHits = detailDocument.RootElement.GetProperty("hits").GetProperty("hits");
-            if (detailHits.ValueKind != JsonValueKind.Array || detailHits.GetArrayLength() != 1)
-                throw new InvalidDataException("TR Dizin publication detail response was invalid.");
-            JsonElement source = detailHits[0].GetProperty("_source");
-            works.Add(Map(publicationId, source, detailJson));
+            try
+            {
+                string detailJson = (await GetAsync(
+                    $"{root}/api/publicationById/{Uri.EscapeDataString(publicationId)}",
+                    false, cancellationToken))!;
+                using JsonDocument detailDocument = JsonDocument.Parse(detailJson);
+                JsonElement detailHits = detailDocument.RootElement
+                    .GetProperty("hits")
+                    .GetProperty("hits");
+                if (detailHits.ValueKind != JsonValueKind.Array || detailHits.GetArrayLength() != 1)
+                {
+                    throw new InvalidDataException(
+                        "TR Dizin publication detail response was invalid.");
+                }
+
+                JsonElement source = detailHits[0].GetProperty("_source");
+                works.Add(Map(publicationId, source, detailJson));
+            }
+            catch (Exception exception) when (
+                exception is not ProviderCollectionException &&
+                (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested))
+            {
+                throw new ProviderCollectionException("DetailFailure",
+                    "TR Dizin yayın ayrıntıları tamamlanamadı; okunan eksik veri kaydedilmedi.",
+                    works.Count, total, exception);
+            }
         }
         return new()
         {

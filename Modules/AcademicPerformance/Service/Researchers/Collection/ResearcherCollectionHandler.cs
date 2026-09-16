@@ -3,6 +3,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Persistence;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Data.SqlClient;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
@@ -75,7 +76,7 @@ public sealed class ResearcherCollectionHandler
 
         response.Researcher = researcher;
 
-        await _collectionService.CollectAsync(
+        response.ProviderFeedback = await _collectionService.CollectAsync(
             researcher,
             requestedResearcher,
             response.Messages);
@@ -119,9 +120,12 @@ public sealed class ResearcherCollectionHandler
                 $"[OK] Veritabanı: {provider} kaydı tamamlandı " +
                 $"(PersonelID: {researcher.PersonelId}).");
             response.Messages.Add(string.Empty);
+            ProviderCollectionFeedback crossrefFeedback = NewEnrichmentFeedback(
+                response, "Crossref");
             try
             {
-                int enriched = await _crossrefEnrichmentService.EnrichAsync(researcher.PersonelId);
+                int enriched = await _crossrefEnrichmentService.EnrichAsync(researcher.PersonelId,
+                    default, crossrefFeedback);
                 if (enriched > 0)
                 {
                     publicationSummaryCount = await SynchronizeCrossrefAsync(researcher);
@@ -130,6 +134,7 @@ public sealed class ResearcherCollectionHandler
             }
             catch (CrossrefPartialEnrichmentException exception)
             {
+                PartialEnrichment(crossrefFeedback, exception.CompletedCount, exception.InnerException);
                 publicationSummaryCount = await SynchronizeCrossrefAsync(researcher);
                 if (!ProviderCallScope.HasFailure("Crossref"))
                     ProviderCallScope.Record("Crossref", false);
@@ -139,21 +144,36 @@ public sealed class ResearcherCollectionHandler
             }
             catch (Exception exception)
             {
+                PartialEnrichment(crossrefFeedback, 0, exception);
                 if (!ProviderCallScope.HasFailure("Crossref"))
                     ProviderCallScope.Record("Crossref", false);
                 response.Messages.Add($"[HATA] Crossref zenginleştirmesi tamamlanamadı: {exception.Message}");
                 response.Messages.Add(string.Empty);
             }
+            ProviderCollectionFeedback semanticScholarFeedback = NewEnrichmentFeedback(
+                response, "Semantic Scholar");
             try
             {
+                if (_semanticScholarEnrichmentService is null)
+                {
+                    semanticScholarFeedback.Status = "Skipped";
+                    semanticScholarFeedback.Reasons.Add(new()
+                    {
+                        Code = "ServiceUnavailable",
+                        Description = "Semantic Scholar zenginleştirme hizmeti kullanılamıyor."
+                    });
+                }
                 int enriched = _semanticScholarEnrichmentService is null ? 0 :
-                    await _semanticScholarEnrichmentService.EnrichAsync(researcher.PersonelId);
+                    await _semanticScholarEnrichmentService.EnrichAsync(researcher.PersonelId,
+                        default, semanticScholarFeedback);
                 if (_semanticScholarWorkSourceSynchronizer is not null)
                     await _semanticScholarWorkSourceSynchronizer.SyncAsync(researcher.PersonelId);
                 response.Messages.Add($"[OK] Semantic Scholar: {enriched} DOI işlendi.");
             }
             catch (SemanticScholarPartialEnrichmentException exception)
             {
+                ApplySemanticPartial(semanticScholarFeedback, exception.CompletedCount,
+                    exception.InnerException);
                 if (_semanticScholarWorkSourceSynchronizer is not null)
                     await _semanticScholarWorkSourceSynchronizer.SyncAsync(researcher.PersonelId);
                 if (!ProviderCallScope.HasFailure("SemanticScholar")) ProviderCallScope.Record("SemanticScholar", true);
@@ -162,6 +182,7 @@ public sealed class ResearcherCollectionHandler
             }
             catch (Exception exception)
             {
+                PartialEnrichment(semanticScholarFeedback, 0, exception);
                 if (!ProviderCallScope.HasFailure("SemanticScholar")) ProviderCallScope.Record("SemanticScholar", false);
                 response.Messages.Add($"[HATA] Semantic Scholar zenginleştirmesi tamamlanamadı: {exception.Message}");
             }
@@ -182,6 +203,65 @@ public sealed class ResearcherCollectionHandler
         }
 
         return response;
+    }
+
+    private static ProviderCollectionFeedback NewEnrichmentFeedback(
+        ResearcherCollectResponse response, string provider)
+    {
+        ProviderCollectionFeedback feedback = new()
+        {
+            Provider = provider, Unit = "DOI", ExpectedCount = null
+        };
+        response.ProviderFeedback.Add(feedback);
+        return feedback;
+    }
+
+    private static void PartialEnrichment(ProviderCollectionFeedback feedback,
+        int processed, string code, string description)
+    {
+        feedback.Status = processed > 0 ? "Partial" : "Failed";
+        feedback.RetrievedCount = processed;
+        feedback.Reasons.Add(new()
+        {
+            Code = code, Description = description, AffectedCount = null
+        });
+    }
+
+    internal static void PartialEnrichment(ProviderCollectionFeedback feedback,
+        int processed, Exception? exception)
+    {
+        (string? code, string? description) = exception is null ? (null, null) :
+            ProviderCollectionException.Classify(exception);
+        PartialEnrichment(feedback, processed, code ?? "ProviderError",
+            description ?? "DOI zenginleştirmesi tamamlanamadı; tamamlanan sonuçlar korundu.");
+        feedback.Reasons[^1].AffectedCount = 1;
+        int cached = feedback.Reasons
+            .Where(reason => reason.Code == "Cached")
+            .Sum(reason => reason.AffectedCount ?? 0);
+        int? notAttempted = feedback.ExpectedCount.HasValue
+            ? Math.Max(0, feedback.ExpectedCount.Value - cached - processed - 1)
+            : null;
+        if (notAttempted > 0)
+        {
+            feedback.Reasons.Add(new()
+            {
+                Code = "NotAttempted",
+                Description = "Önceki hata nedeniyle DOI sorgulanmadı.",
+                AffectedCount = notAttempted
+            });
+        }
+    }
+
+    internal static void ApplySemanticPartial(ProviderCollectionFeedback feedback,
+        int processed, Exception? exception)
+    {
+        if (feedback.Reasons.Any(reason => reason.Code == "Deferred"))
+        {
+            feedback.Status = "Partial";
+            feedback.RetrievedCount = processed;
+            return;
+        }
+        PartialEnrichment(feedback, processed, exception);
     }
 
     private async Task<int> SynchronizeCrossrefAsync(Researcher researcher)

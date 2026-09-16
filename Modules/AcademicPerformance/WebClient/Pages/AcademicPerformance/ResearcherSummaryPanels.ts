@@ -1,4 +1,4 @@
-import type { ResearcherCollectResponse, YoksisCollectResponse } from "../../Contracts/AcademicPerformanceContracts";
+import type { ProviderCollectionFeedback, ResearcherCollectResponse, YoksisCollectResponse } from "../../Contracts/AcademicPerformanceContracts";
 
 const profileSummaryPanel = document.querySelector<HTMLElement>("#ResearcherSummary");
 const googleScholarSummaryPanel = document.querySelector<HTMLElement>(
@@ -12,6 +12,83 @@ const providerComparisonPanel = document.querySelector<HTMLElement>(
     "#ProviderComparison");
 const providerComparisonRows = document.querySelector<HTMLTableSectionElement>(
     "#ProviderComparisonRows");
+
+export function formatProviderCoverage(feedback: ProviderCollectionFeedback) {
+    const retrieved = feedback.RetrievedCount ?? 0;
+    const expected = feedback.ExpectedCount;
+    const unit = feedback.Unit === "DOI" ? "DOI işlendi" : "yayın alındı";
+    if (feedback.Status === "Skipped")
+        return "Atlandı";
+    if (feedback.Status === "Cached")
+        return "Güncel önbellek kullanıldı";
+    const retained = feedback.RetainedCount;
+    if (retained != null)
+        return `${retrieved.toLocaleString("tr-TR")} okundu; ` +
+            `${retained.toLocaleString("tr-TR")} saklandı` +
+            (expected == null ? "; toplam bilinmiyor" :
+                ` / ${expected.toLocaleString("tr-TR")} bekleniyordu`);
+    return expected == null
+        ? `${retrieved.toLocaleString("tr-TR")} ${unit}; toplam bilinmiyor`
+        : `${retrieved.toLocaleString("tr-TR")} / ${expected.toLocaleString("tr-TR")} ${unit}`;
+}
+
+export function formatProviderStatus(status?: string) {
+    return ({ Succeeded: "Tamamlandı", Cached: "Önbellek", Skipped: "Atlandı",
+        NotFound: "Bulunamadı", Partial: "Kısmi", Failed: "Başarısız",
+        CachedOrNoWork: "Güncel" } as Record<string, string>)[status ?? ""] ?? "Bilinmiyor";
+}
+
+export function showProviderCollectionFeedback(feedback?: ProviderCollectionFeedback[]) {
+    const panel = document.querySelector<HTMLElement>("#ProviderCollectionFeedback");
+    const list = document.querySelector<HTMLElement>("#ProviderCollectionFeedbackList");
+    if (!panel || !list || !feedback?.length) {
+        if (panel)
+            panel.hidden = true;
+        list?.replaceChildren();
+        return;
+    }
+    list.replaceChildren();
+    for (const provider of feedback) {
+        const item = document.createElement("div");
+        item.className = provider.Status === "Failed"
+            ? "academic-category-result error"
+            : provider.Status === "Partial"
+                ? "academic-category-result warning"
+                : "academic-category-result";
+        const name = document.createElement("strong");
+        name.textContent = provider.Provider ?? "Sağlayıcı";
+        const coverage = document.createElement("span");
+        coverage.textContent = `${formatProviderStatus(provider.Status)} · ${formatProviderCoverage(provider)}`;
+        item.append(name, coverage);
+        for (const reason of provider.Reasons ?? []) {
+            const detail = document.createElement("small");
+            const count = reason.AffectedCount == null
+                ? provider.Status === "Skipped" ? "" : "etkilenen sayı bilinmiyor"
+                : `${reason.AffectedCount.toLocaleString("tr-TR")} ${provider.Unit === "DOI" ? "DOI" :
+                    provider.Unit === "database record" ? "veritabanı satırı" : "yayın"}`;
+            detail.textContent = count
+                ? `${reason.Description ?? "Ayrıntı yok"} (${count})`
+                : reason.Description ?? "Ayrıntı yok";
+            item.append(detail);
+        }
+        list.append(item);
+    }
+    panel.hidden = false;
+}
+
+export function formatYoksisCoverage(retrieved = 0, total?: number) {
+    return total == null
+        ? `${retrieved.toLocaleString("tr-TR")} / toplam bilinmiyor`
+        : `${retrieved.toLocaleString("tr-TR")} / ${total.toLocaleString("tr-TR")}`;
+}
+
+export function formatYoksisReason(
+    description: string | undefined,
+    affectedCount = 0,
+    unit = "") {
+    return `${description ?? "YÖKSİS verisi alınamadı"}: ` +
+        `${affectedCount.toLocaleString("tr-TR")}${unit ? ` ${unit}` : ""}`;
+}
 
 export function showProfileSummary(researcher?: ResearcherCollectResponse["Researcher"]) {
     const profile = researcher?.OrcidProfile;
@@ -276,6 +353,9 @@ export function showOpenAlexSummary(
 
 export function showYoksisSummary(response?: YoksisCollectResponse) {
     const categoryList = document.querySelector<HTMLElement>("#YoksisCategoryList");
+    const coverage = document.querySelector<HTMLElement>("#YoksisPublicationCoverage");
+    const failureSummary = document.querySelector<HTMLElement>("#YoksisFailureSummary");
+    const publicationFailureSummary = document.querySelector<HTMLElement>("#YoksisPublicationFailureSummary");
 
     if (!yoksisSummaryPanel || !response) {
         if (yoksisSummaryPanel)
@@ -295,6 +375,50 @@ export function showYoksisSummary(response?: YoksisCollectResponse) {
             element.textContent = value.toLocaleString("tr-TR");
     }
 
+    if (coverage) {
+        const retrieved = response.PublicationDetailRetrievedCount ?? 0;
+        const total = response.PublicationDetailTotalCount;
+        coverage.textContent = formatYoksisCoverage(retrieved, total);
+    }
+
+    if (failureSummary) {
+        const reasons = response.FailureReasons ?? [];
+        failureSummary.replaceChildren();
+        failureSummary.hidden = reasons.length === 0;
+        if (reasons.length > 0) {
+            const heading = document.createElement("strong");
+            heading.textContent = "Eksik kalan kategori veya ayrıntı kayıtları:";
+            const list = document.createElement("ul");
+            for (const reason of reasons) {
+                const item = document.createElement("li");
+                item.textContent = formatYoksisReason(
+                    reason.Description, reason.AffectedCount);
+                list.append(item);
+            }
+            failureSummary.append(heading, list);
+        }
+    }
+
+    if (publicationFailureSummary) {
+        const reasons = response.PublicationFailureReasons ?? [];
+        publicationFailureSummary.replaceChildren();
+        publicationFailureSummary.hidden = reasons.length === 0;
+        if (reasons.length > 0) {
+            const heading = document.createElement("strong");
+            heading.textContent = "Alınamayan yayın ayrıntıları:";
+            const list = document.createElement("ul");
+            for (const reason of reasons) {
+                const item = document.createElement("li");
+                item.textContent = formatYoksisReason(
+                    reason.Description ?? "Yayın ayrıntısı alınamadı",
+                    reason.AffectedCount,
+                    "yayın");
+                list.append(item);
+            }
+            publicationFailureSummary.append(heading, list);
+        }
+    }
+
     if (categoryList) {
         categoryList.replaceChildren();
 
@@ -308,10 +432,23 @@ export function showYoksisSummary(response?: YoksisCollectResponse) {
                 : "academic-category-result error";
             name.textContent = category.CategoryName ?? "YÖKSİS kategorisi";
             count.textContent = category.IsSuccess
-                ? `${(category.RecordCount ?? 0).toLocaleString("tr-TR")} kayıt`
-                : "Alınamadı";
-            item.title = category.Errors?.[0] ?? "";
+                ? category.ExpectedDetailCount == null
+                    ? `${(category.RecordCount ?? 0).toLocaleString("tr-TR")} kayıt`
+                    : `${(category.RetrievedDetailCount ?? 0).toLocaleString("tr-TR")} / ` +
+                        `${category.ExpectedDetailCount.toLocaleString("tr-TR")} ayrıntı`
+                : category.ExpectedDetailCount == null
+                    ? "Alınamadı"
+                    : `${(category.RetrievedDetailCount ?? 0).toLocaleString("tr-TR")} / ` +
+                        `${category.ExpectedDetailCount.toLocaleString("tr-TR")} ayrıntı`;
+            item.title = category.FailureReasons?.map(reason =>
+                `${reason.Description}: ${reason.AffectedCount ?? 0}`).join("; ") ?? "";
             item.append(name, count);
+            for (const reason of category.FailureReasons ?? []) {
+                const detail = document.createElement("small");
+                detail.textContent = formatYoksisReason(
+                    reason.Description, reason.AffectedCount);
+                item.append(detail);
+            }
             categoryList.append(item);
         }
     }

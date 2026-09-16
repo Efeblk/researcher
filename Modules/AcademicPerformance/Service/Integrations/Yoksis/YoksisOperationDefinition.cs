@@ -11,6 +11,7 @@ internal sealed class YoksisOperationDefinition
     public string? DetailOperationName { get; }
     public string? DetailRequestElementName { get; }
     public string? DetailIdentifierFieldName { get; }
+    public bool IsPublication { get; }
 
     public YoksisOperationDefinition(
         string categoryName,
@@ -19,7 +20,8 @@ internal sealed class YoksisOperationDefinition
         string? detailCategoryName = null,
         string? detailOperationName = null,
         string? detailRequestElementName = null,
-        string? detailIdentifierFieldName = null)
+        string? detailIdentifierFieldName = null,
+        bool isPublication = false)
     {
         CategoryName = categoryName;
         OperationName = operationName;
@@ -28,5 +30,6 @@ internal sealed class YoksisOperationDefinition
         DetailOperationName = detailOperationName;
         DetailRequestElementName = detailRequestElementName;
         DetailIdentifierFieldName = detailIdentifierFieldName;
+        IsPublication = isPublication;
     }
 }

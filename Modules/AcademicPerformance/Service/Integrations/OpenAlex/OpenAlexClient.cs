@@ -3,6 +3,7 @@ using System.Text.Json;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Enrichment;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using Microsoft.Extensions.Configuration;
 
@@ -53,25 +54,34 @@ public sealed class OpenAlexClient
 
         while (!string.IsNullOrWhiteSpace(cursor) && page < maximumPages)
         {
-            using JsonDocument worksResponse = await GetJsonAsync(AppendApiKey(
-                $"{apiBaseUrl}/works" +
-                $"?filter=author.id:{Uri.EscapeDataString(authorId)}" +
-                "&per_page=100" +
-                $"&cursor={Uri.EscapeDataString(cursor)}"));
-            JsonElement root = worksResponse.RootElement;
+            try
+            {
+                using JsonDocument worksResponse = await GetJsonAsync(AppendApiKey(
+                    $"{apiBaseUrl}/works" +
+                    $"?filter=author.id:{Uri.EscapeDataString(authorId)}" +
+                    "&per_page=100" +
+                    $"&cursor={Uri.EscapeDataString(cursor)}"));
+                JsonElement root = worksResponse.RootElement;
 
-            ThrowIfApiError(root, "OpenAlex yayınları alınamadı");
-            workPages.Add(root.Clone());
-            AddWorks(root, works);
-            cursor = GetString(GetObject(root, "meta"), "next_cursor");
-            page++;
+                ThrowIfApiError(root, "OpenAlex yayınları alınamadı");
+                workPages.Add(root.Clone());
+                AddWorks(root, works);
+                cursor = GetString(GetObject(root, "meta"), "next_cursor");
+                page++;
+            }
+            catch (Exception exception) when (exception is not ProviderCollectionException)
+            {
+                throw new ProviderCollectionException("PageFailure",
+                    "OpenAlex yayın sayfası tamamlanamadı; okunan eksik veri kaydedilmedi.",
+                    works.Count, profile.WorksCount, exception);
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(cursor))
         {
-            throw new HttpRequestException(
-                $"OpenAlex yayınları {maximumPages} sayfalık güvenlik sınırını " +
-                "aştı; eksik veri kaydedilmedi.");
+            throw new ProviderCollectionException("PageLimit",
+                "OpenAlex sayfa güvenlik sınırına ulaştı; okunan eksik veri kaydedilmedi.",
+                works.Count, profile.WorksCount, new HttpRequestException("Page limit reached."));
         }
 
         profile.Works = works
@@ -164,7 +174,7 @@ public sealed class OpenAlexClient
         {
             throw new HttpRequestException(
                 $"OpenAlex HTTP {(int)response.StatusCode}: " +
-                GetApiError(content, response.ReasonPhrase));
+                GetApiError(content, response.ReasonPhrase), null, response.StatusCode);
         }
 
         try

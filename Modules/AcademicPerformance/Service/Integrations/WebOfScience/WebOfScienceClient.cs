@@ -3,6 +3,7 @@ using System.Text.Json;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 
@@ -80,30 +81,57 @@ public sealed class WebOfScienceClient
                 page,
                 maximumPages);
 
-            responseJson = await GetJsonAsync(
-                $"documents?q={query}&db={Uri.EscapeDataString(databaseId)}" +
-                $"&page={page}&limit={DocumentsPageSize}&sortField=PY%2BD");
-            pages.Add(responseJson);
-            (total, limit) = ReadPagination(responseJson, DocumentsPageSize);
-            long computedPageCount = total <= 0
-                ? 0
-                : ((long)total + limit - 1) / limit;
+            try
+            {
+                responseJson = await GetJsonAsync(
+                    $"documents?q={query}&db={Uri.EscapeDataString(databaseId)}" +
+                    $"&page={page}&limit={DocumentsPageSize}&sortField=PY%2BD");
+                pages.Add(responseJson);
+                (total, limit) = ReadPagination(responseJson, DocumentsPageSize);
+                long computedPageCount = total <= 0
+                    ? 0
+                    : ((long)total + limit - 1) / limit;
 
-            _logger?.LogInformation(
-                "Web of Science {DatabaseId} page {Page} response received and parsed; provider total is {ProviderTotal}, computed page count is {ComputedPageCount}, and configured maximum is {MaximumPages}.",
-                databaseId,
-                page,
-                total,
-                computedPageCount,
-                maximumPages);
+                _logger?.LogInformation(
+                    "Web of Science {DatabaseId} page {Page} response received and parsed; provider total is {ProviderTotal}, computed page count is {ComputedPageCount}, and configured maximum is {MaximumPages}.",
+                    databaseId,
+                    page,
+                    total,
+                    computedPageCount,
+                    maximumPages);
 
-            if ((long)page * limit < total && page >= maximumPages)
-                throw new HttpRequestException("Web of Science sayfa sınırı aşıldı; eksik veri kaydedilmedi.");
-            page++;
+                if ((long)page * limit < total && page >= maximumPages)
+                {
+                    throw new ProviderCollectionException("PageLimit",
+                        $"Web of Science {databaseId} veritabanı sayfa sınırına ulaştı; okunan eksik satırlar kaydedilmedi.",
+                        pages.Sum(ReadHitCount), total,
+                        new HttpRequestException("Page limit reached."));
+                }
+
+                page++;
+            }
+            catch (Exception exception) when (exception is not ProviderCollectionException)
+            {
+                int read = pages.Sum(ReadHitCount);
+                throw new ProviderCollectionException("PageFailure",
+                    $"Web of Science {databaseId} veritabanı sayfası tamamlanamadı; okunan eksik satırlar kaydedilmedi.",
+                    read, total > 0 ? total : null, exception);
+            }
         }
         while ((long)(page - 1) * limit < total);
 
         return pages;
+    }
+
+    private static int ReadHitCount(string page)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(page);
+            return document.RootElement.TryGetProperty("hits", out JsonElement hits) &&
+                hits.ValueKind == JsonValueKind.Array ? hits.GetArrayLength() : 0;
+        }
+        catch (JsonException) { return 0; }
     }
 
     internal List<string> GetDatabaseIds()

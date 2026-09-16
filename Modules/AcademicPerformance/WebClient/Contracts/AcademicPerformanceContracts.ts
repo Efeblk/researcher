@@ -76,13 +76,40 @@ export interface ResearcherCollectResponse extends ServiceResponse {
     };
     IsSaved?: boolean;
     Messages?: string[];
+    ProviderFeedback?: ProviderCollectionFeedback[];
+}
+
+export interface ProviderCollectionReason {
+    Code?: string;
+    Description?: string;
+    AffectedCount?: number | null;
+}
+
+export interface ProviderCollectionFeedback {
+    Provider?: string;
+    Status?: string;
+    Unit?: string;
+    RetrievedCount?: number;
+    RetainedCount?: number | null;
+    ExpectedCount?: number | null;
+    Reasons?: ProviderCollectionReason[];
 }
 
 export interface YoksisOperationResult {
     CategoryName?: string;
     IsSuccess?: boolean;
     RecordCount?: number;
+    ExpectedDetailCount?: number;
+    RetrievedDetailCount?: number;
+    FailedDetailCount?: number;
+    FailureReasons?: YoksisFailureSummary[];
     Errors?: string[];
+}
+
+export interface YoksisFailureSummary {
+    Code?: string;
+    Description?: string;
+    AffectedCount?: number;
 }
 
 export interface YoksisCollectResponse extends ServiceResponse {
@@ -95,6 +122,11 @@ export interface YoksisCollectResponse extends ServiceResponse {
     SuccessfulCategoryCount?: number;
     FailedCategoryCount?: number;
     TotalRecordCount?: number;
+    PublicationDetailTotalCount?: number | null;
+    PublicationDetailRetrievedCount?: number;
+    PublicationDetailFailedCount?: number;
+    PublicationFailureReasons?: YoksisFailureSummary[];
+    FailureReasons?: YoksisFailureSummary[];
     Messages?: string[];
     Categories?: YoksisOperationResult[];
 }

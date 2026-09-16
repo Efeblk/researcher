@@ -12,28 +12,45 @@ public sealed class ResearcherCollectionFeedback
     public void Add(
         Researcher researcher,
         Researcher requestedIdentifiers,
-        List<string> messages)
+        List<string> messages,
+        IReadOnlyList<ProviderCollectionFeedback>? currentRun = null)
     {
         messages.Add("=== VERİ TOPLAMA ÖZETİ ===");
 
-        if (!string.IsNullOrWhiteSpace(requestedIdentifiers.Orcid))
+        if (!string.IsNullOrWhiteSpace(requestedIdentifiers.Orcid) &&
+            IsAvailable(currentRun, "ORCID"))
         {
             AddOrcidFeedback(researcher.OrcidProfile, messages);
+        }
+        if (!string.IsNullOrWhiteSpace(requestedIdentifiers.Orcid) &&
+            IsAvailable(currentRun, "OpenAlex"))
+        {
             AddOpenAlexFeedback(researcher.OpenAlexProfile, messages);
         }
 
-        if (!string.IsNullOrWhiteSpace(requestedIdentifiers.GoogleScholarId))
+        if (!string.IsNullOrWhiteSpace(requestedIdentifiers.GoogleScholarId) &&
+            IsAvailable(currentRun, "Google Scholar"))
         {
             AddGoogleScholarFeedback(researcher.GoogleScholarProfile, messages);
         }
 
         if (!string.IsNullOrWhiteSpace(
-                requestedIdentifiers.WebOfScienceResearcherId))
+                requestedIdentifiers.WebOfScienceResearcherId) &&
+            IsAvailable(currentRun, "Web of Science"))
         {
             AddWebOfScienceFeedback(researcher.WebOfScienceProfile, messages);
         }
 
         messages.Add(string.Empty);
+    }
+
+    private static bool IsAvailable(IReadOnlyList<ProviderCollectionFeedback>? feedback,
+        string provider)
+    {
+        if (feedback is null)
+            return true;
+        string? status = feedback.FirstOrDefault(item => item.Provider == provider)?.Status;
+        return status is "Succeeded" or "Cached";
     }
 
     private static void AddOpenAlexFeedback(

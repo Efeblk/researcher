@@ -27,7 +27,8 @@ internal static class YoksisOperationCatalog
             "Bildiri ayrıntıları",
             "getBildiriBilgisiDetayV1",
             "getBildiriBilgisiDetayV1Request",
-            "YAYIN_ID"),
+            "YAYIN_ID",
+            isPublication: true),
         new(
             "Tasarımlar",
             "getTasarimBilgisiV1",
@@ -51,7 +52,8 @@ internal static class YoksisOperationCatalog
             "Makale ayrıntıları",
             "getMakaleBilgisiDetayV1",
             "getMakaleBilgisiDetayV1Request",
-            "YAYIN_ID"),
+            "YAYIN_ID",
+            isPublication: true),
         new(
             "Projeler",
             "getirProjeListesi",
@@ -71,7 +73,8 @@ internal static class YoksisOperationCatalog
             "Kitap ayrıntıları",
             "getKitapBilgisiDetayV1",
             "getKitapBilgisiDetayV1Request",
-            "YAYIN_ID"),
+            "YAYIN_ID",
+            isPublication: true),
         new(
             "İdari görevler",
             "getirIdariGorevListesi",
@@ -95,7 +98,8 @@ internal static class YoksisOperationCatalog
             "Patent ayrıntıları",
             "getPatentBilgisiDetayV1",
             "getPatentBilgisiDetayV1Request",
-            "PATENT_ID"),
+            "PATENT_ID",
+            isPublication: true),
         new(
             "Üyelikler",
             "getirUyelikListesi",
