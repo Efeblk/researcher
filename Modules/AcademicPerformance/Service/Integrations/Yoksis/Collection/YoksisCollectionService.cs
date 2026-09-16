@@ -175,7 +175,13 @@ public sealed class YoksisCollectionService
                 AddFailure(combinedResult, ClassifyFailure(exception));
                 if (exception is YoksisProviderException { StopsCollection: true })
                 {
+                    int unattemptedCount = identifiers.Count - detailIndex;
+                    for (int index = 0; index < unattemptedCount; index++)
+                        AddFailure(combinedResult, "NotAttempted");
                     combinedResult.RecordCount = combinedResult.Records.Count;
+                    combinedResult.FailedDetailCount = combinedResult.ExpectedDetailCount.Value -
+                        combinedResult.RetrievedDetailCount;
+                    combinedResult.IsSuccess = false;
                     combinedResult.ResultMessage = "Sistemik hata nedeniyle sonraki ayrıntı istekleri gönderilmedi.";
                     throw new YoksisProviderException(exception.Message, true, exception,
                         combinedResult);
@@ -219,14 +225,14 @@ public sealed class YoksisCollectionService
         target.RawResponsesXml.AddRange(source.RawResponsesXml);
         bool hasMatchingRecord = source.Records.Any(record =>
             string.Equals(
-                record.GetValueOrDefault(identifierFieldName),
+                NormalizeIdentifier(record.GetValueOrDefault(identifierFieldName)),
                 requestedIdentifier,
                 StringComparison.Ordinal));
         if (source.IsSuccess && hasMatchingRecord)
         {
             target.Records.AddRange(source.Records.Where(record =>
                 string.Equals(
-                    record.GetValueOrDefault(identifierFieldName),
+                    NormalizeIdentifier(record.GetValueOrDefault(identifierFieldName)),
                     requestedIdentifier,
                     StringComparison.Ordinal)));
             target.RetrievedDetailCount++;
@@ -308,6 +314,7 @@ public sealed class YoksisCollectionService
             "AccessDenied" => "YÖKSİS erişimi reddetti",
             "TimedOut" => "YÖKSİS zamanında yanıt vermedi",
             "Configuration" => "YÖKSİS bağlantı ayarı eksik",
+            "NotAttempted" => "Sistemik hata nedeniyle YÖKSİS ayrıntısı istenemedi",
             "ProviderRejected" => "YÖKSİS ayrıntı isteğini kabul etmedi",
             _ => "YÖKSİS hizmetine ulaşılamadı"
         };
@@ -375,10 +382,13 @@ public sealed class YoksisCollectionService
         return result.Records
             .Select(record => record.GetValueOrDefault(fieldName))
             .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(value => value!)
+            .Select(value => NormalizeIdentifier(value)!)
             .Distinct(StringComparer.Ordinal)
             .ToList();
     }
+
+    private static string? NormalizeIdentifier(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static bool HasDetailOperation(
         YoksisOperationDefinition operation)

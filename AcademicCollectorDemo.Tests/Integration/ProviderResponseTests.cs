@@ -44,6 +44,42 @@ public sealed class ProviderResponseTests
     }
 
     [Fact]
+    public async Task CollectAsync_SystemicDetailFailure_FinalizesPartialCoverageAndStopsRequests()
+    {
+        int requests = 0;
+        var handler = new StubHttpHandler(_ => ++requests switch
+        {
+            <= 4 => SoapSuccess(),
+            5 => SoapSuccess("""
+                <Record><YAYIN_ID> 101 </YAYIN_ID></Record>
+                <Record><YAYIN_ID>102</YAYIN_ID></Record>
+                <Record><YAYIN_ID>103</YAYIN_ID></Record>
+                """),
+            6 => SoapSuccess("<Record><YAYIN_ID>101</YAYIN_ID></Record>"),
+            7 => new HttpResponseMessage(System.Net.HttpStatusCode.TooManyRequests),
+            _ => throw new InvalidOperationException("A request was sent after the systemic stop.")
+        });
+        using var http = new HttpClient(handler);
+        var service = new YoksisCollectionService(new(http, YoksisConfig()));
+
+        YoksisCollectResponse response = await service.CollectAsync(
+            new() { TcKimlikNo = new('1', 11) });
+
+        YoksisOperationResult details = Assert.Single(response.Categories,
+            category => category.OperationName == "getBildiriBilgisiDetayV1");
+        Assert.Equal(7, handler.RequestCount);
+        Assert.False(details.IsSuccess);
+        Assert.Equal(3, details.ExpectedDetailCount);
+        Assert.Equal(1, details.RetrievedDetailCount);
+        Assert.Equal(2, details.FailedDetailCount);
+        Assert.Contains(details.FailureReasons,
+            failure => failure.Code == "NotAttempted" && failure.AffectedCount == 1);
+        Assert.Null(response.PublicationDetailTotalCount);
+        Assert.Equal(1, response.PublicationDetailRetrievedCount);
+        Assert.Equal(2, response.PublicationDetailFailedCount);
+    }
+
+    [Fact]
     public async Task CollectAsync_RequestCancellation_StopsInFlightHttpCall()
     {
         using var http = new HttpClient(new CancelAwareHttpHandler());
