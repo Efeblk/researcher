@@ -1,30 +1,14 @@
-# Researcher Analysis Service HTTP örnekleri
+# Analysis Service HTTP örnekleri
 
-Bu klasördeki örneklerin tamamı bağımsız `ResearcherAnalysisService` uygulamasını `http://localhost:5011` üzerinden çağırır. İki farklı sözleşme yüzeyi vardır:
+Servisi `dotnet run --project ResearcherAnalysisService` ile başlatın ve `@analysisKey` değerini güvenli yapılandırmadaki `Service:ApiKey` ile değiştirin. `/health` dışındaki bütün uçlar `X-Analysis-Key` ister.
 
-- Kalıcı ürün uçları `/api/v1/products/[action]` altında çalışır. Analysis Service aynı SQL veritabanındaki collector kaynaklarını özel salt okunur kaynak modelleriyle çözer, erişimi denetler ve çıktıları yalnız `analysis`, `hr` veya `faculty` tablolarına yazar.
-- Stateless uçlar `/api/v1/*` altında gerekli araştırmacı snapshot'ını, makale sayfalarını/span'larını, değerlendirme parmak izini veya fakülte kanıt kataloğunu istek gövdesinde alır; `PersonelID` tek başına kaynak bağlamı sağlamaz.
+Günlük sekiz işlem [Researchers.http](Researchers.http) ve [Articles.http](Articles.http) içindedir. Birleşik araştırmacı okumasında `Analysis=null`, araştırmacının bulunduğunu fakat rapor üretilmediğini belirtir. Birleşik kanonik makale okumasında `Evidence` ve `Review` ayrı ayrı null olabilir; güncel ilişki yoksa yanıt `404` olur. [Service.http](Service.http) iki tanı/metadata çağrısını gösterir.
 
-## Kalıcı ürün örnekleri
+On dört uzman ürün işlemi `Specialist` altında grupludur; profil keşfi bunlara ek metadata işlemidir. Böylece korumalı yüzey 8 günlük + 14 uzman ürün + profil keşfi + sağlayıcı tanısı olmak üzere 24 işlemdir; `/health` bu sayıya dahil değildir.
 
-- [ResearcherProducts.http](ResearcherProducts.http): kaynak kapsamı, kaydedilmiş araştırmacı analizi ve yeni analiz üretimi.
-- [ArticleSummary.http](ArticleSummary.http): otomasyon durumu, kanonik kanıt, kaydedilmiş özet ve özet üretimi.
-- [ArticleReview.http](ArticleReview.http): kaydedilmiş uzman incelemesi ve yeni staged inceleme.
-- [PublicationMetrics.http](PublicationMetrics.http): kaydedilmiş metrik snapshot'ı ve yenileme kuyruğu.
-- [AcademicKnowledge.http](AcademicKnowledge.http): kanıt araması, referans popülasyonu ve grafik dışa aktarımı.
-- [ArticleEvaluation.http](ArticleEvaluation.http): kalıcı model değerlendirme kuyruğu ve sayfalı sonuç.
-- [AcademicAiProducts.http](AcademicAiProducts.http): İK kanıt dosyası ve fakülte asistanı akışları.
+- [Knowledge.http](Specialist/Knowledge.http): kanıt arama, referans popülasyonu ve grafik dışa aktarımı.
+- [Evaluations.http](Specialist/Evaluations.http): profil keşfi, kalıcı değerlendirme kuyruğu ve sonuçları.
+- [Hr.http](Specialist/Hr.http): İK kanıt dosyaları ve inceleme işlemleri.
+- [Faculty.http](Specialist/Faculty.http): fakülte bağlamı ve asistan kuyruğu.
 
-Her kalıcı ürün isteği `@analysisKey` ile gerçek `X-Analysis-Key` servis erişim denetimini gösterir. `AcademicKnowledge.http`, `ArticleEvaluation.http` ve `AcademicAiProducts.http` işlemleri buna ek olarak güvenilir bir ürün erişim adaptörü gerektirir. Anahtar özne yetkisi yerine geçmez; adaptörün cookie/header biçimini deployment belirler. Varsayılan kapalı adaptörde anonim istek `401`, kimliği doğrulanmış fakat eşleme yapılandırılmamış istek `503`, yetki reddi ise kayıt varlığını açığa çıkarmayan `404` alır. Diğer kalıcı işlemler mevcut `PersonelID`/kaynak ilişkisi kontrollerini korur ancak ürün adaptörü kullanmaz. Collector kaynak şeması veya gerekli kaynak satırı henüz hazır değilse bağımlı ürün işlemi açık `503` dönebilir. Okuma olarak işaretlenen istekler model çağrısı yapmaz; üretim ve worker çağrılarının yorumlarında maliyet ve ön koşullar belirtilmiştir.
-
-`clientRequestId`, aynı yetkili aktör ve `PersonelID` kapsamında aynı gövdeyle tekrarlandığında idempotent yeniden kullanım sağlar; farklı girdi için yeni UUID üretin. Fakülte bağlamı güncellemesinde `expectedVersion`, son okunan `Version` olmalıdır. `canonicalWorkId` ve `academicWorkId` değerlerini collector'ın [AcademicPerformance.http](../../Requests/AcademicCollector/AcademicPerformance.http) örneğindeki kanonik listeden alın.
-
-## Stateless örnekler
-
-- [ResearcherAnalysis.http](ResearcherAnalysis.http): sağlık, Analysis sağlayıcı durumu ve tam araştırmacı snapshot'ı analizi.
-- [ArticleAnalysis.http](ArticleAnalysis.http): makale özeti, tam uzman incelemesi ve ayrı quote/dispatch aşamaları.
-- [EvaluationAndFaculty.http](EvaluationAndFaculty.http): profil tabanlı kalibrasyon ve tam kanıt kataloglu fakülte asistanı.
-
-`@analysisKey` değerini `Service:ApiKey` ile aynı geliştirme sırrıyla değiştirin. `/health` dışındaki Analysis API uçları `Authorization: Bearer` yerine `X-Analysis-Key` kullanır. Üretim etiketleri kayıtlı varsayılanlara göre yerel Ollama ile hosted Gemini çağrılarını ayırır; ayarları değiştirdiyseniz gerçek hedefi ayrıca denetleyin. Ücretli istekleri yalnız amaçlı çalıştırın; bu dosyalar test sırasında otomatik çalıştırılmaz.
-
-Adlandırılmış yanıt değişkeni kullanan staged istekleri yukarıdan aşağı çalıştırın. HTTP istemciniz `{{requestName.response.body.$...}}` ifadesini desteklemiyorsa önceki yanıttaki değeri elle yapıştırın. Her dispatch için yeni bir `attemptId` üretin.
+Bu değişiklik kırıcıdır: `/products` öneki ve yinelenen stateless üretim uçları kaldırılmıştır; gövdeli okumalar `POST` olarak kalır. Uzman işlemler güvenilir ürün erişim adaptörü de ister. Okumalar model çağrısı yapmaz; üretim ve worker işlemleri ücretli sağlayıcı kullanabilir ve örnekler otomatik çalıştırılmaz.

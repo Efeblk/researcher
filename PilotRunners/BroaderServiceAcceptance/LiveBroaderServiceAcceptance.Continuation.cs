@@ -49,21 +49,21 @@ internal static partial class LiveBroaderServiceAcceptance
         using (HttpClient client = Client(authenticated: true))
         {
             context = await PostAsync<FacultyAssistantContextResponse>(client,
-                AnalysisUrl + "/api/v1/products/GetFacultyAssistantContext",
+                AnalysisUrl + "/api/v1/faculty/context",
                 new GetFacultyAssistantContextRequest
                 {
                     PersonelId = BroaderAcceptanceHost.PrimarySubjectId,
                     Version = 1
                 });
             dossier = await PostAsync<HrEvidenceDossierResponse>(client,
-                AnalysisUrl + "/api/v1/products/GetHrEvidenceDossier",
+                AnalysisUrl + "/api/v1/hr/dossiers",
                 new GetHrEvidenceDossierRequest
                 {
                     PersonelId = BroaderAcceptanceHost.PrimarySubjectId,
                     DossierId = 1
                 });
             denied = await CaptureAsync(client,
-                AnalysisUrl + "/api/v1/products/SearchAcademicEvidence",
+                AnalysisUrl + "/api/v1/knowledge/search",
                 new AcademicEvidenceSearchRequest
                 {
                     PersonelId = BroaderAcceptanceHost.SecondarySubjectId,

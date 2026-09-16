@@ -18,7 +18,8 @@ public static class PilotReportComparer
         try
         {
             JsonNode? body = JsonNode.Parse(responseBody);
-            JsonNode? responseReport = body?["Report"] ?? body?["report"];
+            JsonNode? responseReport = body?["Report"] ?? body?["report"] ??
+                body?["Review"]?["Report"] ?? body?["review"]?["report"];
             return Equivalent<T>(responseReport, storedReport);
         }
         catch (JsonException) { return false; }

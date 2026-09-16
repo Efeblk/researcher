@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using AcademicCollector.Analysis.Contracts;
 using Microsoft.Extensions.Options;
 using ResearcherAnalysisService.Analysis;
 using ResearcherAnalysisService.Configuration;
@@ -180,14 +181,10 @@ public sealed class OllamaReportGeneratorTests
         { Content = new StringContent("sensitive provider body") }));
         using HttpClient providerClient = new(handler);
         await using AnalysisTestHost host = await AnalysisTestHost.StartAsync(Generator(providerClient));
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync("/api/v1/analyze", AnalysisSamples.Request());
-        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
-        string body = await response.Content.ReadAsStringAsync();
-        using JsonDocument problem = JsonDocument.Parse(body);
-        Assert.Equal("ProviderRequestFailed", problem.RootElement.GetProperty("reason").GetString());
-        Assert.Equal((int)status, problem.RootElement.GetProperty("providerStatus").GetInt32());
-        Assert.Contains($"HTTP {(int)status}", problem.RootElement.GetProperty("detail").GetString());
-        Assert.DoesNotContain("sensitive", body);
+        HttpRequestException exception = await Assert.ThrowsAsync<HttpRequestException>(() =>
+            host.InvokeAsync<ResearcherAnalysis, ResearcherAnalysisReport>(analysis =>
+                analysis.AnalyzeAsync(AnalysisSamples.Request(), default)));
+        Assert.Equal(status, exception.StatusCode);
     }
 
     private static OllamaReportGenerator Generator(HttpClient client) => new(client, Options.Create(new AiOptions

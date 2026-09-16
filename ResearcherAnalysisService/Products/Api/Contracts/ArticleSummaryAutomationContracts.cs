@@ -1,25 +1,6 @@
-using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace ResearcherAnalysisService.Products.Api.Contracts;
-
-public sealed class ArticleSummaryAutomationStatusRequest : IValidatableObject
-{
-    [Required, StringLength(200)]
-    [JsonPropertyName("PersonelID")]
-    public string PersonelId { get; set; } = string.Empty;
-
-    [Range(1, int.MaxValue)]
-    public int CanonicalWorkId { get; set; }
-
-    public string Language { get; set; } = "tr";
-
-    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
-    {
-        if (Language is not ("tr" or "en"))
-            yield return new("Language must be tr or en.", [nameof(Language)]);
-    }
-}
 
 public sealed class ArticleSummaryAutomationStatusResponse
 {

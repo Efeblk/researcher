@@ -121,15 +121,15 @@ internal static class RetainedFacultyCompletion
         await using WebApplication idle = await RetainedAcceptanceHost.StartCollectorAsync(root,
             RetainedTeachingBaselineAudit.ConnectionString, CollectorUrl, AnalysisUrl, "idle");
         using HttpClient client = Client();
-        CanonicalArticleReviewResponse review = await PostAsync<CanonicalArticleReviewResponse>(client,
-            AnalysisUrl + "/api/v1/products/GetCanonicalArticleReview",
-            new CanonicalArticleReviewRequest { PersonelId = RetainedAcceptanceHost.SubjectId,
-                CanonicalWorkId = adam, Language = "tr" });
+        CanonicalArticleReviewResponse review = (await PostAsync<CanonicalArticleAnalysisResponse>(client,
+            AnalysisUrl + "/api/v1/articles/analysis",
+            new CanonicalArticleAnalysisRequest { PersonelId = RetainedAcceptanceHost.SubjectId,
+                CanonicalWorkId = adam, Language = "tr" })).Review!;
         FacultyAssistantContextResponse context = await PostAsync<FacultyAssistantContextResponse>(client,
-            AnalysisUrl + "/api/v1/products/GetFacultyAssistantContext",
+            AnalysisUrl + "/api/v1/faculty/context",
             new GetFacultyAssistantContextRequest { PersonelId = RetainedAcceptanceHost.SubjectId, Version = 1 });
         HrEvidenceDossierResponse dossier = await PostAsync<HrEvidenceDossierResponse>(client,
-            AnalysisUrl + "/api/v1/products/GetHrEvidenceDossier",
+            AnalysisUrl + "/api/v1/hr/dossiers",
             new GetHrEvidenceDossierRequest { PersonelId = RetainedAcceptanceHost.SubjectId, DossierId = dossierId });
         return (review, context, dossier);
     }

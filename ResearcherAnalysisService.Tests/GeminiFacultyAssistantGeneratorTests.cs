@@ -644,13 +644,8 @@ public sealed class GeminiFacultyAssistantGeneratorTests
         request.Mode = "TeachingHelp";
         request.PrivateContext = "PRIVATE-SENTINEL";
 
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync(
-            "/api/v1/faculty-assistant", request);
-        FacultyAssistantAnalysisReport report = (await response.Content
-            .ReadFromJsonAsync<FacultyAssistantAnalysisReport>())!;
-
-        Assert.True(response.StatusCode == HttpStatusCode.OK,
-            $"Unexpected HTTP {(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
+        FacultyAssistantAnalysisReport report = await host.InvokeAsync<FacultyAssistant,
+            FacultyAssistantAnalysisReport>(assistant => assistant.AnswerAsync(request, default));
         Assert.Equal(5, call);
         Assert.Equal("partial", report.Outcome);
         Assert.Equal("gemini-3.8-flash", report.Model);
@@ -682,12 +677,8 @@ public sealed class GeminiFacultyAssistantGeneratorTests
         }));
         await using AnalysisTestHost host = await AnalysisTestHost.StartAsync(geminiHandler: handler);
 
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync(
-            "/api/v1/faculty-assistant", Request());
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        FacultyAssistantAnalysisReport report = (await response.Content
-            .ReadFromJsonAsync<FacultyAssistantAnalysisReport>())!;
+        FacultyAssistantAnalysisReport report = await host.InvokeAsync<FacultyAssistant,
+            FacultyAssistantAnalysisReport>(assistant => assistant.AnswerAsync(Request(), default));
         Assert.Equal(3, call);
         Assert.Single(report.Items);
         Assert.Equal("partial", report.Outcome);
@@ -768,13 +759,8 @@ public sealed class GeminiFacultyAssistantGeneratorTests
             ]
         };
 
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync(
-            "/api/v1/faculty-assistant", request);
-
-        Assert.True(response.StatusCode == HttpStatusCode.OK,
-            $"Unexpected HTTP {(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
-        FacultyAssistantAnalysisReport report = (await response.Content
-            .ReadFromJsonAsync<FacultyAssistantAnalysisReport>())!;
+        FacultyAssistantAnalysisReport report = await host.InvokeAsync<FacultyAssistant,
+            FacultyAssistantAnalysisReport>(assistant => assistant.AnswerAsync(request, default));
         FacultyAssistantAnswerItem item = Assert.Single(report.Items);
         Assert.Contains("sınırlı gradyanlar", item.Basis);
         Assert.Equal("partial", report.Outcome);
@@ -881,13 +867,8 @@ public sealed class GeminiFacultyAssistantGeneratorTests
             ]
         };
 
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync(
-            "/api/v1/faculty-assistant", request);
-
-        Assert.True(response.StatusCode == HttpStatusCode.OK,
-            $"Unexpected HTTP {(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
-        FacultyAssistantAnalysisReport report = (await response.Content
-            .ReadFromJsonAsync<FacultyAssistantAnalysisReport>())!;
+        FacultyAssistantAnalysisReport report = await host.InvokeAsync<FacultyAssistant,
+            FacultyAssistantAnalysisReport>(assistant => assistant.AnswerAsync(request, default));
         Assert.Equal(2, report.Items.Count);
         Assert.DoesNotContain(report.Items, value => value.Basis ==
             "The authors proved an O(sqrt(T)) regret bound.");

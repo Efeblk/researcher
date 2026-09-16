@@ -6,7 +6,7 @@
 
 Servis SQL Server kullanır. Yerel `ConnectionStrings:UsageDatabase` varsayılanı collector'ın `ConnectionStrings:AcademicDatabase` değeriyle aynı `AcademicCollectorDemo` LocalDB veritabanını hedefler. Deployment'ta iki projeye aynı SQL veritabanı hedefini ayrı güvenli yapılandırmayla verin; servis hesapları ve izinleri farklı olabilir.
 
-Analysis Service başlangıçta `ResearcherAnalysisService/Data/Migrations` altındaki `202609140001`–`202609140017` migration serisini `dbo.ResearcherAnalysisVersionInfo` geçmişiyle uygular. `analysis`, `hr` ve `faculty` tablolarının DDL/yazma sahibi Analysis Service'tir; collector tablolarını oluşturmaz. Fresh veritabanında Analysis Service önce başlatılabilir: stateless uçlar çalışır, kaynak isteyen kalıcı uçlar açık `503` dönebilir ve worker'lar collector kaynakları hazır olana kadar bekler. Collector önce veya iki servis eşzamanlı da başlatılabilir.
+Analysis Service başlangıçta `ResearcherAnalysisService/Data/Migrations` altındaki `202609140001`–`202609140017` migration serisini `dbo.ResearcherAnalysisVersionInfo` geçmişiyle uygular. `analysis`, `hr` ve `faculty` tablolarının DDL/yazma sahibi Analysis Service'tir; collector tablolarını oluşturmaz. Fresh veritabanında Analysis Service önce başlatılabilir: sağlık, profil keşfi ve sağlayıcı tanısı çalışır; kaynak isteyen ürünler açık `503` dönebilir ve worker'lar collector kaynakları hazır olana kadar bekler. Collector önce veya iki servis eşzamanlı da başlatılabilir.
 
 ```powershell
 dotnet restore ResearcherAnalysisService/ResearcherAnalysisService.csproj
@@ -53,21 +53,15 @@ Gemini üretim denemesi gönderilmeden önce kullanım kaydı `Pending` yazılı
 
 ## HTTP yüzeyleri
 
-Kalıcı ürün işlemleri `POST /api/v1/products/[action]` altında bulunur:
+Kalıcı ürün işlemleri doğrudan `/api/v1/...` altında bulunur; eski `/products` ve yinelenen stateless üretim yolları için alias yoktur.
 
-- araştırmacı: `AnalyzeResearcher`, `GetResearcherAnalysis`, `GetResearcherSourceCoverage`;
-- makale: `SummarizeArticle`, `GetArticleSummary`, `GetArticleSummaryAutomationStatus`, `GetCanonicalArticleEvidence`, `ReviewCanonicalArticle`, `GetCanonicalArticleReview`;
-- metrik/bilgi: `GetResearcherPublicationMetrics`, `RefreshResearcherPublicationMetrics`, `SearchAcademicEvidence`, `GetReferencePopulation`, `ImportReferencePopulation`, `ExportAcademicEvidenceGraph`;
-- değerlendirme: `StartArticleEvaluation`, `GetArticleEvaluation`;
-- İK: `CreateHrEvidenceDossier`, `GetHrEvidenceDossier`, `AppendHrDossierReviewAction`, `ListHrDossierReviewActions`;
-- fakülte: `SaveFacultyAssistantContext`, `GetFacultyAssistantContext`, `StartFacultyAssistant`, `GetFacultyAssistantRun`.
+- araştırmacı: `/api/v1/researchers/analysis/generate`, `/api/v1/researchers/analysis`;
+- makale: `/api/v1/articles/summary/generate`, `/api/v1/articles/summary`, `/api/v1/articles/analysis`, `/api/v1/articles/review/generate`;
+- metrik/bilgi: `/api/v1/researchers/metrics`, `/api/v1/researchers/metrics/refresh`, `/api/v1/knowledge/search`, `/api/v1/knowledge/reference-population`, `/api/v1/knowledge/reference-population/import`, `/api/v1/knowledge/graph/export`;
+- değerlendirme: `/api/v1/evaluations/start`, `/api/v1/evaluations/status`;
+- İK: `/api/v1/hr/dossiers/create`, `/api/v1/hr/dossiers`, `/api/v1/hr/dossiers/actions/append`, `/api/v1/hr/dossiers/actions`;
+- fakülte: `/api/v1/faculty/context/save`, `/api/v1/faculty/context`, `/api/v1/faculty/assistant/start`, `/api/v1/faculty/assistant/run`.
 
-Mevcut tam bağlamlı stateless uçlar da korunur:
+`GET /api/v1/evaluations/profiles` değerlendirme profillerini keşfeder. `GET /api/v1/internal/provider-status/gemini` Gemini erişimini ve kaydedilmiş kullanım toplamını denetler; içerik üretmez.
 
-- `POST /api/v1/analyze` tam araştırmacı snapshot'ından rapor üretir.
-- `POST /api/v1/articles/summarize`, `/review` ve `/review/stages/*` sayfa/span bağlamıyla çalışır.
-- `GET /api/v1/evaluations/profiles` ve `POST /api/v1/evaluations/execute` tam kaynakla değerlendirme çalıştırır.
-- `POST /api/v1/faculty-assistant` kesin metin ve konum içeren kanıt kataloğunu işler.
-- `GET /api/v1/internal/provider-status/gemini` Gemini erişimini ve kaydedilmiş kullanım toplamını denetler; içerik üretmez.
-
-Çalıştırılabilir kalıcı ve stateless örnekler [Requests/README.md](Requests/README.md) dosyasındadır. Collector örnekleri yalnız collector yüzeyinde [Requests/AcademicCollector](../Requests/AcademicCollector/README.md) altında tutulur.
+Çalıştırılabilir örnekler [Requests/README.md](Requests/README.md) dosyasındadır. Collector örnekleri yalnız collector yüzeyinde [Requests/AcademicCollector](../Requests/AcademicCollector/README.md) altında tutulur.

@@ -10,10 +10,10 @@ namespace ResearcherAnalysisService.Products.Api.Controllers;
 [ApiController]
 [ResearcherAnalysisService.Products.Api.ProductJsonContract]
 [ServiceFilter<AnalysisAccessFilter>]
-[Route("api/v1/products/[action]")]
+[Route("api/v1")]
 public sealed class ArticleEvaluationEndpoint : ControllerBase
 {
-    [HttpPost]
+    [HttpPost("evaluations/start")]
     public async Task<ActionResult<StartArticleEvaluationResponse>> StartArticleEvaluation(
         [FromBody] StartArticleEvaluationRequest request,
         [FromServices] IAcademicProductAccessService access,
@@ -49,7 +49,7 @@ public sealed class ArticleEvaluationEndpoint : ControllerBase
         }
     }
 
-    [HttpPost]
+    [HttpPost("evaluations/status")]
     public async Task<ActionResult<ResearcherAnalysisService.Products.Api.Contracts.ArticleEvaluationResponse>> GetArticleEvaluation(
         [FromBody] GetArticleEvaluationRequest request,
         [FromServices] IAcademicProductAccessService access,

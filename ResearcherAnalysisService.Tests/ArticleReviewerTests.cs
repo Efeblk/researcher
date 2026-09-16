@@ -1,5 +1,3 @@
-using System.Net;
-using System.Net.Http.Json;
 using AcademicCollector.Analysis.Contracts;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
@@ -129,63 +127,20 @@ public sealed class ArticleReviewerTests
     }
 
     [Fact]
-    public async Task ReviewEndpoint_UsesAccessFilterAndReturnsReport()
+    public async Task ReviewAsync_ConfiguredEngine_ReturnsReport()
     {
         ReviewArticleRequest request = Request("A source observation.");
         await using AnalysisTestHost host = await AnalysisTestHost.StartAsync(
             reviewGenerator: new FixedReviewGenerator(role => new(role, [], "synthetic", ArticleReviewPrompt.Version)),
             reviewVerifier: new FixedReviewVerifier((_, findings) => Supported(findings)));
 
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync("api/v1/articles/review", request);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        ArticleReviewReport report = (await response.Content.ReadFromJsonAsync<ArticleReviewReport>())!;
+        ArticleReviewReport report = await host.InvokeAsync<ArticleReviewer, ArticleReviewReport>(
+            reviewer => reviewer.ReviewAsync(request, default));
         Assert.Equal(ArticleReviewer.DefaultPolicyVersion, report.PolicyVersion);
     }
 
-    [Theory]
-    [InlineData("null-page")]
-    [InlineData("null-text")]
-    public async Task ReviewEndpoint_MalformedSource_ReturnsBadRequestWithoutModelCall(string mode)
-    {
-        FixedReviewGenerator generator = new(role => new(role, [], "synthetic", ArticleReviewPrompt.Version));
-        await using AnalysisTestHost host = await AnalysisTestHost.StartAsync(
-            reviewGenerator: generator,
-            reviewVerifier: new FixedReviewVerifier((_, findings) => Supported(findings)));
-        object?[] pages = mode == "null-page"
-            ? [null]
-            : [new { pageNumber = (int?)1, text = (string?)null }];
-        object body = new
-        {
-            language = "en", sourceKind = "pdf", sourceHash = "hash", extractionVersion = "v1",
-            policyVersion = ArticleReviewer.DefaultPolicyVersion, pages, totalSourcePages = 1,
-            isPartial = false, scopeReason = (string?)null, sourceSpans = new object[0]
-        };
-
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync("api/v1/articles/review", body);
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal(0, generator.Calls);
-    }
-
     [Fact]
-    public async Task ReviewEndpoint_OversizedSource_ReturnsPayloadTooLargeWithoutModelCall()
-    {
-        FixedReviewGenerator generator = new(role => new(role, [], "synthetic", ArticleReviewPrompt.Version));
-        await using AnalysisTestHost host = await AnalysisTestHost.StartAsync(
-            settings: new Dictionary<string, string?> { ["Ai:ArticleReviewMaximumInputBytes"] = "4096" },
-            reviewGenerator: generator,
-            reviewVerifier: new FixedReviewVerifier((_, findings) => Supported(findings)));
-
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync(
-            "api/v1/articles/review", Request(new string('x', 6000)));
-
-        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
-        Assert.Equal(0, generator.Calls);
-    }
-
-    [Fact]
-    public async Task ReviewEndpoint_OverallTimeoutStopsBeforeLaterSpecialists()
+    public async Task ReviewAsync_OverallTimeoutStopsBeforeLaterSpecialists()
     {
         BlockingReviewGenerator generator = new();
         await using AnalysisTestHost host = await AnalysisTestHost.StartAsync(
@@ -193,20 +148,16 @@ public sealed class ArticleReviewerTests
             reviewGenerator: generator,
             reviewVerifier: new FixedReviewVerifier((_, findings) => Supported(findings)));
 
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync(
-            "api/v1/articles/review", Request("A source observation."));
-
-        Assert.Equal(HttpStatusCode.GatewayTimeout, response.StatusCode);
+        ArticleReviewTimedOutException error = await Assert.ThrowsAsync<ArticleReviewTimedOutException>(() =>
+            host.InvokeAsync<ArticleReviewer, ArticleReviewReport>(reviewer =>
+                reviewer.ReviewAsync(Request("A source observation."), default)));
         Assert.Equal(1, generator.Calls);
-        AnalysisErrorResponse error = (await response.Content.ReadFromJsonAsync<AnalysisErrorResponse>())!;
-        Assert.Equal("timeout", error.ErrorCode);
-        Assert.Equal("timeout", error.Failure!.Reason);
-        Assert.Equal("generation", error.Failure.Stage);
-        Assert.Equal("method", error.Failure.Role);
+        Assert.Equal("generation", error.Stage);
+        Assert.Equal("method", error.Role);
     }
 
     [Fact]
-    public async Task ReviewEndpoint_InvalidJsonReturnsSafeGenerationRoleDetail()
+    public async Task ReviewAsync_InvalidJsonPreservesGenerationRoleDetail()
     {
         FixedReviewGenerator generator = new(_ =>
             throw new InvalidAnalysisException(AnalysisFailure.InvalidJson));
@@ -214,21 +165,16 @@ public sealed class ArticleReviewerTests
             reviewGenerator: generator,
             reviewVerifier: new FixedReviewVerifier((_, findings) => Supported(findings)));
 
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync(
-            "api/v1/articles/review", Request("A source observation."));
-
-        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
-        AnalysisErrorResponse error = (await response.Content.ReadFromJsonAsync<AnalysisErrorResponse>())!;
-        Assert.Equal("invalid_provider_response", error.ErrorCode);
-        Assert.Equal("invalid_json", error.Failure!.Reason);
-        Assert.Equal("generation", error.Failure.Stage);
-        Assert.Equal("method", error.Failure.Role);
-        Assert.DoesNotContain("source observation", await response.Content.ReadAsStringAsync(),
-            StringComparison.OrdinalIgnoreCase);
+        InvalidAnalysisException error = await Assert.ThrowsAsync<InvalidAnalysisException>(() =>
+            host.InvokeAsync<ArticleReviewer, ArticleReviewReport>(reviewer =>
+                reviewer.ReviewAsync(Request("A source observation."), default)));
+        Assert.Equal(AnalysisFailure.InvalidJson, error.Reason);
+        Assert.Equal("generation", error.Stage);
+        Assert.Equal("method", error.Role);
     }
 
     [Fact]
-    public async Task ReviewEndpoint_InvalidEvidenceReturnsSafeGenerationRoleDetail()
+    public async Task ReviewAsync_InvalidEvidencePreservesGenerationRoleDetail()
     {
         FixedReviewGenerator generator = new(role => new(role,
             [new("F1", role, "source_observation", "Basis.", null, ["unknown-source"])],
@@ -238,14 +184,12 @@ public sealed class ArticleReviewerTests
             reviewGenerator: generator,
             reviewVerifier: verifier);
 
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync(
-            "api/v1/articles/review", Request("A source observation."));
-
-        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
-        AnalysisErrorResponse error = (await response.Content.ReadFromJsonAsync<AnalysisErrorResponse>())!;
-        Assert.Equal("invalid_evidence", error.Failure!.Reason);
-        Assert.Equal("generation", error.Failure.Stage);
-        Assert.Equal("method", error.Failure.Role);
+        InvalidAnalysisException error = await Assert.ThrowsAsync<InvalidAnalysisException>(() =>
+            host.InvokeAsync<ArticleReviewer, ArticleReviewReport>(reviewer =>
+                reviewer.ReviewAsync(Request("A source observation."), default)));
+        Assert.Equal(AnalysisFailure.InvalidEvidence, error.Reason);
+        Assert.Equal("generation", error.Stage);
+        Assert.Equal("method", error.Role);
         Assert.Equal(0, verifier.Calls);
     }
 

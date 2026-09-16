@@ -64,7 +64,7 @@ public sealed class ServiceBoundaryFlowTests
             });
 
         using HttpResponseMessage product = await host.Client.PostAsync(
-            "/api/v1/products/GetResearcherPublicationMetrics",
+            "/api/v1/researchers/metrics",
             new StringContent("{}", System.Text.Encoding.UTF8, "application/json"));
         string productJson = await product.Content.ReadAsStringAsync();
         Assert.Equal(System.Net.HttpStatusCode.BadRequest, product.StatusCode);

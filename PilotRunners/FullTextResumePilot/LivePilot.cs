@@ -32,7 +32,7 @@ public static class LivePilot
     private const string AnalysisUrl = "http://127.0.0.1:5097";
     private const string CollectorUrl = "http://127.0.0.1:5197";
     private const string ServiceKey = "fulltext-resume-pilot-synthetic-service-key";
-    private const string Api = AnalysisUrl + "/api/v1/products/";
+    private const string Api = AnalysisUrl + "/api/v1/";
     private const int MaximumCalls = 64;
     private const decimal MaximumSpendUsd = 2m;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
@@ -113,7 +113,7 @@ public static class LivePilot
             {
                 result["status"] = "citation_probes";
                 heartbeat.SetPhase("citation-probes");
-                bool probesPassed = await RunCitationProbesAsync(analysisClient, probePlan, budget, result,
+                bool probesPassed = await RunCitationProbesAsync(analysisClient, analysis.Services, probePlan, budget, result,
                     name => artifacts.WritePhaseAsync(name, result, budget.Snapshot()));
                 if (!probesPassed)
                     throw new InvalidOperationException("Citation-alignment probes failed; the PDF batch was stopped before its first paid call.");
@@ -231,7 +231,7 @@ public static class LivePilot
         {
             if (!allowProviderDispatch)
                 throw new InvalidOperationException("Resume refused to regenerate a missing persisted summary.");
-            HttpCapture summary = await PostAsync(client, Api + "SummarizeArticle",
+            HttpCapture summary = await PostAsync(client, Api + "articles/summary/generate",
                 new { PersonelID = source.PersonelId, AcademicWorkId = workId, Language = "tr" });
             result["summary"] = summary.ToJson();
             List<UsageAttempt> afterSummaryCall = await ReadUsageAsync(connectionString);
@@ -259,7 +259,7 @@ public static class LivePilot
                 throw new InvalidOperationException("Resume refused to regenerate a missing completed review.");
             for (int attempt = 0; attempt < 2; attempt++)
             {
-                HttpCapture review = await PostAsync(client, Api + "ReviewCanonicalArticle", new
+                HttpCapture review = await PostAsync(client, Api + "articles/review/generate", new
                     { PersonelID = source.PersonelId, CanonicalWorkId = canonicalWorkId, Language = "tr", ForceRegeneration = false });
                 reviewRequests.Add(review);
                 if (review.StatusCode is >= 200 and < 300 || budget.Snapshot().DispatchStopped) break;
@@ -269,7 +269,7 @@ public static class LivePilot
         else
         {
             result["reviewRecoveredFromSql"] = true;
-            HttpCapture recovered = await PostAsync(client, Api + "GetCanonicalArticleReview",
+            HttpCapture recovered = await PostAsync(client, Api + "articles/analysis",
                 new { PersonelID = source.PersonelId, CanonicalWorkId = canonicalWorkId, Language = "tr" });
             reviewRequests.Add(recovered);
             result["reviewRequests"] = new JsonArray(recovered.ToJson());
@@ -290,13 +290,12 @@ public static class LivePilot
         result["reviewPhaseComplete"] = reviewAudit.Json["passed"]?.GetValue<bool>() == true;
         await persistProgress(source.Name + "-review-audited");
         int beforeReads = afterReview.Count, guardBeforeReads = budget.Snapshot().Calls;
-        HttpCapture savedSummary = await PostAsync(client, Api + "GetArticleSummary",
+        HttpCapture savedSummary = await PostAsync(client, Api + "articles/summary",
             new { PersonelID = source.PersonelId, AcademicWorkId = workId, Language = "tr" });
-        HttpCapture savedReview = await PostAsync(client, Api + "GetCanonicalArticleReview",
+        HttpCapture savedReview = await PostAsync(client, Api + "articles/analysis",
             new { PersonelID = source.PersonelId, CanonicalWorkId = canonicalWorkId, Language = "tr" });
-        HttpCapture evidence = await PostAsync(client, Api + "GetCanonicalArticleEvidence",
-            new { PersonelID = source.PersonelId, CanonicalWorkId = canonicalWorkId, Language = "tr", Skip = 0, Take = 100 });
-        HttpCapture reused = await PostAsync(client, Api + "ReviewCanonicalArticle",
+        HttpCapture evidence = savedReview;
+        HttpCapture reused = await PostAsync(client, Api + "articles/review/generate",
             new { PersonelID = source.PersonelId, CanonicalWorkId = canonicalWorkId, Language = "tr", ForceRegeneration = false });
         int afterReads = (await ReadUsageAsync(connectionString)).Count, guardAfterReads = budget.Snapshot().Calls;
         bool noCalls = beforeReads == afterReads && guardBeforeReads == guardAfterReads;
@@ -305,21 +304,25 @@ public static class LivePilot
         bool reviewReadMatches = PilotReportComparer.MatchesResponse<ArticleReviewReport>(savedReview.Body,
             reviewAudit.StoredReport) && PilotReportComparer.MatchesResponse<ArticleReviewReport>(reused.Body,
                 reviewAudit.StoredReport);
+        bool combinedEvidencePresent = JsonNode.Parse(savedReview.Body)?["Evidence"] is not null ||
+            JsonNode.Parse(savedReview.Body)?["evidence"] is not null;
         result["savedReadsAndCache"] = JsonSerializer.SerializeToNode(new
         {
             savedSummary = savedSummary.ToJson(), savedReview = savedReview.ToJson(), evidence = evidence.ToJson(),
             repeatedReview = reused.ToJson(), usageBefore = beforeReads, usageAfter = afterReads,
             guardCallsBefore = guardBeforeReads, guardCallsAfter = guardAfterReads, createdNoProviderAttempts = noCalls,
+            combinedEvidencePresent,
             savedSummaryReportMatchesSql = summaryReadMatches, savedAndReusedReviewReportsMatchSql = reviewReadMatches
         }, JsonOptions);
         result["operationalSuccess"] = reviewSucceeded && savedSummary.StatusCode == 200 && savedReview.StatusCode == 200 &&
-            evidence.StatusCode == 200 && reused.StatusCode == 200 && noCalls && summaryReadMatches && reviewReadMatches &&
+            evidence.StatusCode == 200 && combinedEvidencePresent && reused.StatusCode == 200 && noCalls && summaryReadMatches && reviewReadMatches &&
             summaryAudit.Json["passed"]?.GetValue<bool>() == true && reviewAudit.Json["passed"]?.GetValue<bool>() == true;
         result["cachePhaseComplete"] = true;
         await persistProgress(source.Name + "-saved-reads-and-cache");
     }
 
-    private static async Task<bool> RunCitationProbesAsync(HttpClient client, CitationProbePlan probePlan,
+    private static async Task<bool> RunCitationProbesAsync(HttpClient client, IServiceProvider services,
+        CitationProbePlan probePlan,
         PilotGeminiBudgetState budget, JsonObject result, Func<string, Task> persistProgress)
     {
         using HttpResponseMessage profilesResponse = await client.GetAsync("/api/v1/evaluations/profiles");
@@ -359,14 +362,13 @@ public static class LivePilot
             ArticleEvaluationRequest request = new(profile.ProfileId, ArticleEvaluationTaskKinds.Calibration,
                 profile.SettingsFingerprint, localizedSource) { CalibrationClaims = probe.Claims };
             PilotGeminiBudgetSnapshot before = budget.Snapshot();
-            HttpCapture response = await PostAsync(client, "/api/v1/evaluations/execute", request);
+            await using AsyncServiceScope scope = services.CreateAsyncScope();
+            ArticleEvaluationResponse typed = await scope.ServiceProvider
+                .GetRequiredService<ArticleEvaluationService>().ExecuteAsync(request, CancellationToken.None);
             PilotGeminiBudgetSnapshot after = budget.Snapshot();
-            ArticleEvaluationResponse? typed = response.StatusCode is >= 200 and < 300
-                ? JsonSerializer.Deserialize<ArticleEvaluationResponse>(response.Body, JsonOptions)
-                : null;
-            Dictionary<string, string> observed = typed?.Verdicts?.ToDictionary(value => value.ItemId,
-                value => value.Verdict, StringComparer.Ordinal) ?? new(StringComparer.Ordinal);
-            bool passed = typed is not null && typed.Outcome == ArticleEvaluationOutcomes.Completed &&
+            Dictionary<string, string> observed = (typed.Verdicts ?? []).ToDictionary(value => value.ItemId,
+                value => value.Verdict, StringComparer.Ordinal);
+            bool passed = typed.Outcome == ArticleEvaluationOutcomes.Completed &&
                 typed.Provider == "Gemini" && typed.RequestedModel == "gemini-3.8-flash" &&
                 typed.SettingsFingerprint == profile.SettingsFingerprint && typed.Telemetry.AttemptCount == 1 &&
                 probe.Expected.All(value => observed.TryGetValue(value.Key, out string? verdict) && verdict == value.Value) &&
@@ -375,7 +377,8 @@ public static class LivePilot
             {
                 probe.Name,
                 request,
-                response = response.ToJson(),
+                execution = "in-process engine diagnostic",
+                engineResponse = typed,
                 expectation = probe.Expected,
                 observed,
                 passed,
@@ -747,6 +750,7 @@ public static class LivePilot
     }
 
     private static JsonNode ReportNode(JsonNode? body) => body?["Report"] ?? body?["report"] ??
+        body?["Review"]?["Report"] ?? body?["review"]?["report"] ??
         throw new InvalidOperationException("A captured report body is missing.");
 
     private static JsonNode UsagePhase(IReadOnlyList<UsageAttempt> attempts)

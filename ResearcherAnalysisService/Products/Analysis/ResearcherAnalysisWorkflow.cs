@@ -88,4 +88,17 @@ public sealed class ResearcherAnalysisWorkflow(
             .Where(value => value.PersonelId == personelId).ToListAsync(cancellationToken);
         return ResearcherSnapshotBuilder.BuildCoverage(summaries, works, saved, []);
     }
+
+    public async Task<ResearcherAnalysisReadResponse?> GetAnalysisAsync(
+        string personelId, CancellationToken cancellationToken)
+    {
+        await using var transaction = await database.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable, cancellationToken);
+        ResearcherSourceCoverage? coverage = await GetCoverageAsync(personelId, cancellationToken);
+        if (coverage is null)
+            return null;
+        SavedResearcherAnalysisResponse? analysis = await GetLatestAsync(personelId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(coverage, analysis);
+    }
 }

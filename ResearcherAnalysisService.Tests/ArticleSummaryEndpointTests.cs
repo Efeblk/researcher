@@ -25,7 +25,57 @@ namespace ResearcherAnalysisService.Tests;
 [Collection("Analysis Product SQL Server")]
 public sealed class ArticleSummaryEndpointTests(AnalysisProductSqlServerFixture fixture)
 {
-    private const string Api = "/api/v1/products/";
+    private const string Api = "/api/v1/";
+
+    [Fact]
+    public async Task CanonicalAnalysis_AssociatedWithoutGeneratedArtifacts_ReturnsExplicitNullsAndValidatesInput()
+    {
+        SyntheticCanonicalSource source = await fixture.SeedCanonicalSourceAsync(
+            NewPersonelId(), "Unproduced canonical article");
+        CountingSummaryGenerator generator = new();
+        await using EndpointHost host = await EndpointHost.StartAsync(
+            fixture.ConnectionString, generator, new SupportingVerifier());
+
+        using HttpResponseMessage response = await host.Client.PostAsJsonAsync(
+            Api + "articles/analysis", new
+            {
+                PersonelID = source.PersonelId,
+                source.CanonicalWorkId,
+                Language = "tr",
+                Skip = 0,
+                Take = 25
+            });
+        response.EnsureSuccessStatusCode();
+        string body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("\"Status\":", body, StringComparison.Ordinal);
+        Assert.Contains("\"Evidence\":null", body, StringComparison.Ordinal);
+        Assert.Contains("\"Review\":null", body, StringComparison.Ordinal);
+        Assert.Equal(0, generator.Calls);
+
+        using HttpResponseMessage missing = await host.Client.PostAsJsonAsync(
+            Api + "articles/analysis", new
+            {
+                PersonelID = NewPersonelId(),
+                source.CanonicalWorkId,
+                Language = "tr",
+                Skip = 0,
+                Take = 25
+            });
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+
+        foreach (object invalid in new object[]
+        {
+            new { PersonelID = source.PersonelId, source.CanonicalWorkId, Language = "de", Skip = 0, Take = 25 },
+            new { PersonelID = source.PersonelId, source.CanonicalWorkId, Language = "tr", Skip = -1, Take = 25 },
+            new { PersonelID = source.PersonelId, source.CanonicalWorkId, Language = "tr", Skip = 0, Take = 201 }
+        })
+        {
+            using HttpResponseMessage invalidResponse = await host.Client.PostAsJsonAsync(
+                Api + "articles/analysis", invalid);
+            Assert.Equal(HttpStatusCode.BadRequest, invalidResponse.StatusCode);
+        }
+        Assert.Equal(0, generator.Calls);
+    }
 
     [Fact]
     public async Task SummarizeArticle_AbstractSource_PersistsReadAndEvidenceAcrossRestartAndSharedResearcher()
@@ -38,12 +88,12 @@ public sealed class ArticleSummaryEndpointTests(AnalysisProductSqlServerFixture 
             fixture.ConnectionString, generator, new SupportingVerifier()))
         {
             using HttpResponseMessage wrongOwner = await host.Client.PostAsJsonAsync(
-                Api + "SummarizeArticle",
+                Api + "articles/summary/generate",
                 new { PersonelID = NewPersonelId(), source.AcademicWorkId, Language = "tr" });
             Assert.Equal(HttpStatusCode.NotFound, wrongOwner.StatusCode);
 
             using HttpResponseMessage generated = await host.Client.PostAsJsonAsync(
-                Api + "SummarizeArticle",
+                Api + "articles/summary/generate",
                 new { PersonelID = source.PersonelId, source.AcademicWorkId, Language = "tr" });
             generated.EnsureSuccessStatusCode();
             SavedArticleSummaryResponse saved =
@@ -52,17 +102,20 @@ public sealed class ArticleSummaryEndpointTests(AnalysisProductSqlServerFixture 
             Assert.Equal("automatically_checked", saved.Report.Verification!.Status);
 
             using HttpResponseMessage read = await host.Client.PostAsJsonAsync(
-                Api + "GetArticleSummary",
+                Api + "articles/summary",
                 new { PersonelID = source.PersonelId, source.AcademicWorkId, Language = "tr" });
             read.EnsureSuccessStatusCode();
             Assert.Equal(saved.Id,
                 (await read.Content.ReadFromJsonAsync<SavedArticleSummaryResponse>())!.Id);
 
             CanonicalArticleEvidenceResponse evidence = await ReadEvidenceAsync(
-                host.Client, source.PersonelId, source.CanonicalWorkId);
+                host.Client, source.PersonelId, source.CanonicalWorkId, 0, 1);
             Assert.Equal(saved.Report.SourceHash, evidence.Source.ExtractedTextHash);
             Assert.Equal("DatabaseAbstract", evidence.Source.Origin);
             Assert.Equal("Methods", Assert.Single(evidence.Claims).Section);
+            Assert.Equal(0, evidence.Skip);
+            Assert.Equal(1, evidence.Take);
+            Assert.Equal(1, evidence.TotalClaimCount);
             Assert.Equal(1, generator.Calls);
 
             string secondPersonelId = NewPersonelId();
@@ -87,7 +140,7 @@ public sealed class ArticleSummaryEndpointTests(AnalysisProductSqlServerFixture 
         await using EndpointHost restarted = await EndpointHost.StartAsync(
             fixture.ConnectionString, new CountingSummaryGenerator(), new SupportingVerifier());
         using HttpResponseMessage roundTrip = await restarted.Client.PostAsJsonAsync(
-            Api + "GetArticleSummary",
+            Api + "articles/summary",
             new { PersonelID = source.PersonelId, source.AcademicWorkId, Language = "tr" });
         roundTrip.EnsureSuccessStatusCode();
         Assert.Equal("automatically_checked",
@@ -169,7 +222,7 @@ public sealed class ArticleSummaryEndpointTests(AnalysisProductSqlServerFixture 
             fixture.ConnectionString, generator, new SupportingVerifier());
 
         Task<HttpResponseMessage> pending = host.Client.PostAsJsonAsync(
-            Api + "SummarizeArticle",
+            Api + "articles/summary/generate",
             new { PersonelID = source.PersonelId, source.AcademicWorkId, Language = "tr" });
         await generator.Received.Task.WaitAsync(TimeSpan.FromSeconds(15));
 
@@ -215,7 +268,7 @@ public sealed class ArticleSummaryEndpointTests(AnalysisProductSqlServerFixture 
             fixture.ConnectionString, new CountingSummaryGenerator(), new SupportingVerifier());
 
         using HttpResponseMessage response = await host.Client.PostAsJsonAsync(
-            Api + "SummarizeArticle",
+            Api + "articles/summary/generate",
             new { PersonelID = source.PersonelId, source.AcademicWorkId, Language = "tr" });
         string body = await response.Content.ReadAsStringAsync();
 
@@ -226,13 +279,13 @@ public sealed class ArticleSummaryEndpointTests(AnalysisProductSqlServerFixture 
     }
 
     private static async Task<CanonicalArticleEvidenceResponse> ReadEvidenceAsync(
-        HttpClient client, string personelId, int canonicalWorkId)
+        HttpClient client, string personelId, int canonicalWorkId, int skip = 0, int take = 100)
     {
         using HttpResponseMessage response = await client.PostAsJsonAsync(
-            Api + "GetCanonicalArticleEvidence",
-            new { PersonelID = personelId, CanonicalWorkId = canonicalWorkId, Language = "tr" });
+            Api + "articles/analysis",
+            new { PersonelID = personelId, CanonicalWorkId = canonicalWorkId, Language = "tr", Skip = skip, Take = take });
         response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<CanonicalArticleEvidenceResponse>())!;
+        return (await response.Content.ReadFromJsonAsync<CanonicalArticleAnalysisResponse>())!.Evidence!;
     }
 
     private static string NewPersonelId() => "summary-test-" + Guid.NewGuid().ToString("N");

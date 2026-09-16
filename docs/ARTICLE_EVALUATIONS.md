@@ -42,11 +42,11 @@ Terminal bir çalışmada kontrollü kaynak-okuma doğruluğunun paydası planla
 
 ## Kalıcı yürütme ve sınırlar
 
-`StartArticleEvaluation` işi SQL'e yazar ve HTTP 202 döndürür. Bir çalışma en fazla üç profil, üç gerçek vaka, 36 iş öğesi ve ağırlıklı 114 sağlayıcı çağrısı içerir. Bütçe hesabında kalibrasyon işi 1, gerçek inceleme 8, çapraz kontrol 4 olası model çağrısı sayılır. İş öğesi sayısı çağrı bütçesi değildir.
+`/api/v1/evaluations/start` işi SQL'e yazar ve HTTP 202 döndürür. Bir çalışma en fazla üç profil, üç gerçek vaka, 36 iş öğesi ve ağırlıklı 114 sağlayıcı çağrısı içerir. Bütçe hesabında kalibrasyon işi 1, gerçek inceleme 8, çapraz kontrol 4 olası model çağrısı sayılır. İş öğesi sayısı çağrı bütçesi değildir.
 
 Tek değerlendirme worker'ı SQL uygulama kilidiyle sıradaki işi alır. Her işin en fazla bir denemesi vardır. İstek kaydı model çağrısından önce yazılır ve yürütme belirteci sonuç kaydını çitler. Süreç, sonucu kaydetmeden önce kesilirse çağrı ücretli olmuş olabilir; iş ve açık deneme `Interrupted` yapılır, maliyet `Unknown` kalır ve otomatik tekrar denenmez. Diğer yürütme hataları da sonucu paydadan çıkarmadan kalıcı başarısızlık olarak saklanır.
 
-`GetArticleEvaluation` salt-okunur ve sayfalıdır. Üst yanıt; çalışma durumu, veri/evaluator/politika sürümleri, sabitlenmiş profiller, toplam ve tamamlanan iş sayıları ile toplu ölçümleri verir. `ProfileAggregates` her profil için aynı tam ölçüm bloğunu; karışıklık matrisi, planlanan/bekleyen/başarısız/eksik/geçersiz iddia sayıları ve kontrollü doğruluk dahil ayrı hesaplar. Ayrıca profil başına toplam süre, nullable giriş/çıkış token toplamları ve `Known`, `Partial` veya `Unknown` `TokenStatus` döner. Her iş öğesi; vaka ve aşama, profil, durum, deneme sayısı, sonuç kodu, gerçekte dönen model kimliği, güvenli ölçümler, telemetri ve nullable maliyet tahminini içerir. Telemetri sağlayıcı çağrısı başına aşama/rol, istenen ve dönen model, başlangıç/bitiş zamanı, süre, giriş/çıkış/cache/thinking token sayıları, fiyat sürümü, nullable USD tahmini ve hata kodunu korur.
+`/api/v1/evaluations/status` salt-okunur ve sayfalıdır. Üst yanıt; çalışma durumu, veri/evaluator/politika sürümleri, sabitlenmiş profiller, toplam ve tamamlanan iş sayıları ile toplu ölçümleri verir. `ProfileAggregates` her profil için aynı tam ölçüm bloğunu; karışıklık matrisi, planlanan/bekleyen/başarısız/eksik/geçersiz iddia sayıları ve kontrollü doğruluk dahil ayrı hesaplar. Ayrıca profil başına toplam süre, nullable giriş/çıkış token toplamları ve `Known`, `Partial` veya `Unknown` `TokenStatus` döner. Her iş öğesi; vaka ve aşama, profil, durum, deneme sayısı, sonuç kodu, gerçekte dönen model kimliği, güvenli ölçümler, telemetri ve nullable maliyet tahminini içerir. Telemetri sağlayıcı çağrısı başına aşama/rol, istenen ve dönen model, başlangıç/bitiş zamanı, süre, giriş/çıkış/cache/thinking token sayıları, fiyat sürümü, nullable USD tahmini ve hata kodunu korur.
 
 Gerçek inceleme ölçümlerindeki `ExactEvidenceLinkRate`, dönen kanıtların kayıtlı kaynak kimliği, sayfa, başlangıç/bitiş ofseti ve alıntıyla birebir katalog eşleşme oranıdır. Bu yalnızca mekanik bağ bütünlüğüdür. `ReviewCandidateFindings`, `ReviewSupportedFindings`, `ReviewUnsupportedFindings`, `ReviewUncertainFindings` ve `ReviewOmittedFindings` üretim ve doğrulama kapsamını ayrı gösterir. `ScientificAccuracy` ve `RealArticleOmissionRecall` uzman referansı bulunmadığı için `null`/`NotValidated` kalır. Sistem otomatik bir model kazananı, yayın kalite puanı veya İK kararı üretmez.
 
@@ -92,12 +92,12 @@ Gemini anahtarı `Gemini:ApiKey`, yerel Ollama adresi `Ai:OllamaBaseUrl` üzerin
 
 Analysis Service'in kalıcı ürün uçları şunlardır:
 
-- `POST /api/v1/products/StartArticleEvaluation`: sabit profilleri ön denetler, kalibrasyon ve isteğe bağlı gerçek vakaları kalıcı kuyruğa ekler, HTTP 202 döndürür.
-- `POST /api/v1/products/GetArticleEvaluation`: `RunId`, zorunlu sahip `PersonelID`, `Skip` ve `Take` ile kalıcı ilerleme/sonuç sayfasını okur.
+- `POST /api/v1/evaluations/start`: sabit profilleri ön denetler, kalibrasyon ve isteğe bağlı gerçek vakaları kalıcı kuyruğa ekler, HTTP 202 döndürür.
+- `POST /api/v1/evaluations/status`: `RunId`, zorunlu sahip `PersonelID`, `Skip` ve `Take` ile kalıcı ilerleme/sonuç sayfasını okur.
 
-`StartArticleEvaluationRequest`, `ProfileIds`, `PersonelId`, `RealCases` ve `EnableBlindCrossCheck` alanlarını taşır. HTTP 202 gövdesindeki `StartArticleEvaluationResponse`; `RunId`, ilk durum, vaka/iş/olası çağrı sayıları ile veri kümesi ve evaluator sürümünü döndürür. Sayfalı okuma `GetArticleEvaluationRequest` alır ve `ArticleEvaluationResponse` döndürür. Aynı servisteki `GET /api/v1/evaluations/profiles` ve `POST /api/v1/evaluations/execute` tam kaynak/parmak izi alan stateless sözleşmelerdir; kalıcı son kullanıcı akışından ayrıdır.
+`StartArticleEvaluationRequest`, `ProfileIds`, `PersonelId`, `RealCases` ve `EnableBlindCrossCheck` alanlarını taşır. HTTP 202 gövdesindeki `StartArticleEvaluationResponse`; `RunId`, ilk durum, vaka/iş/olası çağrı sayıları ile veri kümesi ve evaluator sürümünü döndürür. Sayfalı okuma `GetArticleEvaluationRequest` alır ve `ArticleEvaluationResponse` döndürür. `GET /api/v1/evaluations/profiles` sürümlü profil sözleşmesini keşfetmek için korunur; yürütme kalıcı start/status akışından yapılır.
 
-Bu dilimde iptal uç noktası yoktur. Kalibrasyon dahil bütün kalıcı başlatma ve okuma istekleri açık bir `PersonelID` ve güvenilir ürün erişim adaptörü üzerinden yetki denetimi gerektirir. Kalıcı kuyruk örnekleri [ArticleEvaluation.http](../ResearcherAnalysisService/Requests/ArticleEvaluation.http), tam kaynak ve güncel profil parmak izi isteyen stateless örnek [EvaluationAndFaculty.http](../ResearcherAnalysisService/Requests/EvaluationAndFaculty.http) dosyasındadır.
+Bu dilimde iptal uç noktası yoktur. Kalibrasyon dahil bütün kalıcı başlatma ve okuma istekleri açık bir `PersonelID` ve güvenilir ürün erişim adaptörü üzerinden yetki denetimi gerektirir. Kuyruk ve profil örnekleri [Evaluations.http](../ResearcherAnalysisService/Requests/Specialist/Evaluations.http) dosyasındadır.
 
 ## Yerel entegrasyon smoke sonucu
 

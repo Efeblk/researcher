@@ -17,7 +17,7 @@ public sealed class ArticleEvaluationEndpointTests(AnalysisProductSqlServerFixtu
         await host.WaitUntilReadyAsync();
 
         using HttpResponseMessage start = await host.Client.PostAsJsonAsync(
-            "/api/v1/products/StartArticleEvaluation",
+            "/api/v1/evaluations/start",
             new StartArticleEvaluationRequest { PersonelId = "subject", ProfileIds = ["fake-profile"] });
 
         Assert.Equal(HttpStatusCode.Unauthorized, start.StatusCode);

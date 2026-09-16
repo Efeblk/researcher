@@ -53,6 +53,7 @@ public static class ProductServiceCollectionExtensions
         services.AddScoped<ArticleSummaryAutomationProcessor>();
         services.AddScoped<ArticleSummaryAutomationStatusService>();
         services.AddScoped<CanonicalArticleEvidenceQueryService>();
+        services.AddScoped<CanonicalArticleAnalysisQueryService>();
 
         services.AddOptions<PublicationMetricsOptions>()
             .Bind(configuration.GetSection("PublicationMetrics")).ValidateDataAnnotations();

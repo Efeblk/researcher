@@ -14,58 +14,58 @@ public sealed class AcademicAiProductEndpointAuthorizationTests(AnalysisProductS
         using HostProcess host = new(fixture.ConnectionString, "http://127.0.0.1:1/");
         await host.WaitUntilReadyAsync();
 
-        (string Action, object Body)[] requests =
+        (string Route, object Body)[] requests =
         [
-            ("CreateHrEvidenceDossier", new CreateHrEvidenceDossierRequest
+            ("hr/dossiers/create", new CreateHrEvidenceDossierRequest
             {
                 PersonelId = "missing-subject", CanonicalWorkIds = [1], Language = "tr"
             }),
-            ("GetHrEvidenceDossier", new GetHrEvidenceDossierRequest
+            ("hr/dossiers", new GetHrEvidenceDossierRequest
             {
                 PersonelId = "missing-subject", DossierId = 1
             }),
-            ("AppendHrDossierReviewAction", new AppendHrDossierReviewActionRequest
+            ("hr/dossiers/actions/append", new AppendHrDossierReviewActionRequest
             {
                 PersonelId = "missing-subject", DossierId = 1, ClientRequestId = Guid.NewGuid(),
                 ActionType = "NoteAdded", Note = "Synthetic."
             }),
-            ("ListHrDossierReviewActions", new ListHrDossierReviewActionsRequest
+            ("hr/dossiers/actions", new ListHrDossierReviewActionsRequest
             {
                 PersonelId = "missing-subject", DossierId = 1
             }),
-            ("SaveFacultyAssistantContext", new SaveFacultyAssistantContextRequest
+            ("faculty/context/save", new SaveFacultyAssistantContextRequest
             {
                 PersonelId = "missing-subject", ExpectedVersion = 0,
                 Context = new FacultyPrivateContext { Language = "tr" }
             }),
-            ("GetFacultyAssistantContext", new GetFacultyAssistantContextRequest
+            ("faculty/context", new GetFacultyAssistantContextRequest
             {
                 PersonelId = "missing-subject", Version = 1
             }),
-            ("StartFacultyAssistant", new StartFacultyAssistantRequest
+            ("faculty/assistant/start", new StartFacultyAssistantRequest
             {
                 PersonelId = "missing-subject", ClientRequestId = Guid.NewGuid(),
                 Mode = "OwnPaperMethods", Language = "tr", Query = "Synthetic question.",
                 CanonicalWorkIds = [1], ContextVersion = 1
             }),
-            ("GetFacultyAssistantRun", new GetFacultyAssistantRunRequest
+            ("faculty/assistant/run", new GetFacultyAssistantRunRequest
             {
                 PersonelId = "missing-subject", RunId = Guid.NewGuid()
             }),
-            ("StartArticleEvaluation", new StartArticleEvaluationRequest
+            ("evaluations/start", new StartArticleEvaluationRequest
             {
                 PersonelId = "missing-subject", ProfileIds = ["paid-profile"]
             }),
-            ("GetArticleEvaluation", new GetArticleEvaluationRequest
+            ("evaluations/status", new GetArticleEvaluationRequest
             {
                 PersonelId = "missing-subject", RunId = Guid.NewGuid()
             })
         ];
 
-        foreach ((string action, object body) in requests)
+        foreach ((string route, object body) in requests)
         {
             using HttpResponseMessage response = await host.Client.PostAsJsonAsync(
-                "/api/v1/products/" + action, body);
+                "/api/v1/" + route, body);
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         }
     }

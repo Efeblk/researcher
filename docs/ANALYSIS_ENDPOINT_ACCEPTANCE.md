@@ -7,32 +7,28 @@ developer secrets, call paid providers, or use a personal application database.
 
 ## Route inventory and HTTP coverage
 
-The application registers 36 protected `/api/v1/*` controller routes and one public `GET /health`
+The application registers 24 protected `/api/v1/*` controller routes and one public `GET /health`
 route. `ServiceEndpointBoundaryTests.AnalysisApiRoutes_ExceptHealth_RejectMissingOrWrongServiceKey`
 discovers the runtime endpoint table and sends requests through the real ASP.NET Core pipeline. It
 asserts that every protected route returns HTTP 401 for both a missing and incorrect
-`X-Analysis-Key`. It also fixes the expected inventory at 36 routes, including all 25 persistent
-product actions, so a newly exposed route cannot silently omit the service-key check.
+`X-Analysis-Key`. It also fixes the expected inventory at 24 routes, including all 22 product
+actions, so a newly exposed route cannot silently omit the service-key check.
 
 | Surface | Registered routes | HTTP acceptance evidence |
 | --- | ---: | --- |
-| Stateless researcher analysis | 1 | Authentication, model validation, payload size, provider failure sanitization, successful and partial reports |
-| Stateless article summary and review | 6 | Authentication, request/source validation, timeout and provider failure mapping, staged and complete successful flows |
-| Stateless evaluation | 2 | Authentication, profile contract, request validation, provider telemetry, successful calibration and review flows |
-| Stateless faculty assistant | 1 | Authentication, validation, unavailable-provider behavior, verified and partial successful reports |
 | Gemini provider status | 1 | Authentication before upstream use, configuration states, sanitized upstream failures and timeouts, spending availability, cache policy, successful health response |
-| Persistent products | 25 | Missing/wrong service-key rejection through HTTP on every route; a mix of HTTP-host, endpoint-method, service, and isolated-SQL tests covers the product workflows |
+| Evaluation profile discovery | 1 | Authentication and the versioned profile contract |
+| Product operations | 22 | Missing/wrong service-key rejection through HTTP on every route; service and isolated-SQL tests cover the workflows |
 | Health | 1 | Public HTTP 200 without collector schema, database availability, or AI credentials |
 
-The 25 persistent actions are `AnalyzeResearcher`, `GetResearcherAnalysis`,
-`GetResearcherSourceCoverage`, `SummarizeArticle`, `GetArticleSummary`,
-`GetArticleSummaryAutomationStatus`, `GetCanonicalArticleEvidence`, `ReviewCanonicalArticle`,
-`GetCanonicalArticleReview`, `GetResearcherPublicationMetrics`,
-`RefreshResearcherPublicationMetrics`, `SearchAcademicEvidence`, `GetReferencePopulation`,
-`ImportReferencePopulation`, `ExportAcademicEvidenceGraph`, `StartArticleEvaluation`,
-`GetArticleEvaluation`, `CreateHrEvidenceDossier`, `GetHrEvidenceDossier`,
-`AppendHrDossierReviewAction`, `ListHrDossierReviewActions`, `SaveFacultyAssistantContext`,
-`GetFacultyAssistantContext`, `StartFacultyAssistant`, and `GetFacultyAssistantRun`.
+The 22 product actions are `/api/v1/researchers/analysis/generate`, `/api/v1/researchers/analysis`,
+`/api/v1/articles/summary/generate`, `/api/v1/articles/summary`, `/api/v1/articles/analysis`,
+`/api/v1/articles/review/generate`, `/api/v1/researchers/metrics`,
+`/api/v1/researchers/metrics/refresh`, `/api/v1/knowledge/search`, `/api/v1/knowledge/reference-population`,
+`/api/v1/knowledge/reference-population/import`, `/api/v1/knowledge/graph/export`, `/api/v1/evaluations/start`,
+`/api/v1/evaluations/status`, `/api/v1/hr/dossiers/create`, `/api/v1/hr/dossiers`,
+`/api/v1/hr/dossiers/actions/append`, `/api/v1/hr/dossiers/actions`, `/api/v1/faculty/context/save`,
+`/api/v1/faculty/context`, `/api/v1/faculty/assistant/start`, and `/api/v1/faculty/assistant/run`.
 
 Protected knowledge/graph, evaluation, HR, and faculty routes also have tests for the separate,
 fail-closed subject authorization layer. These cover anonymous callers, an unconfigured trusted

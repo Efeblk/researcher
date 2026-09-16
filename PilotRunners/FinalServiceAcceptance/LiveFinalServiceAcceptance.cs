@@ -188,7 +188,7 @@ internal static class LiveFinalServiceAcceptance
                 root, database, CollectorUrl, AnalysisUrl, "idle", replay))
             using (HttpClient client = CollectorClient(authenticated: true, timeout: TimeSpan.FromSeconds(620)))
                 review = await PostAsync<CanonicalArticleReviewResponse>(client,
-                    AnalysisUrl + "/api/v1/products/ReviewCanonicalArticle", new CanonicalArticleReviewRequest
+                    AnalysisUrl + "/api/v1/articles/review/generate", new CanonicalArticleReviewRequest
                     {
                         PersonelId = ServiceAcceptanceHost.SubjectId,
                         CanonicalWorkId = works.AdamCanonicalWorkId,
@@ -213,7 +213,7 @@ internal static class LiveFinalServiceAcceptance
             using (HttpClient client = CollectorClient())
             {
                 _ = await PostAsync<ResearcherPublicationMetricsStatusResponse>(client,
-                    AnalysisUrl + "/api/v1/products/RefreshResearcherPublicationMetrics",
+                    AnalysisUrl + "/api/v1/researchers/metrics/refresh",
                     new ResearcherPublicationMetricsRequest { PersonelId = ServiceAcceptanceHost.SubjectId },
                     HttpStatusCode.Accepted);
                 metrics = await PollMetricsAsync(client);
@@ -235,7 +235,7 @@ internal static class LiveFinalServiceAcceptance
             using (HttpClient client = CollectorClient(authenticated: true))
             {
                 savedContext = await PostAsync<FacultyAssistantContextResponse>(client,
-                    AnalysisUrl + "/api/v1/products/SaveFacultyAssistantContext",
+                    AnalysisUrl + "/api/v1/faculty/context/save",
                     new SaveFacultyAssistantContextRequest
                     {
                         PersonelId = ServiceAcceptanceHost.SubjectId,
@@ -250,14 +250,14 @@ internal static class LiveFinalServiceAcceptance
                         }
                     });
                 readContext = await PostAsync<FacultyAssistantContextResponse>(client,
-                    AnalysisUrl + "/api/v1/products/GetFacultyAssistantContext",
+                    AnalysisUrl + "/api/v1/faculty/context",
                     new GetFacultyAssistantContextRequest
                     {
                         PersonelId = ServiceAcceptanceHost.SubjectId,
                         Version = savedContext.Version
                     });
                 createdDossier = await PostAsync<HrEvidenceDossierResponse>(client,
-                    AnalysisUrl + "/api/v1/products/CreateHrEvidenceDossier",
+                    AnalysisUrl + "/api/v1/hr/dossiers/create",
                     new CreateHrEvidenceDossierRequest
                     {
                         PersonelId = ServiceAcceptanceHost.SubjectId,
@@ -266,7 +266,7 @@ internal static class LiveFinalServiceAcceptance
                         Language = "tr"
                     });
                 readDossier = await PostAsync<HrEvidenceDossierResponse>(client,
-                    AnalysisUrl + "/api/v1/products/GetHrEvidenceDossier",
+                    AnalysisUrl + "/api/v1/hr/dossiers",
                     new GetHrEvidenceDossierRequest
                     {
                         PersonelId = ServiceAcceptanceHost.SubjectId,
@@ -522,7 +522,7 @@ internal static class LiveFinalServiceAcceptance
         HttpClient client, string database, WorkIdentity works)
     {
         SavedArticleSummaryResponse adam = await PostAsync<SavedArticleSummaryResponse>(client,
-            AnalysisUrl + "/api/v1/products/GetArticleSummary",
+            AnalysisUrl + "/api/v1/articles/summary",
             new ArticleSummaryRequest
             {
                 PersonelID = ServiceAcceptanceHost.SubjectId,
@@ -530,7 +530,7 @@ internal static class LiveFinalServiceAcceptance
                 Language = "tr"
             });
         SavedArticleSummaryResponse football = await PostAsync<SavedArticleSummaryResponse>(client,
-            AnalysisUrl + "/api/v1/products/GetArticleSummary",
+            AnalysisUrl + "/api/v1/articles/summary",
             new ArticleSummaryRequest
             {
                 PersonelID = ServiceAcceptanceHost.SubjectId,
@@ -653,7 +653,7 @@ internal static class LiveFinalServiceAcceptance
         {
             ResearcherPublicationMetricsStatusResponse value =
                 await PostAsync<ResearcherPublicationMetricsStatusResponse>(client,
-                    AnalysisUrl + "/api/v1/products/GetResearcherPublicationMetrics",
+                    AnalysisUrl + "/api/v1/researchers/metrics",
                     new ResearcherPublicationMetricsRequest
                     {
                         PersonelId = ServiceAcceptanceHost.SubjectId
@@ -709,7 +709,7 @@ internal static class LiveFinalServiceAcceptance
             root, database, CollectorUrl, AnalysisUrl, "idle", replay))
         using (HttpClient client = CollectorClient(authenticated: true))
             queued = await PostAsync<FacultyAssistantRunResponse>(client,
-                AnalysisUrl + "/api/v1/products/StartFacultyAssistant", request,
+                AnalysisUrl + "/api/v1/faculty/assistant/start", request,
                 HttpStatusCode.Accepted);
         Require(!queued.Reused && queued.Status == "Pending",
             $"{mode} did not enqueue a fresh pending faculty run.");
@@ -728,7 +728,7 @@ internal static class LiveFinalServiceAcceptance
         while (DateTimeOffset.UtcNow < deadline)
         {
             FacultyAssistantRunResponse value = await PostAsync<FacultyAssistantRunResponse>(client,
-                AnalysisUrl + "/api/v1/products/GetFacultyAssistantRun",
+                AnalysisUrl + "/api/v1/faculty/assistant/run",
                 new GetFacultyAssistantRunRequest
                 {
                     PersonelId = ServiceAcceptanceHost.SubjectId,
@@ -870,16 +870,16 @@ internal static class LiveFinalServiceAcceptance
         FacultyAssistantContextResponse context, HrEvidenceDossierResponse dossier,
         params FacultyRunEvidence?[] facultyRuns)
     {
-        CanonicalArticleReviewResponse readReview = await PostAsync<CanonicalArticleReviewResponse>(client,
-            AnalysisUrl + "/api/v1/products/GetCanonicalArticleReview",
-            new CanonicalArticleReviewRequest
+        CanonicalArticleReviewResponse readReview = (await PostAsync<CanonicalArticleAnalysisResponse>(client,
+            AnalysisUrl + "/api/v1/articles/analysis",
+            new CanonicalArticleAnalysisRequest
             {
                 PersonelId = ServiceAcceptanceHost.SubjectId,
                 CanonicalWorkId = works.AdamCanonicalWorkId,
                 Language = "tr"
-            });
+            })).Review!;
         CanonicalArticleReviewResponse replayedReview = await PostAsync<CanonicalArticleReviewResponse>(client,
-            AnalysisUrl + "/api/v1/products/ReviewCanonicalArticle",
+            AnalysisUrl + "/api/v1/articles/review/generate",
             new CanonicalArticleReviewRequest
             {
                 PersonelId = ServiceAcceptanceHost.SubjectId,
@@ -894,14 +894,14 @@ internal static class LiveFinalServiceAcceptance
             "Article review read/cache replay did not return the identical saved report.");
 
         FacultyAssistantContextResponse readContext = await PostAsync<FacultyAssistantContextResponse>(client,
-            AnalysisUrl + "/api/v1/products/GetFacultyAssistantContext",
+            AnalysisUrl + "/api/v1/faculty/context",
             new GetFacultyAssistantContextRequest
             {
                 PersonelId = ServiceAcceptanceHost.SubjectId,
                 Version = context.Version
             });
         HrEvidenceDossierResponse readDossier = await PostAsync<HrEvidenceDossierResponse>(client,
-            AnalysisUrl + "/api/v1/products/GetHrEvidenceDossier",
+            AnalysisUrl + "/api/v1/hr/dossiers",
             new GetHrEvidenceDossierRequest
             {
                 PersonelId = ServiceAcceptanceHost.SubjectId,
@@ -921,11 +921,11 @@ internal static class LiveFinalServiceAcceptance
             Note = "Final acceptance procedural review opened."
         };
         HrDossierReviewActionResponse createdAction = await PostAsync<HrDossierReviewActionResponse>(client,
-            AnalysisUrl + "/api/v1/products/AppendHrDossierReviewAction", actionRequest);
+            AnalysisUrl + "/api/v1/hr/dossiers/actions/append", actionRequest);
         HrDossierReviewActionResponse replayedAction = await PostAsync<HrDossierReviewActionResponse>(client,
-            AnalysisUrl + "/api/v1/products/AppendHrDossierReviewAction", actionRequest);
+            AnalysisUrl + "/api/v1/hr/dossiers/actions/append", actionRequest);
         HrDossierReviewActionListResponse actionList = await PostAsync<HrDossierReviewActionListResponse>(client,
-            AnalysisUrl + "/api/v1/products/ListHrDossierReviewActions",
+            AnalysisUrl + "/api/v1/hr/dossiers/actions",
             new ListHrDossierReviewActionsRequest
             {
                 PersonelId = ServiceAcceptanceHost.SubjectId,
@@ -939,7 +939,7 @@ internal static class LiveFinalServiceAcceptance
             Equivalent(createdAction.Action, actionList.Actions[0]),
             "HR procedural action append/replay/list parity failed.");
         HttpCapture actionConflict = await PostCaptureAsync(client,
-            AnalysisUrl + "/api/v1/products/AppendHrDossierReviewAction",
+            AnalysisUrl + "/api/v1/hr/dossiers/actions/append",
             new AppendHrDossierReviewActionRequest
             {
                 PersonelId = ServiceAcceptanceHost.SubjectId,
@@ -956,10 +956,10 @@ internal static class LiveFinalServiceAcceptance
         foreach (FacultyRunEvidence run in facultyRuns.OfType<FacultyRunEvidence>())
         {
             FacultyAssistantRunResponse replayed = await PostAsync<FacultyAssistantRunResponse>(client,
-                AnalysisUrl + "/api/v1/products/StartFacultyAssistant", run.Request,
+                AnalysisUrl + "/api/v1/faculty/assistant/start", run.Request,
                 HttpStatusCode.Accepted);
             FacultyAssistantRunResponse read = await PostAsync<FacultyAssistantRunResponse>(client,
-                AnalysisUrl + "/api/v1/products/GetFacultyAssistantRun",
+                AnalysisUrl + "/api/v1/faculty/assistant/run",
                 new GetFacultyAssistantRunRequest
                 {
                     PersonelId = ServiceAcceptanceHost.SubjectId,
@@ -968,7 +968,7 @@ internal static class LiveFinalServiceAcceptance
             StartFacultyAssistantRequest changed = CloneFacultyRequest(run.Request);
             changed.Query += " değiştirildi";
             HttpCapture conflict = await PostCaptureAsync(client,
-                AnalysisUrl + "/api/v1/products/StartFacultyAssistant", changed);
+                AnalysisUrl + "/api/v1/faculty/assistant/start", changed);
             Require(replayed.Reused && replayed.RunId == run.Completed.RunId &&
                 Equivalent(run.Completed.Report, replayed.Report) &&
                 Equivalent(run.Completed.Report, read.Report) &&

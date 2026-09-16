@@ -91,7 +91,7 @@ internal static class LiveServiceAcceptance
                 CollectorUrl, AnalysisUrl, "metrics", replay))
             using (HttpClient client = Client())
             {
-                _ = await PostNodeAsync(client, AnalysisUrl + "/api/v1/products/RefreshResearcherPublicationMetrics",
+                _ = await PostNodeAsync(client, AnalysisUrl + "/api/v1/researchers/metrics/refresh",
                     new { PersonelID = ServiceAcceptanceHost.SubjectId });
                 JsonObject metrics = await PollMetricsAsync(client);
                 result["metrics"] = metrics;
@@ -109,14 +109,14 @@ internal static class LiveServiceAcceptance
             using (HttpClient client = Client(true))
             {
                 context = await PostAsync<FacultyAssistantContextResponse>(client,
-                    AnalysisUrl + "/api/v1/products/SaveFacultyAssistantContext", new { PersonelID = ServiceAcceptanceHost.SubjectId,
+                    AnalysisUrl + "/api/v1/faculty/context/save", new { PersonelID = ServiceAcceptanceHost.SubjectId,
                         ExpectedVersion = 0, Context = new { Language = "tr", ResearchGoals = new[] { "Yöntem karşılaştırması" },
                             Courses = new[] { "Makine öğrenmesi" }, TeachingAudience = "Lisansüstü" } });
                 dossier = await PostAsync<HrEvidenceDossierResponse>(client,
-                    AnalysisUrl + "/api/v1/products/CreateHrEvidenceDossier", new { PersonelID = ServiceAcceptanceHost.SubjectId,
+                    AnalysisUrl + "/api/v1/hr/dossiers/create", new { PersonelID = ServiceAcceptanceHost.SubjectId,
                         PublicationMetricSnapshotId = snapshotId, CanonicalWorkIds = workIds, Language = "tr" });
                 dossierRead = await PostAsync<HrEvidenceDossierResponse>(client,
-                    AnalysisUrl + "/api/v1/products/GetHrEvidenceDossier", new { PersonelID = ServiceAcceptanceHost.SubjectId,
+                    AnalysisUrl + "/api/v1/hr/dossiers", new { PersonelID = ServiceAcceptanceHost.SubjectId,
                         dossier.DossierId });
                 if (JsonSerializer.Serialize(dossier, JsonOptions) != JsonSerializer.Serialize(dossierRead, JsonOptions))
                     throw new InvalidOperationException("HR dossier create/read typed payloads differ.");
@@ -208,7 +208,7 @@ internal static class LiveServiceAcceptance
         for (int i = 0; i < 120; i++)
         {
             ResearcherPublicationMetricsStatusResponse value = await PostAsync<ResearcherPublicationMetricsStatusResponse>(client,
-                AnalysisUrl + "/api/v1/products/GetResearcherPublicationMetrics", new { PersonelID = ServiceAcceptanceHost.SubjectId });
+                AnalysisUrl + "/api/v1/researchers/metrics", new { PersonelID = ServiceAcceptanceHost.SubjectId });
             if (value.Status == "Current" && value.SnapshotId.HasValue && value.Data is not null &&
                 value.RequestedRevision == value.ComputedRevision && !value.IsStale)
                 return JsonSerializer.SerializeToNode(value, JsonOptions)!.AsObject();
@@ -222,14 +222,14 @@ internal static class LiveServiceAcceptance
         await using WebApplication host = await ServiceAcceptanceHost.StartCollectorAsync(root, database, CollectorUrl, AnalysisUrl, "faculty", replay);
         using HttpClient client = Client(true);
         for (int i = 0; i < 700; i++) { FacultyAssistantRunResponse value = await PostAsync<FacultyAssistantRunResponse>(client,
-            AnalysisUrl + "/api/v1/products/GetFacultyAssistantRun", new { PersonelID = ServiceAcceptanceHost.SubjectId, RunId = id });
+            AnalysisUrl + "/api/v1/faculty/assistant/run", new { PersonelID = ServiceAcceptanceHost.SubjectId, RunId = id });
             if (value.Status == "Completed") return value; if (value.Status is "Failed" or "Interrupted")
                 throw new InvalidOperationException($"Faculty ended {value.Status}: {value.ErrorCode}"); await Task.Delay(500); }
         throw new TimeoutException("Faculty worker timed out.");
     }
     private static Task<FacultyAssistantRunResponse> StartFacultyAsync(HttpClient client, Guid id, string mode,
         string query, int[] works, int version) => PostAsync<FacultyAssistantRunResponse>(client,
-        AnalysisUrl + "/api/v1/products/StartFacultyAssistant", new { PersonelID = ServiceAcceptanceHost.SubjectId,
+        AnalysisUrl + "/api/v1/faculty/assistant/start", new { PersonelID = ServiceAcceptanceHost.SubjectId,
             ClientRequestId = id, Mode = mode, Language = "tr", Query = query, CanonicalWorkIds = works, Take = 10, ContextVersion = version });
     private static object FacultyAudit(FacultyAssistantRunResponse value) => new { value.RunId, value.Status,
         value.AttemptCount, value.Report?.Outcome, value.Report?.Model, verificationModel = value.Report?.Verification.Model,

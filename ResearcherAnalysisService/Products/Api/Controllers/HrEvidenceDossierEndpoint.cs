@@ -9,10 +9,10 @@ namespace ResearcherAnalysisService.Products.Api.Controllers;
 [ApiController]
 [ResearcherAnalysisService.Products.Api.ProductJsonContract]
 [ServiceFilter<AnalysisAccessFilter>]
-[Route("api/v1/products/[action]")]
+[Route("api/v1")]
 public sealed class HrEvidenceDossierEndpoint : ControllerBase
 {
-    [HttpPost]
+    [HttpPost("hr/dossiers/create")]
     public async Task<ActionResult<HrEvidenceDossierResponse>> CreateHrEvidenceDossier(
         [FromBody] CreateHrEvidenceDossierRequest request,
         [FromServices] IAcademicProductAccessService access,
@@ -32,7 +32,7 @@ public sealed class HrEvidenceDossierEndpoint : ControllerBase
         catch (HrDossierInputException exception) { return UnprocessableEntity(new { Message = exception.Message }); }
     }
 
-    [HttpPost]
+    [HttpPost("hr/dossiers")]
     public async Task<ActionResult<HrEvidenceDossierResponse>> GetHrEvidenceDossier(
         [FromBody] GetHrEvidenceDossierRequest request, [FromServices] IAcademicProductAccessService access,
         [FromServices] HrEvidenceDossierService service, CancellationToken cancellationToken)
@@ -50,7 +50,7 @@ public sealed class HrEvidenceDossierEndpoint : ControllerBase
         { return AcademicProductEndpoint.Error(exception); }
     }
 
-    [HttpPost]
+    [HttpPost("hr/dossiers/actions/append")]
     public async Task<ActionResult<HrDossierReviewActionResponse>> AppendHrDossierReviewAction(
         [FromBody] AppendHrDossierReviewActionRequest request, [FromServices] IAcademicProductAccessService access,
         [FromServices] HrEvidenceDossierService service, CancellationToken cancellationToken)
@@ -70,7 +70,7 @@ public sealed class HrEvidenceDossierEndpoint : ControllerBase
         catch (HrDossierConflictException) { return Conflict(new { Message = "The request ID was already used for different action content." }); }
     }
 
-    [HttpPost]
+    [HttpPost("hr/dossiers/actions")]
     public async Task<ActionResult<HrDossierReviewActionListResponse>> ListHrDossierReviewActions(
         [FromBody] ListHrDossierReviewActionsRequest request, [FromServices] IAcademicProductAccessService access,
         [FromServices] HrEvidenceDossierService service, CancellationToken cancellationToken)

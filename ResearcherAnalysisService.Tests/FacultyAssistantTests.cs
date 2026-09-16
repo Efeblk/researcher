@@ -504,10 +504,9 @@ public sealed class FacultyAssistantTests
         {
             EndOffset = request.Evidence[0].ExactText.Length
         };
-        using HttpResponseMessage response = await host.Client.PostAsJsonAsync(
-            "/api/v1/faculty-assistant", request);
-
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        await Assert.ThrowsAsync<AnalysisUnavailableException>(() =>
+            host.InvokeAsync<FacultyAssistant, FacultyAssistantAnalysisReport>(
+                assistant => assistant.AnswerAsync(request, default)));
         Assert.Equal(0, requests);
     }
 

@@ -1,5 +1,5 @@
 @baseUrl = http://localhost:5011
-@api = {{baseUrl}}/api/v1/products
+@api = {{baseUrl}}/api/v1
 @analysisKey = REPLACE_WITH_SERVICE_API_KEY
 @personelId = P-1001
 @canonicalWorkId = 1
@@ -10,9 +10,14 @@
 # Varsayılan kurulum: anonim 401, kimliği doğrulanmış fakat adaptörü yapılandırılmamış istek 503.
 # PersonelID sentetik kalibrasyon dahil her başlatma ve okuma isteğinde zorunludur.
 
-### 1. Yerel modelle kontrollü kalibrasyonu kuyruğa al [AI kuyruğu + yazma]
+### 1. Sabit değerlendirme profillerini keşfet [metadata okuma]
+GET {{baseUrl}}/api/v1/evaluations/profiles
+Accept: application/json
+X-Analysis-Key: {{analysisKey}}
+
+### 2. Yerel modelle kontrollü kalibrasyonu kuyruğa al [AI kuyruğu + yazma]
 # Yanıttaki RunId değerini evaluationRunId değişkenine kopyalayın.
-POST {{api}}/StartArticleEvaluation
+POST {{api}}/evaluations/start
 Content-Type: application/json
 X-Analysis-Key: {{analysisKey}}
 
@@ -23,10 +28,10 @@ X-Analysis-Key: {{analysisKey}}
   "EnableBlindCrossCheck": false
 }
 
-### 2. İsteğe bağlı: gerçek kayıt ve iki modelle benchmark kuyruğa al [AI kuyruğu + yazma]
+### 3. İsteğe bağlı: gerçek kayıt ve iki modelle benchmark kuyruğa al [AI kuyruğu + yazma]
 # canonicalWorkId için aynı dilde başarılı kanonik makale analizi ve değişmez kaynak anlık görüntüsü gerekir.
 # İki profilli çapraz kontrol Gemini'ı birçok kez çağırabilir ve ücret doğurabilir.
-POST {{api}}/StartArticleEvaluation
+POST {{api}}/evaluations/start
 Content-Type: application/json
 X-Analysis-Key: {{analysisKey}}
 
@@ -42,9 +47,9 @@ X-Analysis-Key: {{analysisKey}}
   "EnableBlindCrossCheck": true
 }
 
-### 3. Kalıcı ilerlemeyi ve sonuç sayfasını oku [okuma]
+### 4. Kalıcı ilerlemeyi ve sonuç sayfasını oku [okuma]
 # Başlatma yanıtındaki RunId ve aynı PersonelID kullanılmalıdır; model çağrısı yapmaz.
-POST {{api}}/GetArticleEvaluation
+POST {{api}}/evaluations/status
 Content-Type: application/json
 X-Analysis-Key: {{analysisKey}}
 

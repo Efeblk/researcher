@@ -7,7 +7,7 @@ Analysis-owned migrations add immutable `analysis.PublicationMetricSnapshots` ro
 Call the Analysis Service on port 5011 with:
 
 ```text
-POST /api/v1/products/GetResearcherPublicationMetrics
+POST /api/v1/researchers/metrics
 { "PersonelID": "..." }
 ```
 
@@ -18,11 +18,11 @@ The response wrapper reports `RequestedRevision`, `ComputedRevision`, current/re
 An explicit refresh only schedules work and returns 202:
 
 ```text
-POST /api/v1/products/RefreshResearcherPublicationMetrics
+POST /api/v1/researchers/metrics/refresh
 { "PersonelID": "..." }
 ```
 
-There is no synchronous fallback. Pausing `PublicationMetrics:WorkerEnabled` stops computation while stored snapshots remain readable. Runnable read and refresh requests are in [PublicationMetrics.http](../ResearcherAnalysisService/Requests/PublicationMetrics.http).
+There is no synchronous fallback. Pausing `PublicationMetrics:WorkerEnabled` stops computation while stored snapshots remain readable. Runnable read and refresh requests are in [Researchers.http](../ResearcherAnalysisService/Requests/Researchers.http).
 
 ## Scope and counts
 

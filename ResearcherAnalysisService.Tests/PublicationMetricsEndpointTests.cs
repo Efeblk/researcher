@@ -15,8 +15,8 @@ namespace ResearcherAnalysisService.Tests;
 [Collection("Analysis Product SQL Server")]
 public sealed class PublicationMetricsEndpointTests(AnalysisProductSqlServerFixture fixture)
 {
-    private const string GetMetrics = "/api/v1/products/GetResearcherPublicationMetrics";
-    private const string RefreshMetrics = "/api/v1/products/RefreshResearcherPublicationMetrics";
+    private const string GetMetrics = "/api/v1/researchers/metrics";
+    private const string RefreshMetrics = "/api/v1/researchers/metrics/refresh";
 
     [Fact]
     public async Task GetAndRefreshResearcherPublicationMetrics_PersistedLifecycle_IsScopedAndReadOnly()

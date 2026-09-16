@@ -73,7 +73,7 @@ internal static class LiveRetainedProductAcceptance
             using (HttpClient client = Client(true, TimeSpan.FromSeconds(1800)))
             {
                 review = await PostAsync<CanonicalArticleReviewResponse>(client,
-                    AnalysisUrl + "/api/v1/products/ReviewCanonicalArticle", new CanonicalArticleReviewRequest
+                    AnalysisUrl + "/api/v1/articles/review/generate", new CanonicalArticleReviewRequest
                     {
                         PersonelId = RetainedAcceptanceHost.SubjectId, CanonicalWorkId = adam,
                         Language = "tr", ForceRegeneration = false
@@ -81,13 +81,13 @@ internal static class LiveRetainedProductAcceptance
                 result["review"] = Node(review);
                 await PhaseAsync("review-response-captured", result, artifacts, budget);
                 metrics = await PostAsync<ResearcherPublicationMetricsStatusResponse>(client,
-                    AnalysisUrl + "/api/v1/products/GetResearcherPublicationMetrics",
+                    AnalysisUrl + "/api/v1/researchers/metrics",
                     new ResearcherPublicationMetricsRequest { PersonelId = RetainedAcceptanceHost.SubjectId });
                 context = await PostAsync<FacultyAssistantContextResponse>(client,
-                    AnalysisUrl + "/api/v1/products/GetFacultyAssistantContext",
+                    AnalysisUrl + "/api/v1/faculty/context",
                     new GetFacultyAssistantContextRequest { PersonelId = RetainedAcceptanceHost.SubjectId, Version = 1 });
                 dossier = await PostAsync<HrEvidenceDossierResponse>(client,
-                    AnalysisUrl + "/api/v1/products/CreateHrEvidenceDossier", new CreateHrEvidenceDossierRequest
+                    AnalysisUrl + "/api/v1/hr/dossiers/create", new CreateHrEvidenceDossierRequest
                     {
                         PersonelId = RetainedAcceptanceHost.SubjectId, PublicationMetricSnapshotId = metrics.SnapshotId,
                         CanonicalWorkIds = [adam, football], Language = "tr"
@@ -300,7 +300,7 @@ internal static class LiveRetainedProductAcceptance
             CollectorUrl, AnalysisUrl, "idle"))
         using (HttpClient client = Client(true))
             queued = await PostAsync<FacultyAssistantRunResponse>(client,
-                AnalysisUrl + "/api/v1/products/StartFacultyAssistant", request, HttpStatusCode.Accepted);
+                AnalysisUrl + "/api/v1/faculty/assistant/start", request, HttpStatusCode.Accepted);
         Require(!queued.Reused && queued.Status == "Pending", $"{mode} did not create a new pending row.");
         FacultyAssistantRunResponse completed;
         await using (WebApplication worker = await RetainedAcceptanceHost.StartCollectorAsync(root, database,
@@ -316,7 +316,7 @@ internal static class LiveRetainedProductAcceptance
         while (DateTimeOffset.UtcNow < deadline)
         {
             FacultyAssistantRunResponse value = await PostAsync<FacultyAssistantRunResponse>(client,
-                AnalysisUrl + "/api/v1/products/GetFacultyAssistantRun", new GetFacultyAssistantRunRequest
+                AnalysisUrl + "/api/v1/faculty/assistant/run", new GetFacultyAssistantRunRequest
                 { PersonelId = RetainedAcceptanceHost.SubjectId, RunId = runId });
             if (value.Status == "Completed") return value;
             if (value.Status is "Failed" or "Interrupted")
@@ -409,20 +409,20 @@ internal static class LiveRetainedProductAcceptance
         await using WebApplication idle = await RetainedAcceptanceHost.StartCollectorAsync(root, database,
             CollectorUrl, AnalysisUrl, "idle");
         using HttpClient client = Client(true, TimeSpan.FromSeconds(1800));
-        CanonicalArticleReviewResponse reviewRead = await PostAsync<CanonicalArticleReviewResponse>(client,
-            AnalysisUrl + "/api/v1/products/GetCanonicalArticleReview", new CanonicalArticleReviewRequest
-            { PersonelId = RetainedAcceptanceHost.SubjectId, CanonicalWorkId = adam, Language = "tr" });
+        CanonicalArticleReviewResponse reviewRead = (await PostAsync<CanonicalArticleAnalysisResponse>(client,
+            AnalysisUrl + "/api/v1/articles/analysis", new CanonicalArticleAnalysisRequest
+            { PersonelId = RetainedAcceptanceHost.SubjectId, CanonicalWorkId = adam, Language = "tr" })).Review!;
         CanonicalArticleReviewResponse reviewReplay = await PostAsync<CanonicalArticleReviewResponse>(client,
-            AnalysisUrl + "/api/v1/products/ReviewCanonicalArticle", new CanonicalArticleReviewRequest
+            AnalysisUrl + "/api/v1/articles/review/generate", new CanonicalArticleReviewRequest
             { PersonelId = RetainedAcceptanceHost.SubjectId, CanonicalWorkId = adam, Language = "tr" });
         Require(reviewRead.ReviewRunId == review.ReviewRunId && reviewReplay.Reused &&
             reviewReplay.ReviewRunId == review.ReviewRunId && Equivalent(review.Report, reviewRead.Report) &&
             Equivalent(review.Report, reviewReplay.Report), "Review read/cache replay mismatch.");
         FacultyAssistantContextResponse contextRead = await PostAsync<FacultyAssistantContextResponse>(client,
-            AnalysisUrl + "/api/v1/products/GetFacultyAssistantContext", new GetFacultyAssistantContextRequest
+            AnalysisUrl + "/api/v1/faculty/context", new GetFacultyAssistantContextRequest
             { PersonelId = RetainedAcceptanceHost.SubjectId, Version = context.Version });
         HrEvidenceDossierResponse dossierRead = await PostAsync<HrEvidenceDossierResponse>(client,
-            AnalysisUrl + "/api/v1/products/GetHrEvidenceDossier", new GetHrEvidenceDossierRequest
+            AnalysisUrl + "/api/v1/hr/dossiers", new GetHrEvidenceDossierRequest
             { PersonelId = RetainedAcceptanceHost.SubjectId, DossierId = dossier.DossierId });
         Require(Equivalent(context, contextRead) && Equivalent(dossier, dossierRead), "Context/dossier readback mismatch.");
         Guid actionId = Guid.NewGuid();
@@ -430,13 +430,13 @@ internal static class LiveRetainedProductAcceptance
             DossierId = dossier.DossierId, ClientRequestId = actionId, ActionType = "Opened",
             EvidenceReference = $"review:{review.ReviewRunId}", Note = actionNote };
         HrDossierReviewActionResponse first = await PostAsync<HrDossierReviewActionResponse>(client,
-            AnalysisUrl + "/api/v1/products/AppendHrDossierReviewAction", action);
+            AnalysisUrl + "/api/v1/hr/dossiers/actions/append", action);
         HrDossierReviewActionResponse second = await PostAsync<HrDossierReviewActionResponse>(client,
-            AnalysisUrl + "/api/v1/products/AppendHrDossierReviewAction", action);
+            AnalysisUrl + "/api/v1/hr/dossiers/actions/append", action);
         HrDossierReviewActionListResponse list = await PostAsync<HrDossierReviewActionListResponse>(client,
-            AnalysisUrl + "/api/v1/products/ListHrDossierReviewActions", new ListHrDossierReviewActionsRequest
+            AnalysisUrl + "/api/v1/hr/dossiers/actions", new ListHrDossierReviewActionsRequest
             { PersonelId = RetainedAcceptanceHost.SubjectId, DossierId = dossier.DossierId, Take = 100 });
-        HttpCapture conflict = await CaptureAsync(client, AnalysisUrl + "/api/v1/products/AppendHrDossierReviewAction",
+        HttpCapture conflict = await CaptureAsync(client, AnalysisUrl + "/api/v1/hr/dossiers/actions/append",
             new AppendHrDossierReviewActionRequest { PersonelId = action.PersonelId, DossierId = action.DossierId,
                 ClientRequestId = actionId, ActionType = "Opened", Note = "changed" });
         Require(!first.Reused && second.Reused && first.DossierId == dossier.DossierId &&
@@ -447,9 +447,9 @@ internal static class LiveRetainedProductAcceptance
         foreach (FacultyRun run in runs)
         {
             FacultyAssistantRunResponse replayed = await PostAsync<FacultyAssistantRunResponse>(client,
-                AnalysisUrl + "/api/v1/products/StartFacultyAssistant", run.Request, HttpStatusCode.Accepted);
+                AnalysisUrl + "/api/v1/faculty/assistant/start", run.Request, HttpStatusCode.Accepted);
             FacultyAssistantRunResponse read = await PostAsync<FacultyAssistantRunResponse>(client,
-                AnalysisUrl + "/api/v1/products/GetFacultyAssistantRun", new GetFacultyAssistantRunRequest
+                AnalysisUrl + "/api/v1/faculty/assistant/run", new GetFacultyAssistantRunRequest
                 { PersonelId = RetainedAcceptanceHost.SubjectId, RunId = run.Completed.RunId });
             Require(replayed.Reused && replayed.RunId == run.Completed.RunId && Equivalent(read, run.Completed) &&
                 Equivalent(replayed.Report, run.Completed.Report),
@@ -458,7 +458,7 @@ internal static class LiveRetainedProductAcceptance
                 ClientRequestId = run.Request.ClientRequestId, Mode = run.Request.Mode, Language = run.Request.Language,
                 Query = run.Request.Query + " değişti", CanonicalWorkIds = run.Request.CanonicalWorkIds,
                 Take = run.Request.Take, ContextVersion = run.Request.ContextVersion };
-            Require((await CaptureAsync(client, AnalysisUrl + "/api/v1/products/StartFacultyAssistant", changed)).Status ==
+            Require((await CaptureAsync(client, AnalysisUrl + "/api/v1/faculty/assistant/start", changed)).Status ==
                 HttpStatusCode.Conflict, "Changed faculty replay did not return 409.");
             facultyReadbacks.Add(Node(new { original = run.Completed, replayed, read,
                 changedPayloadStatus = 409 }));
