@@ -7,7 +7,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Data.SqlClient;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.SemanticScholar;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 
@@ -20,8 +19,6 @@ public sealed class ResearcherCollectionHandler
     private readonly PublicationSummarySynchronizer _publicationSummarySynchronizer;
     private readonly AcademicDbContext _dbContext;
     private readonly CrossrefEnrichmentService _crossrefEnrichmentService;
-    private readonly SemanticScholarEnrichmentService? _semanticScholarEnrichmentService;
-    private readonly SemanticScholarWorkSourceSynchronizer? _semanticScholarWorkSourceSynchronizer;
     private readonly CanonicalWorkSynchronizer _canonicalWorkSynchronizer;
 
     public ResearcherCollectionHandler(
@@ -32,8 +29,6 @@ public sealed class ResearcherCollectionHandler
         PublicationSummarySynchronizer publicationSummarySynchronizer,
         CrossrefEnrichmentService crossrefEnrichmentService,
         AcademicDbContext dbContext,
-        SemanticScholarEnrichmentService? semanticScholarEnrichmentService = null,
-        SemanticScholarWorkSourceSynchronizer? semanticScholarWorkSourceSynchronizer = null,
         CanonicalWorkSynchronizer? canonicalWorkSynchronizer = null)
     {
         _identifierParser = identifierParser;
@@ -42,8 +37,6 @@ public sealed class ResearcherCollectionHandler
         _academicWorkSynchronizer = academicWorkSynchronizer;
         _publicationSummarySynchronizer = publicationSummarySynchronizer;
         _crossrefEnrichmentService = crossrefEnrichmentService;
-        _semanticScholarEnrichmentService = semanticScholarEnrichmentService;
-        _semanticScholarWorkSourceSynchronizer = semanticScholarWorkSourceSynchronizer;
         _canonicalWorkSynchronizer = canonicalWorkSynchronizer ?? new CanonicalWorkSynchronizer(dbContext);
         _dbContext = dbContext;
     }
@@ -148,46 +141,15 @@ public sealed class ResearcherCollectionHandler
                 response.Messages.Add($"[HATA] Crossref zenginleştirmesi tamamlanamadı: {exception.Message}");
                 response.Messages.Add(string.Empty);
             }
-            ProviderCollectionFeedback semanticScholarFeedback = NewEnrichmentFeedback(
-                response, "Semantic Scholar");
-            try
-            {
-                if (_semanticScholarEnrichmentService is null)
-                {
-                    semanticScholarFeedback.Status = "Skipped";
-                    semanticScholarFeedback.Reasons.Add(new()
-                    {
-                        Code = "ServiceUnavailable",
-                        Description = "Semantic Scholar zenginleştirme hizmeti kullanılamıyor."
-                    });
-                }
-                int enriched = _semanticScholarEnrichmentService is null ? 0 :
-                    await _semanticScholarEnrichmentService.EnrichAsync(researcher.PersonelId,
-                        default, semanticScholarFeedback);
-                if (_semanticScholarWorkSourceSynchronizer is not null)
-                    await _semanticScholarWorkSourceSynchronizer.SyncAsync(researcher.PersonelId);
-                response.Messages.Add($"[OK] Semantic Scholar: {enriched} DOI işlendi.");
-            }
-            catch (SemanticScholarPartialEnrichmentException exception)
-            {
-                ApplySemanticPartial(semanticScholarFeedback, exception.CompletedCount,
-                    exception.InnerException);
-                if (_semanticScholarWorkSourceSynchronizer is not null)
-                    await _semanticScholarWorkSourceSynchronizer.SyncAsync(researcher.PersonelId);
-                if (!ProviderCallScope.HasFailure("SemanticScholar")) ProviderCallScope.Record("SemanticScholar", true);
-                response.Messages.Add($"[OK] Semantic Scholar: {exception.CompletedCount} DOI işlendi.");
-                response.Messages.Add($"[HATA] Semantic Scholar zenginleştirmesi tamamlanamadı: {exception.Message}");
-            }
-            catch (Exception exception)
-            {
-                PartialEnrichment(semanticScholarFeedback, 0, exception);
-                if (!ProviderCallScope.HasFailure("SemanticScholar")) ProviderCallScope.Record("SemanticScholar", false);
-                response.Messages.Add($"[HATA] Semantic Scholar zenginleştirmesi tamamlanamadı: {exception.Message}");
-            }
         }
         catch (Exception exception)
         {
-            if (FindSqlException(exception) is { Number: 2628 or 8152 })
+            if (exception is CanonicalWorkLockException { IsRetryable: true })
+            {
+                response.FailureCode = "PersistenceBusy";
+                response.Messages.Add("[HATA] Veritabanı: " + exception.Message);
+            }
+            else if (FindSqlException(exception) is { Number: 2628 or 8152 })
             {
                 response.FailureCode = "PersistenceDataTooLong";
                 response.Messages.Add("[HATA] Veritabanı: Sağlayıcı metaverisi veritabanı alanına sığmadı.");
@@ -248,18 +210,6 @@ public sealed class ResearcherCollectionHandler
                 AffectedCount = notAttempted
             });
         }
-    }
-
-    internal static void ApplySemanticPartial(ProviderCollectionFeedback feedback,
-        int processed, Exception? exception)
-    {
-        if (feedback.Reasons.Any(reason => reason.Code == "Deferred"))
-        {
-            feedback.Status = "Partial";
-            feedback.RetrievedCount = processed;
-            return;
-        }
-        PartialEnrichment(feedback, processed, exception);
     }
 
     private async Task<int> SynchronizeCrossrefAsync(Researcher researcher)

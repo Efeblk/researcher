@@ -101,6 +101,54 @@ public sealed class ProviderCacheTests
         Assert.Same(previous, researcher.WebOfScienceProfile);
     }
 
+    [Fact]
+    public async Task CollectAsync_ValidResearcherIdWithNoPublications_ReportsNoPublications()
+    {
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["WebOfScience:ApiKey"] = Guid.NewGuid().ToString("N"),
+            ["WebOfScience:DatabaseIds:0"] = "WOS"
+        }).Build();
+        using var http = new HttpClient(new StubHttpHandler(_ =>
+            StubHttpHandler.Json("""{"metadata":{"total":0,"limit":50},"hits":[]}""")));
+        var researcher = new Researcher { PersonelId = "wos-empty" };
+        var service = new ResearcherCollectionService(new(http, config), new(http, config), new(http, config),
+            new(http, config), new AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin.TrDizinClient(http, config), new(), new(), config);
+
+        List<ProviderCollectionFeedback> feedback = await service.CollectAsync(researcher,
+            new() { WebOfScienceResearcherId = "C-5899-2018" }, []);
+
+        ProviderCollectionFeedback webOfScience = Assert.Single(feedback,
+            item => item.Provider == "Web of Science");
+        Assert.Equal("Failed", webOfScience.Status);
+        Assert.Contains(webOfScience.Reasons, reason => reason.Code == "NoPublications");
+        Assert.DoesNotContain(webOfScience.Reasons, reason => reason.Code == "InvalidIdentifier");
+    }
+
+    [Fact]
+    public async Task CollectAsync_WebOfScienceNotFoundResponse_DoesNotReportInvalidIdentifier()
+    {
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["WebOfScience:ApiKey"] = Guid.NewGuid().ToString("N"),
+            ["WebOfScience:DatabaseIds:0"] = "WOS"
+        }).Build();
+        using var http = new HttpClient(new StubHttpHandler(_ =>
+            new HttpResponseMessage(System.Net.HttpStatusCode.NotFound)));
+        var researcher = new Researcher { PersonelId = "wos-not-found" };
+        var service = new ResearcherCollectionService(new(http, config), new(http, config), new(http, config),
+            new(http, config), new AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin.TrDizinClient(http, config), new(), new(), config);
+
+        List<ProviderCollectionFeedback> feedback = await service.CollectAsync(researcher,
+            new() { WebOfScienceResearcherId = "C-5899-2018" }, []);
+
+        ProviderCollectionFeedback webOfScience = Assert.Single(feedback,
+            item => item.Provider == "Web of Science");
+        Assert.Equal("Failed", webOfScience.Status);
+        Assert.Contains(webOfScience.Reasons, reason => reason.Code == "NotFound");
+        Assert.DoesNotContain(webOfScience.Reasons, reason => reason.Code == "InvalidIdentifier");
+    }
+
     private sealed class CollectingLogger<T> : ILogger<T>
     {
         public List<string> Messages { get; } = [];

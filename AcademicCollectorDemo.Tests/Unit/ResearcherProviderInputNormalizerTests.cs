@@ -41,6 +41,20 @@ public sealed class ResearcherProviderInputNormalizerTests
     }
 
     [Fact]
+    public void Normalize_ReportedWebOfScienceResearcherId_ProducesCollectionRequest()
+    {
+        ResearcherProviderInputNormalizationResult result = _normalizer.Normalize(new()
+        {
+            WebOfScienceResearcherId = "C-5899-2018"
+        });
+
+        Assert.Equal("C-5899-2018", result.Input.WebOfScienceResearcherId);
+        Assert.Null(result.RejectionReason);
+        Assert.Equal(["--researcherid", "C-5899-2018"],
+            ResearcherProviderInputNormalizer.ToCollectionRequest(result.Input).Identifiers);
+    }
+
+    [Fact]
     public void Normalize_AllInvalid_ReturnsSafeRejection()
     {
         ResearcherProviderInputNormalizationResult result = _normalizer.Normalize(new()

@@ -124,9 +124,10 @@ public sealed class SemanticScholarEndpointTests(SqlServerFixture fixture)
         SemanticScholarOptions options = new()
         { ApiBaseUrl = "https://example.test", MaximumCitationsPerPaper = 0, MaximumPapersPerRun = 1 };
         IConfiguration config = Configuration(fixture.ConnectionString);
+        QueueHandler handler = new(Json(
+            $"{{\"paperId\":\"{paperId}\",\"externalIds\":{{\"DOI\":\"{firstDoi}\"}},\"openAccessPdf\":{{\"url\":\"https://example.test/paper.pdf\",\"status\":\"GREEN\"}}}}"));
         SemanticScholarEnrichmentService service = new(db,
-            new SemanticScholarClient(new HttpClient(new QueueHandler(
-                Json($"{{\"paperId\":\"{paperId}\",\"externalIds\":{{\"DOI\":\"{firstDoi}\"}}}}"))), Options.Create(options)),
+            new SemanticScholarClient(new HttpClient(handler), Options.Create(options)),
             config, Options.Create(options));
 
         ActionResult<SemanticScholarCollectResponse> action = await new SemanticScholarEndpoint().CollectSemanticScholar(
@@ -137,6 +138,13 @@ public sealed class SemanticScholarEndpointTests(SqlServerFixture fixture)
         SemanticScholarCollectResponse response = Assert.IsType<SemanticScholarCollectResponse>(result.Value);
         Assert.Equal(1, response.ProcessedDoiCount); Assert.True(response.HasPendingWork);
         Assert.Null(response.ErrorCode); Assert.Null(response.ProviderHttpStatusCode); Assert.Null(response.Retryable);
+        Assert.Single(handler.Urls);
+        db.ChangeTracker.Clear();
+        AcademicWork enrichedWork = await db.AcademicWorks.Include(x => x.Sources)
+            .SingleAsync(x => x.PersonelId == id && x.Doi == firstDoi);
+        AcademicWorkSource source = Assert.Single(enrichedWork.Sources);
+        Assert.Equal("https://example.test/paper.pdf", source.Url);
+        Assert.Equal("SemanticScholar.OpenAccessPdf", source.Origin);
     }
 
     [Fact] public async Task ListCitations_OwnedWork_ReturnsRelationship()

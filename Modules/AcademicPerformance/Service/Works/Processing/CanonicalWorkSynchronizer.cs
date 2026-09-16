@@ -293,7 +293,8 @@ public sealed class CanonicalWorkSynchronizer
         object? scalar = await command.ExecuteScalarAsync(cancellationToken);
         int result = Convert.ToInt32(scalar, System.Globalization.CultureInfo.InvariantCulture);
         if (result < 0)
-            throw new InvalidOperationException($"Could not acquire canonical work lock (SQL result {result}).");
+            throw new CanonicalWorkLockException(
+                resource, result, TimeSpan.FromMilliseconds(ApplicationLockTimeoutMilliseconds));
     }
 
     private static void CopyObservation(
