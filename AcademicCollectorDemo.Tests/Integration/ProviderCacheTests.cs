@@ -66,8 +66,14 @@ public sealed class ProviderCacheTests
         var service = new ResearcherCollectionService(new(http, config), new(http, config), new(http, config),
             new(http, config), new AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin.TrDizinClient(http, config), new(), new(), config);
         List<string> messages = [];
-        await service.CollectAsync(researcher, new() { WebOfScienceResearcherId = researcher.WebOfScienceResearcherId }, messages);
+        List<ProviderCollectionFeedback> feedback = await service.CollectAsync(researcher,
+            new() { WebOfScienceResearcherId = researcher.WebOfScienceResearcherId }, messages);
         Assert.Equal(0, handler.RequestCount);
+        ProviderCollectionFeedback webOfScience = Assert.Single(feedback,
+            item => item.Provider == "Web of Science");
+        Assert.Equal("Cached", webOfScience.Status);
+        Assert.Equal(0, webOfScience.RetrievedCount);
+        Assert.Contains(webOfScience.Reasons, reason => reason.Code == "Cached");
         Assert.Contains(messages, message => message.StartsWith("[ÖNBELLEK]"));
     }
 
@@ -85,8 +91,11 @@ public sealed class ProviderCacheTests
         var researcher = new Researcher
         {
             PersonelId = "test-" + Guid.NewGuid().ToString("N"), WebOfScienceProfile = previous };
-        await Assert.ThrowsAsync<HttpRequestException>(() =>
+        ProviderCollectionException failure = await Assert.ThrowsAsync<ProviderCollectionException>(() =>
             new WebOfScienceClient(http, config).FillResearcherAsync(researcher, "A-1009-2008"));
+        Assert.Equal("PageLimit", failure.Code);
+        Assert.Equal(10000, failure.ExpectedCount);
+        Assert.Equal(0, failure.RetrievedCount);
         Assert.Equal(2, handler.RequestCount);
         Assert.Same(previous, researcher.WebOfScienceProfile);
     }

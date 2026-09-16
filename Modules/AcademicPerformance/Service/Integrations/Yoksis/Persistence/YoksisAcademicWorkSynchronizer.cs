@@ -237,7 +237,9 @@ public sealed class YoksisAcademicWorkSynchronizer
 
         foreach (YoksisOperationResult category in response.Categories)
         {
-            if (!category.IsSuccess)
+            if (!category.IsSuccess || category.FailedDetailCount > 0 ||
+                (category.ExpectedDetailCount.HasValue &&
+                    category.ExpectedDetailCount.Value != category.RetrievedDetailCount))
             {
                 continue;
             }

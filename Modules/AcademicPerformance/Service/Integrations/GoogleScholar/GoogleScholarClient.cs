@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using Microsoft.Extensions.Configuration;
 
@@ -42,32 +43,38 @@ public sealed class GoogleScholarClient
 
         do
         {
-            using JsonDocument response = await SendAsync(
-                apiBaseUrl,
-                apiKey,
-                googleScholarId,
-                page);
-            JsonElement root = response.RootElement;
-
-            ThrowIfApiError(root);
-            pages.Add(root.Clone());
-
-            if (profile is null)
+            try
             {
-                profile = CreateProfile(root, googleScholarId);
-            }
+                using JsonDocument response = await SendAsync(
+                    apiBaseUrl, apiKey, googleScholarId, page);
+                JsonElement root = response.RootElement;
 
-            AddWorks(root, works);
-            hasNextPage = HasNextPage(root);
-            page++;
+                ThrowIfApiError(root);
+                pages.Add(root.Clone());
+
+                if (profile is null)
+                {
+                    profile = CreateProfile(root, googleScholarId);
+                }
+
+                AddWorks(root, works);
+                hasNextPage = HasNextPage(root);
+                page++;
+            }
+            catch (Exception exception) when (exception is not ProviderCollectionException)
+            {
+                throw new ProviderCollectionException("PageFailure",
+                    "Google Scholar sayfası tamamlanamadı; okunan eksik veri kaydedilmedi.",
+                    works.Count, null, exception);
+            }
         }
         while (hasNextPage && page <= maximumPages);
 
         if (hasNextPage)
         {
-            throw new HttpRequestException(
-                $"Google Scholar yayını {maximumPages} sayfalık güvenlik " +
-                "sınırını aştı; eksik veri kaydedilmedi.");
+            throw new ProviderCollectionException("PageLimit",
+                "Google Scholar sayfa güvenlik sınırına ulaştı; okunan eksik veri kaydedilmedi.",
+                works.Count, null, new HttpRequestException("Page limit reached."));
         }
 
         if (profile is null)
@@ -111,7 +118,7 @@ public sealed class GoogleScholarClient
         {
             throw new HttpRequestException(
                 $"SearchApi HTTP {(int)response.StatusCode}: " +
-                GetApiError(content, response.ReasonPhrase));
+                GetApiError(content, response.ReasonPhrase), null, response.StatusCode);
         }
 
         try

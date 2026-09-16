@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using Microsoft.Extensions.Configuration;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
 
@@ -100,14 +101,30 @@ public sealed class OrcidClient
                 .Take(BulkWorkLimit)
                 .ToList();
             string putCodes = string.Join(",", batch.Select(GetPutCode));
-            string responseJson = await GetJsonAsync($"{orcid}/works/{putCodes}");
-            using JsonDocument responseDocument = JsonDocument.Parse(responseJson);
-            JsonElement bulk = GetProperty(responseDocument.RootElement, "bulk");
-
-            foreach (JsonElement item in bulk.EnumerateArray())
+            string responseJson;
+            try
             {
-                JsonElement work = GetProperty(item, "work");
-                works.Add(CreateWork(work));
+                responseJson = await GetJsonAsync($"{orcid}/works/{putCodes}");
+                using JsonDocument responseDocument = JsonDocument.Parse(responseJson);
+                JsonElement bulk = GetProperty(responseDocument.RootElement, "bulk");
+                HashSet<long> expected = batch.Select(GetPutCode).ToHashSet();
+                HashSet<long> returned = [];
+                foreach (JsonElement item in bulk.EnumerateArray())
+                {
+                    JsonElement work = GetProperty(item, "work");
+                    if (work.ValueKind != JsonValueKind.Object ||
+                        !returned.Add(GetPutCode(work)) || !expected.Contains(GetPutCode(work)))
+                        throw new InvalidDataException("ORCID bulk work mismatch.");
+                    works.Add(CreateWork(work));
+                }
+                if (!returned.SetEquals(expected))
+                    throw new InvalidDataException("ORCID bulk work count mismatch.");
+            }
+            catch (Exception exception) when (exception is not ProviderCollectionException)
+            {
+                throw new ProviderCollectionException("DetailFailure",
+                    "ORCID eser ayrıntıları tamamlanamadı; okunan eksik veri kaydedilmedi.",
+                    works.Count, summaries.Count, exception);
             }
 
             offset += batch.Count;
@@ -146,7 +163,8 @@ public sealed class OrcidClient
         if (!response.IsSuccessStatusCode)
         {
             throw new HttpRequestException(
-                $"ORCID API {(int)response.StatusCode} ({response.ReasonPhrase}) döndürdü.");
+                $"ORCID API {(int)response.StatusCode} ({response.ReasonPhrase}) döndürdü.",
+                null, response.StatusCode);
         }
 
         return body;

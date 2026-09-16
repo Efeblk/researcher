@@ -61,37 +61,43 @@ public sealed class ResearcherCollectionService
         _providerCacheMaxAge = TimeSpan.FromHours(maxAgeHours);
     }
 
-    public async Task CollectAsync(
+    public async Task<List<ProviderCollectionFeedback>> CollectAsync(
         Researcher researcher,
         Researcher requestedIdentifiers,
         List<string> messages)
     {
-        await CollectOrcidAsync(researcher, requestedIdentifiers.Orcid, messages);
+        List<ProviderCollectionFeedback> feedback = [];
+        await CollectOrcidAsync(researcher, requestedIdentifiers.Orcid, messages, feedback);
         await CollectOpenAlexAsync(
             researcher,
             requestedIdentifiers.Orcid,
-            messages);
-        await CollectTrDizinAsync(researcher, requestedIdentifiers.Orcid, messages);
+            messages, feedback);
+        await CollectTrDizinAsync(researcher, requestedIdentifiers.Orcid, messages, feedback);
         await CollectGoogleScholarAsync(
             researcher,
             requestedIdentifiers.GoogleScholarId,
-            messages);
+            messages, feedback);
         await CollectWebOfScienceAsync(
             researcher,
             requestedIdentifiers.WebOfScienceResearcherId,
-            messages);
-        await CollectScopusAsync(researcher, requestedIdentifiers.ScopusId, messages);
+            messages, feedback);
+        await CollectScopusAsync(
+            researcher, requestedIdentifiers.ScopusId, messages, feedback);
         _academicWorkCategorizer.Categorize(researcher);
-        _collectionFeedback.Add(researcher, requestedIdentifiers, messages);
+        _collectionFeedback.Add(researcher, requestedIdentifiers, messages, feedback);
+        return feedback;
     }
 
     private async Task CollectScopusAsync(
         Researcher researcher,
         string? requestedScopusId,
-        List<string> messages)
+        List<string> messages,
+        List<ProviderCollectionFeedback> feedback)
     {
+        ProviderCollectionFeedback item = NewFeedback(feedback, "Scopus");
         if (string.IsNullOrWhiteSpace(requestedScopusId))
         {
+            Skip(item, "MissingIdentifier", "Scopus kimliği verilmedi.");
             AddMessage(messages, "[ATLANDI] Scopus: kimlik verilmedi.");
             return;
         }
@@ -99,6 +105,8 @@ public sealed class ResearcherCollectionService
             IsProviderDataCurrent(researcher.ScopusProfile?.LastUpdatedAt) &&
             HasCompleteScopusRawData(researcher.ScopusProfile))
         {
+            Cached(item, researcher.ScopusProfile?.Works?.Count ?? 0,
+                researcher.ScopusProfile?.DocumentsCount);
             AddCachedDataMessage(messages, "Scopus", researcher.ScopusProfile?.LastUpdatedAt);
             return;
         }
@@ -107,18 +115,23 @@ public sealed class ResearcherCollectionService
             if (_scopusClient is null)
                 throw new InvalidOperationException();
             await _scopusClient.FillResearcherAsync(researcher, requestedScopusId);
+            Success(item, researcher.ScopusProfile?.Works?.Count ?? 0,
+                researcher.ScopusProfile?.DocumentsCount);
             AddMessage(messages, $"[OK] Scopus: {researcher.ScopusProfile?.Works?.Count ?? 0} publication(s) collected.");
         }
         catch (ArgumentException exception)
         {
+            Fail(item, "InvalidIdentifier", "Scopus kimliği geçersiz.");
             AddMessage(messages, $"[HATA] Invalid Scopus ID: {exception.Message}");
         }
         catch (InvalidOperationException)
         {
+            Fail(item, "Configuration", "Scopus bağlantı ayarı eksik.");
             AddMessage(messages, "[HATA] Scopus is unavailable because credentials or endpoint configuration are invalid.");
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException exception)
         {
+            FailFromException(item, exception, "Scopus");
             AddMessage(messages, "[HATA] Scopus request failed; saved complete data was retained.");
         }
     }
@@ -131,21 +144,25 @@ public sealed class ResearcherCollectionService
     private async Task CollectTrDizinAsync(
         Researcher researcher,
         string? requestedOrcid,
-        List<string> messages)
+        List<string> messages, List<ProviderCollectionFeedback> feedback)
     {
+        ProviderCollectionFeedback item = NewFeedback(feedback, "TR Dizin");
         if (!_trDizinEnabled)
         {
+            Skip(item, "Disabled", "Yerel yapılandırmada devre dışı.");
             AddMessage(messages, "[ATLANDI] TR Dizin: yerel yapılandırmada devre dışı.");
             return;
         }
         if (string.IsNullOrWhiteSpace(requestedOrcid))
         {
+            Skip(item, "MissingIdentifier", "ORCID verilmedi.");
             AddMessage(messages, "[ATLANDI] TR Dizin: ORCID verilmedi.");
             return;
         }
         if (IdentifiersMatch(researcher.TrDizinProfile?.Orcid, requestedOrcid) &&
             IsProviderDataCurrent(researcher.TrDizinProfile?.LastUpdatedAt))
         {
+            Cached(item, researcher.TrDizinProfile?.Works?.Count ?? 0);
             AddCachedDataMessage(
                 messages,
                 "TR Dizin",
@@ -157,14 +174,23 @@ public sealed class ResearcherCollectionService
             TrDizinProfile? profile = await _trDizinClient.GetByOrcidAsync(requestedOrcid);
             if (profile is null)
             {
+                item.Status = "NotFound";
+                item.Reasons.Add(Reason("NotFound", "ORCID ile eşleşen yazar bulunamadı."));
                 AddMessage(messages, "[BULUNAMADI] TR Dizin: ORCID ile eşleşen yazar yok.");
                 return;
             }
             researcher.TrDizinProfile = profile;
+            Success(item, profile.Works?.Count ?? 0, profile.Works?.Count ?? 0);
             AddMessage(messages, $"[OK] TR Dizin: {profile.Works?.Count ?? 0} yayın alındı.");
+        }
+        catch (ProviderCollectionException exception)
+        {
+            FailWithProgress(item, exception);
+            AddMessage(messages, $"[HATA] TR Dizin: {exception.SafeDescription}");
         }
         catch (Exception exception)
         {
+            Fail(item, "ProviderError", "TR Dizin isteği tamamlanamadı; eksik veri kaydedilmedi.");
             AddMessage(messages, $"[HATA] TR Dizin: {exception.Message}");
         }
     }
@@ -172,10 +198,12 @@ public sealed class ResearcherCollectionService
     private async Task CollectOpenAlexAsync(
         Researcher researcher,
         string? requestedOrcid,
-        List<string> messages)
+        List<string> messages, List<ProviderCollectionFeedback> feedback)
     {
+        ProviderCollectionFeedback item = NewFeedback(feedback, "OpenAlex");
         if (string.IsNullOrWhiteSpace(requestedOrcid))
         {
+            Skip(item, "MissingIdentifier", "ORCID verilmedi.");
             AddMessage(
                 messages,
                 "[ATLANDI] OpenAlex: ORCID verilmedi.");
@@ -186,6 +214,8 @@ public sealed class ResearcherCollectionService
             IsProviderDataCurrent(researcher.OpenAlexProfile?.LastUpdatedAt) &&
             HasCompleteOpenAlexRawData(researcher.OpenAlexProfile))
         {
+            Cached(item, researcher.OpenAlexProfile?.Works?.Count ?? 0,
+                researcher.OpenAlexProfile?.WorksCount);
             AddCachedDataMessage(
                 messages,
                 "OpenAlex",
@@ -200,19 +230,29 @@ public sealed class ResearcherCollectionService
         try
         {
             await _openAlexClient.FillResearcherAsync(researcher);
+            Success(item, researcher.OpenAlexProfile?.Works?.Count ?? 0,
+                researcher.OpenAlexProfile?.WorksCount);
         }
         catch (ArgumentException exception)
         {
+            Fail(item, "InvalidIdentifier", "OpenAlex kimliği geçersiz.");
             AddMessage(messages, $"[HATA] OpenAlex: {exception.Message}");
+        }
+        catch (ProviderCollectionException exception)
+        {
+            FailWithProgress(item, exception);
+            AddMessage(messages, $"[HATA] OpenAlex: {exception.SafeDescription}");
         }
         catch (HttpRequestException exception)
         {
+            Fail(item, "ProviderError", "OpenAlex isteği tamamlanamadı; eksik veri kaydedilmedi.");
             AddMessage(
                 messages,
                 $"[HATA] OpenAlex API'ye bağlanılamadı: {exception.Message}");
         }
         catch (Exception exception)
         {
+            Fail(item, "ProviderError", "OpenAlex isteği tamamlanamadı; eksik veri kaydedilmedi.");
             AddMessage(messages, $"[HATA] OpenAlex: {exception.Message}");
         }
     }
@@ -220,10 +260,12 @@ public sealed class ResearcherCollectionService
     private async Task CollectGoogleScholarAsync(
         Researcher researcher,
         string? requestedGoogleScholarId,
-        List<string> messages)
+        List<string> messages, List<ProviderCollectionFeedback> feedback)
     {
+        ProviderCollectionFeedback item = NewFeedback(feedback, "Google Scholar");
         if (string.IsNullOrWhiteSpace(requestedGoogleScholarId))
         {
+            Skip(item, "MissingIdentifier", "Google Scholar kimliği verilmedi.");
             AddMessage(messages, "[ATLANDI] Google Scholar: kimlik verilmedi.");
             return;
         }
@@ -232,6 +274,7 @@ public sealed class ResearcherCollectionService
             IsProviderDataCurrent(researcher.GoogleScholarProfile?.LastUpdatedAt) &&
             HasCompleteGoogleScholarRawData(researcher.GoogleScholarProfile))
         {
+            Cached(item, researcher.GoogleScholarProfile?.Works?.Count ?? 0);
             AddCachedDataMessage(
                 messages,
                 "Google Scholar",
@@ -249,32 +292,46 @@ public sealed class ResearcherCollectionService
             await _googleScholarClient.FillResearcherAsync(
                 researcher,
                 requestedGoogleScholarId);
+            Success(item, researcher.GoogleScholarProfile?.Works?.Count ?? 0, null);
         }
         catch (ArgumentException exception)
         {
+            Fail(item, "InvalidIdentifier", "Google Scholar kimliği geçersiz.");
             AddMessage(
                 messages,
                 $"[HATA] Geçersiz Google Scholar ID: {exception.Message}");
         }
         catch (HttpRequestException exception)
         {
+            FailFromException(item, exception, "Google Scholar");
             AddMessage(
                 messages,
                 $"[HATA] SearchApi'ye bağlanılamadı: {exception.Message}");
         }
         catch (Exception exception)
         {
-            AddMessage(messages, $"[HATA] Google Scholar: {exception.Message}");
+            if (exception is ProviderCollectionException progress)
+            {
+                FailWithProgress(item, progress);
+                AddMessage(messages, $"[HATA] Google Scholar: {progress.SafeDescription}");
+            }
+            else
+            {
+                FailFromException(item, exception, "Google Scholar");
+                AddMessage(messages, $"[HATA] Google Scholar: {exception.Message}");
+            }
         }
     }
 
     private async Task CollectWebOfScienceAsync(
         Researcher researcher,
         string? requestedResearcherId,
-        List<string> messages)
+        List<string> messages, List<ProviderCollectionFeedback> feedback)
     {
+        ProviderCollectionFeedback item = NewFeedback(feedback, "Web of Science");
         if (string.IsNullOrWhiteSpace(requestedResearcherId))
         {
+            Skip(item, "MissingIdentifier", "ResearcherID verilmedi.");
             AddMessage(
                 messages,
                 "[ATLANDI] Web of Science: ResearcherID verilmedi.");
@@ -288,6 +345,7 @@ public sealed class ResearcherCollectionService
                 researcher.WebOfScienceProfile?.LastUpdatedAt) &&
             HasCompleteWebOfScienceRawData(researcher.WebOfScienceProfile))
         {
+            Cached(item, researcher.WebOfScienceProfile?.Works?.Count ?? 0);
             AddCachedDataMessage(
                 messages,
                 "Web of Science",
@@ -305,9 +363,11 @@ public sealed class ResearcherCollectionService
             await _webOfScienceClient.FillResearcherAsync(
                 researcher,
                 requestedResearcherId);
+            Success(item, researcher.WebOfScienceProfile?.Works?.Count ?? 0, null);
         }
         catch (ArgumentException exception)
         {
+            Fail(item, "InvalidIdentifier", "Web of Science ResearcherID geçersiz.");
             AddMessage(
                 messages,
                 $"[HATA] Geçersiz Web of Science ResearcherID: " +
@@ -315,6 +375,7 @@ public sealed class ResearcherCollectionService
         }
         catch (HttpRequestException exception)
         {
+            FailFromException(item, exception, "Web of Science");
             AddMessage(
                 messages,
                 $"[HATA] Web of Science API'ye bağlanılamadı: " +
@@ -322,17 +383,29 @@ public sealed class ResearcherCollectionService
         }
         catch (Exception exception)
         {
-            AddMessage(messages, $"[HATA] Web of Science: {exception.Message}");
+            if (exception is ProviderCollectionException progress)
+            {
+                item.Unit = "database record";
+                FailWithProgress(item, progress);
+                AddMessage(messages, $"[HATA] Web of Science: {progress.SafeDescription}");
+            }
+            else
+            {
+                FailFromException(item, exception, "Web of Science");
+                AddMessage(messages, $"[HATA] Web of Science: {exception.Message}");
+            }
         }
     }
 
     private async Task CollectOrcidAsync(
         Researcher researcher,
         string? requestedOrcid,
-        List<string> messages)
+        List<string> messages, List<ProviderCollectionFeedback> feedback)
     {
+        ProviderCollectionFeedback item = NewFeedback(feedback, "ORCID");
         if (string.IsNullOrWhiteSpace(requestedOrcid))
         {
+            Skip(item, "MissingIdentifier", "ORCID verilmedi.");
             AddMessage(messages, "[ATLANDI] ORCID: kimlik verilmedi.");
             return;
         }
@@ -341,6 +414,7 @@ public sealed class ResearcherCollectionService
             IsProviderDataCurrent(researcher.OrcidProfile?.LastUpdatedAt) &&
             HasCompleteOrcidRawData(researcher.OrcidProfile))
         {
+            Cached(item, researcher.OrcidProfile?.Works?.Count ?? 0);
             AddCachedDataMessage(
                 messages,
                 "ORCID",
@@ -353,19 +427,145 @@ public sealed class ResearcherCollectionService
         try
         {
             await _orcidClient.FillResearcherAsync(researcher);
+            int retrieved = researcher.OrcidProfile?.Works?.Count ?? 0;
+            Success(item, retrieved, retrieved);
         }
         catch (ArgumentException exception)
         {
+            Fail(item, exception.Message.Contains("bulunamadı", StringComparison.OrdinalIgnoreCase)
+                ? "NotFound" : "InvalidIdentifier",
+                exception.Message.Contains("bulunamadı", StringComparison.OrdinalIgnoreCase)
+                    ? "Herkese açık ORCID kaydı bulunamadı."
+                    : "ORCID geçersiz.");
             AddMessage(messages, $"[HATA] Geçersiz ORCID: {exception.Message}");
+        }
+        catch (ProviderCollectionException exception)
+        {
+            FailWithProgress(item, exception);
+            AddMessage(messages, $"[HATA] ORCID: {exception.SafeDescription}");
         }
         catch (HttpRequestException exception)
         {
+            FailFromException(item, exception, "ORCID");
             AddMessage(messages, $"[HATA] ORCID API'ye bağlanılamadı: {exception.Message}");
         }
         catch (Exception exception)
         {
+            Fail(item, "ProviderError", "ORCID isteği tamamlanamadı; eksik veri kaydedilmedi.");
             AddMessage(messages, $"[HATA] ORCID: {exception.Message}");
         }
+    }
+
+    private static ProviderCollectionFeedback NewFeedback(
+        List<ProviderCollectionFeedback> feedback, string provider)
+    {
+        ProviderCollectionFeedback item = new() { Provider = provider };
+        feedback.Add(item);
+        return item;
+    }
+
+    private static ProviderCollectionReason Reason(string code, string description,
+        int? affectedCount = null) => new()
+    {
+        Code = code, Description = description, AffectedCount = affectedCount
+    };
+
+    private static void Success(ProviderCollectionFeedback item, int retrieved, int? expected)
+    {
+        item.Status = "Succeeded";
+        item.RetrievedCount = retrieved;
+        item.ExpectedCount = expected;
+    }
+
+    private static void Cached(ProviderCollectionFeedback item, int available, int? expected = null)
+    {
+        item.Status = "Cached";
+        item.RetrievedCount = 0;
+        item.ExpectedCount = expected;
+        item.Reasons.Add(Reason("Cached", $"API çağrısı yapılmadı; önbellekte {available} yayın var.", available));
+    }
+
+    private static void Skip(ProviderCollectionFeedback item, string code, string description)
+    {
+        item.Status = "Skipped";
+        item.Reasons.Add(Reason(code, description));
+    }
+
+    private static void Fail(ProviderCollectionFeedback item, string code, string description)
+    {
+        item.Status = "Failed";
+        item.RetrievedCount = 0;
+        item.Reasons.Add(Reason(code, description));
+    }
+
+    private static void FailWithProgress(ProviderCollectionFeedback item,
+        ProviderCollectionException exception)
+    {
+        item.Status = exception.RetrievedCount > 0 ? "Partial" : "Failed";
+        item.RetrievedCount = exception.RetrievedCount;
+        item.RetainedCount = 0;
+        item.ExpectedCount = exception.ExpectedCount;
+        item.Reasons.Add(Reason(exception.CauseCode, exception.CauseDescription,
+            exception.ExpectedCount.HasValue
+                ? Math.Max(0, exception.ExpectedCount.Value - exception.RetrievedCount)
+                : null));
+    }
+
+    private static void FailFromException(ProviderCollectionFeedback item,
+        Exception exception, string provider)
+    {
+        (string? classifiedCode, string? classifiedDescription) =
+            ProviderCollectionException.Classify(exception);
+        if (classifiedCode is not null && classifiedDescription is not null)
+        {
+            Fail(item, classifiedCode, classifiedDescription);
+            return;
+        }
+
+        string message = exception.Message;
+        string code;
+        string description;
+        if (message.Contains("sayfa", StringComparison.OrdinalIgnoreCase) &&
+            message.Contains("sınır", StringComparison.OrdinalIgnoreCase))
+        {
+            code = "PageLimit";
+            description = $"{provider} sayfa güvenlik sınırına ulaştı; eksik veri kaydedilmedi.";
+        }
+        else if (message.Contains("429", StringComparison.Ordinal) ||
+            message.Contains("rate", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("quota", StringComparison.OrdinalIgnoreCase))
+        {
+            code = "RateLimited";
+            description = $"{provider} istek kotası veya hız sınırı nedeniyle tamamlanamadı.";
+        }
+        else if (message.Contains("401", StringComparison.Ordinal) ||
+            message.Contains("403", StringComparison.Ordinal) ||
+            message.Contains("API key", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("anahtar", StringComparison.OrdinalIgnoreCase))
+        {
+            code = "AuthenticationOrConfiguration";
+            description = $"{provider} kimlik doğrulaması veya yapılandırması kabul edilmedi.";
+        }
+        else if (exception is JsonException ||
+            message.Contains("JSON", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("geçerli", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("invalid", StringComparison.OrdinalIgnoreCase))
+        {
+            code = "MalformedResponse";
+            description = $"{provider} geçerli bir yanıt döndürmedi; eksik veri kaydedilmedi.";
+        }
+        else if (message.Contains("bulunamad", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("not found", StringComparison.OrdinalIgnoreCase))
+        {
+            code = "NotFound";
+            description = $"{provider} kaydı bulunamadı.";
+        }
+        else
+        {
+            code = "ProviderError";
+            description = $"{provider} isteği tamamlanamadı; eksik veri kaydedilmedi.";
+        }
+        Fail(item, code, description);
     }
 
     private static void AddMessage(List<string> messages, string message)

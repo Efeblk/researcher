@@ -1,4 +1,5 @@
 using Serenity.Services;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
 
@@ -14,4 +15,5 @@ public sealed class AcademicDataResponse : ServiceResponse
     public DateTime CollectedAt { get; set; }
     public List<string> Messages { get; set; } = [];
     public List<string> Warnings { get; set; } = [];
+    public List<ProviderCollectionFeedback> ProviderFeedback { get; set; } = [];
 }

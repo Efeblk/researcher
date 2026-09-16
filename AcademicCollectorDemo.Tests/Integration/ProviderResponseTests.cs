@@ -4,6 +4,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleSchol
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Collection;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using Microsoft.Extensions.Configuration;
 
@@ -40,6 +41,42 @@ public sealed class ProviderResponseTests
         Assert.Equal(1, handler.RequestCount);
         Assert.Single(response.Categories);
         Assert.Equal(1, response.FailedCategoryCount);
+    }
+
+    [Fact]
+    public async Task CollectAsync_SystemicDetailFailure_FinalizesPartialCoverageAndStopsRequests()
+    {
+        int requests = 0;
+        var handler = new StubHttpHandler(_ => ++requests switch
+        {
+            <= 4 => SoapSuccess(),
+            5 => SoapSuccess("""
+                <Record><YAYIN_ID> 101 </YAYIN_ID></Record>
+                <Record><YAYIN_ID>102</YAYIN_ID></Record>
+                <Record><YAYIN_ID>103</YAYIN_ID></Record>
+                """),
+            6 => SoapSuccess("<Record><YAYIN_ID>101</YAYIN_ID></Record>"),
+            7 => new HttpResponseMessage(System.Net.HttpStatusCode.TooManyRequests),
+            _ => throw new InvalidOperationException("A request was sent after the systemic stop.")
+        });
+        using var http = new HttpClient(handler);
+        var service = new YoksisCollectionService(new(http, YoksisConfig()));
+
+        YoksisCollectResponse response = await service.CollectAsync(
+            new() { TcKimlikNo = new('1', 11) });
+
+        YoksisOperationResult details = Assert.Single(response.Categories,
+            category => category.OperationName == "getBildiriBilgisiDetayV1");
+        Assert.Equal(7, handler.RequestCount);
+        Assert.False(details.IsSuccess);
+        Assert.Equal(3, details.ExpectedDetailCount);
+        Assert.Equal(1, details.RetrievedDetailCount);
+        Assert.Equal(2, details.FailedDetailCount);
+        Assert.Contains(details.FailureReasons,
+            failure => failure.Code == "NotAttempted" && failure.AffectedCount == 1);
+        Assert.Null(response.PublicationDetailTotalCount);
+        Assert.Equal(1, response.PublicationDetailRetrievedCount);
+        Assert.Equal(2, response.PublicationDetailFailedCount);
     }
 
     [Fact]
@@ -98,13 +135,32 @@ public sealed class ProviderResponseTests
             ? StubHttpHandler.Json("""{"author":{"name":"New profile"},"articles":[],"pagination":{"next":"page2"}}""")
             : throw new HttpRequestException("Synthetic network failure")));
         var client = new GoogleScholarClient(http, Config(new() { ["SearchApi:ApiKey"] = Guid.NewGuid().ToString("N") }));
-        await Assert.ThrowsAsync<HttpRequestException>(() => client.FillResearcherAsync(researcher, researcher.GoogleScholarId));
+        ProviderCollectionException failure = await Assert.ThrowsAsync<ProviderCollectionException>(
+            () => client.FillResearcherAsync(researcher, researcher.GoogleScholarId));
+        Assert.Equal(0, failure.RetrievedCount);
         Assert.Same(previous, researcher.GoogleScholarProfile);
         Assert.Equal(2, requests);
     }
 
     private static IConfiguration Config(Dictionary<string, string?> values) =>
         new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+
+    private static IConfiguration YoksisConfig() => Config(new()
+    {
+        ["Yoksis:Username"] = "synthetic-user",
+        ["Yoksis:Password"] = "synthetic-password"
+    });
+
+    private static HttpResponseMessage SoapSuccess(string records = "") =>
+        StubHttpHandler.Json($"<Envelope><Body><Response><Sonuc><SonucKod>1</SonucKod></Sonuc>{records}</Response></Body></Envelope>");
+
+    private static HttpResponseMessage SoapResult(
+        int resultCode,
+        string externalCode,
+        string message) => StubHttpHandler.Json(
+            $"<Envelope><Body><Response><Sonuc><SonucKod>{resultCode}</SonucKod>" +
+            $"<DisSistemSonucKod>{externalCode}</DisSistemSonucKod>" +
+            $"<SonucMesaj>{message}</SonucMesaj></Sonuc></Response></Body></Envelope>");
 
     private sealed class CancelAwareHttpHandler : HttpMessageHandler
     {

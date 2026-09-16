@@ -11,7 +11,8 @@ import {
 } from "./AcademicMetricsOverview";
 import {
     showProfileSummary, showWebOfScienceSummary, showProviderComparison,
-    showGoogleScholarSummary, showOpenAlexSummary, showYoksisSummary
+    showGoogleScholarSummary, showOpenAlexSummary, showProviderCollectionFeedback,
+    showYoksisSummary
 } from "./ResearcherSummaryPanels";
 import { describeYoksisOutcome, type ResearchOutcomeKind } from "./YoksisFeedback";
 import { describeProviderOutcome } from "./ProviderFeedback";
@@ -201,6 +202,7 @@ function showPublicationState(count: number) {
 }
 
 function clearResearcherResults() {
+    showProviderCollectionFeedback();
     grid.setResearcher("");
     showProfileSummary(undefined);
     showGoogleScholarSummary(undefined);
@@ -293,6 +295,7 @@ form?.addEventListener("submit", async event => {
 
                 const savedPersonelId = response.Researcher?.PersonelID ?? "";
                 const outcome = describeProviderOutcome(response);
+                showProviderCollectionFeedback(response.ProviderFeedback);
 
                 if (outcome.hasUsableResult && savedPersonelId) {
                     latestResearcher = response.Researcher;
