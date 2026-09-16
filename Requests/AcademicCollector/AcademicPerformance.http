@@ -62,7 +62,7 @@ Content-Type: application/json
 Accept: application/x-ndjson
 
 {
-  "PersonelID": "P-1001"
+  "PersonelID": "{{personelId}}"
 }
 
 ### 4. Kaydedilmiş araştırmacıyı oku [okuma]
