@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace AcademicCollectorDemo.Tests.Integration;
 
@@ -33,6 +34,79 @@ public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture 
         Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
         string responseBody = await unknown.Content.ReadAsStringAsync();
         Assert.Contains("Akademisyen kaydı bulunamadı.", responseBody);
+    }
+
+    [Fact]
+    public async Task CollectEndpoint_WebOfScienceIdOwnedByAnotherPerson_ReturnsSafeValidationError()
+    {
+        string suffix = Guid.NewGuid().ToString("N");
+        string digits = string.Concat(suffix[..4].Select(value => (char)('0' + value % 10)));
+        string researcherId = $"AAA-{digits}-2019";
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+            db.Researchers.Add(new Researcher
+            {
+                PersonelId = "wos-owner-" + suffix,
+                WebOfScienceResearcherId = researcherId
+            });
+            await db.SaveChangesAsync();
+        }
+
+        using HostProcess host = new(fixture.ConnectionString);
+        await host.WaitUntilReadyAsync();
+        using HttpResponseMessage response = await host.Client.PostAsJsonAsync(
+            "/Services/AcademicPerformance/V1/Collect",
+            new { PersonelID = "wos-other-" + suffix, ResearcherID = researcherId });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        JsonElement body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        JsonElement error = body.GetProperty("Error");
+        Assert.True(error.TryGetProperty("Code", out JsonElement code), error.GetRawText());
+        Assert.Equal("ValidationError", code.GetString());
+        Assert.Equal("Sağlayıcı kimliği farklı bir personel kaydıyla eşleşiyor.",
+            error.GetProperty("Message").GetString());
+        Assert.DoesNotContain(researcherId, error.GetRawText());
+    }
+
+    [Fact]
+    public async Task CollectEndpoint_DifferentWebOfScienceIdForSamePerson_ReturnsSafeValidationErrorWithoutOverwrite()
+    {
+        string suffix = Guid.NewGuid().ToString("N");
+        string personelId = "wos-existing-" + suffix;
+        string digits = string.Concat(suffix[..4].Select(value => (char)('0' + value % 10)));
+        string storedResearcherId = $"A-{digits}-2008";
+        string requestedResearcherId = $"AAA-{digits}-2019";
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+            db.Researchers.Add(new Researcher
+            {
+                PersonelId = personelId,
+                WebOfScienceResearcherId = storedResearcherId
+            });
+            await db.SaveChangesAsync();
+        }
+
+        using HostProcess host = new(fixture.ConnectionString);
+        await host.WaitUntilReadyAsync();
+        using HttpResponseMessage response = await host.Client.PostAsJsonAsync(
+            "/Services/AcademicPerformance/V1/Collect",
+            new { PersonelID = personelId, ResearcherID = requestedResearcherId });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        JsonElement body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        JsonElement error = body.GetProperty("Error");
+        Assert.Equal("ValidationError", error.GetProperty("Code").GetString());
+        Assert.Equal("Sağlayıcı kimliği farklı bir personel kaydıyla eşleşiyor.",
+            error.GetProperty("Message").GetString());
+        Assert.DoesNotContain(requestedResearcherId, error.GetRawText());
+
+        using var readScope = fixture.Services.CreateScope();
+        var readDb = readScope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        Researcher stored = await readDb.Researchers.AsNoTracking()
+            .SingleAsync(researcher => researcher.PersonelId == personelId);
+        Assert.Equal(storedResearcherId, stored.WebOfScienceResearcherId);
     }
 
     [Fact]
@@ -329,15 +403,18 @@ public sealed class AcademicPerformanceApplicationServiceTests(SqlServerFixture 
     {
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        string suffix = Guid.NewGuid().ToString("N");
+        string orcid = $"9999-9999-9999-{string.Concat(suffix[..4].Select(value => (char)('0' + value % 10)))}";
+        string scholarId = suffix[..12];
         db.Researchers.AddRange(new Researcher
         {
-            PersonelId = "test-" + Guid.NewGuid().ToString("N"), Orcid = "0000-0001-8560-7482" },
+            PersonelId = "test-" + Guid.NewGuid().ToString("N"), Orcid = orcid },
             new Researcher
         {
-            PersonelId = "test-" + Guid.NewGuid().ToString("N"), GoogleScholarId = "AbCdEfGhIjKl" });
+            PersonelId = "test-" + Guid.NewGuid().ToString("N"), GoogleScholarId = scholarId });
         await db.SaveChangesAsync();
         await Assert.ThrowsAsync<ArgumentException>(() => new ResearcherRepository(db).FindByIdentifiersAsync(
-            new() { Orcid = "0000-0001-8560-7482", GoogleScholarId = "AbCdEfGhIjKl" }));
+            new() { Orcid = orcid, GoogleScholarId = scholarId }));
     }
 
     [Fact]

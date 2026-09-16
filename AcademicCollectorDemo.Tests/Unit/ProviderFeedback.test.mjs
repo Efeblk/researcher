@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { describeProviderOutcome } from "../../Modules/AcademicPerformance/WebClient/Pages/AcademicPerformance/ProviderFeedback.ts";
+import {
+    describeProviderOutcome, getTrustedProviderValidationMessage
+} from "../../Modules/AcademicPerformance/WebClient/Pages/AcademicPerformance/ProviderFeedback.ts";
 
 test("provider errors cannot produce a green success outcome", () => {
     const outcome = describeProviderOutcome({
@@ -59,4 +61,21 @@ test("cache messages do not claim that data was freshly collected", () => {
     });
 
     assert.equal(outcome.message, "Araştırma tamamlandı.");
+});
+
+test("shows only structured validation messages from failed collection requests", () => {
+    const validation = getTrustedProviderValidationMessage({
+        kind: "service-error",
+        response: { Error: {
+            Code: "ValidationError",
+            Message: "Sağlayıcı kimliği farklı bir personel kaydıyla eşleşiyor."
+        } }
+    });
+
+    assert.equal(validation,
+        "Sağlayıcı kimliği farklı bir personel kaydıyla eşleşiyor.");
+    assert.equal(getTrustedProviderValidationMessage({
+        kind: "http-error",
+        response: { Error: { Code: "Exception", Message: "SQL connection failed" } }
+    }), null);
 });

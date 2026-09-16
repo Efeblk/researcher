@@ -9,6 +9,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 using AcademicCollectorDemo.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json;
@@ -18,6 +19,56 @@ namespace AcademicCollectorDemo.Tests.Integration;
 [Collection("SQL Server")]
 public sealed class PersonnelCollectionPersistenceTests(SqlServerFixture fixture)
 {
+    [Fact]
+    public async Task CollectAsync_CanonicalGateTimeout_ReturnsRetryableBusyFailure()
+    {
+        await using AsyncServiceScope holderScope = fixture.Services.CreateAsyncScope();
+        AcademicDbContext holderDb = holderScope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        await using IDbContextTransaction holderTransaction =
+            await holderDb.Database.BeginTransactionAsync();
+        await holderScope.ServiceProvider.GetRequiredService<CanonicalWorkSynchronizer>()
+            .AcquireWriteGateAsync();
+
+        await using AsyncServiceScope collectionScope = fixture.Services.CreateAsyncScope();
+        AcademicDbContext database = collectionScope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["WebOfScience:ApiKey"] = "synthetic-key",
+                ["WebOfScience:DatabaseIds:0"] = "WOS",
+                ["ProviderRequestLimits:Crossref:Enabled"] = "false"
+            }).Build();
+        using HttpClient http = new(new StubHttpHandler(_ => StubHttpHandler.Json("""
+            {"metadata":{"total":1,"limit":50},"hits":[{"uid":"WOS:busy","title":"Busy test","types":["Article"]}]}
+            """)));
+        ResearcherCollectionService collectionService = new(
+            new OrcidClient(http, configuration), new GoogleScholarClient(http, configuration),
+            new OpenAlexClient(http, configuration), new WebOfScienceClient(http, configuration),
+            new AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin.TrDizinClient(
+                http, configuration), new(), new(), configuration);
+        ResearcherCollectionHandler handler = new(
+            new ResearcherIdentifierParser(), collectionService, new ResearcherRepository(database),
+            new AcademicWorkSynchronizer(database), new PublicationSummarySynchronizer(database),
+            new AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref.CrossrefEnrichmentService(
+                database,
+                new AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref.CrossrefClient(
+                    http, configuration),
+                configuration),
+            database);
+
+        ResearcherCollectResponse response = await handler.CollectAsync(new()
+        {
+            PersonelId = "busy-" + Guid.NewGuid().ToString("N"),
+            Identifiers = ["--researcherid", "Z-9998-2099"]
+        });
+
+        Assert.False(response.IsSaved);
+        Assert.Equal("PersistenceBusy", response.FailureCode);
+        Assert.Contains(response.Messages, message =>
+            message.Contains("ortak yayın kayıt kilidi") && message.Contains("15 saniye"));
+        await holderTransaction.RollbackAsync();
+    }
+
     [Fact]
     public async Task SyncAsync_LongOrcidAuthors_PreservesFullAuthorListThroughPublicationSummary()
     {
@@ -98,11 +149,18 @@ public sealed class PersonnelCollectionPersistenceTests(SqlServerFixture fixture
             new Dictionary<string, string?>
             {
                 ["WebOfScience:ApiKey"] = "synthetic-key",
-                ["WebOfScience:DatabaseIds:0"] = "WOS"
+                ["WebOfScience:DatabaseIds:0"] = "WOS",
+                ["SemanticScholar:ApiKey"] = "synthetic-semantic-key",
+                ["SemanticScholar:ApiBaseUrl"] = "https://semantic.test/graph/v1",
+                ["ProviderRequestLimits:SemanticScholar:Enabled"] = "true"
             }).Build();
-        var httpHandler = new StubHttpHandler(_ => StubHttpHandler.Json("""
-            {"metadata":{"total":1,"limit":50},"hits":[{"uid":"WOS:001","title":"Synthetic work","types":["Article"],"source":{"publishYear":2025,"sourceTitle":"Synthetic journal"},"names":{"authors":[{"researcherId":"A-1009-2008","displayName":"Synthetic Researcher"}]},"citations":[{"db":"WOS","count":2}]}]}
-            """));
+        var httpHandler = new StubHttpHandler(request =>
+        {
+            Assert.NotEqual("semantic.test", request.RequestUri!.Host);
+            return StubHttpHandler.Json("""
+            {"metadata":{"total":1,"limit":50},"hits":[{"uid":"WOS:001","title":"Synthetic work","types":["Article"],"identifiers":{"doi":"10.1000/manual-semantic-only"},"source":{"publishYear":2025,"sourceTitle":"Synthetic journal"},"names":{"authors":[{"researcherId":"A-1009-2008","displayName":"Synthetic Researcher"}]},"citations":[{"db":"WOS","count":2}]}]}
+            """);
+        });
         using var http = new HttpClient(httpHandler);
         var collectionService = new ResearcherCollectionService(
             new OrcidClient(http, configuration),
@@ -130,5 +188,9 @@ public sealed class PersonnelCollectionPersistenceTests(SqlServerFixture fixture
         Assert.True(await database.WebOfScienceProfiles.AnyAsync(value => value.PersonelId == personelId));
         Assert.True(await database.AcademicWorks.AnyAsync(value => value.PersonelId == personelId));
         Assert.True(await database.PublicationSummaries.AnyAsync(value => value.PersonelId == personelId));
+        Assert.DoesNotContain(response.ProviderFeedback,
+            feedback => feedback.Provider.Contains("Semantic Scholar", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(response.Messages,
+            message => message.Contains("Semantic Scholar", StringComparison.OrdinalIgnoreCase));
     }
 }

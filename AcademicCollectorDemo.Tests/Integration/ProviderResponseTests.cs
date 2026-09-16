@@ -142,6 +142,26 @@ public sealed class ProviderResponseTests
         Assert.Equal(2, requests);
     }
 
+    [Fact]
+    public async Task FillResearcherAsync_ScholarRequestId_DoesNotPopulateCanonicalIdentifier()
+    {
+        var researcher = new Researcher
+        {
+            PersonelId = "test-" + Guid.NewGuid().ToString("N")
+        };
+        using var http = new HttpClient(new StubHttpHandler(_ =>
+            StubHttpHandler.Json("""{"author":{"name":"Synthetic Scholar"},"articles":[]}""")));
+        var client = new GoogleScholarClient(http, Config(new()
+        {
+            ["SearchApi:ApiKey"] = Guid.NewGuid().ToString("N")
+        }));
+
+        await client.FillResearcherAsync(researcher, "AbCdEfGhIjKl");
+
+        Assert.Null(researcher.GoogleScholarId);
+        Assert.Equal("Synthetic Scholar", researcher.GoogleScholarProfile!.DisplayName);
+    }
+
     private static IConfiguration Config(Dictionary<string, string?> values) =>
         new ConfigurationBuilder().AddInMemoryCollection(values).Build();
 
