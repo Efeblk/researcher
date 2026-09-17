@@ -59,7 +59,8 @@ public sealed class ResearcherCollectionHandler
         Researcher researcher = requestedResearcher;
 
         Researcher? existingResearcher = await _researcherRepository.FindByIdentifiersAsync(
-            requestedResearcher);
+            requestedResearcher,
+            ProviderCallScope.Cancellation);
 
         if (existingResearcher is not null)
         {
@@ -96,7 +97,7 @@ public sealed class ResearcherCollectionHandler
             await _canonicalWorkSynchronizer.AcquireWriteGateAsync();
             await _canonicalWorkSynchronizer.AcquireResearcherLockAsync(researcher.PersonelId);
 
-            await _researcherRepository.SaveAsync(researcher);
+            await _researcherRepository.SaveAsync(researcher, ProviderCallScope.Cancellation);
             await _academicWorkSynchronizer.SyncAsync(researcher);
             await _canonicalWorkSynchronizer.SyncAsync(researcher.PersonelId);
             int publicationSummaryCount = await _publicationSummarySynchronizer.SyncAsync(researcher.PersonelId);
@@ -133,6 +134,10 @@ public sealed class ResearcherCollectionHandler
                 response.Messages.Add($"[HATA] Crossref zenginleştirmesi tamamlanamadı: {exception.Message}");
                 response.Messages.Add(string.Empty);
             }
+            catch (OperationCanceledException) when (ProviderCallScope.Cancellation.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception exception)
             {
                 PartialEnrichment(crossrefFeedback, 0, exception);
@@ -141,6 +146,10 @@ public sealed class ResearcherCollectionHandler
                 response.Messages.Add($"[HATA] Crossref zenginleştirmesi tamamlanamadı: {exception.Message}");
                 response.Messages.Add(string.Empty);
             }
+        }
+        catch (OperationCanceledException) when (ProviderCallScope.Cancellation.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception exception)
         {
