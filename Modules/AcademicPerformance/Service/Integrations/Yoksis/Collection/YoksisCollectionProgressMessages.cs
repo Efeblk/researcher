@@ -4,6 +4,9 @@ internal static class YoksisCollectionProgressMessages
 {
     public static string Completion(YoksisCollectResponse response)
     {
+        if (response.IsCached)
+            return "YÖKSİS verileri önbellekten yüklendi.";
+
         if (response.SuccessfulCategoryCount == 0)
             return response.StopReason ?? "YÖKSİS kategorilerinden veri alınamadı.";
 

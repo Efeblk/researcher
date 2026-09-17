@@ -86,6 +86,7 @@ export interface ResearcherCollectResponse extends ServiceResponse {
         };
     };
     IsSaved?: boolean;
+    FailureCode?: string;
     PublicationCount?: number;
     YoksisPublicationCount?: number;
     Messages?: string[];
@@ -134,6 +135,8 @@ export interface YoksisCollectResponse extends ServiceResponse {
     PersonelID?: string;
     ResearcherDisplayName?: string;
     IsSaved?: boolean;
+    IsDisabled?: boolean;
+    IsCached?: boolean;
     YoksisRecordCount?: number;
     YoksisPublicationCount?: number;
     PublicationSummaryCount?: number;

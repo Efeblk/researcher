@@ -69,6 +69,7 @@ public static class AcademicPerformanceModule
         services.AddTransient<YoksisCollectionService>();
         services.AddScoped<YoksisRecordSynchronizer>();
         services.AddScoped<YoksisAcademicWorkSynchronizer>();
+        services.AddScoped<YoksisCollectionCache>();
         services.AddScoped<YoksisCollectionHandler>();
 
         services.AddScoped<ResearcherRepository>();

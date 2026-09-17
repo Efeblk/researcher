@@ -6,10 +6,14 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Application;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Api.V1.Contracts;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Metrics;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 using AcademicCollectorDemo.Tests.Infrastructure;
 using FluentMigrator.Runner;
+using System.Data.Common;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AcademicCollectorDemo.Tests.Integration;
@@ -211,6 +215,81 @@ public sealed class ResearcherProviderMetricsTests(SqlServerFixture fixture)
             Researcher saved = await database.Researchers.AsNoTracking()
                 .SingleAsync(value => value.PersonelId == personelId);
             Assert.Equal(73, saved.ScholarCitationCount);
+        }
+    }
+
+    [Fact]
+    public async Task RecalculateMetricsAsync_QueriesOnlyMetricColumns_AndPreservesRawPayloads()
+    {
+        string personelId = "metrics-query-" + Guid.NewGuid().ToString("N");
+        await using (AsyncServiceScope scope = fixture.Services.CreateAsyncScope())
+        {
+            AcademicDbContext database = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+            database.Researchers.Add(new Researcher
+            {
+                PersonelId = personelId,
+                OpenAlexProfile = new OpenAlexProfile
+                {
+                    OpenAlexAuthorId = "A-query",
+                    RawDataJson = "openalex-raw",
+                    LastUpdatedAt = DateTime.UtcNow
+                },
+                WebOfScienceProfile = new WebOfScienceProfile
+                {
+                    RawDataJson = "wos-profile-raw",
+                    DocumentPagesJson = "wos-pages-raw",
+                    LastUpdatedAt = DateTime.UtcNow,
+                    Works = [new() { Uid = "WOS:query", TimesCited = 7, RawDataJson = "wos-work-raw" }]
+                }
+            });
+            await database.SaveChangesAsync();
+        }
+
+        CommandCaptureInterceptor capture = new();
+        DbContextOptions<AcademicDbContext> options = new DbContextOptionsBuilder<AcademicDbContext>()
+            .UseSqlServer(fixture.ConnectionString)
+            .AddInterceptors(capture)
+            .Options;
+        await using (AcademicDbContext database = new(options))
+        {
+            ResearcherMetricsService service = new(database, new CanonicalWorkSynchronizer(database));
+            await service.RecalculateAsync(personelId);
+        }
+
+        string selectSql = string.Join('\n', capture.Commands.Where(command =>
+            command.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase)));
+        Assert.Contains("WebOfScienceWorks", selectSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("TimesCited", selectSql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("RawDataJson", selectSql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("DocumentPagesJson", selectSql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("WorksPagesJson", selectSql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("SearchPagesJson", selectSql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("CitationsJson", selectSql, StringComparison.OrdinalIgnoreCase);
+
+        await using (AsyncServiceScope scope = fixture.Services.CreateAsyncScope())
+        {
+            AcademicDbContext database = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+            WebOfScienceProfile profile = await database.WebOfScienceProfiles.AsNoTracking()
+                .SingleAsync(value => value.PersonelId == personelId);
+            WebOfScienceWork work = await database.WebOfScienceWorks.AsNoTracking()
+                .SingleAsync(value => value.WebOfScienceProfileId == profile.Id);
+            Assert.Equal("wos-profile-raw", profile.RawDataJson);
+            Assert.Equal("wos-pages-raw", profile.DocumentPagesJson);
+            Assert.Equal("wos-work-raw", work.RawDataJson);
+            Assert.Equal(7, profile.TotalTimesCited);
+        }
+    }
+
+    private sealed class CommandCaptureInterceptor : DbCommandInterceptor
+    {
+        public List<string> Commands { get; } = [];
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            Commands.Add(command.CommandText);
+            return ValueTask.FromResult(result);
         }
     }
 }

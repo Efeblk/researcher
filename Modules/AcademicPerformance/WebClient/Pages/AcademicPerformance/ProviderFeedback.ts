@@ -13,8 +13,20 @@ export function describeProviderOutcome(response: ResearcherCollectResponse): Pr
     const incomplete = messages.some(message =>
         /^\[(HATA|EKSİK|UYARI)\]/u.test(message.trim()));
     const failedSources = findFailedSources(messages);
+    const feedback = response.ProviderFeedback ?? [];
+    const requestedFeedback = feedback.filter(item =>
+        !item.Reasons?.some(reason => reason.Code === "MissingIdentifier"));
+    const disabledOnly = requestedFeedback.length > 0 && requestedFeedback.every(item =>
+        item.Status === "Skipped" && item.Reasons?.some(reason => reason.Code === "Disabled"));
 
     if (!saved) {
+        if (disabledOnly && !incomplete && !response.FailureCode) {
+            return {
+                kind: "warning",
+                message: "İstenen sağlayıcılar yerel yapılandırmada devre dışı; sorgu yapılmadı.",
+                hasUsableResult: false
+            };
+        }
         return {
             kind: "error",
             message: failedSources.length === 1

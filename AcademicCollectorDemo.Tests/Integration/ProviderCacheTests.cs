@@ -10,6 +10,86 @@ namespace AcademicCollectorDemo.Tests.Integration;
 public sealed class ProviderCacheTests
 {
     [Fact]
+    public async Task CollectAsync_DisabledProviders_SkipHttpAndRetainSavedProfiles()
+    {
+        var settings = new Dictionary<string, string?>
+        {
+            ["ProviderRequestLimits:Orcid:Enabled"] = "false",
+            ["ProviderRequestLimits:OpenAlex:Enabled"] = "false",
+            ["ProviderRequestLimits:SearchApi:Enabled"] = "false",
+            ["ProviderRequestLimits:WebOfScience:Enabled"] = "false",
+            ["ProviderRequestLimits:Scopus:Enabled"] = "false",
+            ["ProviderRequestLimits:TrDizin:Enabled"] = "false"
+        };
+        IConfiguration config = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
+        var httpHandler = new StubHttpHandler(_ =>
+            throw new InvalidOperationException("Disabled provider made an HTTP request."));
+        using var http = new HttpClient(httpHandler);
+        var savedOrcid = new AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid.OrcidProfile
+        {
+            LastUpdatedAt = DateTime.UtcNow.AddDays(-10), Works = []
+        };
+        var researcher = new Researcher
+        {
+            PersonelId = "disabled-providers",
+            Orcid = "0000-0001-8560-7482",
+            OrcidProfile = savedOrcid
+        };
+        var service = new ResearcherCollectionService(new(http, config), new(http, config),
+            new(http, config), new(http, config),
+            new AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin.TrDizinClient(http, config),
+            new(), new(), config, new(http, config));
+
+        List<ProviderCollectionFeedback> feedback = await service.CollectAsync(researcher, new()
+        {
+            Orcid = researcher.Orcid,
+            GoogleScholarId = "scholar-id",
+            WebOfScienceResearcherId = "A-1009-2008",
+            ScopusId = "12345678901"
+        }, []);
+
+        Assert.Equal(0, httpHandler.RequestCount);
+        Assert.Same(savedOrcid, researcher.OrcidProfile);
+        Assert.All(feedback, item =>
+        {
+            Assert.Equal("Skipped", item.Status);
+            Assert.Contains(item.Reasons, reason => reason.Code == "Disabled");
+        });
+    }
+
+    [Fact]
+    public async Task CollectAsync_MixedEnablement_ContinuesEnabledProvider()
+    {
+        IConfiguration config = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["ProviderRequestLimits:Orcid:Enabled"] = "false",
+                ["ProviderRequestLimits:OpenAlex:Enabled"] = "false",
+                ["ProviderRequestLimits:TrDizin:Enabled"] = "false",
+                ["ProviderRequestLimits:WebOfScience:Enabled"] = "true",
+                ["WebOfScience:ApiKey"] = "test-key",
+                ["WebOfScience:DatabaseIds:0"] = "WOS"
+            }).Build();
+        var httpHandler = new StubHttpHandler(_ =>
+            StubHttpHandler.Json("""{"metadata":{"total":0,"limit":50},"hits":[]}"""));
+        using var http = new HttpClient(httpHandler);
+        var service = new ResearcherCollectionService(new(http, config), new(http, config),
+            new(http, config), new(http, config),
+            new AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin.TrDizinClient(http, config),
+            new(), new(), config, new(http, config));
+
+        List<ProviderCollectionFeedback> feedback = await service.CollectAsync(
+            new() { PersonelId = "mixed-enablement" },
+            new() { Orcid = "0000-0001-8560-7482", WebOfScienceResearcherId = "C-5899-2018" }, []);
+
+        Assert.Equal(1, httpHandler.RequestCount);
+        Assert.Equal("Skipped", feedback.Single(item => item.Provider == "ORCID").Status);
+        Assert.DoesNotContain(feedback.Single(item => item.Provider == "Web of Science").Reasons,
+            reason => reason.Code == "Disabled");
+    }
+
+
+    [Fact]
     public async Task FillResearcherAsync_MultipleDatabasesAndPages_StopsAtMetadataTotalAndLogsProgress()
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>

@@ -151,7 +151,7 @@ public sealed class AcademicPerformanceApplicationService :
                 Researcher = savedResearcher is null ? null : AcademicPerformanceDtoMapper.MapResearcher(savedResearcher),
                 IsSaved = yoksisResponse?.IsSaved == true,
                 YoksisFailedCategoryCount = yoksisResponse?.FailedCategoryCount ?? 0,
-                FailureCode = yoksisResponse?.IsSaved == false ? "YoksisPersistenceFailure" : null,
+                FailureCode = YoksisFailureCode(yoksisResponse),
                 PublicationCount = yoksisPublicationCount,
                 CollectedAt = DateTime.UtcNow,
                 Messages = yoksisResponse?.Messages ?? []
@@ -176,8 +176,7 @@ public sealed class AcademicPerformanceApplicationService :
         {
             Researcher = AcademicPerformanceDtoMapper.MapResearcher(collectionResponse.Researcher),
             IsSaved = collectionResponse.IsSaved || yoksisResponse?.IsSaved == true,
-            FailureCode = collectionResponse.FailureCode ??
-                (yoksisResponse?.IsSaved == false ? "YoksisPersistenceFailure" : null),
+            FailureCode = collectionResponse.FailureCode ?? YoksisFailureCode(yoksisResponse),
             YoksisFailedCategoryCount = yoksisResponse?.FailedCategoryCount ?? 0,
             YoksisPublicationCount = yoksisResponse?.YoksisPublicationCount ?? 0,
             PublicationCount = publicationCount,
@@ -224,6 +223,9 @@ public sealed class AcademicPerformanceApplicationService :
             CollectedAt = DateTime.UtcNow
         };
     }
+
+    internal static string? YoksisFailureCode(YoksisCollectResponse? response) =>
+        response is { IsSaved: false, IsDisabled: false } ? "YoksisPersistenceFailure" : null;
 
     public async Task<AcademicPublicationListResponse> ListPublicationsAsync(
         AcademicPublicationListRequest request)

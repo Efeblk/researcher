@@ -4,6 +4,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Application;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Bulk.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -11,7 +12,7 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Bulk;
 
 public sealed class BulkJobProcessor(
     AcademicDbContext database, IServiceScopeFactory scopes, IOptions<BulkCollectionOptions> options,
-    ILogger<BulkJobProcessor> logger)
+    ILogger<BulkJobProcessor> logger, IConfiguration? configuration = null)
 {
     public async Task<bool> ProcessNextAsync(CancellationToken cancellationToken = default)
     {
@@ -91,20 +92,32 @@ public sealed class BulkJobProcessor(
             bool persistenceDataTooLong = response.FailureCode == "PersistenceDataTooLong";
             bool hasErrors = collectionHasFailureCode || yoksisHasFailures || providerCalls.Failures.Count > 0 ||
                 response.Messages.Any(message => message.StartsWith("[HATA]", StringComparison.Ordinal)) ||
-                (!string.IsNullOrWhiteSpace(input.Orcid) &&
-                    (response.Researcher?.OrcidProfile is null || response.Researcher.OpenAlexProfile is null)) ||
-                (!string.IsNullOrWhiteSpace(input.GoogleScholarId) && response.Researcher?.GoogleScholarProfile is null) ||
-                (!string.IsNullOrWhiteSpace(input.WebOfScienceId) && response.Researcher?.WebOfScienceProfile is null);
+                (!string.IsNullOrWhiteSpace(input.Orcid) && IsEnabled(configuration, "Orcid") &&
+                    response.Researcher?.OrcidProfile is null) ||
+                (!string.IsNullOrWhiteSpace(input.Orcid) && IsEnabled(configuration, "OpenAlex") &&
+                    response.Researcher?.OpenAlexProfile is null) ||
+                (!string.IsNullOrWhiteSpace(input.GoogleScholarId) && IsEnabled(configuration, "SearchApi") &&
+                    response.Researcher?.GoogleScholarProfile is null) ||
+                (!string.IsNullOrWhiteSpace(input.WebOfScienceId) && IsEnabled(configuration, "WebOfScience") &&
+                    response.Researcher?.WebOfScienceProfile is null);
             hasErrors = hasErrors ||
-                (!string.IsNullOrWhiteSpace(input.ScopusId) && response.Researcher?.ScopusProfile is null);
-            if (saved && !hasErrors)
+                (!string.IsNullOrWhiteSpace(input.ScopusId) && IsEnabled(configuration, "Scopus") &&
+                    response.Researcher?.ScopusProfile is null);
+            bool disabledOnly = IsDisabledOnly(response, input);
+            bool pureDisabled = disabledOnly && !hasErrors;
+            if (pureDisabled)
+            {
+                job.Status = BulkJobStatus.Partial;
+                job.ResultMessage = "İstenen sağlayıcılar yapılandırmada devre dışı; toplama atlandı.";
+            }
+            else if (saved && !hasErrors)
             {
                 job.Status = BulkJobStatus.Succeeded;
                 job.ResultMessage = "Collection completed.";
             }
             else
             {
-                retryable = !persistenceDataTooLong && (yoksisHasFailures ||
+                retryable = !pureDisabled && !persistenceDataTooLong && (yoksisHasFailures ||
                     response.FailureCode == "YoksisPersistenceFailure" ||
                     providerCalls.Failures.Any(failure => failure.Retryable) ||
                     (!saved && providerCalls.Failures.Count == 0));
@@ -168,4 +181,21 @@ public sealed class BulkJobProcessor(
     private static string ProviderNames(IReadOnlyList<ProviderCallFailure> failures) =>
         string.Join(", ", failures.Select(failure => failure.Provider)
             .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(value => value));
+
+    private static bool IsDisabledOnly(AcademicDataResponse response, BulkResearcherInput input)
+    {
+        List<ProviderCollectionFeedback> requested = response.ProviderFeedback
+            .Where(item => !item.Reasons.Any(reason => reason.Code == "MissingIdentifier"))
+            .ToList();
+        bool yoksisRequested = !string.IsNullOrWhiteSpace(input.TcKimlikNo);
+        bool yoksisDisabled = response.Messages.Any(message =>
+            message.StartsWith("[ATLANDI] YÖKSİS:", StringComparison.Ordinal));
+        bool providersDisabled = requested.Count == 0 || requested.All(item =>
+            item.Status == "Skipped" && item.Reasons.Any(reason => reason.Code == "Disabled"));
+        return providersDisabled && (!yoksisRequested || yoksisDisabled) &&
+            (requested.Count > 0 || yoksisRequested);
+    }
+
+    private static bool IsEnabled(IConfiguration? configuration, string provider) =>
+        configuration?.GetValue($"ProviderRequestLimits:{provider}:Enabled", true) ?? true;
 }

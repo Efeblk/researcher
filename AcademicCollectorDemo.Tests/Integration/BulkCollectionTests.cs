@@ -554,6 +554,40 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
     }
 
     [Fact]
+    public async Task ProcessNextAsync_AllRequestedProvidersDisabled_CompletesWithoutRetry()
+    {
+        await using var services = BuildServices(new FakeApplicationService(false, disabledOnly: true));
+        using var scope = services.CreateScope();
+        var collection = scope.ServiceProvider.GetRequiredService<BulkCollectionService>();
+        var input = Input();
+        await collection.SubmitAsync(input);
+
+        await scope.ServiceProvider.GetRequiredService<BulkJobProcessor>().ProcessNextAsync();
+
+        BulkCollectionStatusResponse result = await collection.GetStatusAsync(new() { BatchId = input.BatchId });
+        Assert.Equal(BulkJobStatus.Partial, result.Jobs.Single().Status);
+        Assert.Equal(1, result.Jobs.Single().Attempts);
+        Assert.True(result.IsComplete);
+        Assert.Contains("devre dışı", result.Jobs.Single().Message);
+    }
+
+    [Fact]
+    public async Task ProcessNextAsync_DisabledProvidersWithRealFailure_StillRetries()
+    {
+        await using var services = BuildServices(new FakeApplicationService(false,
+            disabledOnly: true, disabledWithRealFailure: true));
+        using var scope = services.CreateScope();
+        var collection = scope.ServiceProvider.GetRequiredService<BulkCollectionService>();
+        var input = Input();
+        await collection.SubmitAsync(input);
+
+        await scope.ServiceProvider.GetRequiredService<BulkJobProcessor>().ProcessNextAsync();
+
+        BulkCollectionStatusResponse result = await collection.GetStatusAsync(new() { BatchId = input.BatchId });
+        Assert.Equal(BulkJobStatus.RetryWaiting, result.Jobs.Single().Status);
+    }
+
+    [Fact]
     public async Task ProcessNextAsync_ExceptionAfterLocalDeferral_ConsumesAttempt()
     {
         await using var services = BuildServices(
@@ -806,7 +840,8 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
     private sealed class FakeApplicationService(bool fail, string? failureCode = null,
         bool localDeferral = false, bool throwAfterFailure = false, bool actualFailure = false,
         bool nonretryableFailure = false, bool actualNonretryableFailure = false,
-        int yoksisFailedCategories = 0, bool metricsFail = false) : IAcademicPerformanceApplicationService
+        int yoksisFailedCategories = 0, bool metricsFail = false, bool disabledOnly = false,
+        bool disabledWithRealFailure = false) : IAcademicPerformanceApplicationService
     {
         public AcademicDataCollectRequest? LastRequest { get; private set; }
         public ResearcherMetricsRequest? LastMetricsRequest { get; private set; }
@@ -819,10 +854,12 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
             if (actualFailure) ProviderCallScope.Record("Orcid", true, DateTime.UtcNow.AddMinutes(1));
             if (nonretryableFailure) ProviderCallScope.Record("SearchApi", false, isDisabled: true);
             if (actualNonretryableFailure) ProviderCallScope.Record("Crossref", false);
+            if (disabledWithRealFailure)
+                ProviderCallScope.Record("Crossref", true, DateTime.UtcNow.AddMinutes(1));
             if (throwAfterFailure) throw new HttpRequestException("Synthetic collection failure.");
             return Task.FromResult(new AcademicDataResponse
             {
-                IsSaved = failureCode is null, FailureCode = failureCode, Researcher = new()
+                IsSaved = !disabledOnly && failureCode is null, FailureCode = failureCode, Researcher = new()
                 {
                     PersonelId = request.PersonelId,
                     OrcidProfile = request.Orcid is null ? null : new(),
@@ -831,7 +868,15 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
                     GoogleScholarProfile = request.GoogleScholarId is null ? null : new(),
                     WebOfScienceProfile = request.WebOfScienceResearcherId is null ? null : new()
                 },
-                YoksisFailedCategoryCount = yoksisFailedCategories
+                YoksisFailedCategoryCount = yoksisFailedCategories,
+                Messages = disabledWithRealFailure ? ["[HATA] Crossref geçici olarak başarısız."] : [],
+                ProviderFeedback = disabledOnly
+                    ? [new()
+                    {
+                        Provider = "ORCID", Status = "Skipped",
+                        Reasons = [new() { Code = "Disabled", Description = "Devre dışı." }]
+                    }]
+                    : []
             });
         }
         public Task<ResearcherMetricsResponse> RecalculateMetricsAsync(ResearcherMetricsRequest request,

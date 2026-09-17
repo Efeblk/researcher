@@ -14,7 +14,18 @@ Bu belge collector'ın akademik veri entegrasyonlarının sabit kapsamını öze
 | Crossref | DOI metaverisi/atıf ve pozitif-negatif önbellek | Araştırmacı girdi alanı değildir; polite pool için iletişim e-postası önerilir. |
 | Semantic Scholar | DOI metaverisi, atıf bağlamları, TLDR ve açık PDF adayı | Atıf yapan eserler araştırmacının yayın listesine eklenmez. |
 
+Her sağlayıcı `academicsettings.json` içindeki `ProviderRequestLimits:<Provider>:Enabled`
+anahtarıyla açılıp kapatılır. Sağlayıcı adları `Orcid`, `SearchApi` (Google Scholar),
+`OpenAlex`, `Scopus`, `WebOfScience`, `Yoksis`, `TrDizin`, `Crossref` ve
+`SemanticScholar` değerleridir. `false` olduğunda toplama veya zenginleştirme isteği
+gönderilmez; önbellek okunmaz, kayıtlı veri silinmez ve bulk işi bu nedenle yeniden
+denenmez. Ayar değişikliklerinden sonra collector hostunu yeniden başlatın. Semantic
+Scholar etkin olsa bile normal ve bulk toplamada otomatik çalışmaz; yalnız açık
+`CollectSemanticScholar` isteğini kabul eder.
+
 `PersonelID`, `TcKimlikNo`, `ORCID`, Web of Science `ResearcherID`, Google Scholar ID ve Scopus ID yalnız kullanıcı veya içe aktarma satırında açıkça verilen değerlerden kaydedilir. Sağlayıcı yanıtlarında görülen kimlikler profil ve ham kaynak metadatasında korunabilir, ancak araştırmacının kanonik kimlik sütunlarını doldurmaz, değiştirmez veya temizlemez. Yalnız `TcKimlikNo` verilen bir toplama isteği sadece YÖKSİS'i çalıştırır; diğer sağlayıcılar için kimlikler ayrıca verilmelidir.
+
+Tam ve hatasız kaydedilen YÖKSİS toplamaları `ProviderCache:MaxAgeHours` süresince (varsayılan 24 saat) aynı `PersonelID` ve T.C. kimlik no sahipliği için yeniden kullanılır ve yanıtta `IsCached=true` döner. Bu süre Crossref ve Semantic Scholar'ın ayrı, varsayılan 720 saatlik önbelleklerinden bağımsızdır. `UpdatedAfter` içeren artımlı istekler önbelleği atlar. Başarıyla kaydedilen artımlı veya kısmi toplama önceki tam snapshot'ı geçersiz kılar; başarısız veya geri alınan transaction önceki snapshot'ı değiştirmez. Mevcut YÖKSİS kayıtları için sentetik snapshot üretilmez; ilk tam ve başarılı toplama snapshot'ı oluşturur.
 
 ORCID toplaması OpenAlex ve TR Dizin'i de tetikler; Scopus yalnız doğrulanmış `ScopusID` ile çalışır. DOI bulunan ortak eserler normal `Collect` ve bulk akışında Crossref ile zenginleştirilir. Semantic Scholar bu akışlarda otomatik çağrılmaz; kayıtlı DOI'ler için yalnız `CollectSemanticScholar` işlemiyle açıkça çalıştırılır. Daha önce kaydedilmiş Semantic Scholar verileri ve eser kaynakları normal toplama sırasında korunur. Sağlayıcı metrikleri kaynak adıyla ayrı tutulur. `Collect` sağlayıcı ve eser verisini kaydeder; `RecalculateMetrics` dış HTTP çağrısı yapmadan kayıtlı tam profillerden metrik alanlarını günceller. OpenAlex, Google Scholar ve Scopus değerleri sağlayıcının raporladığı biçimde korunur; WOS h-index ve toplam atıf yalnız kayıtlı WOS eserlerinden hesaplanır ve eksik bir atıf değeri sonucu `null` yapar. ResearchGate/Academia.edu scraping'i kapsam dışıdır.
 

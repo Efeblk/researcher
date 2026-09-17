@@ -9,6 +9,8 @@ public sealed class YoksisCollectResponse : ServiceResponse
     public string PersonelId { get; set; } = string.Empty;
     public string? ResearcherDisplayName { get; set; } = null;
     public bool IsSaved { get; set; }
+    public bool IsDisabled { get; set; }
+    public bool IsCached { get; set; }
     public int YoksisRecordCount { get; set; }
     public int YoksisPublicationCount { get; set; }
     public int PublicationSummaryCount { get; set; }
