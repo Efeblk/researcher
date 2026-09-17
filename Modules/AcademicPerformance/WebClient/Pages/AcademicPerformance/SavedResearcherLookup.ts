@@ -7,6 +7,7 @@ export interface ResearcherLookupRequest {
     ResearcherID?: string;
     ScopusID?: string;
     TcKimlikNo?: string;
+    IncludeProviderDetails?: boolean;
 }
 
 export interface CurrentResearcherIdentifiers {

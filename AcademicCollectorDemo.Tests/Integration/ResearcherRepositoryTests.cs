@@ -66,6 +66,8 @@ public sealed class ResearcherRepositoryTests(
             interceptor.Commands.Sum(command => command.Length));
 
         Assert.Equal(2, loaded.OrcidProfile!.Works!.Count);
+        Assert.Equal("[{\"Category\":\"employment\"}]",
+            loaded.OrcidProfile.ActivitiesDetailsJson);
         Assert.Equal(2, loaded.GoogleScholarProfile!.Works!.Count);
         Assert.Equal(2, loaded.OpenAlexProfile!.Works!.Count);
         Assert.Equal(2, loaded.ScopusProfile!.Works!.Count);
@@ -151,6 +153,7 @@ public sealed class ResearcherRepositoryTests(
             OrcidProfile = new()
             {
                 RawDataJson = payload,
+                ActivitiesDetailsJson = "[{\"Category\":\"employment\"}]",
                 LastUpdatedAt = now,
                 Works = [new() { PutCode = 1 }, new() { PutCode = 2 }]
             },

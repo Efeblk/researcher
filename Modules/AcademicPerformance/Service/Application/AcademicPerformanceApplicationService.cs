@@ -207,7 +207,8 @@ public sealed class AcademicPerformanceApplicationService :
             .CountAsync(work => work.PersonelId == researcher.PersonelId &&
                 work.Provider == AcademicWorkProvider.Yoksis);
 
-        AcademicResearcherDto? researcherDto = AcademicPerformanceDtoMapper.MapResearcher(researcher);
+        AcademicResearcherDto? researcherDto = AcademicPerformanceDtoMapper.MapResearcher(
+            researcher, request.IncludeProviderDetails);
         if (researcherDto?.OpenAlexProfile is not null)
         {
             researcherDto.OpenAlexProfile.CollectedWorksCount = await _dbContext.OpenAlexWorks

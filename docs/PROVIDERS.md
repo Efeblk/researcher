@@ -1,5 +1,7 @@
 # Sağlayıcılar
 
+Alan bazındaki toplama ve çıktı matrisi [PROVIDER_DATA_COVERAGE.md](PROVIDER_DATA_COVERAGE.md) belgesindedir.
+
 Bu belge collector'ın akademik veri entegrasyonlarının sabit kapsamını özetler. Fiyat, kota ve paketler değişebilir; production ayarından önce bağlantılı resmî kaynak ve gerçek hesap ekranı doğrulanmalıdır. Collector varsayılanları için [`academicsettings.json`](../academicsettings.json) esas alınır. Analysis Service'in AI sağlayıcıları ve model ayarları [kendi README dosyasında](../ResearcherAnalysisService/README.md) açıklanır.
 
 | Sağlayıcı | Projedeki kapsam | Temel sınır |

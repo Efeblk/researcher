@@ -84,6 +84,7 @@ export interface ResearcherCollectResponse extends ServiceResponse {
             PeerReviewsCount?: number;
             LastUpdatedAt?: string;
         };
+        ProviderDetails?: ResearcherProviderDetails;
     };
     IsSaved?: boolean;
     FailureCode?: string;
@@ -91,6 +92,37 @@ export interface ResearcherCollectResponse extends ServiceResponse {
     YoksisPublicationCount?: number;
     Messages?: string[];
     ProviderFeedback?: ProviderCollectionFeedback[];
+}
+
+export interface ResearcherProviderDetails {
+    Orcid?: {
+        Activities?: unknown;
+        OtherNames?: unknown;
+        Emails?: unknown;
+    };
+    OpenAlex?: {
+        ExternalIdentifiers?: unknown;
+        AlternativeNames?: unknown;
+        RawAuthorNames?: unknown;
+        Affiliations?: unknown;
+        LastKnownInstitutions?: unknown;
+        Topics?: unknown;
+        TopicShare?: unknown;
+    };
+    Scopus?: {
+        Orcid?: string;
+        NameVariants?: unknown;
+        CurrentAffiliation?: unknown;
+        AffiliationHistory?: unknown;
+        SubjectAreas?: unknown;
+        CoauthorCount?: number;
+    };
+    GoogleScholar?: {
+        Interests?: unknown;
+        CoAuthors?: unknown;
+        PublicAccess?: unknown;
+        Thumbnail?: string;
+    };
 }
 
 export interface ProviderCollectionReason {

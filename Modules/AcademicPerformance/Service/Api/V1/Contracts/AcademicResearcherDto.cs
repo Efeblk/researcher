@@ -50,4 +50,5 @@ public sealed class AcademicResearcherDto
     public ScopusProfileSummaryDto? ScopusProfile { get; set; } = null;
     public TrDizinProfileSummaryDto? TrDizinProfile { get; set; } = null;
     public WebOfScienceProfileSummaryDto? WebOfScienceProfile { get; set; } = null;
+    public ResearcherProviderDetailsDto? ProviderDetails { get; set; } = null;
 }

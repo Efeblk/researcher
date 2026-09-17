@@ -276,6 +276,7 @@ public sealed class AcademicDbContext : DbContext
             entity.Property(profile => profile.CurrentOrganization).HasMaxLength(1000);
             entity.Property(profile => profile.CurrentDepartment).HasMaxLength(1000);
             entity.Property(profile => profile.CurrentRoleTitle).HasMaxLength(500);
+            entity.Property(profile => profile.ActivitiesDetailsJson);
             entity.Property(profile => profile.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
             entity.HasIndex(profile => profile.PersonelId).IsUnique();
 

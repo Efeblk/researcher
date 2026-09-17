@@ -449,6 +449,7 @@ public sealed class ResearcherRepository
         target.OrcidProfile.EmploymentsJson = source.OrcidProfile.EmploymentsJson;
         target.OrcidProfile.EducationsJson = source.OrcidProfile.EducationsJson;
         target.OrcidProfile.ActivitiesJson = source.OrcidProfile.ActivitiesJson;
+        target.OrcidProfile.ActivitiesDetailsJson = source.OrcidProfile.ActivitiesDetailsJson;
         target.OrcidProfile.RawDataJson = source.OrcidProfile.RawDataJson;
 
         _dbContext.OrcidWorks.RemoveRange(target.OrcidProfile.Works ?? []);

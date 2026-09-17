@@ -17,4 +17,5 @@ public sealed class AcademicResearcherRequest : ServiceRequest
     public string? ScopusId { get; set; } = null;
     [JsonPropertyName("TcKimlikNo"), Newtonsoft.Json.JsonProperty("TcKimlikNo")]
     public string? TcKimlikNo { get; set; } = null;
+    public bool IncludeProviderDetails { get; set; }
 }

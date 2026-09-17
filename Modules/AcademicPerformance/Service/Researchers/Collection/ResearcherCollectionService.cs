@@ -4,6 +4,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
@@ -440,7 +441,8 @@ public sealed class ResearcherCollectionService
 
         try
         {
-            await _orcidClient.FillResearcherAsync(researcher);
+            await _orcidClient.FillResearcherAsync(
+                researcher, ProviderCallScope.Cancellation);
             int retrieved = researcher.OrcidProfile?.Works?.Count ?? 0;
             Success(item, retrieved, retrieved);
         }
@@ -631,6 +633,7 @@ public sealed class ResearcherCollectionService
 
         if (profile is null ||
             string.IsNullOrWhiteSpace(profile.RawDataJson) ||
+            string.IsNullOrWhiteSpace(profile.ActivitiesDetailsJson) ||
             profile.Works is null)
         {
             return false;
