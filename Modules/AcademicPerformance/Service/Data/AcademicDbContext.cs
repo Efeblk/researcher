@@ -46,6 +46,8 @@ public sealed class AcademicDbContext : DbContext
     public DbSet<PublicationSummary> PublicationSummaries { get; set; } = null!;
     public DbSet<PublicationDisplayApproval> PublicationDisplayApprovals { get; set; } = null!;
     public DbSet<CanonicalWork> CanonicalWorks { get; set; } = null!;
+    public DbSet<CanonicalWorkDoiAlias> CanonicalWorkDoiAliases { get; set; } = null!;
+    public DbSet<CanonicalWorkDoiRelation> CanonicalWorkDoiRelations { get; set; } = null!;
     public DbSet<CanonicalWorkObservation> CanonicalWorkObservations { get; set; } = null!;
     public DbSet<CanonicalResearcherWork> CanonicalResearcherWorks { get; set; } = null!;
 
@@ -679,6 +681,33 @@ public sealed class AcademicDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(observation => observation.PersonelId)
                 .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<CanonicalWorkDoiAlias>(entity =>
+        {
+            entity.ToTable("CanonicalWorkDoiAliases", "core");
+            entity.HasKey(alias => alias.Id);
+            entity.Property(alias => alias.NormalizedDoi).HasMaxLength(500)
+                .UseCollation("Latin1_General_100_BIN2");
+            entity.HasIndex(alias => alias.NormalizedDoi).IsUnique();
+            entity.HasIndex(alias => alias.CanonicalWorkId);
+            entity.HasOne(alias => alias.CanonicalWork)
+                .WithMany(work => work.DoiAliases)
+                .HasForeignKey(alias => alias.CanonicalWorkId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CanonicalWorkDoiRelation>(entity =>
+        {
+            entity.ToTable("CanonicalWorkDoiRelations", "core");
+            entity.HasKey(relation => relation.Id);
+            entity.Property(relation => relation.RelationKey).HasMaxLength(64);
+            entity.HasIndex(relation => relation.RelationKey).IsUnique();
+            entity.Property(relation => relation.SourceDoi).HasMaxLength(500).UseCollation("Latin1_General_100_BIN2");
+            entity.Property(relation => relation.TargetDoi).HasMaxLength(500).UseCollation("Latin1_General_100_BIN2");
+            entity.Property(relation => relation.Kind).HasMaxLength(30);
+            entity.HasIndex(relation => relation.TargetDoi);
+            entity.HasIndex(relation => relation.SourceDoi);
         });
 
         modelBuilder.Entity<CanonicalResearcherWork>(entity =>

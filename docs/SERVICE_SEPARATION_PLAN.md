@@ -18,6 +18,7 @@ Collector aşağıdaki 31 veri tablosunun DDL ve yazma sahibidir:
 | `202609100005` | `semanticscholar.SemanticScholarPapers`, `semanticscholar.SemanticScholarCitations`, `semanticscholar.SemanticScholarCitationContexts` |
 | `202609110003` | `core.CanonicalWorks`, `core.CanonicalWorkObservations`, `core.CanonicalResearcherWorks` |
 | `202609110008` | `core.AcademicWorkResearchContexts`, `core.AcademicWorkTopics` |
+| `202609170003` | `core.CanonicalWorkDoiAliases`, `core.CanonicalWorkDoiRelations` |
 | `202609140002` | `analysis`, `hr`, `faculty` şemalarını oluşturur |
 
 Analysis Service aşağıdaki 30 veri tablosunun DDL ve yazma sahibidir:

@@ -510,6 +510,105 @@ public sealed class CanonicalWorkSynchronizerTests(SqlServerFixture fixture)
         Assert.Contains(canonical.Observations, value => value.DoiObserved == "10.7000/version-2");
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SyncAsync_CrossResearcherVersionEvidence_UsesOneStableCanonical(bool relationFirst)
+    {
+        string standaloneId = Id((relationFirst ? "true-" : "false-") + "global-version-standalone");
+        string relationId = Id((relationFirst ? "true-" : "false-") + "global-version-relation");
+        string versionDoi = relationFirst ? "10.7050/version-first" : "10.7050/version-last";
+        string conceptDoi = relationFirst ? "10.7050/concept-first" : "10.7050/concept-last";
+        AcademicWork standalone = Work(standaloneId, AcademicWorkProvider.OpenAlex,
+            versionDoi, "standalone");
+        AcademicWork related = Work(relationId, AcademicWorkProvider.Crossref,
+            versionDoi, "related");
+        related.ProviderPayload = CrossrefVersionPayload(related.Doi!, conceptDoi);
+        await SeedAsync(standaloneId, standalone);
+        await SeedAsync(relationId, related);
+
+        if (relationFirst)
+        {
+            await SyncInScopeAsync(relationId);
+            await SyncInScopeAsync(standaloneId);
+        }
+        else
+        {
+            await SyncInScopeAsync(standaloneId);
+            await SyncInScopeAsync(relationId);
+        }
+        await SyncInScopeAsync(standaloneId);
+        await SyncInScopeAsync(relationId);
+
+        await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
+        AcademicDbContext db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        int[] canonicalIds = await db.CanonicalResearcherWorks
+            .Where(value => value.PersonelId == standaloneId || value.PersonelId == relationId)
+            .Select(value => value.CanonicalWorkId).Distinct().ToArrayAsync();
+        Assert.Single(canonicalIds);
+        Assert.Equal(2, await db.CanonicalWorkObservations.CountAsync(value =>
+            value.CanonicalWorkId == canonicalIds[0] && value.DoiObserved == versionDoi));
+        Assert.Equal(canonicalIds[0], await db.CanonicalWorkDoiAliases
+            .Where(value => value.NormalizedDoi == versionDoi)
+            .Select(value => value.CanonicalWorkId).SingleAsync());
+        Assert.Equal(canonicalIds[0], await db.CanonicalWorkDoiAliases
+            .Where(value => value.NormalizedDoi == conceptDoi)
+            .Select(value => value.CanonicalWorkId).SingleAsync());
+    }
+
+    [Fact]
+    public async Task SyncAsync_CrossResearcherContradictionAndCycle_DoNotClaimNewAliases()
+    {
+        string firstId = Id("relation-history-first");
+        string contradictionId = Id("relation-history-conflict");
+        string cycleId = Id("relation-history-cycle");
+        AcademicWork first = Work(firstId, AcademicWorkProvider.Crossref,
+            "10.7060/version", "first");
+        first.ProviderPayload = CrossrefVersionPayload(first.Doi!, "10.7060/concept-a");
+        AcademicWork contradiction = Work(contradictionId, AcademicWorkProvider.Crossref,
+            "10.7060/version", "conflict");
+        contradiction.ProviderPayload = CrossrefVersionPayload(contradiction.Doi!, "10.7060/concept-b");
+        AcademicWork cycle = Work(cycleId, AcademicWorkProvider.Crossref,
+            "10.7060/concept-a", "cycle");
+        cycle.ProviderPayload = CrossrefVersionPayload(cycle.Doi!, "10.7060/version");
+        await SeedAsync(firstId, first);
+        await SeedAsync(contradictionId, contradiction);
+        await SeedAsync(cycleId, cycle);
+
+        await SyncInScopeAsync(firstId);
+        await SyncInScopeAsync(contradictionId);
+        await SyncInScopeAsync(cycleId);
+
+        await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
+        AcademicDbContext db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        Assert.False(await db.CanonicalWorkDoiAliases.AnyAsync(value =>
+            value.NormalizedDoi == "10.7060/concept-b"));
+        Assert.False(await db.CanonicalWorkDoiRelations.AnyAsync(value =>
+            value.SourceDoi == "10.7060/concept-a" && value.TargetDoi == "10.7060/version"));
+        Assert.Single(await db.CanonicalWorkDoiRelations.Where(value =>
+            value.SourceDoi == "10.7060/version").ToListAsync());
+    }
+
+    [Fact]
+    public async Task SyncAsync_LongVersionDois_PersistAliasAndRelationKeys()
+    {
+        string personelId = Id("long-version-dois");
+        string versionDoi = "10.7070/" + new string('v', 440);
+        string conceptDoi = "10.7070/" + new string('c', 440);
+        AcademicWork work = Work(personelId, AcademicWorkProvider.Crossref, versionDoi, "long-doi");
+        work.ProviderPayload = CrossrefVersionPayload(versionDoi, conceptDoi);
+        await SeedAsync(personelId, work);
+
+        await SyncInScopeAsync(personelId);
+
+        await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
+        AcademicDbContext db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        Assert.Equal(2, await db.CanonicalWorkDoiAliases.CountAsync(value =>
+            value.NormalizedDoi == versionDoi || value.NormalizedDoi == conceptDoi));
+        Assert.Single(await db.CanonicalWorkDoiRelations.Where(value =>
+            value.SourceDoi == versionDoi && value.TargetDoi == conceptDoi).ToListAsync());
+    }
+
     [Fact]
     public async Task SyncAsync_OrcidVersionEquivalence_RetainsObservedDoisAndOneSummary()
     {

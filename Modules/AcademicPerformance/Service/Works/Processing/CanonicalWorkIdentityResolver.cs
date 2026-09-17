@@ -233,7 +233,7 @@ internal static class CanonicalWorkIdentityResolver
         work.Id.ToString(CultureInfo.InvariantCulture));
 
     private static WorkIdentity CreateDoiIdentity(string normalizedDoi) =>
-        new("doi:" + normalizedDoi, normalizedDoi, null, Hash("doi:" + normalizedDoi));
+        new("doi:" + normalizedDoi, normalizedDoi, null, Hash("doi:" + normalizedDoi), [normalizedDoi], []);
 
     private static Dictionary<string, WorkIdentity> ResolveProviderRelations(List<AcademicWork> works)
     {
@@ -310,10 +310,10 @@ internal static class CanonicalWorkIdentityResolver
             }
         }
         if (directedRoot is not null)
-            return CreateDoiIdentity(directedRoot);
+            return CreateDoiIdentity(directedRoot) with { DoiAliases = nodes, Relations = relations };
 
         string key = Hash("doi-versions|" + string.Join('|', nodes.Order(StringComparer.Ordinal)));
-        return CreateSourceIdentity(key);
+        return CreateSourceIdentity(key) with { DoiAliases = nodes, Relations = relations };
     }
 
     private static WorkIdentity CreateSourceIdentity(AcademicWork work)
@@ -325,7 +325,15 @@ internal static class CanonicalWorkIdentityResolver
     }
 
     private static WorkIdentity CreateSourceIdentity(string sourceScopedKey) =>
-        new("source:" + sourceScopedKey, null, sourceScopedKey, Hash("source:" + sourceScopedKey));
+        new("source:" + sourceScopedKey, null, sourceScopedKey, Hash("source:" + sourceScopedKey), [], []);
+
+    internal static bool RelationsAreUnambiguous(IReadOnlyCollection<ProviderWorkRelation> relations)
+    {
+        if (relations.Count == 0) return true;
+        HashSet<string> nodes = relations.SelectMany(value => new[] { value.SourceDoi, value.TargetDoi })
+            .ToHashSet(StringComparer.Ordinal);
+        return ResolveRelationComponent(nodes, relations.Distinct().ToList()) is not null;
+    }
 
     private static string Hash(string value) => Convert.ToHexString(
         SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
@@ -342,4 +350,6 @@ internal sealed record WorkIdentity(
     string DictionaryKey,
     string? NormalizedDoi,
     string? SourceScopedKey,
-    string LockKey);
+    string LockKey,
+    IReadOnlyCollection<string> DoiAliases,
+    IReadOnlyCollection<ProviderWorkRelation> Relations);
