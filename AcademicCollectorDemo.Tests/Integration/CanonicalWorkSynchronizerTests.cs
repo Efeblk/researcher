@@ -593,8 +593,8 @@ public sealed class CanonicalWorkSynchronizerTests(SqlServerFixture fixture)
     public async Task SyncAsync_LongVersionDois_PersistAliasAndRelationKeys()
     {
         string personelId = Id("long-version-dois");
-        string versionDoi = "10.7070/" + new string('v', 440);
-        string conceptDoi = "10.7070/" + new string('c', 440);
+        string versionDoi = "10.7070/" + new string('v', 480);
+        string conceptDoi = "10.7070/" + new string('c', 480);
         AcademicWork work = Work(personelId, AcademicWorkProvider.Crossref, versionDoi, "long-doi");
         work.ProviderPayload = CrossrefVersionPayload(versionDoi, conceptDoi);
         await SeedAsync(personelId, work);

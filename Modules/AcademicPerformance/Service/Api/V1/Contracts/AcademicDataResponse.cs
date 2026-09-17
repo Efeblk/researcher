@@ -11,6 +11,7 @@ public sealed class AcademicDataResponse : ServiceResponse
     public int YoksisFailedCategoryCount { get; set; }
     public int YoksisPublicationCount { get; set; }
     public int PublicationCount { get; set; }
+    public List<AcademicCategoryMetricDto> CategoryMetrics { get; set; } = [];
     public string? DatabaseProvider { get; set; } = null;
     public DateTime CollectedAt { get; set; }
     public List<string> Messages { get; set; } = [];

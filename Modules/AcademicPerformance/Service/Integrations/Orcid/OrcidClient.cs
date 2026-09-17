@@ -5,6 +5,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using Microsoft.Extensions.Configuration;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
 
@@ -12,6 +13,21 @@ public sealed class OrcidClient
 {
     private const string DefaultApiBaseUrl = "https://pub.orcid.org/v3.0";
     private const int BulkWorkLimit = 100;
+    private const long DefaultMaximumResponseBytes = 8L * 1024 * 1024;
+
+    private static readonly ActivitySection[] ActivitySections =
+    [
+        new("employment", "employments", "affiliation-group", null, "summaries", "employment-summary"),
+        new("education", "educations", "affiliation-group", null, "summaries", "education-summary"),
+        new("qualification", "qualifications", "affiliation-group", null, "summaries", "qualification-summary"),
+        new("invited-position", "invited-positions", "affiliation-group", null, "summaries", "invited-position-summary"),
+        new("distinction", "distinctions", "affiliation-group", null, "summaries", "distinction-summary"),
+        new("membership", "memberships", "affiliation-group", null, "summaries", "membership-summary"),
+        new("service", "services", "affiliation-group", null, "summaries", "service-summary"),
+        new("funding", "fundings", "group", null, "funding-summary", null),
+        new("peer-review", "peer-reviews", "group", "peer-review-group", "peer-review-summary", null),
+        new("research-resource", "research-resources", "group", null, "research-resource-summary", null)
+    ];
 
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
@@ -22,11 +38,13 @@ public sealed class OrcidClient
         _configuration = configuration;
     }
 
-    public async Task FillResearcherAsync(Researcher researcher)
+    public async Task FillResearcherAsync(
+        Researcher researcher,
+        CancellationToken cancellationToken = default)
     {
         string orcid = researcher.Orcid
             ?? throw new ArgumentException("ORCID verilmedi.");
-        string recordJson = await GetJsonAsync($"{orcid}/record");
+        string recordJson = await GetJsonAsync($"{orcid}/record", cancellationToken);
         using JsonDocument recordDocument = JsonDocument.Parse(recordJson);
         JsonElement root = recordDocument.RootElement;
         string? returnedOrcid = GetString(root, "orcid-identifier", "path");
@@ -38,7 +56,9 @@ public sealed class OrcidClient
 
         OrcidProfile profile = CreateProfile(root, recordJson);
         List<JsonElement> summaries = GetPreferredWorkSummaries(root);
-        profile.Works = await GetFullWorksAsync(orcid, summaries);
+        profile.Works = await GetFullWorksAsync(orcid, summaries, cancellationToken);
+        profile.ActivitiesDetailsJson = await GetActivityDetailsAsync(
+            orcid, root, cancellationToken);
         profile.WorksCount = profile.Works.Count;
         if (researcher.OrcidProfile is null)
         {
@@ -78,6 +98,7 @@ public sealed class OrcidClient
         target.EmploymentsJson = source.EmploymentsJson;
         target.EducationsJson = source.EducationsJson;
         target.ActivitiesJson = source.ActivitiesJson;
+        target.ActivitiesDetailsJson = source.ActivitiesDetailsJson;
         target.RawDataJson = source.RawDataJson;
         target.Works ??= [];
         target.Works.Clear();
@@ -90,7 +111,8 @@ public sealed class OrcidClient
 
     private async Task<List<OrcidWork>> GetFullWorksAsync(
         string orcid,
-        List<JsonElement> summaries)
+        List<JsonElement> summaries,
+        CancellationToken cancellationToken)
     {
         List<OrcidWork> works = [];
         int offset = 0;
@@ -105,7 +127,8 @@ public sealed class OrcidClient
             string responseJson;
             try
             {
-                responseJson = await GetJsonAsync($"{orcid}/works/{putCodes}");
+                responseJson = await GetJsonAsync(
+                    $"{orcid}/works/{putCodes}", cancellationToken);
                 using JsonDocument responseDocument = JsonDocument.Parse(responseJson);
                 JsonElement bulk = GetProperty(responseDocument.RootElement, "bulk");
                 HashSet<long> expected = batch.Select(GetPutCode).ToHashSet();
@@ -121,7 +144,8 @@ public sealed class OrcidClient
                 if (!returned.SetEquals(expected))
                     throw new InvalidDataException("ORCID bulk work count mismatch.");
             }
-            catch (Exception exception) when (exception is not ProviderCollectionException)
+            catch (Exception exception) when (exception is not ProviderCollectionException &&
+                !cancellationToken.IsCancellationRequested)
             {
                 throw new ProviderCollectionException("DetailFailure",
                     "ORCID eser ayrıntıları tamamlanamadı; okunan eksik veri kaydedilmedi.",
@@ -134,7 +158,115 @@ public sealed class OrcidClient
         return works;
     }
 
-    private async Task<string> GetJsonAsync(string relativePath)
+    private async Task<string> GetActivityDetailsAsync(
+        string orcid,
+        JsonElement record,
+        CancellationToken cancellationToken)
+    {
+        List<ActivityDetail> details = [];
+        List<(ActivitySection Section, long PutCode)> items = [];
+
+        try
+        {
+            items = GetActivityItems(record);
+            foreach ((ActivitySection section, long putCode) in items)
+            {
+                string json = await GetJsonAsync(
+                    $"{orcid}/{section.Endpoint}/{putCode}", cancellationToken);
+                using JsonDocument document = JsonDocument.Parse(json);
+                JsonElement item = document.RootElement;
+                long returnedPutCode = GetPutCode(item);
+                if (returnedPutCode != putCode)
+                {
+                    throw new InvalidDataException(
+                        $"ORCID {section.Category} detail put-code mismatch.");
+                }
+
+                details.Add(new(section.Category, putCode, item.Clone()));
+            }
+        }
+        catch (Exception exception) when (exception is not ProviderCollectionException &&
+            !cancellationToken.IsCancellationRequested)
+        {
+            throw new ProviderCollectionException("DetailFailure",
+                "ORCID activity details could not be completed; partial details were not saved.",
+                details.Count, items.Count, exception);
+        }
+
+        return JsonSerializer.Serialize(details);
+    }
+
+    private static List<(ActivitySection Section, long PutCode)> GetActivityItems(
+        JsonElement record)
+    {
+        JsonElement activities = GetProperty(record, "activities-summary");
+        List<(ActivitySection Section, long PutCode)> result = [];
+
+        foreach (ActivitySection section in ActivitySections)
+        {
+            JsonElement sectionElement = GetProperty(activities, section.SectionName);
+            if (sectionElement.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
+            {
+                continue;
+            }
+            JsonElement groups = GetProperty(sectionElement, section.GroupName);
+            EnsureArray(groups, section.SectionName, section.GroupName);
+
+            foreach (JsonElement group in groups.EnumerateArray())
+            {
+                if (group.ValueKind != JsonValueKind.Object)
+                {
+                    throw new JsonException(
+                        $"ORCID {section.SectionName} group is not an object.");
+                }
+
+                IEnumerable<JsonElement> summaryParents = [group];
+                if (section.NestedGroupName is not null)
+                {
+                    JsonElement nestedGroups = GetProperty(group, section.NestedGroupName);
+                    EnsureArray(nestedGroups, section.SectionName, section.NestedGroupName);
+                    summaryParents = nestedGroups.EnumerateArray().Select(item => item.Clone());
+                }
+
+                foreach (JsonElement summaryParent in summaryParents)
+                {
+                    JsonElement summaries = GetProperty(summaryParent, section.SummariesName);
+                    EnsureArray(summaries, section.SectionName, section.SummariesName);
+                    foreach (JsonElement summaryContainer in summaries.EnumerateArray())
+                    {
+                        JsonElement summary = section.SummaryName is null
+                            ? summaryContainer
+                            : GetProperty(summaryContainer, section.SummaryName);
+                        if (summary.ValueKind != JsonValueKind.Object)
+                        {
+                            throw new JsonException(
+                                $"ORCID {section.SectionName} summary is not an object.");
+                        }
+
+                        result.Add((section, GetPutCode(summary)));
+                    }
+                }
+            }
+        }
+
+        return result.DistinctBy(item => (item.Section.Category, item.PutCode)).ToList();
+    }
+
+    private static void EnsureArray(
+        JsonElement value,
+        string sectionName,
+        string propertyName)
+    {
+        if (value.ValueKind != JsonValueKind.Array)
+        {
+            throw new JsonException(
+                $"ORCID {sectionName}.{propertyName} is not an array.");
+        }
+    }
+
+    private async Task<string> GetJsonAsync(
+        string relativePath,
+        CancellationToken cancellationToken)
     {
         string baseUrl = _configuration["Orcid:ApiBaseUrl"]
             ?? DefaultApiBaseUrl;
@@ -142,6 +274,9 @@ public sealed class OrcidClient
         using HttpRequestMessage request = new(
             HttpMethod.Get,
             $"{baseUrl.TrimEnd('/')}/{relativePath}");
+        request.Options.Set(
+            ProviderRateLimitHandler.ResponseBufferLimit,
+            GetMaximumResponseBytes());
 
         request.Headers.Accept.Add(
             new MediaTypeWithQualityHeaderValue("application/vnd.orcid+json"));
@@ -153,8 +288,12 @@ public sealed class OrcidClient
                 accessToken.Trim());
         }
 
-        using HttpResponseMessage response = await _httpClient.SendAsync(request);
-        string body = await response.Content.ReadAsStringAsync();
+        long maximumResponseBytes = GetMaximumResponseBytes();
+        using HttpResponseMessage response = await _httpClient.SendAsync(
+            request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        await response.Content.LoadIntoBufferAsync(
+            maximumResponseBytes, cancellationToken);
+        string body = await response.Content.ReadAsStringAsync(cancellationToken);
 
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
@@ -169,6 +308,16 @@ public sealed class OrcidClient
         }
 
         return body;
+    }
+
+    private long GetMaximumResponseBytes()
+    {
+        return long.TryParse(
+                _configuration["Orcid:MaximumResponseBytes"] ??
+                _configuration["ProviderResponses:MaximumResponseBytes"],
+                out long value) && value is >= 1024 and <= 64L * 1024 * 1024
+            ? value
+            : DefaultMaximumResponseBytes;
     }
 
     private static OrcidProfile CreateProfile(JsonElement root, string rawJson)
@@ -459,4 +608,20 @@ public sealed class OrcidClient
         string result = string.Join(" ", values.Where(value => !string.IsNullOrWhiteSpace(value)));
         return string.IsNullOrWhiteSpace(result) ? null : result;
     }
+
+    private sealed record ActivitySection(
+        string Endpoint,
+        string SectionName,
+        string GroupName,
+        string? NestedGroupName,
+        string SummariesName,
+        string? SummaryName)
+    {
+        public string Category => Endpoint;
+    }
+
+    private sealed record ActivityDetail(
+        string Category,
+        long PutCode,
+        JsonElement Item);
 }

@@ -35,6 +35,7 @@ public sealed class AcademicDbContext : DbContext
     public DbSet<YoksisCollectionSnapshot> YoksisCollectionSnapshots { get; set; } = null!;
     public DbSet<TrDizinProfile> TrDizinProfiles { get; set; } = null!;
     public DbSet<TrDizinWork> TrDizinWorks { get; set; } = null!;
+    public DbSet<TrDizinProject> TrDizinProjects { get; set; } = null!;
     public DbSet<CrossrefWork> CrossrefWorks { get; set; } = null!;
     public DbSet<SemanticScholarPaper> SemanticScholarPapers { get; set; } = null!;
     public DbSet<SemanticScholarCitation> SemanticScholarCitations { get; set; } = null!;
@@ -234,6 +235,10 @@ public sealed class AcademicDbContext : DbContext
                 .WithOne(x => x.TrDizinProfile)
                 .HasForeignKey(x => x.TrDizinProfileId)
                 .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(x => x.Projects)
+                .WithOne(x => x.TrDizinProfile)
+                .HasForeignKey(x => x.TrDizinProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<TrDizinWork>(entity =>
         {
@@ -246,6 +251,19 @@ public sealed class AcademicDbContext : DbContext
             entity.Property(x => x.Authors);
             entity.Property(x => x.Journal).HasMaxLength(2000);
             entity.HasIndex(x => new { x.TrDizinProfileId, x.PublicationId }).IsUnique();
+        });
+        modelBuilder.Entity<TrDizinProject>(entity =>
+        {
+            entity.ToTable("TrDizinProjects", "trdizin");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.ProjectId).HasMaxLength(100);
+            entity.Property(x => x.ProjectNumber).HasMaxLength(250);
+            entity.Property(x => x.Title).HasMaxLength(2000);
+            entity.Property(x => x.StartedDate).HasMaxLength(100);
+            entity.Property(x => x.EndDate).HasMaxLength(100);
+            entity.Property(x => x.ProjectGroup).HasMaxLength(1000);
+            entity.Property(x => x.Duty).HasMaxLength(1000);
+            entity.HasIndex(x => new { x.TrDizinProfileId, x.ProjectId }).IsUnique();
         });
         modelBuilder.Entity<CrossrefWork>(entity =>
         {
@@ -278,6 +296,7 @@ public sealed class AcademicDbContext : DbContext
             entity.Property(profile => profile.CurrentOrganization).HasMaxLength(1000);
             entity.Property(profile => profile.CurrentDepartment).HasMaxLength(1000);
             entity.Property(profile => profile.CurrentRoleTitle).HasMaxLength(500);
+            entity.Property(profile => profile.ActivitiesDetailsJson);
             entity.Property(profile => profile.PersonelId).HasColumnName("PersonelID").HasMaxLength(200);
             entity.HasIndex(profile => profile.PersonelId).IsUnique();
 

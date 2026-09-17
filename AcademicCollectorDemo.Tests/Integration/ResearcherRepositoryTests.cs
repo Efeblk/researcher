@@ -45,7 +45,7 @@ public sealed class ResearcherRepositoryTests(
         stopwatch.Stop();
         TimeSpan legacyElapsed = stopwatch.Elapsed;
         int legacySqlCharacters = interceptor.Commands.Sum(command => command.Length);
-        Assert.Equal(9, interceptor.Commands.Count);
+        Assert.Equal(10, interceptor.Commands.Count);
         Assert.All(interceptor.Commands.Skip(1), command =>
             Assert.Contains("[core].[Researchers]", command));
         Assert.Contains("RawPublicationsJson", interceptor.Commands[0]);
@@ -66,12 +66,15 @@ public sealed class ResearcherRepositoryTests(
             interceptor.Commands.Sum(command => command.Length));
 
         Assert.Equal(2, loaded.OrcidProfile!.Works!.Count);
+        Assert.Equal("[{\"Category\":\"employment\"}]",
+            loaded.OrcidProfile.ActivitiesDetailsJson);
         Assert.Equal(2, loaded.GoogleScholarProfile!.Works!.Count);
         Assert.Equal(2, loaded.OpenAlexProfile!.Works!.Count);
         Assert.Equal(2, loaded.ScopusProfile!.Works!.Count);
         Assert.Equal(2, loaded.WebOfScienceProfile!.Works!.Count);
         Assert.Equal(2, loaded.WebOfScienceProfile.PeerReviews!.Count);
         Assert.Equal(2, loaded.TrDizinProfile!.Works!.Count);
+        Assert.Equal(2, loaded.TrDizinProfile.Projects!.Count);
         Assert.Equal(2, loaded.AcademicWorks!.Count);
         Assert.Equal(32 * 1024, loaded.TrDizinProfile.RawPublicationsJson.Length);
         Assert.All(database.ChangeTracker.Entries(), entry =>
@@ -80,7 +83,7 @@ public sealed class ResearcherRepositoryTests(
         Assert.True(database.Entry(loaded.WebOfScienceProfile)
             .Collection(profile => profile.PeerReviews!).IsLoaded);
         Assert.True(database.Entry(loaded).Collection(researcher => researcher.AcademicWorks!).IsLoaded);
-        Assert.Equal(9, interceptor.Commands.Count);
+        Assert.Equal(10, interceptor.Commands.Count);
 
         string rootCommand = interceptor.Commands[0];
         Assert.Contains("LEFT JOIN [orcid].[OrcidProfiles]", rootCommand);
@@ -117,6 +120,66 @@ public sealed class ResearcherRepositoryTests(
         Assert.True(database.Entry(loaded).Collection(researcher => researcher.AcademicWorks!).IsLoaded);
     }
 
+    [Fact]
+    public async Task SaveAsync_CompleteTrDizinSnapshot_ReplacesProjects()
+    {
+        DbContextOptions<AcademicDbContext> options = new DbContextOptionsBuilder<AcademicDbContext>()
+            .UseSqlServer(fixture.ConnectionString)
+            .Options;
+        string personelId = "repository-project-replace-" + Guid.NewGuid().ToString("N");
+        await using (AcademicDbContext seed = new(options))
+        {
+            seed.Researchers.Add(new Researcher
+            {
+                PersonelId = personelId,
+                TrDizinProfile = new()
+                {
+                    Orcid = "0000-0002-1825-0097",
+                    AuthorId = 42,
+                    LastUpdatedAt = DateTime.UtcNow.AddDays(-2),
+                    RawAuthorJson = "{}",
+                    RawPublicationsJson = "{}",
+                    RawProjectsJson = "[]",
+                    ProjectCandidateCount = 1,
+                    ProjectMatchedCount = 1,
+                    ProjectSearchComplete = true,
+                    Works = [],
+                    Projects = [new() { ProjectId = "OLD", RawDataJson = "{}" }]
+                }
+            });
+            await seed.SaveChangesAsync();
+        }
+
+        await using (AcademicDbContext database = new(options))
+        {
+            ResearcherRepository repository = new(database);
+            await repository.SaveAsync(new Researcher
+            {
+                PersonelId = personelId,
+                TrDizinProfile = new()
+                {
+                    Orcid = "0000-0002-1825-0097",
+                    AuthorId = 42,
+                    LastUpdatedAt = DateTime.UtcNow,
+                    RawAuthorJson = "{}",
+                    RawPublicationsJson = "{}",
+                    RawProjectsJson = "[{}]",
+                    ProjectCandidateCount = 1,
+                    ProjectMatchedCount = 1,
+                    ProjectSearchComplete = true,
+                    Works = [],
+                    Projects = [new() { ProjectId = "NEW", Title = "Replacement", RawDataJson = "{}" }]
+                }
+            });
+        }
+
+        await using AcademicDbContext verify = new(options);
+        TrDizinProject saved = await verify.TrDizinProjects.SingleAsync(project =>
+            project.TrDizinProfile!.PersonelId == personelId);
+        Assert.Equal("NEW", saved.ProjectId);
+        Assert.Equal("Replacement", saved.Title);
+    }
+
     private static async Task LoadLegacySplitGraphAsync(
         AcademicDbContext database,
         string personelId)
@@ -136,6 +199,8 @@ public sealed class ResearcherRepositoryTests(
                 .ThenInclude(profile => profile!.PeerReviews)
             .Include(researcher => researcher.TrDizinProfile)
                 .ThenInclude(profile => profile!.Works)
+            .Include(researcher => researcher.TrDizinProfile)
+                .ThenInclude(profile => profile!.Projects)
             .Include(researcher => researcher.AcademicWorks)
             .AsSplitQuery()
             .FirstAsync(researcher => researcher.PersonelId == personelId);
@@ -151,6 +216,7 @@ public sealed class ResearcherRepositoryTests(
             OrcidProfile = new()
             {
                 RawDataJson = payload,
+                ActivitiesDetailsJson = "[{\"Category\":\"employment\"}]",
                 LastUpdatedAt = now,
                 Works = [new() { PutCode = 1 }, new() { PutCode = 2 }]
             },
@@ -187,8 +253,13 @@ public sealed class ResearcherRepositoryTests(
                 AuthorId = 1,
                 RawAuthorJson = payload,
                 RawPublicationsJson = payload,
+                RawProjectsJson = payload,
+                ProjectCandidateCount = 2,
+                ProjectMatchedCount = 2,
+                ProjectSearchComplete = true,
                 LastUpdatedAt = now,
-                Works = [new() { PublicationId = "T1" }, new() { PublicationId = "T2" }]
+                Works = [new() { PublicationId = "T1" }, new() { PublicationId = "T2" }],
+                Projects = [new() { ProjectId = "P1" }, new() { ProjectId = "P2" }]
             },
             AcademicWorks =
             [

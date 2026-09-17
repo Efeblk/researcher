@@ -4,7 +4,7 @@ Bu planın hedefi iki bağımsız çalıştırılabilir servis ve tek SQL Server
 
 ## Veritabanı sahipliği
 
-Collector aşağıdaki 31 veri tablosunun DDL ve yazma sahibidir:
+Collector aşağıdaki 37 veri tablosunun DDL ve yazma sahibidir:
 
 | Mevcut DDL migration'ı | Collector tabloları |
 | --- | --- |

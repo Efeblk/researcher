@@ -1,5 +1,7 @@
 # Sağlayıcılar
 
+Alan bazındaki toplama ve çıktı matrisi [PROVIDER_DATA_COVERAGE.md](PROVIDER_DATA_COVERAGE.md) belgesindedir.
+
 Bu belge collector'ın akademik veri entegrasyonlarının sabit kapsamını özetler. Fiyat, kota ve paketler değişebilir; production ayarından önce bağlantılı resmî kaynak ve gerçek hesap ekranı doğrulanmalıdır. Collector varsayılanları için [`academicsettings.json`](../academicsettings.json) esas alınır. Analysis Service'in AI sağlayıcıları ve model ayarları [kendi README dosyasında](../ResearcherAnalysisService/README.md) açıklanır.
 
 | Sağlayıcı | Projedeki kapsam | Temel sınır |
@@ -9,8 +11,8 @@ Bu belge collector'ın akademik veri entegrasyonlarının sabit kapsamını öze
 | Scopus | Scopus Author ID ile Author Retrieval profili/metrikleri ve `AU-ID(...)` Search yayınları | API anahtarı gerekir; `InstToken` kurumsal erişim gerektiğinde eklenir. Search ve Author Retrieval kotaları ayrıdır. |
 | Google Scholar / SearchApi | Profil, yayın, atıf, h/i10 | Google'ın resmî API'si değildir; entegrasyon varsayılan ayarda kapalıdır. |
 | Web of Science Starter | ResearcherID ile WOS/WOK yayınları ve varsa atıf | h-index yalnız tüm gerekli atıflar geldiyse yerelde hesaplanır; i10 yoktur. |
-| YÖKSİS | 21 kategori ve desteklenen eser ayrıntıları | Kurumsal kimlik, T.C. kimlik no ve ayrıca BYS yetkisi gerekir. |
-| TR Dizin | Tam ORCID eşleşmeli yazar ve yayın | Yayımlanmış kota doğrulanmamıştır. |
+| YÖKSİS | 21 kategori ve desteklenen eser ayrıntıları | Kurumsal kimlik, T.C. kimlik no ve güvenilir kurumsal yetkilendirme gerekir. |
+| TR Dizin | Tam ORCID eşleşmeli yazar, yayın ayrıntıları ve kimliği doğrulanmış projeler | Projeler yayın metriklerine katılmaz; yayımlanmış kota doğrulanmamıştır. |
 | Crossref | DOI metaverisi/atıf ve pozitif-negatif önbellek | Araştırmacı girdi alanı değildir; polite pool için iletişim e-postası önerilir. |
 | Semantic Scholar | DOI metaverisi, atıf bağlamları, TLDR ve açık PDF adayı | Atıf yapan eserler araştırmacının yayın listesine eklenmez. |
 
@@ -28,6 +30,8 @@ Scholar etkin olsa bile normal ve bulk toplamada otomatik çalışmaz; yalnız a
 Tam ve hatasız kaydedilen YÖKSİS toplamaları `ProviderCache:MaxAgeHours` süresince (varsayılan 24 saat) aynı `PersonelID` ve T.C. kimlik no sahipliği için yeniden kullanılır ve yanıtta `IsCached=true` döner. Bu süre Crossref ve Semantic Scholar'ın ayrı, varsayılan 720 saatlik önbelleklerinden bağımsızdır. `UpdatedAfter` içeren artımlı istekler önbelleği atlar. Başarıyla kaydedilen artımlı veya kısmi toplama önceki tam snapshot'ı geçersiz kılar; başarısız veya geri alınan transaction önceki snapshot'ı değiştirmez. Mevcut YÖKSİS kayıtları için sentetik snapshot üretilmez; ilk tam ve başarılı toplama snapshot'ı oluşturur.
 
 ORCID toplaması OpenAlex ve TR Dizin'i de tetikler; Scopus yalnız doğrulanmış `ScopusID` ile çalışır. DOI bulunan ortak eserler normal `Collect` ve bulk akışında Crossref ile zenginleştirilir. Semantic Scholar bu akışlarda otomatik çağrılmaz; kayıtlı DOI'ler için yalnız `CollectSemanticScholar` işlemiyle açıkça çalıştırılır. Daha önce kaydedilmiş Semantic Scholar verileri ve eser kaynakları normal toplama sırasında korunur. Sağlayıcı metrikleri kaynak adıyla ayrı tutulur. `Collect` sağlayıcı ve eser verisini kaydeder; `RecalculateMetrics` dış HTTP çağrısı yapmadan kayıtlı tam profillerden metrik alanlarını günceller. OpenAlex, Google Scholar ve Scopus değerleri sağlayıcının raporladığı biçimde korunur; WOS h-index ve toplam atıf yalnız kayıtlı WOS eserlerinden hesaplanır ve eksik bir atıf değeri sonucu `null` yapar. ResearchGate/Academia.edu scraping'i kapsam dışıdır.
+
+TR Dizin'de ORCID önce yazarı çözer. Proje keşfi belgelenmiş `PROJECT` türü ve çözümlenen tam ad facet'iyle sayfalanır; her adayın ayrıntısındaki `authorId` veya ORCID çözümlenen yazarla eşleşmelidir. Sayfalama `TrDizin:MaximumProjectPages` ile korunur (varsayılan 100). Eşleşmeyen adaylar reddedilip `Partial` olarak raporlanır ve tek başına otomatik yeniden deneme başlatmaz; bozuk ayrıntı yanıtında son iyi snapshot korunur. Projeler yayın metriklerine katılmaz. Bu kapsam bütün TÜBİTAK devam eden projelerini veya bütün ad varyantlarını eksiksiz bulma iddiası taşımaz; BAPSİS kapsam dışıdır.
 
 `CollectSemanticScholar`, tamamı başarısız sağlayıcı çağrısında `503`, önceki DOI'ler kaydedildiyse `200` ve `HasPendingWork=true` döndürür. `ErrorCode`, `ProviderHttpStatusCode`, `RetryAt` ve `Retryable` alanları güvenli yeniden deneme tanısı sağlar; yerel erteleme ve taşıma hatalarında sağlayıcı HTTP durumu `null` kalır.
 
@@ -55,6 +59,6 @@ Yerel sayaç sağlayıcı hesabının kalan kotası değildir. Eksik değer sıf
 
 Anahtar, parola, T.C. kimlik numarası, ham kişisel yanıt ve istek URL'leri loglara veya repoya yazılmamalıdır. Daha önce kaydedilmiş hassas YÖKSİS yanıtları yeni kod tarafından otomatik temizlenmez. Kaynak eser ID'si olmayan artımlı YÖKSİS kayıtlarında içerik değişikliği eski sürümü koruyabilir; bu kayıtlar DOI/başlık tekilleştirmesine rağmen gerektiğinde ayrıca incelenmelidir.
 
-YÖKSİS Basic Authentication yalnız Base64 kodlar; HTTPS korunmalı ve endpoint dış ağa BYS kontrolü olmadan açılmamalıdır. Uzak servis şartları, saklama hakları, kota ve kurumsal lisanslar deployment sahibi tarafından teyit edilmelidir.
+YÖKSİS Basic Authentication yalnız Base64 kodlar; HTTPS korunmalı ve endpoint dış ağa güvenilir kurumsal erişim kontrolü olmadan açılmamalıdır. Uzak servis şartları, saklama hakları, kota ve kurumsal lisanslar deployment sahibi tarafından teyit edilmelidir.
 
 Resmî başvurular: [ORCID API](https://info.orcid.org/documentation/integration-guide/orcid-api-guide/) · [OpenAlex API](https://docs.openalex.org/) · [Scopus APIs](https://dev.elsevier.com/) · [SearchApi Scholar Author](https://www.searchapi.io/docs/google-scholar-author) · [WoS Starter](https://developer.clarivate.com/apis/wos-starter) · [YÖKSİS WSDL](https://servisler.yok.gov.tr/ws/OzgecmisV2?wsdl) · [TR Dizin](https://development.trdizin.gov.tr/) · [Crossref REST API](https://www.crossref.org/documentation/retrieve-metadata/rest-api/) · [Semantic Scholar API](https://www.semanticscholar.org/product/api)

@@ -22,6 +22,58 @@ namespace AcademicCollectorDemo.Tests.Integration;
 public sealed class PersonnelCollectionPersistenceTests(SqlServerFixture fixture)
 {
     [Fact]
+    public async Task CollectAsync_CancelledDuringOrcidDetails_StopsProvidersAndPersistence()
+    {
+        string personelId = "cancel-orcid-" + Guid.NewGuid().ToString("N");
+        using CancellationTokenSource cancellation = new();
+        IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["Orcid:ApiBaseUrl"] = "https://orcid.test/v3.0",
+                ["OpenAlex:ApiBaseUrl"] = "https://openalex.test",
+                ["TrDizin:ApiBaseUrl"] = "https://trdizin.test",
+                ["ProviderRequestLimits:SearchApi:Enabled"] = "false",
+                ["ProviderRequestLimits:WebOfScience:Enabled"] = "false",
+                ["ProviderRequestLimits:Scopus:Enabled"] = "false",
+                ["ProviderRequestLimits:Crossref:Enabled"] = "false"
+            }).Build();
+        CancellingOrcidHandler httpHandler = new(cancellation);
+        using HttpClient http = new(httpHandler);
+        await using AsyncServiceScope serviceScope = fixture.Services.CreateAsyncScope();
+        AcademicDbContext database = serviceScope.ServiceProvider
+            .GetRequiredService<AcademicDbContext>();
+        ResearcherCollectionService collectionService = new(
+            new OrcidClient(http, configuration),
+            new GoogleScholarClient(http, configuration),
+            new OpenAlexClient(http, configuration),
+            new WebOfScienceClient(http, configuration),
+            new AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin.TrDizinClient(
+                http, configuration), new(), new(), configuration);
+        ResearcherCollectionHandler handler = new(
+            new ResearcherIdentifierParser(), collectionService,
+            new ResearcherRepository(database), new AcademicWorkSynchronizer(database),
+            new PublicationSummarySynchronizer(database),
+            new AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref.CrossrefEnrichmentService(
+                database,
+                new AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref.CrossrefClient(
+                    http, configuration),
+                configuration),
+            database);
+
+        using ProviderCallScope scope = new(cancellation.Token);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => handler.CollectAsync(new()
+        {
+            PersonelId = personelId,
+            Identifiers = ["0000-0001-8560-7482"]
+        }));
+
+        Assert.Equal(2, httpHandler.Requests.Count);
+        Assert.All(httpHandler.Requests, uri => Assert.Equal("orcid.test", uri.Host));
+        Assert.False(await database.Researchers.AsNoTracking().AnyAsync(
+            researcher => researcher.PersonelId == personelId));
+    }
+
+    [Fact]
     public async Task CollectAsync_CancelledDuringSaveChanges_PropagatesCancellation()
     {
         using CancellationTokenSource cancellation = new();
@@ -259,6 +311,31 @@ public sealed class PersonnelCollectionPersistenceTests(SqlServerFixture fixture
             WasInvoked = true;
             cancellation.Cancel();
             throw new OperationCanceledException(cancellation.Token);
+        }
+    }
+
+    private sealed class CancellingOrcidHandler(CancellationTokenSource cancellation)
+        : HttpMessageHandler
+    {
+        public List<Uri> Requests { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            Requests.Add(request.RequestUri!);
+            if (request.RequestUri!.AbsolutePath.EndsWith("/record", StringComparison.Ordinal))
+            {
+                return StubHttpHandler.Json("""
+                    {"orcid-identifier":{"path":"0000-0001-8560-7482"},"person":{},
+                    "activities-summary":{"works":{"group":[]},"employments":{
+                    "affiliation-group":[{"summaries":[{"employment-summary":{"put-code":1}}]}]}}}
+                    """);
+            }
+
+            cancellation.Cancel();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException();
         }
     }
 }

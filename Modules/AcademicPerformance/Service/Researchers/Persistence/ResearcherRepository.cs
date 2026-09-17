@@ -207,6 +207,13 @@ public sealed class ResearcherRepository
                 .LoadAsync(cancellationToken);
             LogStageLoaded(researcher.PersonelId, "trdizin-works", Stopwatch.GetElapsedTime(startedAt),
                 researcher.TrDizinProfile.Works?.Count ?? 0);
+            LogStageStarted(researcher.PersonelId, "trdizin-projects");
+            startedAt = Stopwatch.GetTimestamp();
+            await _dbContext.Entry(researcher.TrDizinProfile)
+                .Collection(profile => profile.Projects!)
+                .LoadAsync(cancellationToken);
+            LogStageLoaded(researcher.PersonelId, "trdizin-projects", Stopwatch.GetElapsedTime(startedAt),
+                researcher.TrDizinProfile.Projects?.Count ?? 0);
         }
 
         LogStageStarted(researcher.PersonelId, "academic-works");
@@ -263,9 +270,16 @@ public sealed class ResearcherRepository
         profile.DisplayName = incoming.DisplayName ?? profile.DisplayName;
         profile.PublicationCount = incoming.PublicationCount ?? profile.PublicationCount;
         profile.CitationCount = incoming.CitationCount ?? profile.CitationCount;
+        profile.ProjectCandidateCount = incoming.ProjectCandidateCount;
+        profile.ProjectMatchedCount = incoming.ProjectMatchedCount;
+        profile.ProjectUnmatchedCount = incoming.ProjectUnmatchedCount;
+        profile.ProjectSearchComplete = incoming.ProjectSearchComplete;
         profile.LastUpdatedAt = incoming.LastUpdatedAt; profile.RawAuthorJson = incoming.RawAuthorJson;
         profile.RawPublicationsJson = incoming.RawPublicationsJson;
+        profile.RawProjectsJson = incoming.RawProjectsJson;
         _dbContext.TrDizinWorks.RemoveRange(profile.Works ?? []); profile.Works = incoming.Works;
+        _dbContext.TrDizinProjects.RemoveRange(profile.Projects ?? []);
+        profile.Projects = incoming.Projects;
     }
 
     private void UpdateOpenAlex(Researcher target, Researcher source)
@@ -449,6 +463,7 @@ public sealed class ResearcherRepository
         target.OrcidProfile.EmploymentsJson = source.OrcidProfile.EmploymentsJson;
         target.OrcidProfile.EducationsJson = source.OrcidProfile.EducationsJson;
         target.OrcidProfile.ActivitiesJson = source.OrcidProfile.ActivitiesJson;
+        target.OrcidProfile.ActivitiesDetailsJson = source.OrcidProfile.ActivitiesDetailsJson;
         target.OrcidProfile.RawDataJson = source.OrcidProfile.RawDataJson;
 
         _dbContext.OrcidWorks.RemoveRange(target.OrcidProfile.Works ?? []);
