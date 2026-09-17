@@ -41,7 +41,8 @@ public sealed class ResearcherCollectionFeedback
             AddWebOfScienceFeedback(researcher.WebOfScienceProfile, messages);
         }
 
-        if (!string.IsNullOrWhiteSpace(requestedIdentifiers.ScopusId))
+        if (!string.IsNullOrWhiteSpace(requestedIdentifiers.ScopusId) &&
+            IsAvailable(currentRun, "Scopus"))
             AddScopusFeedback(researcher.ScopusProfile, messages);
 
         messages.Add(string.Empty);

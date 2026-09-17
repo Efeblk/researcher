@@ -15,11 +15,22 @@ public sealed class SemanticScholarEndpoint : ServiceEndpoint
         [FromBody] SemanticScholarCollectRequest request,
         [FromServices] SemanticScholarEnrichmentService enrichmentService,
         [FromServices] SemanticScholarWorkSourceSynchronizer sourceSynchronizer,
-        [FromServices] AcademicDbContext dbContext, CancellationToken cancellationToken)
+        [FromServices] AcademicDbContext dbContext,
+        CancellationToken cancellationToken,
+        [FromServices] IConfiguration? configuration = null)
     {
         if (!ModelState.IsValid || string.IsNullOrWhiteSpace(request.PersonelId)) return BadRequest(ModelState);
         string personelId = request.PersonelId.Trim();
         if (personelId.Length > 200) return BadRequest(ModelState);
+        if (!(configuration?.GetValue("ProviderRequestLimits:SemanticScholar:Enabled", true) ?? true))
+        {
+            return Ok(new SemanticScholarCollectResponse
+            {
+                Message = "Semantic Scholar yerel yapılandırmada devre dışı; sorgu yapılmadı.",
+                ErrorCode = "Disabled",
+                Retryable = false
+            });
+        }
         if (!await dbContext.Researchers.AsNoTracking().AnyAsync(x => x.PersonelId == personelId, cancellationToken)) return NotFound(new { Message = "Researcher was not found." });
         try
         {

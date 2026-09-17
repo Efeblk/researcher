@@ -31,24 +31,47 @@ public sealed class ResearcherMetricsService(
 
         Report(progress, "loading", "Kayıtlı akademisyen ve sağlayıcı verileri yükleniyor.");
         Researcher researcher = await dbContext.Researchers
-            .Include(value => value.OpenAlexProfile)
-            .Include(value => value.GoogleScholarProfile)
-            .Include(value => value.ScopusProfile)
-            .Include(value => value.WebOfScienceProfile)
-                .ThenInclude(profile => profile!.Works)
             .SingleOrDefaultAsync(value => value.PersonelId == personelId, cancellationToken)
             ?? throw new ArgumentException("Akademisyen kaydı bulunamadı.");
+
+        OpenAlexMetrics? openAlex = await dbContext.OpenAlexProfiles.AsNoTracking()
+            .Where(value => value.PersonelId == personelId)
+            .Select(value => new OpenAlexMetrics(value.CitedByCount, value.HIndex, value.I10Index,
+                value.WorksCount, value.TwoYearMeanCitedness, value.LastUpdatedAt))
+            .SingleOrDefaultAsync(cancellationToken);
+        ScholarMetrics? scholar = await dbContext.GoogleScholarProfiles.AsNoTracking()
+            .Where(value => value.PersonelId == personelId)
+            .Select(value => new ScholarMetrics(value.CitationCount, value.HIndex, value.I10Index,
+                value.DocumentsCount, value.CitationCountRecent, value.HIndexRecent,
+                value.I10IndexRecent, value.MetricsSinceYear, value.LastUpdatedAt))
+            .SingleOrDefaultAsync(cancellationToken);
+        ScopusMetrics? scopus = await dbContext.ScopusProfiles.AsNoTracking()
+            .Where(value => value.PersonelId == personelId)
+            .Select(value => new ScopusMetrics(value.CitationCount, value.HIndex,
+                value.DocumentsCount, value.LastUpdatedAt))
+            .SingleOrDefaultAsync(cancellationToken);
+        WebOfScienceMetrics? webOfScience = await dbContext.WebOfScienceProfiles.AsNoTracking()
+            .Where(value => value.PersonelId == personelId)
+            .Select(value => new WebOfScienceMetrics(value.Id, value.TotalTimesCited, value.HIndex,
+                value.DocumentsCount, value.LastUpdatedAt))
+            .SingleOrDefaultAsync(cancellationToken);
+        List<int?> timesCited = webOfScience is null
+            ? []
+            : await dbContext.WebOfScienceWorks.AsNoTracking()
+                .Where(value => value.WebOfScienceProfileId == webOfScience.Id)
+                .Select(value => value.TimesCited)
+                .ToListAsync(cancellationToken);
 
         object?[] before = MetricValues(researcher);
 
         Report(progress, "calculating-openalex", "OpenAlex metrikleri hesaplanıyor.");
-        ApplyOpenAlex(researcher);
+        ApplyOpenAlex(researcher, openAlex);
         Report(progress, "calculating-google-scholar", "Google Scholar metrikleri hesaplanıyor.");
-        ApplyScholar(researcher);
+        ApplyScholar(researcher, scholar);
         Report(progress, "calculating-scopus", "Scopus metrikleri hesaplanıyor.");
-        ApplyScopus(researcher);
+        ApplyScopus(researcher, scopus);
         Report(progress, "calculating-web-of-science", "Web of Science metrikleri hesaplanıyor.");
-        ApplyWebOfScience(researcher);
+        ApplyWebOfScience(researcher, webOfScience, timesCited);
 
         if (!before.SequenceEqual(MetricValues(researcher)))
         {
@@ -75,9 +98,8 @@ public sealed class ResearcherMetricsService(
         IProgress<ResearcherMetricsProgress>? progress, string stage, string message) =>
         progress?.Report(new() { Stage = stage, Message = message });
 
-    private static void ApplyOpenAlex(Researcher researcher)
+    private static void ApplyOpenAlex(Researcher researcher, OpenAlexMetrics? profile)
     {
-        var profile = researcher.OpenAlexProfile;
         researcher.OpenAlexCitationCount = profile?.CitedByCount;
         researcher.OpenAlexHIndex = profile?.HIndex;
         researcher.OpenAlexI10Index = profile?.I10Index;
@@ -86,9 +108,8 @@ public sealed class ResearcherMetricsService(
         researcher.OpenAlexMetricsUpdatedAt = profile?.LastUpdatedAt;
     }
 
-    private static void ApplyScholar(Researcher researcher)
+    private static void ApplyScholar(Researcher researcher, ScholarMetrics? profile)
     {
-        var profile = researcher.GoogleScholarProfile;
         researcher.ScholarCitationCount = profile?.CitationCount;
         researcher.ScholarHIndex = profile?.HIndex;
         researcher.ScholarI10Index = profile?.I10Index;
@@ -100,54 +121,83 @@ public sealed class ResearcherMetricsService(
         researcher.ScholarMetricsUpdatedAt = profile?.LastUpdatedAt;
     }
 
-    private static void ApplyScopus(Researcher researcher)
+    private static void ApplyScopus(Researcher researcher, ScopusMetrics? profile)
     {
-        var profile = researcher.ScopusProfile;
         researcher.ScopusCitationCount = profile?.CitationCount;
         researcher.ScopusHIndex = profile?.HIndex;
         researcher.ScopusDocumentsCount = profile?.DocumentsCount;
         researcher.ScopusMetricsUpdatedAt = profile?.LastUpdatedAt;
     }
 
-    private static void ApplyWebOfScience(Researcher researcher)
+    private void ApplyWebOfScience(
+        Researcher researcher, WebOfScienceMetrics? profile, IReadOnlyCollection<int?> timesCited)
     {
-        WebOfScienceProfile? profile = researcher.WebOfScienceProfile;
-        List<WebOfScienceWork> works = profile?.Works ?? [];
-        int? totalTimesCited = CalculateTotalTimesCited(works);
-        int? hIndex = CalculateHIndex(works);
+        int? totalTimesCited = CalculateTotalTimesCited(timesCited);
+        int? hIndex = CalculateHIndex(timesCited);
 
         if (profile is not null)
         {
-            profile.TotalTimesCited = totalTimesCited;
-            profile.HIndex = hIndex;
-            profile.DocumentsCount = works.Count;
+            WebOfScienceProfile update = new()
+            {
+                Id = profile.Id,
+                PersonelId = researcher.PersonelId,
+                TotalTimesCited = profile.TotalTimesCited,
+                HIndex = profile.HIndex,
+                DocumentsCount = profile.DocumentsCount,
+                LastUpdatedAt = profile.LastUpdatedAt
+            };
+            dbContext.Attach(update);
+            update.TotalTimesCited = totalTimesCited;
+            update.HIndex = hIndex;
+            update.DocumentsCount = timesCited.Count;
         }
 
         researcher.WosCitationCount = totalTimesCited;
         researcher.WosHIndex = hIndex;
-        researcher.WosDocumentsCount = profile?.DocumentsCount;
+        researcher.WosDocumentsCount = profile is null ? null : timesCited.Count;
         researcher.WosMetricsUpdatedAt = profile?.LastUpdatedAt;
     }
 
-    internal static int? CalculateHIndex(IReadOnlyCollection<WebOfScienceWork> works)
+    private static int? CalculateHIndex(IReadOnlyCollection<int?> citationCounts)
     {
-        if (works.Count == 0 || works.Any(work => !work.TimesCited.HasValue))
+        if (citationCounts.Count == 0 || citationCounts.Any(count => !count.HasValue))
             return null;
 
-        List<int> citationCounts = works.Select(work => work.TimesCited!.Value)
+        List<int> sorted = citationCounts.Select(count => count!.Value)
             .OrderByDescending(count => count).ToList();
-        for (int index = 0; index < citationCounts.Count; index++)
-            if (citationCounts[index] < index + 1)
+        for (int index = 0; index < sorted.Count; index++)
+            if (sorted[index] < index + 1)
                 return index;
-        return citationCounts.Count;
+        return sorted.Count;
     }
+
+    private static int? CalculateTotalTimesCited(IReadOnlyCollection<int?> citationCounts)
+    {
+        if (citationCounts.Count == 0 || citationCounts.Any(count => !count.HasValue))
+            return null;
+        return citationCounts.Sum(count => count!.Value);
+    }
+
+    internal static int? CalculateHIndex(IReadOnlyCollection<WebOfScienceWork> works)
+        => CalculateHIndex(works.Select(work => work.TimesCited).ToList());
 
     internal static int? CalculateTotalTimesCited(IReadOnlyCollection<WebOfScienceWork> works)
-    {
-        if (works.Count == 0 || works.Any(work => !work.TimesCited.HasValue))
-            return null;
-        return works.Sum(work => work.TimesCited!.Value);
-    }
+        => CalculateTotalTimesCited(works.Select(work => work.TimesCited).ToList());
+
+    private sealed record OpenAlexMetrics(
+        int? CitedByCount, int? HIndex, int? I10Index, int? WorksCount,
+        decimal? TwoYearMeanCitedness, DateTime LastUpdatedAt);
+
+    private sealed record ScholarMetrics(
+        int? CitationCount, int? HIndex, int? I10Index, int DocumentsCount,
+        int? CitationCountRecent, int? HIndexRecent, int? I10IndexRecent,
+        int? MetricsSinceYear, DateTime LastUpdatedAt);
+
+    private sealed record ScopusMetrics(
+        int? CitationCount, int? HIndex, int? DocumentsCount, DateTime LastUpdatedAt);
+
+    private sealed record WebOfScienceMetrics(
+        int Id, int? TotalTimesCited, int? HIndex, int DocumentsCount, DateTime LastUpdatedAt);
 
     private static object?[] MetricValues(Researcher value) =>
     [

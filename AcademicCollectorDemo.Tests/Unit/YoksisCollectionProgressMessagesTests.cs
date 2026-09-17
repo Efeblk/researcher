@@ -6,6 +6,21 @@ namespace AcademicCollectorDemo.Tests.Unit;
 public sealed class YoksisCollectionProgressMessagesTests
 {
     [Fact]
+    public void Completion_CachedResponse_ReportsCacheSource()
+    {
+        YoksisCollectResponse response = new()
+        {
+            IsCached = true,
+            IsSaved = true,
+            SuccessfulCategoryCount = 1
+        };
+
+        string message = YoksisCollectionProgressMessages.Completion(response);
+
+        Assert.Contains("önbellekten", message);
+    }
+
+    [Fact]
     public void Completion_PartialCollectionAndSaveFailure_ReportsSaveFailure()
     {
         YoksisCollectResponse response = new()

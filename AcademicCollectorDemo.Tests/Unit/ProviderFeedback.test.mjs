@@ -37,6 +37,22 @@ test("an unsaved provider result is a failure even if messages contain success",
     assert.equal(outcome.message, "Araştırma tamamlanamadı. Lütfen tekrar deneyin.");
 });
 
+test("reports an all-disabled provider request as skipped", () => {
+    const outcome = describeProviderOutcome({
+        IsSaved: false,
+        ProviderFeedback: [{
+            Provider: "ORCID", Status: "Skipped",
+            Reasons: [{ Code: "Disabled", Description: "disabled" }]
+        }]
+    });
+
+    assert.deepEqual(outcome, {
+        kind: "warning",
+        message: "İstenen sağlayıcılar yerel yapılandırmada devre dışı; sorgu yapılmadı.",
+        hasUsableResult: false
+    });
+});
+
 test("summarizes multiple provider failures without exposing backend logs", () => {
     const outcome = describeProviderOutcome({
         IsSaved: true,

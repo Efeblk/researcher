@@ -18,6 +18,36 @@ namespace AcademicCollectorDemo.Tests.Integration;
 [Collection("SQL Server")]
 public sealed class SemanticScholarEndpointTests(SqlServerFixture fixture)
 {
+    [Fact]
+    public async Task CollectSemanticScholar_Disabled_SkipsHttpAndReturnsConfigurationFeedback()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        QueueHandler httpHandler = new();
+        IConfiguration config = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:AcademicDatabase"] = fixture.ConnectionString,
+                ["ProviderRequestLimits:SemanticScholar:Enabled"] = "false"
+            }).Build();
+        SemanticScholarOptions options = new() { ApiBaseUrl = "https://example.test" };
+        SemanticScholarEnrichmentService service = new(db,
+            new SemanticScholarClient(new HttpClient(httpHandler), Options.Create(options)),
+            config, Options.Create(options));
+
+        ActionResult<SemanticScholarCollectResponse> action = await new SemanticScholarEndpoint()
+            .CollectSemanticScholar(new() { PersonelId = "does-not-need-a-database-row" }, service,
+                new SemanticScholarWorkSourceSynchronizer(db), db, CancellationToken.None, config);
+
+        OkObjectResult result = Assert.IsType<OkObjectResult>(action.Result);
+        SemanticScholarCollectResponse response = Assert.IsType<SemanticScholarCollectResponse>(result.Value);
+        Assert.Equal("Disabled", response.ErrorCode);
+        Assert.False(response.Retryable);
+        Assert.False(response.HasPendingWork);
+        Assert.Contains("devre dışı", response.Message);
+        Assert.Empty(httpHandler.Urls);
+    }
+
     [Fact] public async Task Enrich_SecondPage429_NextCallResumesAndCompletes()
     {
         using var scope = fixture.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();

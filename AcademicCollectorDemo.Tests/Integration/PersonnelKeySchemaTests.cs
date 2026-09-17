@@ -13,7 +13,8 @@ public sealed class PersonnelKeySchemaTests(SqlServerFixture fixture)
         [
             "[orcid].[OrcidProfiles]", "[googlescholar].[GoogleScholarProfiles]",
             "[openalex].[OpenAlexProfiles]", "[wos].[WebOfScienceProfiles]",
-            "[yoksis].[YoksisRecords]", "[core].[AcademicWorks]",
+            "[yoksis].[YoksisRecords]", "[yoksis].[YoksisCollectionSnapshots]",
+            "[core].[AcademicWorks]",
             "[core].[PublicationSummaries]", "[core].[PublicationDisplayApprovals]"
         ];
 

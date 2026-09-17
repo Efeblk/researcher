@@ -32,6 +32,7 @@ public sealed class AcademicDbContext : DbContext
     public DbSet<WebOfScienceWork> WebOfScienceWorks { get; set; } = null!;
     public DbSet<WebOfSciencePeerReview> WebOfSciencePeerReviews { get; set; } = null!;
     public DbSet<YoksisRecord> YoksisRecords { get; set; } = null!;
+    public DbSet<YoksisCollectionSnapshot> YoksisCollectionSnapshots { get; set; } = null!;
     public DbSet<TrDizinProfile> TrDizinProfiles { get; set; } = null!;
     public DbSet<TrDizinWork> TrDizinWorks { get; set; } = null!;
     public DbSet<CrossrefWork> CrossrefWorks { get; set; } = null!;
@@ -203,6 +204,21 @@ public sealed class AcademicDbContext : DbContext
                 record.PersonelId,
                 record.OperationName
             });
+        });
+        modelBuilder.Entity<YoksisCollectionSnapshot>(entity =>
+        {
+            entity.ToTable("YoksisCollectionSnapshots", "yoksis");
+            entity.HasKey(snapshot => snapshot.PersonelId);
+            entity.Property(snapshot => snapshot.PersonelId)
+                .HasColumnName("PersonelID")
+                .HasMaxLength(200)
+                .ValueGeneratedNever();
+            entity.Property(snapshot => snapshot.TcKimlikNoHash).HasMaxLength(64);
+            entity.Property(snapshot => snapshot.ResponseJson);
+            entity.HasOne(snapshot => snapshot.Researcher)
+                .WithOne()
+                .HasForeignKey<YoksisCollectionSnapshot>(snapshot => snapshot.PersonelId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<TrDizinProfile>(entity =>
         {

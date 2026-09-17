@@ -25,7 +25,7 @@ public sealed class ResearcherCollectionService
     private readonly AcademicWorkCategorizer _academicWorkCategorizer;
     private readonly ResearcherCollectionFeedback _collectionFeedback;
     private readonly TimeSpan _providerCacheMaxAge;
-    private readonly bool _trDizinEnabled;
+    private readonly IReadOnlyDictionary<string, bool> _providerEnabled;
 
     public ResearcherCollectionService(
         OrcidClient orcidClient,
@@ -48,7 +48,15 @@ public sealed class ResearcherCollectionService
         _scopusClient = scopusClient;
         _academicWorkCategorizer = academicWorkCategorizer;
         _collectionFeedback = collectionFeedback;
-        _trDizinEnabled = configuration.GetValue("ProviderRequestLimits:TrDizin:Enabled", true);
+        _providerEnabled = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ORCID"] = configuration.GetValue("ProviderRequestLimits:Orcid:Enabled", true),
+            ["OpenAlex"] = configuration.GetValue("ProviderRequestLimits:OpenAlex:Enabled", true),
+            ["Google Scholar"] = configuration.GetValue("ProviderRequestLimits:SearchApi:Enabled", true),
+            ["Web of Science"] = configuration.GetValue("ProviderRequestLimits:WebOfScience:Enabled", true),
+            ["Scopus"] = configuration.GetValue("ProviderRequestLimits:Scopus:Enabled", true),
+            ["TR Dizin"] = configuration.GetValue("ProviderRequestLimits:TrDizin:Enabled", true)
+        };
 
         if (!int.TryParse(
                 configuration["ProviderCache:MaxAgeHours"],
@@ -95,6 +103,8 @@ public sealed class ResearcherCollectionService
         List<ProviderCollectionFeedback> feedback)
     {
         ProviderCollectionFeedback item = NewFeedback(feedback, "Scopus");
+        if (SkipDisabled(item, "Scopus", messages))
+            return;
         if (string.IsNullOrWhiteSpace(requestedScopusId))
         {
             Skip(item, "MissingIdentifier", "Scopus kimliği verilmedi.");
@@ -147,12 +157,8 @@ public sealed class ResearcherCollectionService
         List<string> messages, List<ProviderCollectionFeedback> feedback)
     {
         ProviderCollectionFeedback item = NewFeedback(feedback, "TR Dizin");
-        if (!_trDizinEnabled)
-        {
-            Skip(item, "Disabled", "Yerel yapılandırmada devre dışı.");
-            AddMessage(messages, "[ATLANDI] TR Dizin: yerel yapılandırmada devre dışı.");
+        if (SkipDisabled(item, "TR Dizin", messages))
             return;
-        }
         if (string.IsNullOrWhiteSpace(requestedOrcid))
         {
             Skip(item, "MissingIdentifier", "ORCID verilmedi.");
@@ -201,6 +207,8 @@ public sealed class ResearcherCollectionService
         List<string> messages, List<ProviderCollectionFeedback> feedback)
     {
         ProviderCollectionFeedback item = NewFeedback(feedback, "OpenAlex");
+        if (SkipDisabled(item, "OpenAlex", messages))
+            return;
         if (string.IsNullOrWhiteSpace(requestedOrcid))
         {
             Skip(item, "MissingIdentifier", "ORCID verilmedi.");
@@ -263,6 +271,8 @@ public sealed class ResearcherCollectionService
         List<string> messages, List<ProviderCollectionFeedback> feedback)
     {
         ProviderCollectionFeedback item = NewFeedback(feedback, "Google Scholar");
+        if (SkipDisabled(item, "Google Scholar", messages))
+            return;
         if (string.IsNullOrWhiteSpace(requestedGoogleScholarId))
         {
             Skip(item, "MissingIdentifier", "Google Scholar kimliği verilmedi.");
@@ -329,6 +339,8 @@ public sealed class ResearcherCollectionService
         List<string> messages, List<ProviderCollectionFeedback> feedback)
     {
         ProviderCollectionFeedback item = NewFeedback(feedback, "Web of Science");
+        if (SkipDisabled(item, "Web of Science", messages))
+            return;
         if (string.IsNullOrWhiteSpace(requestedResearcherId))
         {
             Skip(item, "MissingIdentifier", "ResearcherID verilmedi.");
@@ -403,6 +415,8 @@ public sealed class ResearcherCollectionService
         List<string> messages, List<ProviderCollectionFeedback> feedback)
     {
         ProviderCollectionFeedback item = NewFeedback(feedback, "ORCID");
+        if (SkipDisabled(item, "ORCID", messages))
+            return;
         if (string.IsNullOrWhiteSpace(requestedOrcid))
         {
             Skip(item, "MissingIdentifier", "ORCID verilmedi.");
@@ -462,6 +476,16 @@ public sealed class ResearcherCollectionService
         ProviderCollectionFeedback item = new() { Provider = provider };
         feedback.Add(item);
         return item;
+    }
+
+    private bool SkipDisabled(ProviderCollectionFeedback item, string provider,
+        List<string> messages)
+    {
+        if (_providerEnabled[provider])
+            return false;
+        Skip(item, "Disabled", "Yerel yapılandırmada devre dışı.");
+        AddMessage(messages, $"[ATLANDI] {provider}: yerel yapılandırmada devre dışı.");
+        return true;
     }
 
     private static ProviderCollectionReason Reason(string code, string description,

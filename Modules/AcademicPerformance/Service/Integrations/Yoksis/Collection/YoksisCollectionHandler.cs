@@ -4,6 +4,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Persistence;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.EntityFrameworkCore;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Collection;
@@ -17,6 +18,8 @@ public sealed class YoksisCollectionHandler
     private readonly PublicationSummarySynchronizer _summarySynchronizer;
     private readonly AcademicDbContext _dbContext;
     private readonly CanonicalWorkSynchronizer _canonicalWorkSynchronizer;
+    private readonly YoksisCollectionCache _collectionCache;
+    private readonly bool _enabled;
 
     public YoksisCollectionHandler(
         YoksisCollectionService collectionService,
@@ -25,7 +28,9 @@ public sealed class YoksisCollectionHandler
         ResearcherRepository researcherRepository,
         PublicationSummarySynchronizer summarySynchronizer,
         AcademicDbContext dbContext,
-        CanonicalWorkSynchronizer? canonicalWorkSynchronizer = null)
+        YoksisCollectionCache collectionCache,
+        CanonicalWorkSynchronizer? canonicalWorkSynchronizer = null,
+        IConfiguration? configuration = null)
     {
         _collectionService = collectionService;
         _recordSynchronizer = recordSynchronizer;
@@ -33,7 +38,9 @@ public sealed class YoksisCollectionHandler
         _researcherRepository = researcherRepository;
         _summarySynchronizer = summarySynchronizer;
         _dbContext = dbContext;
+        _collectionCache = collectionCache;
         _canonicalWorkSynchronizer = canonicalWorkSynchronizer ?? new CanonicalWorkSynchronizer(dbContext);
+        _enabled = configuration?.GetValue("ProviderRequestLimits:Yoksis:Enabled", true) ?? true;
     }
 
     public async Task<YoksisCollectResponse> CollectAsync(
@@ -49,12 +56,62 @@ public sealed class YoksisCollectionHandler
         string tcKimlikNo = YoksisCollectionService.ValidateTcKimlikNo(
             request.TcKimlikNo);
 
+        if (!_enabled)
+        {
+            const string message = "[ATLANDI] YÖKSİS: yerel yapılandırmada devre dışı.";
+            progress?.Report(new() { Stage = "disabled", Message = message });
+            return new()
+            {
+                IsDisabled = true,
+                PersonelId = personelId,
+                Messages = [message]
+            };
+        }
+
         using CancellationTokenSource linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken, ProviderCallScope.Cancellation);
         cancellationToken = linkedCancellation.Token;
+        await ValidateIdentityOwnershipAsync(personelId, tcKimlikNo, cancellationToken);
+
+        if (!request.UpdatedAfter.HasValue)
+        {
+            YoksisCollectResponse? cachedResponse = await _collectionCache.TryGetFreshAsync(
+                personelId,
+                tcKimlikNo,
+                cancellationToken);
+            if (cachedResponse is not null)
+            {
+                cachedResponse.IsCached = true;
+                cachedResponse.PublicationSummaryCount = await _dbContext.PublicationSummaries
+                    .AsNoTracking()
+                    .CountAsync(summary => summary.PersonelId == personelId, cancellationToken);
+                cachedResponse.Messages =
+                [
+                    "[OK] YÖKSİS verileri son başarılı toplamadan önbellekten yüklendi."
+                ];
+                YoksisCollectionService.RemoveUnrequestedResponseData(
+                    cachedResponse,
+                    request);
+                progress?.Report(new()
+                {
+                    Stage = "cached",
+                    Message = "YÖKSİS verileri önbellekten yüklendi.",
+                    RecordCount = cachedResponse.TotalRecordCount
+                });
+                progress?.Report(new()
+                {
+                    Stage = "completed",
+                    Message = YoksisCollectionProgressMessages.Completion(cachedResponse),
+                    RecordCount = cachedResponse.TotalRecordCount
+                });
+                return cachedResponse;
+            }
+        }
+
         progress?.Report(new() { Stage = "starting", Message = "YÖKSİS toplaması başlatıldı." });
         YoksisCollectResponse? response = await _collectionService.CollectAsync(
             request, progress, cancellationToken);
+        int persistenceMessageStart = response.Messages.Count;
 
         try
         {
@@ -91,7 +148,6 @@ public sealed class YoksisCollectionHandler
             response.PublicationSummaryCount =
                 await _summarySynchronizer.SyncAsync(researcher.PersonelId, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            await transaction.CommitAsync(cancellationToken);
             response.IsSaved = true;
             response.Messages.Add(
                 $"[OK] YÖKSİS verileri: {response.YoksisRecordCount} kayıt " +
@@ -102,6 +158,24 @@ public sealed class YoksisCollectionHandler
             response.Messages.Add(
                 $"[OK] Yayın özeti: {response.PublicationSummaryCount} " +
                 "benzersiz yayın hazırlandı.");
+
+            if (!request.UpdatedAfter.HasValue && IsCompleteSuccessfulCollection(response))
+            {
+                await _collectionCache.ReplaceAsync(
+                    researcher.PersonelId,
+                    tcKimlikNo,
+                    DateTime.UtcNow,
+                    response,
+                    cancellationToken);
+            }
+            else
+            {
+                await _collectionCache.InvalidateAsync(
+                    researcher.PersonelId,
+                    cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -110,6 +184,13 @@ public sealed class YoksisCollectionHandler
         catch (Exception exception)
         {
             response.IsSaved = false;
+            response.IsCached = false;
+            if (response.Messages.Count > persistenceMessageStart)
+            {
+                response.Messages.RemoveRange(
+                    persistenceMessageStart,
+                    response.Messages.Count - persistenceMessageStart);
+            }
             response.Messages.Add(
                 $"[HATA] YÖKSİS yayınları veritabanına yazılamadı: " +
                 exception.Message);
@@ -125,6 +206,62 @@ public sealed class YoksisCollectionHandler
             RecordCount = response.TotalRecordCount
         });
         return response;
+    }
+
+    internal static bool IsCompleteSuccessfulCollection(
+        YoksisCollectResponse response)
+    {
+        if (response.StopReason is not null ||
+            response.Categories.Any(category =>
+                !category.IsSuccess || category.FailedDetailCount != 0))
+        {
+            return false;
+        }
+
+        return YoksisOperationCatalog.All.All(operation =>
+            response.Categories.Any(category =>
+                category.OperationName == operation.OperationName &&
+                category.IsSuccess) &&
+            (string.IsNullOrWhiteSpace(operation.DetailOperationName) ||
+                response.Categories.Any(category =>
+                    category.OperationName == operation.DetailOperationName &&
+                    category.IsSuccess &&
+                    category.FailedDetailCount == 0)));
+    }
+
+    private async Task ValidateIdentityOwnershipAsync(
+        string personelId,
+        string tcKimlikNo,
+        CancellationToken cancellationToken)
+    {
+        var matches = await _dbContext.Researchers
+            .AsNoTracking()
+            .Where(researcher =>
+                researcher.PersonelId == personelId ||
+                researcher.TcKimlikNo == tcKimlikNo)
+            .Select(researcher => new
+            {
+                researcher.PersonelId,
+                researcher.TcKimlikNo
+            })
+            .Take(2)
+            .ToListAsync(cancellationToken);
+
+        bool hasConflict = matches.Any(researcher =>
+            (!researcher.PersonelId.Equals(
+                personelId,
+                StringComparison.OrdinalIgnoreCase) &&
+                researcher.TcKimlikNo == tcKimlikNo) ||
+            (researcher.PersonelId.Equals(
+                personelId,
+                StringComparison.OrdinalIgnoreCase) &&
+                researcher.TcKimlikNo is not null &&
+                researcher.TcKimlikNo != tcKimlikNo));
+        if (hasConflict)
+        {
+            throw new ArgumentException(
+                "T.C. kimlik numarası farklı bir personel kaydıyla eşleşiyor.");
+        }
     }
 
     private async Task<Researcher> ResolveResearcherAsync(

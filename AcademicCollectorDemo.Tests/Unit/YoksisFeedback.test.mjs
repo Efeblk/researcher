@@ -2,6 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { describeYoksisOutcome } from "../../Modules/AcademicPerformance/WebClient/Pages/AcademicPerformance/YoksisFeedback.ts";
 
+test("reports disabled YOKSIS without suggesting a retry", () => {
+    assert.deepEqual(describeYoksisOutcome({ IsDisabled: true, IsSaved: false }), {
+        kind: "warning",
+        message: "YÖKSİS yerel yapılandırmada devre dışı; sorgu yapılmadı.",
+        hasUsableResult: false
+    });
+});
+
 test("reports a successful empty YOKSIS query clearly", () => {
     assert.deepEqual(describeYoksisOutcome({
         IsSaved: true, PersonelID: "P-1", SuccessfulCategoryCount: 12,
@@ -9,6 +17,18 @@ test("reports a successful empty YOKSIS query clearly", () => {
     }), {
         kind: "success",
         message: "YÖKSİS araştırması tamamlandı. Yayın bulunamadı.",
+        hasUsableResult: true
+    });
+});
+
+test("reports a cached YOKSIS result clearly", () => {
+    assert.deepEqual(describeYoksisOutcome({
+        IsSaved: true, IsCached: true, PersonelID: "P-1",
+        SuccessfulCategoryCount: 12, FailedCategoryCount: 0,
+        YoksisPublicationCount: 3
+    }), {
+        kind: "success",
+        message: "YÖKSİS: 3 yayın önbellekten yüklendi.",
         hasUsableResult: true
     });
 });

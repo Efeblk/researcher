@@ -14,6 +14,14 @@ export function describeYoksisOutcome(response: YoksisCollectResponse): YoksisOu
     const publicationCount = response.YoksisPublicationCount ?? 0;
     const saved = response.IsSaved === true && Boolean(response.PersonelID);
 
+    if (response.IsDisabled) {
+        return {
+            kind: "warning",
+            message: "YÖKSİS yerel yapılandırmada devre dışı; sorgu yapılmadı.",
+            hasUsableResult: false
+        };
+    }
+
     if (successfulCount === 0) {
         return {
             kind: "error",
@@ -27,6 +35,16 @@ export function describeYoksisOutcome(response: YoksisCollectResponse): YoksisOu
             kind: "error",
             message: "YÖKSİS verileri kaydedilemedi. Lütfen tekrar deneyin.",
             hasUsableResult: false
+        };
+    }
+
+    if (response.IsCached) {
+        return {
+            kind: "success",
+            message: publicationCount > 0
+                ? `YÖKSİS: ${format(publicationCount)} yayın önbellekten yüklendi.`
+                : "YÖKSİS sonucu önbellekten yüklendi. Yayın bulunamadı.",
+            hasUsableResult: true
         };
     }
 

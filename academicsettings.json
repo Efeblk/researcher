@@ -70,6 +70,7 @@
   },
   "ProviderRequestLimits": {
     "Orcid": {
+      "Enabled": true,
       "MinimumIntervalMilliseconds": 100,
       "DailyRequestLimit": 25000
     },
@@ -79,6 +80,7 @@
       "DailyRequestLimit": 0
     },
     "OpenAlex": {
+      "Enabled": true,
       "MinimumIntervalMilliseconds": 20,
       "DailyRequestLimit": 10000
     },
@@ -88,10 +90,12 @@
       "DailyRequestLimit": 0
     },
     "WebOfScience": {
+      "Enabled": true,
       "MinimumIntervalMilliseconds": 250,
       "DailyRequestLimit": 5000
     },
     "Yoksis": {
+      "Enabled": true,
       "MinimumIntervalMilliseconds": 5000,
       "DailyRequestLimit": 0,
       "RateLimitCooldownSeconds": 300
