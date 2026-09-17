@@ -132,7 +132,6 @@ public sealed class ResearcherRepositoryTests(
             seed.Researchers.Add(new Researcher
             {
                 PersonelId = personelId,
-                Orcid = "0000-0002-1825-0097",
                 TrDizinProfile = new()
                 {
                     Orcid = "0000-0002-1825-0097",
@@ -157,7 +156,6 @@ public sealed class ResearcherRepositoryTests(
             await repository.SaveAsync(new Researcher
             {
                 PersonelId = personelId,
-                Orcid = "0000-0002-1825-0097",
                 TrDizinProfile = new()
                 {
                     Orcid = "0000-0002-1825-0097",
