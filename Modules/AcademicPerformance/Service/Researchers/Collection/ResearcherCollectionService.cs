@@ -5,7 +5,6 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScienc
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
