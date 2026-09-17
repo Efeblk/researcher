@@ -74,6 +74,19 @@ export interface ResearcherCollectResponse extends ServiceResponse {
             HIndex?: number;
             LastUpdatedAt?: string;
         };
+        TrDizinProfile?: {
+            Orcid?: string;
+            AuthorId?: number;
+            DisplayName?: string;
+            PublicationCount?: number | null;
+            CitationCount?: number | null;
+            ProjectCandidateCount?: number;
+            ProjectMatchedCount?: number;
+            ProjectUnmatchedCount?: number;
+            ProjectSearchComplete?: boolean;
+            Projects?: TrDizinProject[];
+            LastUpdatedAt?: string;
+        };
         WebOfScienceProfile?: {
             DisplayName?: string;
             PrimaryOrganization?: string;
@@ -86,6 +99,7 @@ export interface ResearcherCollectResponse extends ServiceResponse {
             PeerReviewsCount?: number;
             LastUpdatedAt?: string;
         };
+        ProviderDetails?: ResearcherProviderDetails;
     };
     IsSaved?: boolean;
     FailureCode?: string;
@@ -94,6 +108,52 @@ export interface ResearcherCollectResponse extends ServiceResponse {
     CategoryMetrics?: AcademicCategoryMetric[];
     Messages?: string[];
     ProviderFeedback?: ProviderCollectionFeedback[];
+}
+
+export interface ResearcherProviderDetails {
+    Orcid?: {
+        Activities?: unknown;
+        OtherNames?: unknown;
+        Emails?: unknown;
+    };
+    OpenAlex?: {
+        ExternalIdentifiers?: unknown;
+        AlternativeNames?: unknown;
+        RawAuthorNames?: unknown;
+        Affiliations?: unknown;
+        LastKnownInstitutions?: unknown;
+        Topics?: unknown;
+        TopicShare?: unknown;
+    };
+    Scopus?: {
+        Orcid?: string;
+        NameVariants?: unknown;
+        CurrentAffiliation?: unknown;
+        AffiliationHistory?: unknown;
+        SubjectAreas?: unknown;
+        CoauthorCount?: number;
+    };
+    GoogleScholar?: {
+        Interests?: unknown;
+        CoAuthors?: unknown;
+        PublicAccess?: unknown;
+        Thumbnail?: string;
+    };
+}
+
+export interface TrDizinProject {
+    Id?: string;
+    ProjectNumber?: string | null;
+    Title?: string | null;
+    StartedDate?: string | null;
+    EndDate?: string | null;
+    ProjectGroup?: string | null;
+    ResearchersJson?: string | null;
+    Duty?: string | null;
+    AbstractsJson?: string | null;
+    KeywordsJson?: string | null;
+    OutputsJson?: string | null;
+    AttachmentsJson?: string | null;
 }
 
 export interface ProviderCollectionReason {

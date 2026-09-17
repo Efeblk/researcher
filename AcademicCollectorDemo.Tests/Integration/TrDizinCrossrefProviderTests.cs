@@ -31,7 +31,8 @@ public sealed class TrDizinCrossrefProviderTests(SqlServerFixture fixture)
         {
             "/api/public/yazar/orcid/" => StubHttpHandler.Json("""{"id":42,"orcid":"0000-0002-1825-0097","fullName":"Ada Test","orderPublicationCount":1}"""),
             "/api/authorPublicationsById/42" => StubHttpHandler.Json("""{"hits":{"total":{"value":1},"hits":[{"_id":"7","fields":{"id":["7"]}}]}}"""),
-            "/api/publicationById/7" => StubHttpHandler.Json("""{"hits":{"hits":[{"_source":{"orderTitle":"A paper","doi":"10.1/test","publicationYear":"2024","orderCitationCount":null,"journal":{"name":"Test Journal"},"issue":{"year":"2024"},"authors":[{"inPublicationName":"Ada Test"}]}}]}}"""),
+            "/api/publicationById/7" => StubHttpHandler.Json("""{"hits":{"hits":[{"_id":"7","_source":{"orderTitle":"A paper","doi":"10.1/test","publicationYear":"2024","orderCitationCount":null,"journal":{"name":"Test Journal"},"issue":{"year":"2024"},"authors":[{"inPublicationName":"Ada Test"}]}}]}}"""),
+            "/api/defaultSearch/publication/" => StubHttpHandler.Json("""{"hits":{"total":{"value":0,"relation":"eq"},"hits":[]}}"""),
             _ => throw new InvalidOperationException(request.RequestUri.ToString())
         }));
         TrDizinProfile? result = await new TrDizinClient(http, config).GetByOrcidAsync("0000-0002-1825-0097");
@@ -91,6 +92,106 @@ public sealed class TrDizinCrossrefProviderTests(SqlServerFixture fixture)
         Assert.Contains(trDizin.Reasons, reason => reason.Code == "Disabled" &&
             reason.AffectedCount is null);
         Assert.Contains(messages, message => message.Contains("TR Dizin") && message.StartsWith("[ATLANDI]"));
+    }
+
+    [Fact]
+    public async Task CollectAsync_CompleteProjectSnapshot_UsesCacheAndReportsUnmatchedCount()
+    {
+        int requests = 0;
+        IConfiguration configuration = TrDizinOnlyConfig();
+        using HttpClient http = new(new StubHttpHandler(_ =>
+        {
+            requests++;
+            throw new InvalidOperationException("Cache path made an HTTP request.");
+        }));
+        Researcher researcher = new()
+        {
+            PersonelId = "cached-projects",
+            Orcid = "0000-0002-1825-0097",
+            TrDizinProfile = new()
+            {
+                Orcid = "0000-0002-1825-0097",
+                AuthorId = 42,
+                LastUpdatedAt = DateTime.UtcNow,
+                RawAuthorJson = "{}",
+                RawPublicationsJson = "{}",
+                RawProjectsJson = "[{}]",
+                ProjectCandidateCount = 2,
+                ProjectMatchedCount = 1,
+                ProjectUnmatchedCount = 1,
+                ProjectSearchComplete = true,
+                Works = [],
+                Projects = [new() { ProjectId = "P1", RawDataJson = "{}" }]
+            }
+        };
+        List<string> messages = [];
+
+        List<ProviderCollectionFeedback> feedback = await CreateCollectionService(http, configuration)
+            .CollectAsync(researcher, new Researcher { Orcid = researcher.Orcid }, messages);
+
+        Assert.Equal(0, requests);
+        ProviderCollectionFeedback trDizin = Assert.Single(feedback,
+            item => item.Provider == "TR Dizin");
+        Assert.Equal("Partial", trDizin.Status);
+        Assert.Equal("record", trDizin.Unit);
+        Assert.Equal(0, trDizin.RetrievedCount);
+        Assert.Equal(2, trDizin.ExpectedCount);
+        Assert.Contains(trDizin.Reasons, reason =>
+            reason.Code == "Cached" && reason.AffectedCount == 1);
+        Assert.Contains(trDizin.Reasons, reason =>
+            reason.Code == "UnmatchedProject" && reason.AffectedCount == 1);
+        Assert.Contains(messages, message => message.StartsWith("[EKSİK] TR Dizin"));
+    }
+
+    [Fact]
+    public async Task CollectAsync_ProjectDetailFailure_PreservesLastGoodSnapshot()
+    {
+        IConfiguration configuration = TrDizinOnlyConfig();
+        using HttpClient http = new(new StubHttpHandler(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/public/yazar/orcid/" => StubHttpHandler.Json(
+                """{"id":42,"orcid":"0000-0002-1825-0097","fullName":"Ada Test"}"""),
+            "/api/authorPublicationsById/42" => StubHttpHandler.Json(
+                """{"hits":{"total":{"value":0},"hits":[]}}"""),
+            "/api/defaultSearch/publication/" => StubHttpHandler.Json(
+                """{"hits":{"total":{"value":1,"relation":"eq"},"hits":[{"_id":"NEW"}]}}"""),
+            "/api/publicationById/NEW" => new(HttpStatusCode.ServiceUnavailable),
+            _ => throw new InvalidOperationException(request.RequestUri.ToString())
+        }));
+        TrDizinProject oldProject = new() { ProjectId = "OLD", RawDataJson = "{}" };
+        TrDizinProfile oldProfile = new()
+        {
+            Orcid = "0000-0002-1825-0097",
+            AuthorId = 42,
+            LastUpdatedAt = DateTime.UtcNow.AddDays(-2),
+            RawAuthorJson = "{}",
+            RawPublicationsJson = "{}",
+            RawProjectsJson = "[{}]",
+            ProjectCandidateCount = 1,
+            ProjectMatchedCount = 1,
+            ProjectSearchComplete = true,
+            Works = [],
+            Projects = [oldProject]
+        };
+        Researcher researcher = new()
+        {
+            PersonelId = "failed-project-refresh",
+            Orcid = oldProfile.Orcid,
+            TrDizinProfile = oldProfile
+        };
+        List<string> messages = [];
+
+        List<ProviderCollectionFeedback> feedback = await CreateCollectionService(http, configuration)
+            .CollectAsync(researcher, new Researcher { Orcid = researcher.Orcid }, messages);
+
+        Assert.Same(oldProfile, researcher.TrDizinProfile);
+        Assert.Same(oldProject, Assert.Single(researcher.TrDizinProfile!.Projects!));
+        ProviderCollectionFeedback trDizin = Assert.Single(feedback,
+            item => item.Provider == "TR Dizin");
+        Assert.Equal("Failed", trDizin.Status);
+        Assert.Equal(1, trDizin.RetainedCount);
+        Assert.Equal(1, trDizin.ExpectedCount);
+        Assert.Contains(messages, message => message.StartsWith("[HATA] TR Dizin"));
     }
 
     [Fact]
@@ -244,6 +345,105 @@ public sealed class TrDizinCrossrefProviderTests(SqlServerFixture fixture)
         Assert.False(await database.AcademicWorks.AnyAsync(x => x.PersonelId == personelId));
     }
 
+    [Fact]
+    public async Task SyncAsync_TrDizinProjects_DoesNotCreateAcademicWorks()
+    {
+        using IServiceScope scope = fixture.Services.CreateScope();
+        AcademicDbContext database = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        string personelId = "trdizin-project-only-" + Guid.NewGuid().ToString("N");
+        Researcher researcher = new()
+        {
+            PersonelId = personelId,
+            TrDizinProfile = new()
+            {
+                Orcid = "0000-0002-1825-0097",
+                AuthorId = 42,
+                LastUpdatedAt = DateTime.UtcNow,
+                RawAuthorJson = "{}",
+                RawPublicationsJson = "{}",
+                RawProjectsJson = "[{}]",
+                ProjectCandidateCount = 1,
+                ProjectMatchedCount = 1,
+                ProjectSearchComplete = true,
+                Works = [],
+                Projects = [new() { ProjectId = "P1", Title = "Synthetic project", RawDataJson = "{}" }]
+            }
+        };
+        database.Researchers.Add(researcher);
+        await database.SaveChangesAsync();
+
+        await new AcademicWorkSynchronizer(database).SyncAsync(researcher);
+
+        Assert.False(await database.AcademicWorks.AnyAsync(work =>
+            work.PersonelId == personelId));
+        Assert.True(await database.TrDizinProjects.AnyAsync(project =>
+            project.ProjectId == "P1"));
+    }
+
+    [Fact]
+    public async Task GetResearcherAsync_TrDizinProjects_ReturnsTypedProjectWithoutPublicationCount()
+    {
+        string personelId = "trdizin-project-dto-" + Guid.NewGuid().ToString("N");
+        using (IServiceScope seedScope = fixture.Services.CreateScope())
+        {
+            AcademicDbContext database = seedScope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+            database.Researchers.Add(new Researcher
+            {
+                PersonelId = personelId,
+                TrDizinProfile = new()
+                {
+                    Orcid = "0000-0002-1825-0097",
+                    AuthorId = 42,
+                    LastUpdatedAt = DateTime.UtcNow,
+                    RawAuthorJson = "{}",
+                    RawPublicationsJson = "{}",
+                    RawProjectsJson = "[{}]",
+                    ProjectCandidateCount = 1,
+                    ProjectMatchedCount = 1,
+                    ProjectSearchComplete = true,
+                    Works = [],
+                    Projects =
+                    [
+                        new()
+                        {
+                            ProjectId = "P1",
+                            ProjectNumber = "SYN-1",
+                            Title = "Synthetic project",
+                            StartedDate = "2024-01-02",
+                            EndDate = "2025-03-04",
+                            ProjectGroup = "Synthetic group",
+                            ResearchersJson = "[{\"authorId\":42}]",
+                            Duty = "Coordinator",
+                            AbstractsJson = "[]",
+                            KeywordsJson = "[]",
+                            OutputsJson = "[]",
+                            AttachmentsJson = "[]",
+                            RawDataJson = "{}"
+                        }
+                    ]
+                }
+            });
+            await database.SaveChangesAsync();
+        }
+
+        using IServiceScope readScope = fixture.Services.CreateScope();
+        IAcademicPerformanceApplicationService application = readScope.ServiceProvider
+            .GetRequiredService<IAcademicPerformanceApplicationService>();
+        AcademicDataResponse response = await application.GetResearcherAsync(new()
+        {
+            PersonelId = personelId
+        });
+
+        Assert.Equal(0, response.PublicationCount);
+        TrDizinProfileSummaryDto profile = response.Researcher!.TrDizinProfile!;
+        Assert.True(profile.ProjectSearchComplete);
+        Assert.Equal(1, profile.ProjectMatchedCount);
+        TrDizinProjectDto project = Assert.Single(profile.Projects);
+        Assert.Equal("P1", project.Id);
+        Assert.Equal("SYN-1", project.ProjectNumber);
+        Assert.Equal("Coordinator", project.Duty);
+    }
+
     [Theory]
     [InlineData(false, "9999-0000-0000-0019", 1)]
     [InlineData(true, "9999-0000-0000-0027", 0)]
@@ -293,12 +493,17 @@ public sealed class TrDizinCrossrefProviderTests(SqlServerFixture fixture)
             if (host == "trdizin.example" && path == "/api/publicationById/7")
             {
                 return StubHttpHandler.Json(
-                        """{"hits":{"hits":[{"_source":{"orderTitle":"Source title","doi":"10.1234/handler","publicationYear":"2024"}}]}}""");
+                        """{"hits":{"hits":[{"_id":"7","_source":{"orderTitle":"Source title","doi":"10.1234/handler","publicationYear":"2024"}}]}}""");
             }
             if (host == "trdizin.example" && path == "/api/publicationById/8")
             {
                 return StubHttpHandler.Json(
-                    """{"hits":{"hits":[{"_source":{"orderTitle":"Second source title","doi":"10.1234/second","publicationYear":"2023"}}]}}""");
+                    """{"hits":{"hits":[{"_id":"8","_source":{"orderTitle":"Second source title","doi":"10.1234/second","publicationYear":"2023"}}]}}""");
+            }
+            if (host == "trdizin.example" && path == "/api/defaultSearch/publication/")
+            {
+                return StubHttpHandler.Json(
+                    """{"hits":{"total":{"value":0,"relation":"eq"},"hits":[]}}""");
             }
             if (host == "crossref.example")
             {
@@ -388,4 +593,29 @@ public sealed class TrDizinCrossrefProviderTests(SqlServerFixture fixture)
 
     private static IConfiguration Config(string provider, string url) => new ConfigurationBuilder()
         .AddInMemoryCollection(new Dictionary<string, string?> { [$"{provider}:ApiBaseUrl"] = url }).Build();
+
+    private static IConfiguration TrDizinOnlyConfig() => new ConfigurationBuilder()
+        .AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["TrDizin:ApiBaseUrl"] = "https://trdizin.example",
+            ["ProviderCache:MaxAgeHours"] = "24",
+            ["ProviderRequestLimits:Orcid:Enabled"] = "false",
+            ["ProviderRequestLimits:OpenAlex:Enabled"] = "false",
+            ["ProviderRequestLimits:SearchApi:Enabled"] = "false",
+            ["ProviderRequestLimits:WebOfScience:Enabled"] = "false",
+            ["ProviderRequestLimits:Scopus:Enabled"] = "false",
+            ["ProviderRequestLimits:TrDizin:Enabled"] = "true"
+        }).Build();
+
+    private static ResearcherCollectionService CreateCollectionService(
+        HttpClient http,
+        IConfiguration configuration) => new(
+            new OrcidClient(http, configuration),
+            new GoogleScholarClient(http, configuration),
+            new OpenAlexClient(http, configuration),
+            new WebOfScienceClient(http, configuration),
+            new TrDizinClient(http, configuration),
+            new(),
+            new(),
+            configuration);
 }

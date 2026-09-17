@@ -101,4 +101,41 @@ public sealed class PersonnelKeySchemaTests(SqlServerFixture fixture)
             Assert.Equal(1, Convert.ToInt32(await command.ExecuteScalarAsync()));
         }
     }
+
+    [Fact]
+    public async Task Schema_TrDizinProjects_HasSnapshotColumnsAndProfileOwnership()
+    {
+        await using SqlConnection connection = new(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        await using SqlCommand command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT
+                CASE WHEN OBJECT_ID('[trdizin].[TrDizinProjects]') IS NOT NULL THEN 1 ELSE 0 END +
+                CASE WHEN EXISTS (
+                    SELECT 1
+                    FROM sys.foreign_key_columns fkc
+                    JOIN sys.columns parent_column ON parent_column.object_id = fkc.parent_object_id
+                        AND parent_column.column_id = fkc.parent_column_id
+                    JOIN sys.columns referenced_column ON referenced_column.object_id = fkc.referenced_object_id
+                        AND referenced_column.column_id = fkc.referenced_column_id
+                    WHERE fkc.parent_object_id = OBJECT_ID('[trdizin].[TrDizinProjects]')
+                        AND fkc.referenced_object_id = OBJECT_ID('[trdizin].[TrDizinProfiles]')
+                        AND parent_column.name = 'TrDizinProfileId'
+                        AND referenced_column.name = 'Id') THEN 1 ELSE 0 END +
+                CASE WHEN (
+                    SELECT COUNT(*) FROM sys.columns
+                    WHERE object_id = OBJECT_ID('[trdizin].[TrDizinProfiles]')
+                        AND name IN ('ProjectCandidateCount', 'ProjectMatchedCount',
+                            'ProjectUnmatchedCount', 'ProjectSearchComplete', 'RawProjectsJson')) = 5
+                    THEN 1 ELSE 0 END +
+                CASE WHEN EXISTS (
+                    SELECT 1 FROM sys.indexes
+                    WHERE object_id = OBJECT_ID('[trdizin].[TrDizinProjects]')
+                        AND name = 'UQ_TrDizinProjects_Profile_Project'
+                        AND is_unique = 1) THEN 1 ELSE 0 END;
+            """;
+
+        Assert.Equal(4, Convert.ToInt32(await command.ExecuteScalarAsync()));
+    }
 }

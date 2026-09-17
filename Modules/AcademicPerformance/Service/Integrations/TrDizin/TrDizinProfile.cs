@@ -19,6 +19,10 @@ public sealed class TrDizinProfile
     public string? DisplayName { get; set; } = null;
     public int? PublicationCount { get; set; } = null;
     public int? CitationCount { get; set; } = null;
+    public int ProjectCandidateCount { get; set; }
+    public int ProjectMatchedCount { get; set; }
+    public int ProjectUnmatchedCount { get; set; }
+    public bool ProjectSearchComplete { get; set; }
     public DateTime LastUpdatedAt { get; set; }
     [JsonIgnore]
     public string RawAuthorJson { get; set; } = string.Empty;
@@ -27,5 +31,11 @@ public sealed class TrDizinProfile
     public string RawPublicationsJson { get; set; } = string.Empty;
 
     [JsonIgnore]
+    public string RawProjectsJson { get; set; } = string.Empty;
+
+    [JsonIgnore]
     public List<TrDizinWork>? Works { get; set; } = null;
+
+    [JsonIgnore]
+    public List<TrDizinProject>? Projects { get; set; } = null;
 }

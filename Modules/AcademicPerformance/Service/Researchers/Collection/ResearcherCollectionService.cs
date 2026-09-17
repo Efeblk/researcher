@@ -3,6 +3,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleSchol
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
@@ -151,6 +152,54 @@ public sealed class ResearcherCollectionService
         !string.IsNullOrWhiteSpace(profile.SearchPagesJson) && profile.Works is not null &&
         profile.Works.All(work => !string.IsNullOrWhiteSpace(work.RawDataJson));
 
+    private static bool HasCompleteTrDizinRawData(TrDizinProfile? profile) =>
+        profile is not null && profile.ProjectSearchComplete &&
+        !string.IsNullOrWhiteSpace(profile.RawAuthorJson) &&
+        !string.IsNullOrWhiteSpace(profile.RawPublicationsJson) &&
+        !string.IsNullOrWhiteSpace(profile.RawProjectsJson) &&
+        profile.Works is not null && profile.Projects is not null &&
+        profile.ProjectMatchedCount == profile.Projects.Count &&
+        profile.ProjectCandidateCount ==
+            profile.ProjectMatchedCount + profile.ProjectUnmatchedCount &&
+        profile.Works.All(work => !string.IsNullOrWhiteSpace(work.RawDataJson)) &&
+        profile.Projects.All(project => !string.IsNullOrWhiteSpace(project.RawDataJson));
+
+    private static void SetTrDizinResult(
+        ProviderCollectionFeedback item,
+        TrDizinProfile profile,
+        bool cached)
+    {
+        int publications = profile.Works?.Count ?? 0;
+        int projects = profile.Projects?.Count ?? 0;
+        int retrieved = publications + projects;
+        int expected = publications + profile.ProjectCandidateCount;
+        item.Unit = "record";
+        if (cached)
+            Cached(item, retrieved, expected);
+        else
+            Success(item, retrieved, expected);
+        if (profile.ProjectUnmatchedCount <= 0)
+            return;
+
+        item.Status = "Partial";
+        item.Reasons.Add(Reason(
+            "UnmatchedProject",
+            "Ad filtresiyle bulunan proje adayında ORCID veya çözümlenmiş TR Dizin yazar kimliği eşleşmedi.",
+            profile.ProjectUnmatchedCount));
+    }
+
+    private static void AddTrDizinUnmatchedMessage(
+        List<string> messages,
+        TrDizinProfile profile)
+    {
+        if (profile.ProjectUnmatchedCount > 0)
+        {
+            AddMessage(messages,
+                $"[EKSİK] TR Dizin: {profile.ProjectUnmatchedCount} proje adayı yalnız adla eşleştiği " +
+                "için araştırmacıya bağlanmadı.");
+        }
+    }
+
     private async Task CollectTrDizinAsync(
         Researcher researcher,
         string? requestedOrcid,
@@ -166,18 +215,21 @@ public sealed class ResearcherCollectionService
             return;
         }
         if (IdentifiersMatch(researcher.TrDizinProfile?.Orcid, requestedOrcid) &&
-            IsProviderDataCurrent(researcher.TrDizinProfile?.LastUpdatedAt))
+            IsProviderDataCurrent(researcher.TrDizinProfile?.LastUpdatedAt) &&
+            HasCompleteTrDizinRawData(researcher.TrDizinProfile))
         {
-            Cached(item, researcher.TrDizinProfile?.Works?.Count ?? 0);
+            SetTrDizinResult(item, researcher.TrDizinProfile!, true);
             AddCachedDataMessage(
                 messages,
                 "TR Dizin",
                 researcher.TrDizinProfile?.LastUpdatedAt);
+            AddTrDizinUnmatchedMessage(messages, researcher.TrDizinProfile!);
             return;
         }
         try
         {
-            TrDizinProfile? profile = await _trDizinClient.GetByOrcidAsync(requestedOrcid);
+            TrDizinProfile? profile = await _trDizinClient.GetByOrcidAsync(
+                requestedOrcid, ProviderCallScope.Cancellation);
             if (profile is null)
             {
                 item.Status = "NotFound";
@@ -186,17 +238,30 @@ public sealed class ResearcherCollectionService
                 return;
             }
             researcher.TrDizinProfile = profile;
-            Success(item, profile.Works?.Count ?? 0, profile.Works?.Count ?? 0);
-            AddMessage(messages, $"[OK] TR Dizin: {profile.Works?.Count ?? 0} yayın alındı.");
+            SetTrDizinResult(item, profile, false);
+            AddMessage(messages,
+                $"[OK] TR Dizin: {profile.Works?.Count ?? 0} yayın ve " +
+                $"{profile.Projects?.Count ?? 0} doğrulanmış proje alındı.");
+            AddTrDizinUnmatchedMessage(messages, profile);
         }
         catch (ProviderCollectionException exception)
         {
             FailWithProgress(item, exception);
+            item.Unit = "record";
+            item.RetainedCount = (researcher.TrDizinProfile?.Works?.Count ?? 0) +
+                (researcher.TrDizinProfile?.Projects?.Count ?? 0);
             AddMessage(messages, $"[HATA] TR Dizin: {exception.SafeDescription}");
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception exception)
         {
             Fail(item, "ProviderError", "TR Dizin isteği tamamlanamadı; eksik veri kaydedilmedi.");
+            item.Unit = "record";
+            item.RetainedCount = (researcher.TrDizinProfile?.Works?.Count ?? 0) +
+                (researcher.TrDizinProfile?.Projects?.Count ?? 0);
             AddMessage(messages, $"[HATA] TR Dizin: {exception.Message}");
         }
     }
@@ -440,9 +505,15 @@ public sealed class ResearcherCollectionService
 
         try
         {
-            await _orcidClient.FillResearcherAsync(researcher);
+            await _orcidClient.FillResearcherAsync(
+                researcher, ProviderCallScope.Cancellation);
             int retrieved = researcher.OrcidProfile?.Works?.Count ?? 0;
             Success(item, retrieved, retrieved);
+        }
+        catch (OperationCanceledException) when (
+            ProviderCallScope.Cancellation.IsCancellationRequested)
+        {
+            throw;
         }
         catch (ArgumentException exception)
         {
@@ -631,6 +702,7 @@ public sealed class ResearcherCollectionService
 
         if (profile is null ||
             string.IsNullOrWhiteSpace(profile.RawDataJson) ||
+            string.IsNullOrWhiteSpace(profile.ActivitiesDetailsJson) ||
             profile.Works is null)
         {
             return false;

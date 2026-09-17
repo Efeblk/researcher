@@ -213,7 +213,16 @@ public sealed class AcademicPerformanceApplicationService :
             .Select(snapshot => snapshot.ResponseJson)
             .SingleOrDefaultAsync();
 
-        AcademicResearcherDto? researcherDto = AcademicPerformanceDtoMapper.MapResearcher(researcher);
+        if (researcher.TrDizinProfile is not null)
+        {
+            researcher.TrDizinProfile.Projects = await _dbContext.TrDizinProjects
+                .AsNoTracking()
+                .Where(project => project.TrDizinProfileId == researcher.TrDizinProfile.Id)
+                .ToListAsync();
+        }
+
+        AcademicResearcherDto? researcherDto = AcademicPerformanceDtoMapper.MapResearcher(
+            researcher, request.IncludeProviderDetails);
         if (researcherDto?.OpenAlexProfile is not null)
         {
             researcherDto.OpenAlexProfile.CollectedWorksCount = await _dbContext.OpenAlexWorks

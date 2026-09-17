@@ -49,6 +49,9 @@ public sealed class OrcidProfile
     public string? ActivitiesJson { get; set; } = null;
 
     [JsonIgnore]
+    public string? ActivitiesDetailsJson { get; set; } = null;
+
+    [JsonIgnore]
     public string? RawDataJson { get; set; } = null;
 
     [JsonIgnore]
