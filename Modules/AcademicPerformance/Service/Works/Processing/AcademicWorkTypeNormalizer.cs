@@ -39,7 +39,7 @@ public static class AcademicWorkTypeNormalizer
         "book chapter" or "kitap bolumu" => AcademicWorkCategory.BookChapter,
         "book review" or "kitap incelemesi" or "kitap tanitimi" => AcademicWorkCategory.BookReview,
         "conference abstract" or "meeting abstract" or "bildiri ozeti" => AcademicWorkCategory.ConferenceAbstract,
-        "conference paper" or "proceedings paper" or "bildiri" => AcademicWorkCategory.ConferencePaper,
+        "conference paper" or "proceedings paper" or "bildiri" or "kongre bildirisi" => AcademicWorkCategory.ConferencePaper,
         "data paper" or "veri makalesi" => AcademicWorkCategory.DataPaper,
         "data set" or "dataset" or "veri seti" or "veriseti" => AcademicWorkCategory.Dataset,
         "dissertation" or "thesis" or "tez" => AcademicWorkCategory.Dissertation,
@@ -81,7 +81,8 @@ public static class AcademicWorkTypeNormalizer
 
     private static AcademicWorkCategory OrcidCategory(string type) => type switch
     {
-        "journal article" or "magazine article" or "newsletter article" or "newspaper article" => AcademicWorkCategory.Article,
+        "journal article" or "article journal" or "magazine article" or "newsletter article" or "newspaper article" => AcademicWorkCategory.Article,
+        "chapter" => AcademicWorkCategory.BookChapter,
         "conference poster" or "conference presentation" => AcademicWorkCategory.ConferencePaper,
         "dissertation thesis" => AcademicWorkCategory.Dissertation,
         "dictionary entry" or "encyclopedia entry" => AcademicWorkCategory.ReferenceEntry,
@@ -188,7 +189,8 @@ public static class AcademicWorkTypeNormalizer
                 or "hardware review" or "item about an individual" or "meeting summary" or "music performance review"
                 or "music score" or "music score review" or "news item" or "note" or "poetry" or "radio review"
                 or "record review" or "script" or "theater review" or "tv review" or "tv review radio review"
-                or "video review" or "meeting" or "item withdrawal" or "expression of concern" or "abstract" => AcademicWorkCategory.Other,
+                or "video review" or "meeting" or "item withdrawal" or "expression of concern" or "abstract"
+                or "abstract of a published item" or "reprint" => AcademicWorkCategory.Other,
             // These are publication statuses, not document types. A companion document type still wins by precedence.
             "early access" or "retracted publication" or "withdrawn publication"
                 or "publication with expression of concern" => AcademicWorkCategory.Unknown,

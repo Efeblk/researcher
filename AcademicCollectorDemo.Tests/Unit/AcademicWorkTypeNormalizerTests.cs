@@ -122,6 +122,7 @@ public sealed class AcademicWorkTypeNormalizerTests
     [InlineData("kitap incelemesi", AcademicWorkCategory.BookReview)]
     [InlineData("bildiri özeti", AcademicWorkCategory.ConferenceAbstract)]
     [InlineData("bildiri", AcademicWorkCategory.ConferencePaper)]
+    [InlineData("kongre bildirisi", AcademicWorkCategory.ConferencePaper)]
     [InlineData("veri makalesi", AcademicWorkCategory.DataPaper)]
     [InlineData("veri seti", AcademicWorkCategory.Dataset)]
     [InlineData("tez", AcademicWorkCategory.Dissertation)]
@@ -278,9 +279,9 @@ public sealed class AcademicWorkTypeNormalizerTests
         Add(data, AcademicWorkCategorySource.Scopus, AcademicWorkCategory.Letter, "le");
 
         Add(data, AcademicWorkCategorySource.Orcid, AcademicWorkCategory.Other, "annotation", "artistic-performance", "blog-post", "cartographic-material", "clinical-study", "conference-output", "conference-proceedings", "data-management-plan", "design", "disclosure", "image", "invention", "journal-issue", "learning-object", "lecture-speech", "license", "manual", "moving-image", "musical-composition", "online-resource", "other", "physical-object", "registered-copyright", "research-technique", "research-tool", "sound", "spin-off-company", "supervised-student-publication", "test", "trademark", "transcription", "translation", "website");
-        Add(data, AcademicWorkCategorySource.Orcid, AcademicWorkCategory.Article, "journal-article", "magazine-article", "newsletter-article", "newspaper-article");
+        Add(data, AcademicWorkCategorySource.Orcid, AcademicWorkCategory.Article, "journal-article", "article-journal", "magazine-article", "newsletter-article", "newspaper-article");
         Add(data, AcademicWorkCategorySource.Orcid, AcademicWorkCategory.Book, "book", "edited-book");
-        Add(data, AcademicWorkCategorySource.Orcid, AcademicWorkCategory.BookChapter, "book-chapter");
+        Add(data, AcademicWorkCategorySource.Orcid, AcademicWorkCategory.BookChapter, "book-chapter", "chapter");
         Add(data, AcademicWorkCategorySource.Orcid, AcademicWorkCategory.BookReview, "book-review");
         Add(data, AcademicWorkCategorySource.Orcid, AcademicWorkCategory.ConferenceAbstract, "conference-abstract");
         Add(data, AcademicWorkCategorySource.Orcid, AcademicWorkCategory.ConferencePaper, "conference-paper", "conference-poster", "conference-presentation");
@@ -290,6 +291,7 @@ public sealed class AcademicWorkTypeNormalizerTests
         Add(data, AcademicWorkCategorySource.Orcid, AcademicWorkCategory.Preprint, "preprint", "working-paper");
         Add(data, AcademicWorkCategorySource.Orcid, AcademicWorkCategory.ReferenceEntry, "dictionary-entry", "encyclopedia-entry");
         Add(data, AcademicWorkCategorySource.Orcid, AcademicWorkCategory.Report, "report");
+        Add(data, AcademicWorkCategorySource.Orcid, AcademicWorkCategory.Review, "review");
         Add(data, AcademicWorkCategorySource.Orcid, AcademicWorkCategory.Software, "software");
         Add(data, AcademicWorkCategorySource.Orcid, AcademicWorkCategory.Standard, "standards-and-policy", "technical-standard");
         Add(data, AcademicWorkCategorySource.Orcid, AcademicWorkCategory.Unknown, "undefined");
@@ -306,7 +308,7 @@ public sealed class AcademicWorkTypeNormalizerTests
         Add(data, AcademicWorkCategorySource.WebOfScience, AcademicWorkCategory.Erratum, "Correction", "Correction, Addition");
         Add(data, AcademicWorkCategorySource.WebOfScience, AcademicWorkCategory.Retraction, "Retraction");
         Add(data, AcademicWorkCategorySource.WebOfScience, AcademicWorkCategory.DataPaper, "Data Paper");
-        Add(data, AcademicWorkCategorySource.WebOfScience, AcademicWorkCategory.Other, "Abstract", "Art Exhibit Review", "Bibliography", "Biographical-Item", "Chronology", "Creative Prose", "Dance Performance Review", "Database Review", "Discussion", "Excerpt", "Fiction", "Film Review", "Hardware Review", "Item About an Individual", "Item Withdrawal", "Meeting", "Meeting Summary", "Music Performance Review", "Music Score", "Music Score Review", "News Item", "Note", "Poetry", "Radio Review", "Record Review", "Script", "Software Review", "Theater Review", "TV Review", "Video Review", "Expression of Concern");
+        Add(data, AcademicWorkCategorySource.WebOfScience, AcademicWorkCategory.Other, "Abstract", "Abstract of a Published Item", "Art Exhibit Review", "Bibliography", "Biographical-Item", "Chronology", "Creative Prose", "Dance Performance Review", "Database Review", "Discussion", "Excerpt", "Fiction", "Film Review", "Hardware Review", "Item About an Individual", "Item Withdrawal", "Meeting", "Meeting Summary", "Music Performance Review", "Music Score", "Music Score Review", "News Item", "Note", "Poetry", "Radio Review", "Record Review", "Reprint", "Script", "Software Review", "Theater Review", "TV Review", "Video Review", "Expression of Concern");
 
         Add(data, AcademicWorkCategorySource.TrDizin, AcademicWorkCategory.Article, "RESEARCH", "PAPER", "JOURNAL_ARTICLE", "FACT_PRESENTATION", "CASE_REPORT");
         Add(data, AcademicWorkCategorySource.TrDizin, AcademicWorkCategory.Book, "MONOGRAPH");
