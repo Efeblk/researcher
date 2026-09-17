@@ -4,6 +4,7 @@ using System.Text.Json;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using Microsoft.Extensions.Configuration;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
@@ -376,7 +377,7 @@ public sealed class OrcidClient
             PublicationYear = year,
             PublicationDate = CreateDate(year, month, day),
             JournalTitle = GetString(work, "journal-title", "value"),
-            Doi = FindExternalIdentifier(externalIds, "doi"),
+            Doi = ProviderWorkRelationParser.FindOrcidSelfDoi(work),
             Url = GetString(work, "url", "value"),
             Authors = JoinContributors(contributors),
             LanguageCode = GetString(work, "language-code"),
@@ -512,30 +513,6 @@ public sealed class OrcidClient
             .Select(item => GetString(item, "credit-name", "value"))
             .Where(value => !string.IsNullOrWhiteSpace(value)));
         return string.IsNullOrWhiteSpace(result) ? null : result;
-    }
-
-    private static string? FindExternalIdentifier(JsonElement externalIds, string type)
-    {
-        JsonElement values = GetProperty(externalIds, "external-id");
-
-        if (values.ValueKind != JsonValueKind.Array)
-        {
-            return null;
-        }
-
-        foreach (JsonElement item in values.EnumerateArray())
-        {
-            if (string.Equals(
-                GetString(item, "external-id-type"),
-                type,
-                StringComparison.OrdinalIgnoreCase))
-            {
-                return GetString(item, "external-id-normalized", "value")
-                    ?? GetString(item, "external-id-value");
-            }
-        }
-
-        return null;
     }
 
     private static long GetPutCode(JsonElement element)

@@ -230,10 +230,8 @@ public sealed class AcademicWorkSynchronizer
 
             if (string.IsNullOrWhiteSpace(synchronizedWork.ProviderWorkId) &&
                 string.IsNullOrWhiteSpace(existingWork.ProviderWorkId) &&
-                string.Equals(
-                    existingWork.Title,
-                    synchronizedWork.Title,
-                    StringComparison.OrdinalIgnoreCase) &&
+                AcademicWorkTitleNormalizer.Normalize(existingWork.Title) is string existingTitle &&
+                existingTitle == AcademicWorkTitleNormalizer.Normalize(synchronizedWork.Title) &&
                 existingWork.PublicationYear == synchronizedWork.PublicationYear)
             {
                 return existingWork;

@@ -124,6 +124,28 @@ public sealed class ProviderResponseTests
     }
 
     [Fact]
+    public async Task FillResearcherAsync_OrcidVersionRelationPrecedesSelf_UsesSelfDoi()
+    {
+        using var http = new HttpClient(new StubHttpHandler(request =>
+            request.RequestUri!.AbsolutePath.EndsWith("/record", StringComparison.Ordinal)
+                ? StubHttpHandler.Json("""
+                    {"orcid-identifier":{"path":"0000-0001-8560-7482"},"person":{},
+                     "activities-summary":{"works":{"group":[{"work-summary":[{"put-code":7,"display-index":1}]}]}}}
+                    """)
+                : StubHttpHandler.Json("""
+                    {"bulk":[{"work":{"put-code":7,"external-ids":{"external-id":[
+                      {"external-id-type":"doi","external-id-value":"10.1000/parent","external-id-relationship":"version-of"},
+                      {"external-id-type":"doi","external-id-value":"10.1000/work","external-id-relationship":"self"}
+                    ]}}}]}
+                    """)));
+        Researcher researcher = new() { PersonelId = "P-1", Orcid = "0000-0001-8560-7482" };
+
+        await new OrcidClient(http, Config([])).FillResearcherAsync(researcher);
+
+        Assert.Equal("10.1000/work", Assert.Single(researcher.OrcidProfile!.Works!).Doi);
+    }
+
+    [Fact]
     public async Task FillResearcherAsync_ScholarPageFails_PreservesPreviousProfile()
     {
         var previous = new GoogleScholarProfile { DisplayName = "Saved profile", DocumentsCount = 10 };
