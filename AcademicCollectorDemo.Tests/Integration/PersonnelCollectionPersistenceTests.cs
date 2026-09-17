@@ -2,6 +2,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Persistence;
@@ -9,6 +10,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 using AcademicCollectorDemo.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,6 +21,56 @@ namespace AcademicCollectorDemo.Tests.Integration;
 [Collection("SQL Server")]
 public sealed class PersonnelCollectionPersistenceTests(SqlServerFixture fixture)
 {
+    [Fact]
+    public async Task CollectAsync_CancelledDuringSaveChanges_PropagatesCancellation()
+    {
+        using CancellationTokenSource cancellation = new();
+        CancelSavingChangesInterceptor interceptor = new(cancellation);
+        DbContextOptions<AcademicDbContext> options = new DbContextOptionsBuilder<AcademicDbContext>()
+            .UseSqlServer(fixture.ConnectionString)
+            .AddInterceptors(interceptor)
+            .Options;
+        await using AcademicDbContext database = new(options);
+        IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["WebOfScience:ApiKey"] = "synthetic-key",
+                ["WebOfScience:DatabaseIds:0"] = "WOS",
+                ["ProviderRequestLimits:Orcid:Enabled"] = "false",
+                ["ProviderRequestLimits:OpenAlex:Enabled"] = "false",
+                ["ProviderRequestLimits:SearchApi:Enabled"] = "false",
+                ["ProviderRequestLimits:Scopus:Enabled"] = "false",
+                ["ProviderRequestLimits:TrDizin:Enabled"] = "false"
+            }).Build();
+        using HttpClient http = new(new StubHttpHandler(_ => StubHttpHandler.Json("""
+            {"metadata":{"total":1,"limit":50},"hits":[{"uid":"WOS:cancel","title":"Cancellation test","types":["Article"]}]}
+            """)));
+        ResearcherCollectionService collectionService = new(
+            new OrcidClient(http, configuration), new GoogleScholarClient(http, configuration),
+            new OpenAlexClient(http, configuration), new WebOfScienceClient(http, configuration),
+            new AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin.TrDizinClient(
+                http, configuration), new(), new(), configuration);
+        ResearcherCollectionHandler handler = new(
+            new ResearcherIdentifierParser(), collectionService, new ResearcherRepository(database),
+            new AcademicWorkSynchronizer(database), new PublicationSummarySynchronizer(database),
+            new AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref.CrossrefEnrichmentService(
+                database,
+                new AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Crossref.CrossrefClient(
+                    http, configuration),
+                configuration),
+            database);
+
+        using ProviderCallScope scope = new(cancellation.Token);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => handler.CollectAsync(new()
+        {
+            PersonelId = "cancel-save-" + Guid.NewGuid().ToString("N"),
+            Identifiers = ["--researcherid", "Z-9997-2099"]
+        }));
+
+        Assert.True(interceptor.WasInvoked);
+        Assert.True(cancellation.IsCancellationRequested);
+    }
+
     [Fact]
     public async Task CollectAsync_CanonicalGateTimeout_ReturnsRetryableBusyFailure()
     {
@@ -192,5 +244,21 @@ public sealed class PersonnelCollectionPersistenceTests(SqlServerFixture fixture
             feedback => feedback.Provider.Contains("Semantic Scholar", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(response.Messages,
             message => message.Contains("Semantic Scholar", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private sealed class CancelSavingChangesInterceptor(CancellationTokenSource cancellation)
+        : SaveChangesInterceptor
+    {
+        public bool WasInvoked { get; private set; }
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            WasInvoked = true;
+            cancellation.Cancel();
+            throw new OperationCanceledException(cancellation.Token);
+        }
     }
 }

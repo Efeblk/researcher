@@ -134,6 +134,10 @@ public sealed class ResearcherCollectionHandler
                 response.Messages.Add($"[HATA] Crossref zenginleştirmesi tamamlanamadı: {exception.Message}");
                 response.Messages.Add(string.Empty);
             }
+            catch (OperationCanceledException) when (ProviderCallScope.Cancellation.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception exception)
             {
                 PartialEnrichment(crossrefFeedback, 0, exception);
@@ -142,6 +146,10 @@ public sealed class ResearcherCollectionHandler
                 response.Messages.Add($"[HATA] Crossref zenginleştirmesi tamamlanamadı: {exception.Message}");
                 response.Messages.Add(string.Empty);
             }
+        }
+        catch (OperationCanceledException) when (ProviderCallScope.Cancellation.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception exception)
         {
