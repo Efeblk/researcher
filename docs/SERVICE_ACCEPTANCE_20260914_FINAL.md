@@ -75,7 +75,7 @@ account balance.
 This acceptance covers service APIs, durable jobs, SQL persistence, exact evidence, bounded retrieval, summaries,
 specialist review, descriptive metrics, HR dossier, all five faculty modes, bilingual requests, access isolation,
 idempotency, and fail-closed usage accounting for four fixed public PDFs and synthetic personnel metadata. It does not
-establish universal scientific accuracy, exhaustive retrieval or omission recall, a production routing decision, BYS
+establish universal scientific accuracy, exhaustive retrieval or omission recall, a production routing decision, institutional
 identity mapping, UI completion, deployment readiness, live remote-URL byte freshness, or sustained unattended uptime. The
 standalone product access adapter remains unconfigured and fails closed until a consuming deployment supplies trusted
 scope and personnel mappings.

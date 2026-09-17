@@ -116,7 +116,7 @@ internal static class ServiceAcceptancePreflight
                 ["allPresent"] = requiredFiles.All(value => File.Exists(
                     Path.Combine(root, value.Replace('/', Path.DirectorySeparatorChar))))
             },
-            ["deferred"] = new JsonArray("generic API/BYS authorization", "UI", "fresh specialist article reviews")
+            ["deferred"] = new JsonArray("trusted institutional authorization", "UI", "fresh specialist article reviews")
         };
         string directory = Path.Combine(root, "docs", Program.RunId);
         Directory.CreateDirectory(directory);

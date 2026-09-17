@@ -8,6 +8,8 @@ public sealed class WebOfScienceProfileSummaryDto
     public string? PrimaryOrganization { get; set; } = null;
     public int? HIndex { get; set; } = null;
     public int DocumentsCount { get; set; }
+    public int? WosDocumentsCount { get; set; } = null;
+    public int? WokDocumentsCount { get; set; } = null;
     public int? TotalTimesCited { get; set; } = null;
     public int? TotalCitingPublications { get; set; } = null;
     public int PeerReviewsCount { get; set; }

@@ -6,6 +6,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScienc
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
+using System.Text.Json;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Application;
 
@@ -177,12 +178,50 @@ internal static class AcademicPerformanceDtoMapper
             PrimaryOrganization = profile.PrimaryOrganization,
             HIndex = profile.HIndex,
             DocumentsCount = profile.DocumentsCount,
+            WosDocumentsCount = ReadDatabaseDocumentCount(profile.DocumentPagesJson, "WOS"),
+            WokDocumentsCount = ReadDatabaseDocumentCount(profile.DocumentPagesJson, "WOK"),
             TotalTimesCited = profile.TotalTimesCited,
             TotalCitingPublications = profile.TotalCitingPublications,
             PeerReviewsCount = profile.PeerReviewsCount,
             LastUpdatedAt = profile.LastUpdatedAt
         };
     }
+
+    private static int? ReadDatabaseDocumentCount(string? pagesJson, string databaseId)
+    {
+        if (string.IsNullOrWhiteSpace(pagesJson))
+            return null;
+
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(pagesJson);
+            if (document.RootElement.ValueKind != JsonValueKind.Object ||
+                !document.RootElement.TryGetProperty(databaseId, out JsonElement pages) ||
+                pages.ValueKind != JsonValueKind.Array || pages.GetArrayLength() == 0)
+                return null;
+
+            JsonElement firstPage = pages[0];
+            if (firstPage.ValueKind == JsonValueKind.String)
+            {
+                using JsonDocument page = JsonDocument.Parse(firstPage.GetString()!);
+                return ReadTotal(page.RootElement);
+            }
+
+            return ReadTotal(firstPage);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static int? ReadTotal(JsonElement page) =>
+        page.ValueKind == JsonValueKind.Object &&
+        page.TryGetProperty("metadata", out JsonElement metadata) &&
+        metadata.ValueKind == JsonValueKind.Object &&
+        metadata.TryGetProperty("total", out JsonElement total) &&
+        total.ValueKind == JsonValueKind.Number &&
+        total.TryGetInt32(out int value) && value >= 0 ? value : null;
 
     public static AcademicPublicationDto MapPublication(
         PublicationSummary publication,

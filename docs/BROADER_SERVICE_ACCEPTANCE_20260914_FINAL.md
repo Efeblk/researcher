@@ -92,7 +92,7 @@ and self-tests passed without warnings or errors.
 
 This result covers the fixed two-paper held-out sample, six fixed requests, production persistence and endpoints, exact
 saved-source citations, bounded retrieval, live Gemini accounting, access isolation, and replay behavior. It does not
-establish universal truth, complete scientific interpretation, exhaustive retrieval or omission recall, production BYS
+establish universal truth, complete scientific interpretation, exhaustive retrieval or omission recall, production institutional
 identity mapping, UI readiness, live remote-URL byte freshness, deployment readiness, or sustained unattended uptime. Provider
 metadata and PDF transport were synthetic or hash-pinned local fixtures during acceptance.
 

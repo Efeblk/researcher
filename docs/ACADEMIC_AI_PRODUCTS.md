@@ -9,8 +9,8 @@ Every product endpoint first passes the Analysis `X-Analysis-Key` service-access
 `IAcademicProductAccessService` before looking up the subject or product record. The key never substitutes for subject authorization.
 The default implementation fails closed: anonymous callers receive `401`, and an authenticated caller receives
 `503` because no principal-to-scope or principal-to-`PersonelID` mapping is configured. The service/API deliverable
-ends at this generic access boundary. A consuming deployment may supply a trusted adapter, including a BYS adapter,
-without making BYS integration part of this project's completion criteria. Once an adapter is configured, a denial
+ends at this generic access boundary. A consuming deployment may supply a trusted institutional identity and scope adapter.
+Configuring that deployment integration is outside this project's completion criteria. Once an adapter is configured, a denial
 should be returned as the same `404` used for a missing subject, so the endpoint does not become an identity oracle.
 
 The access service issues an opaque authorization grant ID and a stable audit actor ID. The faculty worker stores
@@ -113,18 +113,18 @@ scientific correctness, exhaustive publication or record coverage, complete reca
 Delivery covers guarded single and bulk HTTP request handling, SQL-saved outputs and status, durable background jobs
 for continuous operation, generic access checks, idempotency, exact evidence links, coverage metadata, and fail-closed
 generation and verification. Faculty generation, its bounded output-limit recovery, and its separate verifier retain
-exact `gemini-3.8-flash` routing. A web or BYS client may be built as an optional demo;
+exact `gemini-3.8-flash` routing. A web or institutional client may be built as an optional demo;
 it is not required to complete the service/API deliverable and does not replace the access checks.
 
 The default access adapter remains intentionally unconfigured, so this repository does not expose a generally usable
 or unrestricted public API by itself. The product pilot used synthetic runner-only authorization and did not validate
-BYS claims or identity mapping. Verified partial responses with explicit coverage and conditional wording for questions
+production identity claims or institutional role mapping. Verified partial responses with explicit coverage and conditional wording for questions
 about unknown user work are implemented offline. Representative Turkish/English retrieval evaluation remains a service
 quality priority.
 
 The retained V14 acceptance completed Methods, Teaching, and Issues with exact `gemini-3.8-flash`, prompt v8, verifier
 v6, repair v1, cited evidence, request-coverage audits, SQL readback, idempotent replay, conflict checks, and zero unknown
 usage. Its 26 fresh calls cost USD 0.219307500 in the local ledger. This demonstrates the frozen two-PDF sample and
-recorded tasks; it does not establish scientific correctness, exhaustive recall, or BYS integration.
+recorded tasks; it does not establish scientific correctness, exhaustive recall, or production identity integration.
 Automated tests must use synthetic sources, fake access grants, and fake analysis HTTP responses with the isolated SQL
 fixture. They must not call live providers, use application database configuration, or spend money.

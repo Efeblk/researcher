@@ -627,7 +627,7 @@ myPublicationsButton?.addEventListener("click", async () => {
         showGoogleScholarSummary(researcher);
         showOpenAlexSummary(researcher);
         showWebOfScienceSummary(researcher);
-        showAcademicMetricsOverview(researcher, response.YoksisPublicationCount ?? 0);
+        showAcademicMetricsOverview(researcher, response);
         showProviderComparison(researcher);
         grid.setResearcher(savedPersonelId, displayName);
         const selectionsLoaded = await grid.loadSelections(savedPersonelId, displayName);
