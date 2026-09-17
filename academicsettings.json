@@ -32,7 +32,8 @@
     "ServiceUrl": "https://servisler.yok.gov.tr/ws/OzgecmisV2"
   },
   "TrDizin": {
-    "ApiBaseUrl": "https://search.trdizin.gov.tr"
+    "ApiBaseUrl": "https://search.trdizin.gov.tr",
+    "MaximumProjectPages": 100
   },
   "Crossref": {
     "ApiBaseUrl": "https://api.crossref.org",

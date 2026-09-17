@@ -92,6 +92,8 @@ public sealed class BulkJobProcessor(
             bool persistenceDataTooLong = response.FailureCode == "PersistenceDataTooLong";
             bool hasErrors = collectionHasFailureCode || yoksisHasFailures || providerCalls.Failures.Count > 0 ||
                 response.Messages.Any(message => message.StartsWith("[HATA]", StringComparison.Ordinal)) ||
+                response.ProviderFeedback.Any(item => item.Reasons.Any(reason =>
+                    reason.Code == "UnmatchedProject")) ||
                 (!string.IsNullOrWhiteSpace(input.Orcid) && IsEnabled(configuration, "Orcid") &&
                     response.Researcher?.OrcidProfile is null) ||
                 (!string.IsNullOrWhiteSpace(input.Orcid) && IsEnabled(configuration, "OpenAlex") &&

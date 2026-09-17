@@ -69,6 +69,25 @@ internal static class AcademicPerformanceDtoMapper
                 DisplayName = researcher.TrDizinProfile.DisplayName,
                 PublicationCount = researcher.TrDizinProfile.PublicationCount,
                 CitationCount = researcher.TrDizinProfile.CitationCount,
+                ProjectCandidateCount = researcher.TrDizinProfile.ProjectCandidateCount,
+                ProjectMatchedCount = researcher.TrDizinProfile.ProjectMatchedCount,
+                ProjectUnmatchedCount = researcher.TrDizinProfile.ProjectUnmatchedCount,
+                ProjectSearchComplete = researcher.TrDizinProfile.ProjectSearchComplete,
+                Projects = (researcher.TrDizinProfile.Projects ?? []).Select(project => new TrDizinProjectDto
+                {
+                    Id = project.ProjectId,
+                    ProjectNumber = project.ProjectNumber,
+                    Title = project.Title,
+                    StartedDate = project.StartedDate,
+                    EndDate = project.EndDate,
+                    ProjectGroup = project.ProjectGroup,
+                    ResearchersJson = project.ResearchersJson,
+                    Duty = project.Duty,
+                    AbstractsJson = project.AbstractsJson,
+                    KeywordsJson = project.KeywordsJson,
+                    OutputsJson = project.OutputsJson,
+                    AttachmentsJson = project.AttachmentsJson
+                }).ToList(),
                 LastUpdatedAt = researcher.TrDizinProfile.LastUpdatedAt
             },
             WebOfScienceProfile = MapWebOfScienceProfile(

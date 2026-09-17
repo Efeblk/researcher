@@ -572,6 +572,28 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
     }
 
     [Fact]
+    public async Task ProcessNextAsync_UnmatchedTrDizinProject_IsPartialWithoutRetry()
+    {
+        await using var services = BuildServices(new FakeApplicationService(
+            false, unmatchedProject: true));
+        using var scope = services.CreateScope();
+        BulkCollectionService collection = scope.ServiceProvider
+            .GetRequiredService<BulkCollectionService>();
+        BulkCollectionSubmitRequest input = Input();
+        await collection.SubmitAsync(input);
+
+        await scope.ServiceProvider.GetRequiredService<BulkJobProcessor>().ProcessNextAsync();
+
+        BulkCollectionStatusResponse result = await collection.GetStatusAsync(new()
+        {
+            BatchId = input.BatchId
+        });
+        Assert.Equal(BulkJobStatus.Partial, result.Jobs.Single().Status);
+        Assert.Equal(1, result.Jobs.Single().Attempts);
+        Assert.True(result.IsComplete);
+    }
+
+    [Fact]
     public async Task ProcessNextAsync_DisabledProvidersWithRealFailure_StillRetries()
     {
         await using var services = BuildServices(new FakeApplicationService(false,
@@ -841,7 +863,8 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
         bool localDeferral = false, bool throwAfterFailure = false, bool actualFailure = false,
         bool nonretryableFailure = false, bool actualNonretryableFailure = false,
         int yoksisFailedCategories = 0, bool metricsFail = false, bool disabledOnly = false,
-        bool disabledWithRealFailure = false) : IAcademicPerformanceApplicationService
+        bool disabledWithRealFailure = false,
+        bool unmatchedProject = false) : IAcademicPerformanceApplicationService
     {
         public AcademicDataCollectRequest? LastRequest { get; private set; }
         public ResearcherMetricsRequest? LastMetricsRequest { get; private set; }
@@ -870,7 +893,19 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
                 },
                 YoksisFailedCategoryCount = yoksisFailedCategories,
                 Messages = disabledWithRealFailure ? ["[HATA] Crossref geçici olarak başarısız."] : [],
-                ProviderFeedback = disabledOnly
+                ProviderFeedback = unmatchedProject
+                    ? [new()
+                    {
+                        Provider = "TR Dizin", Status = "Partial", Unit = "record",
+                        RetrievedCount = 1, ExpectedCount = 2,
+                        Reasons = [new()
+                        {
+                            Code = "UnmatchedProject",
+                            Description = "Synthetic name-only project candidate.",
+                            AffectedCount = 1
+                        }]
+                    }]
+                    : disabledOnly
                     ? [new()
                     {
                         Provider = "ORCID", Status = "Skipped",
