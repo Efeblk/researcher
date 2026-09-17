@@ -446,6 +446,11 @@ public sealed class ResearcherCollectionService
             int retrieved = researcher.OrcidProfile?.Works?.Count ?? 0;
             Success(item, retrieved, retrieved);
         }
+        catch (OperationCanceledException) when (
+            ProviderCallScope.Cancellation.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (ArgumentException exception)
         {
             Fail(item, exception.Message.Contains("bulunamadı", StringComparison.OrdinalIgnoreCase)
