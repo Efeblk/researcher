@@ -133,6 +133,46 @@ public sealed class CanonicalWorkSynchronizerTests(SqlServerFixture fixture)
     }
 
     [Fact]
+    public async Task SyncAsync_ProviderTitlePresentationVariants_GroupAsOneWork()
+    {
+        string personelId = Id("title-presentation");
+        AcademicWork first = Work(personelId, AcademicWorkProvider.OpenAlex, null, "openalex",
+            "İSTATİSTİK\u200B&amp; BİLİMİ: CO\u00ADOP\u200DERATION α");
+        AcademicWork second = Work(personelId, AcademicWorkProvider.Scopus, null, "scopus",
+            "istatistik & bilimi: cooperation &#945;");
+        AcademicWork third = Work(personelId, AcademicWorkProvider.Crossref, null, "crossref",
+            "&lt;strong&gt;ISTATISTIK&lt;/strong&gt; &amp; BILIMI:&lt;br&gt;COOPERATION α");
+        await SeedAsync(personelId, first, second, third);
+
+        await SyncInScopeAsync(personelId);
+
+        await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
+        AcademicDbContext db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        Assert.Single(await db.CanonicalResearcherWorks.Where(value =>
+            value.PersonelId == personelId).ToListAsync());
+        Assert.Equal(3, await db.CanonicalWorkObservations.CountAsync(value =>
+            value.PersonelId == personelId));
+    }
+
+    [Fact]
+    public async Task SyncAsync_MeaningfulTitleTextAndMathSymbols_RemainSeparate()
+    {
+        string personelId = Id("title-meaning");
+        await SeedAsync(personelId,
+            Work(personelId, AcademicWorkProvider.OpenAlex, null, "math-x", "Response of <x> + y"),
+            Work(personelId, AcademicWorkProvider.Scopus, null, "math-y", "Response of <y> + y"),
+            Work(personelId, AcademicWorkProvider.Orcid, null, "plus", "A + B"),
+            Work(personelId, AcademicWorkProvider.GoogleScholar, null, "minus", "A − B"));
+
+        await SyncInScopeAsync(personelId);
+
+        await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
+        AcademicDbContext db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        Assert.Equal(4, await db.CanonicalResearcherWorks.CountAsync(value =>
+            value.PersonelId == personelId));
+    }
+
+    [Fact]
     public async Task SyncAsync_MissingOrDifferentMetadata_DoesNotGroup()
     {
         string personelId = Id("metadata-separate");

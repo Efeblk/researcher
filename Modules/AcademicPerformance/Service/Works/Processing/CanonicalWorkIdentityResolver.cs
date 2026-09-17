@@ -100,7 +100,7 @@ internal static class CanonicalWorkIdentityResolver
 
     private static WorkMetadata? CreateMetadata(AcademicWork work)
     {
-        string? title = NormalizeWords(work.Title);
+        string? title = AcademicWorkTitleNormalizer.Normalize(work.Title);
         if (title is null || work.PublicationYear is null || string.IsNullOrWhiteSpace(work.Authors) ||
             work.Authors.Contains('…') || work.Authors.Contains("...", StringComparison.Ordinal))
             return null;
