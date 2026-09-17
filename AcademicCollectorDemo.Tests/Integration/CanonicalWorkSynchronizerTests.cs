@@ -486,6 +486,58 @@ public sealed class CanonicalWorkSynchronizerTests(SqlServerFixture fixture)
             association.PersonelId == personelId).ToListAsync());
     }
 
+    [Fact]
+    public async Task SyncAsync_ExplicitCrossrefVersionParentAbsent_GroupsObservationsUnderParentDoi()
+    {
+        string personelId = Id("crossref-versions");
+        AcademicWork first = Work(personelId, AcademicWorkProvider.Crossref,
+            "10.7000/version-1", "version-1");
+        first.ProviderPayload = CrossrefVersionPayload(first.Doi!, "10.7000/concept");
+        AcademicWork second = Work(personelId, AcademicWorkProvider.Crossref,
+            "10.7000/version-2", "version-2");
+        second.ProviderPayload = CrossrefVersionPayload(second.Doi!, "10.7000/concept");
+        await SeedAsync(personelId, first, second);
+
+        await SyncInScopeAsync(personelId);
+        await SyncInScopeAsync(personelId);
+
+        await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
+        AcademicDbContext db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        CanonicalWork canonical = await db.CanonicalWorks.Include(work => work.Observations)
+            .SingleAsync(work => work.NormalizedDoi == "10.7000/concept");
+        Assert.Equal(2, canonical.Observations.Count);
+        Assert.Contains(canonical.Observations, value => value.DoiObserved == "10.7000/version-1");
+        Assert.Contains(canonical.Observations, value => value.DoiObserved == "10.7000/version-2");
+    }
+
+    [Fact]
+    public async Task SyncAsync_OrcidVersionEquivalence_RetainsObservedDoisAndOneSummary()
+    {
+        string personelId = Id("orcid-versions");
+        AcademicWork first = Work(personelId, AcademicWorkProvider.Orcid,
+            "10.7100/version-1", "version-1");
+        first.ProviderPayload = OrcidVersionPayload(first.Doi!, "10.7100/version-2");
+        AcademicWork second = Work(personelId, AcademicWorkProvider.Orcid,
+            "10.7100/version-2", "version-2");
+        second.ProviderPayload = OrcidVersionPayload(second.Doi!, "10.7100/version-1");
+        await SeedAsync(personelId, first, second);
+
+        await SyncInScopeAsync(personelId);
+        await SyncInScopeAsync(personelId);
+        await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
+        AcademicDbContext db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        await new PublicationSummarySynchronizer(db).SyncAsync(personelId);
+
+        CanonicalResearcherWork association = await db.CanonicalResearcherWorks
+            .SingleAsync(value => value.PersonelId == personelId);
+        string?[] observedDois = await db.CanonicalWorkObservations
+            .Where(value => value.CanonicalWorkId == association.CanonicalWorkId)
+            .OrderBy(value => value.DoiObserved).Select(value => value.DoiObserved).ToArrayAsync();
+        Assert.Equal(new string?[] { "10.7100/version-1", "10.7100/version-2" }, observedDois);
+        Assert.Single(await db.PublicationSummaries.Where(value => value.PersonelId == personelId)
+            .ToListAsync());
+    }
+
     private async Task SyncInScopeAsync(string personelId)
     {
         await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
@@ -540,4 +592,13 @@ public sealed class CanonicalWorkSynchronizerTests(SqlServerFixture fixture)
         };
 
     private static string Id(string prefix) => prefix + "-" + Guid.NewGuid().ToString("N");
+
+    private static string CrossrefVersionPayload(string doi, string parentDoi) =>
+        $"{{\"message\":{{\"DOI\":\"{doi}\",\"relation\":{{\"is-version-of\":[" +
+        $"{{\"id-type\":\"doi\",\"id\":\"{parentDoi}\"}}]}}}}}}";
+
+    private static string OrcidVersionPayload(string doi, string relatedDoi) =>
+        $"{{\"external-ids\":{{\"external-id\":[" +
+        $"{{\"external-id-type\":\"doi\",\"external-id-value\":\"{doi}\",\"external-id-relationship\":\"self\"}}," +
+        $"{{\"external-id-type\":\"doi\",\"external-id-value\":\"{relatedDoi}\",\"external-id-relationship\":\"version-of\"}}]}}}}";
 }
