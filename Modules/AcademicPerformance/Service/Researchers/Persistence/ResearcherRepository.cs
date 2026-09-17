@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Data;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
@@ -6,19 +7,27 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleSchol
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.TrDizin;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Scopus;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Persistence;
 
 public sealed class ResearcherRepository
 {
     private readonly AcademicDbContext _dbContext;
+    private readonly ILogger<ResearcherRepository> _logger;
 
-    public ResearcherRepository(AcademicDbContext dbContext)
+    public ResearcherRepository(
+        AcademicDbContext dbContext,
+        ILogger<ResearcherRepository>? logger = null)
     {
         _dbContext = dbContext;
+        _logger = logger ?? NullLogger<ResearcherRepository>.Instance;
     }
 
-    public async Task<Researcher?> FindByIdentifiersAsync(Researcher identifiers)
+    public async Task<Researcher?> FindByIdentifiersAsync(
+        Researcher identifiers,
+        CancellationToken cancellationToken = default)
     {
         List<string> matchingPersonelIds = await _dbContext.Researchers
             .Where(item =>
@@ -30,20 +39,33 @@ public sealed class ResearcherRepository
                 (identifiers.TcKimlikNo != null && item.TcKimlikNo == identifiers.TcKimlikNo))
             .Select(item => item.PersonelId)
             .Take(2)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         if (matchingPersonelIds.Count > 1)
             throw new ArgumentException("Sağlayıcı kimlikleri farklı akademisyen kayıtlarına ait.");
 
         return matchingPersonelIds.Count == 0
             ? null
-            : await FindByPersonelIdAsync(matchingPersonelIds[0]);
+            : await FindByPersonelIdAsync(matchingPersonelIds[0], cancellationToken);
     }
 
-    public Task<Researcher?> FindByPersonelIdAsync(string personelId)
+    public async Task<Researcher?> FindByPersonelIdAsync(
+        string personelId,
+        CancellationToken cancellationToken = default)
     {
-        return CreateResearcherQuery()
-            .FirstOrDefaultAsync(researcher => researcher.PersonelId == personelId);
+        LogStageStarted(personelId, "profiles");
+        long startedAt = Stopwatch.GetTimestamp();
+        Researcher? researcher = await CreateResearcherQuery()
+            .FirstOrDefaultAsync(
+                researcher => researcher.PersonelId == personelId,
+                cancellationToken);
+
+        if (researcher is null)
+            return null;
+
+        LogStageLoaded(personelId, "profiles", Stopwatch.GetElapsedTime(startedAt), 1);
+        await LoadCollectionsAsync(researcher, cancellationToken);
+        return researcher;
     }
 
     public void ApplyRequestValues(Researcher target, Researcher source)
@@ -71,16 +93,18 @@ public sealed class ResearcherRepository
             "T.C. Kimlik No");
     }
 
-    public async Task SaveAsync(Researcher researcher)
+    public async Task SaveAsync(
+        Researcher researcher,
+        CancellationToken cancellationToken = default)
     {
         if (_dbContext.Entry(researcher).State != EntityState.Detached)
         {
             researcher.LastUpdatedAt = DateTime.UtcNow;
-            await _dbContext.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync(cancellationToken);
             return;
         }
 
-        Researcher? existingResearcher = await FindByIdentifiersAsync(researcher);
+        Researcher? existingResearcher = await FindByIdentifiersAsync(researcher, cancellationToken);
 
         if (existingResearcher is null)
         {
@@ -92,30 +116,128 @@ public sealed class ResearcherRepository
             UpdateResearcher(existingResearcher, researcher);
         }
 
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private IQueryable<Researcher> CreateResearcherQuery()
     {
         IQueryable<Researcher>? query = _dbContext.Researchers
             .Include(researcher => researcher.OrcidProfile)
-                .ThenInclude(profile => profile!.Works)
             .Include(researcher => researcher.GoogleScholarProfile)
-                .ThenInclude(profile => profile!.Works)
             .Include(researcher => researcher.OpenAlexProfile)
-                .ThenInclude(profile => profile!.Works)
             .Include(researcher => researcher.ScopusProfile)
-                .ThenInclude(profile => profile!.Works)
             .Include(researcher => researcher.WebOfScienceProfile)
-                .ThenInclude(profile => profile!.Works)
-            .Include(researcher => researcher.WebOfScienceProfile)
-                .ThenInclude(profile => profile!.PeerReviews)
-            .Include(researcher => researcher.TrDizinProfile)
-                .ThenInclude(profile => profile!.Works)
-            .Include(researcher => researcher.AcademicWorks)
-            .AsSplitQuery();
+            .Include(researcher => researcher.TrDizinProfile);
 
         return query;
+    }
+
+    private async Task LoadCollectionsAsync(
+        Researcher researcher,
+        CancellationToken cancellationToken)
+    {
+        if (researcher.OrcidProfile is not null)
+        {
+            LogStageStarted(researcher.PersonelId, "orcid-works");
+            long startedAt = Stopwatch.GetTimestamp();
+            await _dbContext.Entry(researcher.OrcidProfile)
+                .Collection(profile => profile.Works!)
+                .LoadAsync(cancellationToken);
+            LogStageLoaded(researcher.PersonelId, "orcid-works", Stopwatch.GetElapsedTime(startedAt),
+                researcher.OrcidProfile.Works?.Count ?? 0);
+        }
+
+        if (researcher.GoogleScholarProfile is not null)
+        {
+            LogStageStarted(researcher.PersonelId, "google-scholar-works");
+            long startedAt = Stopwatch.GetTimestamp();
+            await _dbContext.Entry(researcher.GoogleScholarProfile)
+                .Collection(profile => profile.Works!)
+                .LoadAsync(cancellationToken);
+            LogStageLoaded(researcher.PersonelId, "google-scholar-works", Stopwatch.GetElapsedTime(startedAt),
+                researcher.GoogleScholarProfile.Works?.Count ?? 0);
+        }
+
+        if (researcher.OpenAlexProfile is not null)
+        {
+            LogStageStarted(researcher.PersonelId, "openalex-works");
+            long startedAt = Stopwatch.GetTimestamp();
+            await _dbContext.Entry(researcher.OpenAlexProfile)
+                .Collection(profile => profile.Works!)
+                .LoadAsync(cancellationToken);
+            LogStageLoaded(researcher.PersonelId, "openalex-works", Stopwatch.GetElapsedTime(startedAt),
+                researcher.OpenAlexProfile.Works?.Count ?? 0);
+        }
+
+        if (researcher.ScopusProfile is not null)
+        {
+            LogStageStarted(researcher.PersonelId, "scopus-works");
+            long startedAt = Stopwatch.GetTimestamp();
+            await _dbContext.Entry(researcher.ScopusProfile)
+                .Collection(profile => profile.Works!)
+                .LoadAsync(cancellationToken);
+            LogStageLoaded(researcher.PersonelId, "scopus-works", Stopwatch.GetElapsedTime(startedAt),
+                researcher.ScopusProfile.Works?.Count ?? 0);
+        }
+
+        if (researcher.WebOfScienceProfile is not null)
+        {
+            LogStageStarted(researcher.PersonelId, "wos-works");
+            long startedAt = Stopwatch.GetTimestamp();
+            await _dbContext.Entry(researcher.WebOfScienceProfile)
+                .Collection(profile => profile.Works!)
+                .LoadAsync(cancellationToken);
+            LogStageLoaded(researcher.PersonelId, "wos-works", Stopwatch.GetElapsedTime(startedAt),
+                researcher.WebOfScienceProfile.Works?.Count ?? 0);
+            LogStageStarted(researcher.PersonelId, "wos-peer-reviews");
+            startedAt = Stopwatch.GetTimestamp();
+            await _dbContext.Entry(researcher.WebOfScienceProfile)
+                .Collection(profile => profile.PeerReviews!)
+                .LoadAsync(cancellationToken);
+            LogStageLoaded(researcher.PersonelId, "wos-peer-reviews", Stopwatch.GetElapsedTime(startedAt),
+                researcher.WebOfScienceProfile.PeerReviews?.Count ?? 0);
+        }
+
+        if (researcher.TrDizinProfile is not null)
+        {
+            LogStageStarted(researcher.PersonelId, "trdizin-works");
+            long startedAt = Stopwatch.GetTimestamp();
+            await _dbContext.Entry(researcher.TrDizinProfile)
+                .Collection(profile => profile.Works!)
+                .LoadAsync(cancellationToken);
+            LogStageLoaded(researcher.PersonelId, "trdizin-works", Stopwatch.GetElapsedTime(startedAt),
+                researcher.TrDizinProfile.Works?.Count ?? 0);
+        }
+
+        LogStageStarted(researcher.PersonelId, "academic-works");
+        long academicWorksStartedAt = Stopwatch.GetTimestamp();
+        await _dbContext.Entry(researcher)
+            .Collection(item => item.AcademicWorks!)
+            .LoadAsync(cancellationToken);
+        LogStageLoaded(researcher.PersonelId, "academic-works",
+            Stopwatch.GetElapsedTime(academicWorksStartedAt), researcher.AcademicWorks?.Count ?? 0);
+    }
+
+    private void LogStageStarted(string personelId, string stage)
+    {
+        _logger.LogInformation(
+            "Researcher graph stage started for {PersonelId}: {Stage}.",
+            personelId,
+            stage);
+    }
+
+    private void LogStageLoaded(
+        string personelId,
+        string stage,
+        TimeSpan elapsed,
+        int count)
+    {
+        _logger.LogInformation(
+            "Researcher graph stage loaded for {PersonelId}: {Stage}, {Count} rows in {ElapsedMilliseconds} ms.",
+            personelId,
+            stage,
+            count,
+            elapsed.TotalMilliseconds);
     }
 
     private void UpdateResearcher(Researcher target, Researcher source)

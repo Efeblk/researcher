@@ -129,8 +129,9 @@ public sealed class YoksisCollectionHandler
             requestedResearcher.PersonelId = personelId;
             requestedResearcher.TcKimlikNo = tcKimlikNo;
             Researcher? researcher = await ResolveResearcherAsync(
-                requestedResearcher);
-            await _researcherRepository.SaveAsync(researcher);
+                requestedResearcher,
+                cancellationToken);
+            await _researcherRepository.SaveAsync(researcher, cancellationToken);
             response.YoksisRecordCount = await _recordSynchronizer.SyncAsync(
                 researcher.PersonelId,
                 response,
@@ -265,10 +266,12 @@ public sealed class YoksisCollectionHandler
     }
 
     private async Task<Researcher> ResolveResearcherAsync(
-        Researcher requestedResearcher)
+        Researcher requestedResearcher,
+        CancellationToken cancellationToken)
     {
         Researcher? researcher = await _researcherRepository.FindByIdentifiersAsync(
-            requestedResearcher);
+            requestedResearcher,
+            cancellationToken);
 
         if (researcher is null)
             return requestedResearcher;
