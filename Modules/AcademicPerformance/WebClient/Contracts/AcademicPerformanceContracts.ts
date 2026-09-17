@@ -92,6 +92,8 @@ export interface ResearcherCollectResponse extends ServiceResponse {
             PrimaryOrganization?: string;
             HIndex?: number;
             DocumentsCount?: number;
+            WosDocumentsCount?: number;
+            WokDocumentsCount?: number;
             TotalTimesCited?: number;
             TotalCitingPublications?: number;
             PeerReviewsCount?: number;
@@ -103,6 +105,7 @@ export interface ResearcherCollectResponse extends ServiceResponse {
     FailureCode?: string;
     PublicationCount?: number;
     YoksisPublicationCount?: number;
+    CategoryMetrics?: AcademicCategoryMetric[];
     Messages?: string[];
     ProviderFeedback?: ProviderCollectionFeedback[];
 }
@@ -176,6 +179,7 @@ export interface ResearcherMetricsResponse extends ServiceResponse {
 
 export interface YoksisOperationResult {
     CategoryName?: string;
+    OperationName?: string;
     IsSuccess?: boolean;
     RecordCount?: number;
     ExpectedDetailCount?: number;
@@ -183,6 +187,12 @@ export interface YoksisOperationResult {
     FailedDetailCount?: number;
     FailureReasons?: YoksisFailureSummary[];
     Errors?: string[];
+}
+
+export interface AcademicCategoryMetric {
+    CategoryName?: string;
+    OperationName?: string;
+    RecordCount?: number;
 }
 
 export interface YoksisFailureSummary {

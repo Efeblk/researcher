@@ -84,10 +84,18 @@
         <span>
             <strong>Akademik Metrikler</strong>
             <small>Sağlayıcı kapsamlarına göre profil özeti</small>
+            <small>WOS/WOK yayın sayıları sağlayıcı toplamıdır ve örtüşebilir; birleşik sayı saklanan tekil yayın toplamıdır.</small>
         </span>
     </summary>
     <div class="academic-metrics-overview-body">
         <div id="AcademicMetricsProviderGrid" class="academic-provider-metrics-grid"></div>
+        <section class="academic-category-metrics" aria-labelledby="AcademicCategoryMetricsTitle">
+            <div class="academic-category-metrics-heading">
+                <h2 id="AcademicCategoryMetricsTitle">Faaliyet kategorileri</h2>
+                <p>Yalnız başarıyla alınan kategori kayıtları sayılır; eksik veri sıfır kabul edilmez.</p>
+            </div>
+            <div id="AcademicCategoryMetricsGrid" class="academic-category-metrics-grid"></div>
+        </section>
         <button id="AcademicMetricsMoreButton" class="academic-metrics-more" type="button"
                 aria-expanded="false" aria-controls="AcademicMetricsDetails">
             Daha fazla metrik

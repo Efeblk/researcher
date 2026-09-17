@@ -35,9 +35,9 @@ The HR dossier captures traceable facts, metric definitions, coverage gaps, conf
 The project deliverable is the service/API: guarded single and bulk requests, SQL-saved outputs and status, durable
 background jobs for continuous operation, generic authorization boundaries, evidence and coverage reporting, and exact
 `gemini-3.8-flash` generation plus separate verification. A deployment-specific
-BYS adapter is outside this delivery scope. A web or BYS client is an optional demonstration and is not a completion
+Production institutional identity integration is outside this delivery scope. A web or institutional client is an optional demonstration and is not a completion
 blocker. This boundary does not remove endpoint access checks or make the default adapter usable; the live product pilot
-used synthetic runner-only authorization and did not validate BYS integration.
+used synthetic runner-only authorization and did not validate production identity integration.
 
 Verified partial responses and conditional question wording are covered by the acceptance slice below. Saved Turkish
 claims can now bridge lexical queries to exact English source spans without a runtime AI call. This is limited by saved
@@ -106,7 +106,7 @@ The 13-page football source also passed offline source-limit and stage-quote pre
 
 The citation-alignment correction now gives every verifier item only its own cited spans, excludes uncited neighbors, and requires generation to cite support for every material clause. Summary and review prompt and policy identities advanced so older cached analyses and review checkpoints cannot be reused under the corrected rules. In a bounded live regression, the original Adam claim with its incomplete two citations became `uncertain`, while the same claim with the complete citations was `supported`, both alone and beside another claim that cited the missing span. The subsequent two-PDF batch completed both summaries and all four review roles in 44 total calls for an estimated USD 0.812765250 from recorded token usage and pinned pricing, with no unknown usage. A coordinating AI audit matched all 79 evidence links to exact UTF-16 source slices and all four saved HTTP reports to SQL, but the conservative verifier omitted 8 of 40 Adam summary candidates, 7 of 13 Football summary candidates, and 13 of 24 review candidates. The evidence is recorded in [Full-text citation-alignment pilot — 12 September 2026](FULLTEXT_CITATION_ALIGNMENT_PILOT_20260912.md). This fixes the observed citation mismatch and demonstrates bounded operational recovery; it does not establish comprehensive or universally accurate scientific output.
 
-Production BYS role and identity claims are not available in this standalone repository, and integrating them is outside the service-only deliverable. The default adapter therefore keeps private HR and faculty endpoints unavailable unless a consuming deployment supplies trusted principal-to-scope and principal-to-personnel mappings. Development-only permissive authorization and the pilot's synthetic adapter are not evidence that a deployment mapping works.
+Production institutional role and identity claims are not available in this standalone repository, and integrating them is outside the service-only deliverable. The default adapter therefore keeps private HR and faculty endpoints unavailable unless a consuming deployment supplies trusted principal-to-scope and principal-to-personnel mappings. Development-only permissive authorization and the pilot's synthetic adapter are not evidence that a deployment mapping works.
 
 Any internal field-normalized metric remains descriptive or unavailable until the reference population, category eligibility, time window, coverage, and expert review are accepted. The Neo4j projection remains optional and unbenchmarked because no Docker engine is available in the current environment; code and export-shape tests cannot establish a graph-assisted retrieval benefit.
 
