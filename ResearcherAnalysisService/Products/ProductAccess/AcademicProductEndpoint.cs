@@ -8,7 +8,7 @@ public static class AcademicProductEndpoint
     {
         AcademicProductAccessUnavailableException => new ObjectResult(new
         {
-            Message = "BYS product authorization is not configured."
+            Message = "Product authorization is not configured."
         }) { StatusCode = StatusCodes.Status503ServiceUnavailable },
         AcademicProductUnauthenticatedException => new UnauthorizedObjectResult(new
         {

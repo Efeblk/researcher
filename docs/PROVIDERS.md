@@ -9,7 +9,7 @@ Bu belge collector'ın akademik veri entegrasyonlarının sabit kapsamını öze
 | Scopus | Scopus Author ID ile Author Retrieval profili/metrikleri ve `AU-ID(...)` Search yayınları | API anahtarı gerekir; `InstToken` kurumsal erişim gerektiğinde eklenir. Search ve Author Retrieval kotaları ayrıdır. |
 | Google Scholar / SearchApi | Profil, yayın, atıf, h/i10 | Google'ın resmî API'si değildir; entegrasyon varsayılan ayarda kapalıdır. |
 | Web of Science Starter | ResearcherID ile WOS/WOK yayınları ve varsa atıf | h-index yalnız tüm gerekli atıflar geldiyse yerelde hesaplanır; i10 yoktur. |
-| YÖKSİS | 21 kategori ve desteklenen eser ayrıntıları | Kurumsal kimlik, T.C. kimlik no ve ayrıca BYS yetkisi gerekir. |
+| YÖKSİS | 21 kategori ve desteklenen eser ayrıntıları | Kurumsal kimlik, T.C. kimlik no ve güvenilir kurumsal yetkilendirme gerekir. |
 | TR Dizin | Tam ORCID eşleşmeli yazar ve yayın | Yayımlanmış kota doğrulanmamıştır. |
 | Crossref | DOI metaverisi/atıf ve pozitif-negatif önbellek | Araştırmacı girdi alanı değildir; polite pool için iletişim e-postası önerilir. |
 | Semantic Scholar | DOI metaverisi, atıf bağlamları, TLDR ve açık PDF adayı | Atıf yapan eserler araştırmacının yayın listesine eklenmez. |
@@ -55,6 +55,6 @@ Yerel sayaç sağlayıcı hesabının kalan kotası değildir. Eksik değer sıf
 
 Anahtar, parola, T.C. kimlik numarası, ham kişisel yanıt ve istek URL'leri loglara veya repoya yazılmamalıdır. Daha önce kaydedilmiş hassas YÖKSİS yanıtları yeni kod tarafından otomatik temizlenmez. Kaynak eser ID'si olmayan artımlı YÖKSİS kayıtlarında içerik değişikliği eski sürümü koruyabilir; bu kayıtlar DOI/başlık tekilleştirmesine rağmen gerektiğinde ayrıca incelenmelidir.
 
-YÖKSİS Basic Authentication yalnız Base64 kodlar; HTTPS korunmalı ve endpoint dış ağa BYS kontrolü olmadan açılmamalıdır. Uzak servis şartları, saklama hakları, kota ve kurumsal lisanslar deployment sahibi tarafından teyit edilmelidir.
+YÖKSİS Basic Authentication yalnız Base64 kodlar; HTTPS korunmalı ve endpoint dış ağa güvenilir kurumsal erişim kontrolü olmadan açılmamalıdır. Uzak servis şartları, saklama hakları, kota ve kurumsal lisanslar deployment sahibi tarafından teyit edilmelidir.
 
 Resmî başvurular: [ORCID API](https://info.orcid.org/documentation/integration-guide/orcid-api-guide/) · [OpenAlex API](https://docs.openalex.org/) · [Scopus APIs](https://dev.elsevier.com/) · [SearchApi Scholar Author](https://www.searchapi.io/docs/google-scholar-author) · [WoS Starter](https://developer.clarivate.com/apis/wos-starter) · [YÖKSİS WSDL](https://servisler.yok.gov.tr/ws/OzgecmisV2?wsdl) · [TR Dizin](https://development.trdizin.gov.tr/) · [Crossref REST API](https://www.crossref.org/documentation/retrieve-metadata/rest-api/) · [Semantic Scholar API](https://www.semanticscholar.org/product/api)

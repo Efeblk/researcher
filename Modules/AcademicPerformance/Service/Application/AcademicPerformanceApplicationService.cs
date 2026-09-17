@@ -8,6 +8,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Persistence;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Works.Processing;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis;
@@ -206,6 +207,11 @@ public sealed class AcademicPerformanceApplicationService :
             .AsNoTracking()
             .CountAsync(work => work.PersonelId == researcher.PersonelId &&
                 work.Provider == AcademicWorkProvider.Yoksis);
+        string? yoksisSnapshotJson = await _dbContext.YoksisCollectionSnapshots
+            .AsNoTracking()
+            .Where(snapshot => snapshot.PersonelId == researcher.PersonelId)
+            .Select(snapshot => snapshot.ResponseJson)
+            .SingleOrDefaultAsync();
 
         AcademicResearcherDto? researcherDto = AcademicPerformanceDtoMapper.MapResearcher(researcher);
         if (researcherDto?.OpenAlexProfile is not null)
@@ -220,8 +226,37 @@ public sealed class AcademicPerformanceApplicationService :
             IsSaved = true,
             YoksisPublicationCount = yoksisPublicationCount,
             PublicationCount = publicationCount,
+            CategoryMetrics = ReadCategoryMetrics(yoksisSnapshotJson),
             CollectedAt = DateTime.UtcNow
         };
+    }
+
+    internal static List<AcademicCategoryMetricDto> ReadCategoryMetrics(string? responseJson)
+    {
+        if (string.IsNullOrWhiteSpace(responseJson))
+            return [];
+
+        try
+        {
+            YoksisCollectResponse? response = JsonSerializer.Deserialize<YoksisCollectResponse>(responseJson);
+            if (response?.IsSaved != true)
+                return [];
+
+            return response.Categories
+                .Where(category => category.IsSuccess &&
+                    !string.IsNullOrWhiteSpace(category.CategoryName) &&
+                    !string.IsNullOrWhiteSpace(category.OperationName))
+                .Select(category => new AcademicCategoryMetricDto
+                {
+                    CategoryName = category.CategoryName!,
+                    OperationName = category.OperationName!,
+                    RecordCount = category.RecordCount
+                }).ToList() ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
     }
 
     internal static string? YoksisFailureCode(YoksisCollectResponse? response) =>

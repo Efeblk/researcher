@@ -48,4 +48,4 @@ Worker kayıtlı varsayılanlarda etkin, SQL içe aktarma kapalıdır. Etkin aya
 
 SQL oturum kilidi tek worker sahipliğini korur. Çökmeden sonra başka worker terk edilmiş `Running` işi retry sınırı içinde sürdürür. Teslimat **en az bir kez** semantiğine sahiptir: sağlayıcı sonucu kaydedilip iş tamamlandı işaretlenmeden çökülürse dış çağrı tekrarlanabilir. Son `Failed` işler otomatik başlamaz. Kuyruk kayıtları denetim için tutulur; otomatik saklama/silme ve yönetim UI'ı yoktur.
 
-Production'da bu operasyon uçlarına BYS yetkisi uygulanmalıdır. Uzun süren işlerde sağlayıcı adı, sıra, HTTP durumu ve cooldown loglanır; kimlikler, URL'ler, ham yanıtlar ve sırlar loglanmamalıdır.
+Production'da bu operasyon uçlarına güvenilir kurumsal yetkilendirme uygulanmalıdır. Uzun süren işlerde sağlayıcı adı, sıra, HTTP durumu ve cooldown loglanır; kimlikler, URL'ler, ham yanıtlar ve sırlar loglanmamalıdır.
