@@ -73,6 +73,34 @@ public sealed class PublicationSummarySynchronizerTests(SqlServerFixture fixture
     }
 
     [Fact]
+    public async Task SyncAsync_MultipleLongVenues_PersistsAllDistinctValuesInOneSummary()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        var researcher = new Researcher { PersonelId = "test-" + Guid.NewGuid().ToString("N") };
+        string firstVenue = "Conference, Proceedings " + new string('A', 1100);
+        string secondVenue = "Journal, Supplement " + new string('B', 1100);
+        AcademicWork first = Work(researcher.PersonelId, "Shared venue work", "10.1234/all-venues");
+        AcademicWork duplicate = Work(researcher.PersonelId, "Shared venue work", "10.1234/all-venues");
+        AcademicWork second = Work(researcher.PersonelId, "Shared venue work", "10.1234/all-venues");
+        first.Publication = firstVenue;
+        duplicate.Publication = firstVenue;
+        second.Publication = secondVenue;
+        db.Researchers.Add(researcher);
+        db.AcademicWorks.AddRange(first, duplicate, second);
+        await db.SaveChangesAsync();
+
+        Assert.Equal(1, await SyncAsync(db, researcher.PersonelId));
+
+        db.ChangeTracker.Clear();
+        PublicationSummary summary = await db.PublicationSummaries.SingleAsync(
+            value => value.PersonelId == researcher.PersonelId);
+        Assert.Equal(string.Join(", ", firstVenue, secondVenue), summary.Publication);
+        Assert.NotNull(summary.Publication);
+        Assert.True(summary.Publication.Length > 2000);
+    }
+
+    [Fact]
     public async Task SyncAsync_NoTitleOrDoi_DoesNotCollapseUnknownPublications()
     {
         using var scope = fixture.Services.CreateScope();

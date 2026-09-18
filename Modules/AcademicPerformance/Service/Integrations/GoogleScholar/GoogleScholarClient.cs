@@ -1,322 +1,237 @@
 using System.Globalization;
-using System.Net.Http.Headers;
-using System.Security.Cryptography;
+using System.Net;
 using System.Text;
-using System.Text.Json;
 using System.Text.RegularExpressions;
-using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Collection;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.RateLimiting;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
-using Microsoft.Extensions.Configuration;
+using AngleSharp.Dom;
+using AngleSharp.Html.Parser;
 
 namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
 
-public sealed class GoogleScholarClient
+public sealed class GoogleScholarClient(HttpClient httpClient, IConfiguration configuration)
 {
-    private const int DefaultMaximumPages = 100;
+    private const string DefaultProfileBaseUrl = "https://scholar.google.com/citations";
+    private const int DefaultMaximumResponseBytes = 2 * 1024 * 1024;
 
-    private static readonly Regex YearPattern = new(@"\b(19|20)\d{2}\b");
+    private static readonly Regex YearPattern = new(@"\b(19|20)\d{2}\b", RegexOptions.CultureInvariant);
 
-    private readonly HttpClient _httpClient;
-    private readonly IConfiguration _configuration;
-
-    public GoogleScholarClient(
-        HttpClient httpClient,
-        IConfiguration configuration)
+    public async Task FillResearcherAsync(Researcher researcher, string googleScholarId)
     {
-        _httpClient = httpClient;
-        _configuration = configuration;
-    }
-
-    public async Task FillResearcherAsync(
-        Researcher researcher,
-        string googleScholarId)
-    {
-        string apiKey = GetRequiredApiKey();
-        string apiBaseUrl = _configuration["SearchApi:ApiBaseUrl"]
-            ?? "https://www.searchapi.io/api/v1/search";
-        int maximumPages = GetMaximumPages();
-        List<JsonElement> pages = [];
-        List<GoogleScholarWork> works = [];
-        GoogleScholarProfile? profile = null;
-        int page = 1;
-        bool hasNextPage = false;
-
-        do
+        string html = await GetProfileHtmlAsync(googleScholarId);
+        ParsedProfile parsed = ParseProfile(html);
+        GoogleScholarProfile? existing = researcher.GoogleScholarProfile;
+        bool documentsCountKnown = existing is not null &&
+            GoogleScholarProfile.HasKnownDocumentsCount(existing.RawDataJson);
+        GoogleScholarProfile profile = existing ?? new()
         {
-            try
-            {
-                using JsonDocument response = await SendAsync(
-                    apiBaseUrl, apiKey, googleScholarId, page);
-                JsonElement root = response.RootElement;
+            Works = [],
+            DocumentsCount = 0
+        };
 
-                ThrowIfApiError(root);
-                pages.Add(root.Clone());
-
-                if (profile is null)
-                {
-                    profile = CreateProfile(root, googleScholarId);
-                }
-
-                AddWorks(root, works);
-                hasNextPage = HasNextPage(root);
-                page++;
-            }
-            catch (Exception exception) when (exception is not ProviderCollectionException)
-            {
-                throw new ProviderCollectionException("PageFailure",
-                    "Google Scholar sayfası tamamlanamadı; okunan eksik veri kaydedilmedi.",
-                    works.Count, null, exception);
-            }
-        }
-        while (hasNextPage && page <= maximumPages);
-
-        if (hasNextPage)
-        {
-            throw new ProviderCollectionException("PageLimit",
-                "Google Scholar sayfa güvenlik sınırına ulaştı; okunan eksik veri kaydedilmedi.",
-                works.Count, null, new HttpRequestException("Page limit reached."));
-        }
-
-        if (profile is null)
-        {
-            throw new HttpRequestException(
-                "SearchApi boş bir Google Scholar yanıtı döndürdü.");
-        }
-        profile.Works = works
-            .GroupBy(work => work.CitationId, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.First())
-            .ToList();
-        profile.DocumentsCount = profile.Works.Count;
-        profile.RawDataJson = JsonSerializer.Serialize(pages);
+        profile.DisplayName = parsed.DisplayName ?? profile.DisplayName;
+        profile.Affiliations = parsed.Affiliations ?? profile.Affiliations;
+        profile.VerifiedEmail = parsed.VerifiedEmail ?? profile.VerifiedEmail;
+        profile.ProfileUrl = CreateProfileUrl(googleScholarId);
+        profile.CitationCount = parsed.CitationCount;
+        profile.CitationCountRecent = parsed.CitationCountRecent;
+        profile.HIndex = parsed.HIndex;
+        profile.HIndexRecent = parsed.HIndexRecent;
+        profile.I10Index = parsed.I10Index;
+        profile.I10IndexRecent = parsed.I10IndexRecent;
+        profile.MetricsSinceYear = parsed.MetricsSinceYear;
+        profile.RawDataJson = GoogleScholarProfile.CreateScrapeSnapshot(html, documentsCountKnown);
         profile.LastUpdatedAt = DateTime.UtcNow;
 
         researcher.GoogleScholarProfile = profile;
         ApplyNameWhenMissing(researcher, profile.DisplayName);
     }
 
-    private async Task<JsonDocument> SendAsync(
-        string apiBaseUrl,
-        string apiKey,
-        string googleScholarId,
-        int page)
+    private async Task<string> GetProfileHtmlAsync(string googleScholarId)
     {
-        string separator = apiBaseUrl.Contains('?')
-            ? "&"
-            : "?";
-        string url = apiBaseUrl + separator +
-            "engine=google_scholar_author" +
-            $"&author_id={Uri.EscapeDataString(googleScholarId)}" +
-            "&hl=en" +
-            $"&page={page.ToString(CultureInfo.InvariantCulture)}";
-        using HttpRequestMessage request = new(HttpMethod.Get, url);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-        using HttpResponseMessage response = await _httpClient.SendAsync(request);
-        string content = await response.Content.ReadAsStringAsync();
+        using HttpRequestMessage request = new(HttpMethod.Get, CreateProfileUrl(googleScholarId));
+        request.Headers.Accept.ParseAdd("text/html,application/xhtml+xml");
+        request.Options.Set(ProviderRateLimitHandler.ResponseBufferLimit,
+            configuration.GetValue("GoogleScholar:MaximumResponseBytes", DefaultMaximumResponseBytes));
+        using HttpResponseMessage response = await httpClient.SendAsync(
+            request, HttpCompletionOption.ResponseHeadersRead, ProviderCallScope.Cancellation);
+        string content = await response.Content.ReadAsStringAsync(ProviderCallScope.Cancellation);
 
         if (!response.IsSuccessStatusCode)
         {
             throw new HttpRequestException(
-                $"SearchApi HTTP {(int)response.StatusCode}: " +
-                GetApiError(content, response.ReasonPhrase), null, response.StatusCode);
+                $"Google Scholar HTTP {(int)response.StatusCode}: {response.ReasonPhrase}",
+                null,
+                response.StatusCode);
         }
 
-        try
+        return content;
+    }
+
+    private string CreateProfileUrl(string googleScholarId)
+    {
+        string baseUrl = configuration["GoogleScholar:ProfileBaseUrl"] ?? DefaultProfileBaseUrl;
+        string separator = baseUrl.Contains('?', StringComparison.Ordinal) ? "&" : "?";
+        return baseUrl + separator + "user=" + Uri.EscapeDataString(googleScholarId.Trim()) + "&hl=en";
+    }
+
+    private static ParsedProfile ParseProfile(string html)
+    {
+        IDocument document = new HtmlParser().ParseDocument(html);
+        IElement? metricsTable = document.QuerySelector("#gsc_rsb_st");
+        if (IsBlocked(document, metricsTable is not null))
         {
-            return JsonDocument.Parse(content);
-        }
-        catch (JsonException exception)
-        {
+            ProviderCallScope.Record("GoogleScholar", true);
             throw new HttpRequestException(
-                "SearchApi geçerli JSON döndürmedi.",
-                exception);
-        }
-    }
-
-    private static GoogleScholarProfile CreateProfile(
-        JsonElement root,
-        string googleScholarId)
-    {
-        JsonElement author = GetObject(root, "author");
-        JsonElement citedBy = GetObject(root, "cited_by");
-
-        if (author.ValueKind != JsonValueKind.Object)
-        {
-            throw new HttpRequestException(
-                "Bu ID için herkese açık Google Scholar profili bulunamadı.");
-        }
-        GoogleScholarProfile profile = new()
-        {
-            DisplayName = GetString(author, "name"),
-            Affiliations = GetString(author, "affiliations"),
-            University = GetString(author, "university"),
-            VerifiedEmail = GetString(author, "email"),
-            ProfileUrl = $"https://scholar.google.com/citations?user={googleScholarId}",
-            InterestsJson = SerializeProperty(author, "interests"),
-            CitationHistogramJson = SerializeProperty(citedBy, "histogram")
-        };
-
-        ApplyMetrics(citedBy, profile);
-        return profile;
-    }
-
-    private static void ApplyMetrics(
-        JsonElement citedBy,
-        GoogleScholarProfile profile)
-    {
-        JsonElement table = GetObject(citedBy, "table");
-        JsonElement headers = GetProperty(table, "headers");
-        JsonElement rows = GetProperty(table, "rows");
-
-        if (headers.ValueKind == JsonValueKind.Array)
-        {
-            foreach (JsonElement header in headers.EnumerateArray())
-            {
-                Match match = YearPattern.Match(GetElementText(header) ?? string.Empty);
-
-                if (match.Success && int.TryParse(match.Value, out int sinceYear))
-                {
-                    profile.MetricsSinceYear = sinceYear;
-                }
-            }
+                "Google Scholar erişimi CAPTCHA veya otomatik istek engeliyle durduruldu.",
+                null,
+                HttpStatusCode.TooManyRequests);
         }
 
-        if (rows.ValueKind != JsonValueKind.Array)
+        IElement table = metricsTable ?? throw Malformed(
+            "Google Scholar profil metrik tablosu bulunamadı.");
+        List<IElement> headers = table.QuerySelectorAll("thead th").ToList();
+        Match yearMatch = headers.Select(header => YearPattern.Match(header.TextContent))
+            .FirstOrDefault(match => match.Success) ?? Match.Empty;
+        if (!yearMatch.Success || !int.TryParse(yearMatch.Value, NumberStyles.None,
+                CultureInfo.InvariantCulture, out int sinceYear))
         {
-            return;
+            throw Malformed("Google Scholar son dönem başlangıç yılı okunamadı.");
         }
 
-        foreach (JsonElement row in rows.EnumerateArray())
+        Dictionary<MetricKind, (int All, int Recent)> metrics = [];
+        foreach (IElement row in table.QuerySelectorAll("tbody tr"))
         {
-            if (row.ValueKind != JsonValueKind.Array)
-            {
+            List<IElement> cells = row.QuerySelectorAll("th,td").ToList();
+            if (cells.Count < 3 || !TryGetMetricKind(cells[0].TextContent, out MetricKind kind))
                 continue;
-            }
-
-            List<string?> values = row
-                .EnumerateArray()
-                .Select(GetElementText)
-                .ToList();
-
-            if (values.Count < 2)
+            if (metrics.ContainsKey(kind))
+                throw Malformed("Google Scholar metrik tablosunda yinelenen satır bulundu.");
+            if (!TryParseCount(cells[1].TextContent, out int all) ||
+                !TryParseCount(cells[2].TextContent, out int recent))
             {
-                continue;
+                throw Malformed("Google Scholar metrik tablosunda eksik veya geçersiz değer bulundu.");
             }
-
-            string label = NormalizeMetricLabel(values[0]);
-            int? all = ParseInteger(values.ElementAtOrDefault(1));
-            int? recent = ParseInteger(values.ElementAtOrDefault(2));
-
-            if (label.Contains("citation", StringComparison.Ordinal))
-            {
-                profile.CitationCount = all;
-                profile.CitationCountRecent = recent;
-            }
-            else if (label.Contains("i10", StringComparison.Ordinal))
-            {
-                profile.I10Index = all;
-                profile.I10IndexRecent = recent;
-            }
-            else if (label.Contains("hindex", StringComparison.Ordinal))
-            {
-                profile.HIndex = all;
-                profile.HIndexRecent = recent;
-            }
+            metrics.Add(kind, (all, recent));
         }
-    }
 
-    private static void AddWorks(
-        JsonElement root,
-        List<GoogleScholarWork> works)
-    {
-        JsonElement articles = GetProperty(root, "articles");
-
-        if (articles.ValueKind != JsonValueKind.Array)
+        if (metrics.Count != 3 || !metrics.TryGetValue(MetricKind.Citations, out var citations) ||
+            !metrics.TryGetValue(MetricKind.HIndex, out var hIndex) ||
+            !metrics.TryGetValue(MetricKind.I10Index, out var i10Index))
         {
-            return;
+            throw Malformed("Google Scholar metrik tablosu üç zorunlu satırı içermiyor.");
         }
 
-        foreach (JsonElement article in articles.EnumerateArray())
-        {
-            string? citationId = GetString(article, "citation_id");
-            string? title = GetString(article, "title");
-            string? url = GetString(article, "link");
-            int? year = GetInteger(article, "year");
-            JsonElement citedBy = GetObject(article, "cited_by");
+        return new(
+            Text(document.QuerySelector("#gsc_prf_in")),
+            Text(document.QuerySelector(".gsc_prf_il")),
+            Text(document.QuerySelector("#gsc_prf_ivh")),
+            citations.All,
+            citations.Recent,
+            hIndex.All,
+            hIndex.Recent,
+            i10Index.All,
+            i10Index.Recent,
+            sinceYear);
+    }
 
-            works.Add(new GoogleScholarWork
+    private static bool IsBlocked(IDocument document, bool hasMetricsTable)
+    {
+        if (document.QuerySelector("form#captcha-form, #recaptcha, .g-recaptcha") is not null)
+            return true;
+        if (hasMetricsTable)
+            return false;
+        string text = document.Body?.TextContent ?? document.DocumentElement.TextContent;
+        return text.Contains("unusual traffic", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("not a robot", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("automated queries", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("olağandışı trafik", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static InvalidDataException Malformed(string message) => new(message);
+
+    private static bool TryGetMetricKind(string label, out MetricKind kind)
+    {
+        string normalized = Normalize(label);
+        if (normalized.Contains("citation", StringComparison.Ordinal) ||
+            normalized.Contains("alinti", StringComparison.Ordinal) ||
+            normalized.Contains("atif", StringComparison.Ordinal))
+        {
+            kind = MetricKind.Citations;
+            return true;
+        }
+        if (normalized.Contains("i10index", StringComparison.Ordinal) ||
+            normalized.Contains("i10endeks", StringComparison.Ordinal))
+        {
+            kind = MetricKind.I10Index;
+            return true;
+        }
+        if (normalized.Contains("hindex", StringComparison.Ordinal) ||
+            normalized.Contains("hendeks", StringComparison.Ordinal))
+        {
+            kind = MetricKind.HIndex;
+            return true;
+        }
+        kind = default;
+        return false;
+    }
+
+    private static string Normalize(string value)
+    {
+        string decomposed = value.ToLowerInvariant().Replace('ı', 'i').Normalize(NormalizationForm.FormD);
+        StringBuilder result = new();
+        foreach (char character in decomposed)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark &&
+                char.IsLetterOrDigit(character))
             {
-                CitationId = CreateWorkId(citationId, url, title, year),
-                Title = title,
-                Authors = GetString(article, "authors"),
-                Publication = GetString(article, "publication"),
-                PublicationYear = year,
-                CitedByCount = GetInteger(citedBy, "total"),
-                Url = url,
-                RawDataJson = article.GetRawText()
-            });
+                result.Append(character);
+            }
         }
+        return result.ToString();
     }
 
-    private static bool HasNextPage(JsonElement root)
+    private static bool TryParseCount(string value, out int result)
     {
-        JsonElement pagination = GetObject(root, "pagination");
-        return !string.IsNullOrWhiteSpace(GetString(pagination, "next"));
-    }
-
-    private static void ThrowIfApiError(JsonElement root)
-    {
-        string? error = GetString(root, "error");
-
-        if (!string.IsNullOrWhiteSpace(error))
+        result = 0;
+        string trimmed = value.Trim();
+        if (trimmed.Length == 0)
+            return false;
+        if (trimmed.All(character => character is >= '0' and <= '9'))
         {
-            throw new HttpRequestException($"SearchApi: {error}");
+            return int.TryParse(
+                trimmed, NumberStyles.None, CultureInfo.InvariantCulture, out result);
         }
-    }
 
-    private string GetRequiredApiKey()
-    {
-        string? apiKey = _configuration["SearchApi:ApiKey"];
-
-        if (string.IsNullOrWhiteSpace(apiKey))
+        string normalized = new(trimmed.Select(character =>
+            char.IsWhiteSpace(character) ? ' ' : character).ToArray());
+        if (normalized.Any(character => character is not (>= '0' and <= '9') &&
+                character is not (',' or '.' or ' ')))
         {
-            throw new InvalidOperationException(
-                "SearchApi:ApiKey User Secret değeri bulunamadı.");
+            return false;
         }
-
-        return apiKey.Trim();
-    }
-
-    private int GetMaximumPages()
-    {
+        char[] separators = normalized.Where(character => character is ',' or '.' or ' ')
+            .Distinct().ToArray();
+        if (separators.Length != 1)
+            return false;
+        string[] groups = normalized.Split(separators[0]);
+        if (groups.Length < 2 || groups[0].Length is < 1 or > 3 ||
+            groups.Skip(1).Any(group => group.Length != 3) ||
+            groups.Any(group => group.Any(character => character is < '0' or > '9')))
+        {
+            return false;
+        }
         return int.TryParse(
-                _configuration["SearchApi:MaximumPages"],
-                out int maximumPages) &&
-            maximumPages > 0
-                ? maximumPages
-                : DefaultMaximumPages;
+            string.Concat(groups), NumberStyles.None, CultureInfo.InvariantCulture, out result);
     }
 
-    private static string GetApiError(string content, string? fallback)
+    private static string? Text(IElement? element)
     {
-        try
-        {
-            using JsonDocument document = JsonDocument.Parse(content);
-            return GetString(document.RootElement, "error")
-                ?? GetString(document.RootElement, "message")
-                ?? fallback
-                ?? "Bilinmeyen hata";
-        }
-        catch (JsonException)
-        {
-            return string.IsNullOrWhiteSpace(content)
-                ? fallback ?? "Bilinmeyen hata"
-                : content[..Math.Min(content.Length, 500)];
-        }
+        string? value = element?.TextContent.Trim();
+        return string.IsNullOrWhiteSpace(value) ? null : value;
     }
 
-    private static void ApplyNameWhenMissing(
-        Researcher researcher,
-        string? displayName)
+    private static void ApplyNameWhenMissing(Researcher researcher, string? displayName)
     {
         if (string.IsNullOrWhiteSpace(displayName) ||
             !string.IsNullOrWhiteSpace(researcher.FirstName) ||
@@ -326,113 +241,27 @@ public sealed class GoogleScholarClient
         }
 
         string[] parts = displayName.Split(
-            ' ',
-            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            ' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         researcher.FirstName = parts.FirstOrDefault();
-        researcher.LastName = parts.Length > 1
-            ? string.Join(' ', parts.Skip(1))
-            : null;
+        researcher.LastName = parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : null;
     }
 
-    private static string CreateWorkId(
-        string? citationId,
-        string? url,
-        string? title,
-        int? year)
+    private enum MetricKind
     {
-        if (!string.IsNullOrWhiteSpace(citationId))
-        {
-            return citationId.Trim();
-        }
-
-        string source = !string.IsNullOrWhiteSpace(url)
-            ? url.Trim()
-            : $"{title?.Trim()}|{year}";
-        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(source));
-        return "generated:" + Convert.ToHexString(hash).ToLowerInvariant();
+        Citations,
+        HIndex,
+        I10Index
     }
 
-    private static string NormalizeMetricLabel(string? value)
-    {
-        StringBuilder result = new();
-
-        foreach (char character in value?.ToLowerInvariant() ?? string.Empty)
-        {
-            if (char.IsLetterOrDigit(character))
-            {
-                result.Append(character);
-            }
-        }
-
-        return result.ToString();
-    }
-
-    private static int? ParseInteger(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        string digits = new(value.Where(char.IsDigit).ToArray());
-        return int.TryParse(
-            digits,
-            NumberStyles.None,
-            CultureInfo.InvariantCulture,
-            out int parsed)
-                ? parsed
-                : null;
-    }
-
-    private static int? GetInteger(JsonElement element, string propertyName)
-    {
-        JsonElement property = GetProperty(element, propertyName);
-
-        if (property.ValueKind == JsonValueKind.Number &&
-            property.TryGetInt32(out int number))
-        {
-            return number;
-        }
-
-        return ParseInteger(GetElementText(property));
-    }
-
-    private static string? GetString(JsonElement element, string propertyName)
-    {
-        return GetElementText(GetProperty(element, propertyName));
-    }
-
-    private static string? GetElementText(JsonElement element)
-    {
-        return element.ValueKind switch
-        {
-            JsonValueKind.String => element.GetString(),
-            JsonValueKind.Number => element.GetRawText(),
-            _ => null
-        };
-    }
-
-    private static JsonElement GetObject(JsonElement element, string propertyName)
-    {
-        JsonElement property = GetProperty(element, propertyName);
-        return property.ValueKind == JsonValueKind.Object ? property : default;
-    }
-
-    private static JsonElement GetProperty(JsonElement element, string propertyName)
-    {
-        return element.ValueKind == JsonValueKind.Object &&
-            element.TryGetProperty(propertyName, out JsonElement property)
-                ? property
-                : default;
-    }
-
-    private static string? SerializeProperty(
-        JsonElement element,
-        string propertyName)
-    {
-        JsonElement property = GetProperty(element, propertyName);
-        return property.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
-            ? null
-            : property.GetRawText();
-    }
+    private sealed record ParsedProfile(
+        string? DisplayName,
+        string? Affiliations,
+        string? VerifiedEmail,
+        int CitationCount,
+        int CitationCountRecent,
+        int HIndex,
+        int HIndexRecent,
+        int I10Index,
+        int I10IndexRecent,
+        int MetricsSinceYear);
 }

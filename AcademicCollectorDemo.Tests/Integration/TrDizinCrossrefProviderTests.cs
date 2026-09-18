@@ -635,7 +635,7 @@ public sealed class TrDizinCrossrefProviderTests(SqlServerFixture fixture)
             ["ProviderCache:MaxAgeHours"] = "24",
             ["ProviderRequestLimits:Orcid:Enabled"] = "false",
             ["ProviderRequestLimits:OpenAlex:Enabled"] = "false",
-            ["ProviderRequestLimits:SearchApi:Enabled"] = "false",
+            ["ProviderRequestLimits:GoogleScholar:Enabled"] = "false",
             ["ProviderRequestLimits:WebOfScience:Enabled"] = "false",
             ["ProviderRequestLimits:Scopus:Enabled"] = "false",
             ["ProviderRequestLimits:TrDizin:Enabled"] = "true"

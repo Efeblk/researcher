@@ -22,6 +22,7 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
     [
         ("Orcid", "Orcid:ApiBaseUrl", "https://pub.orcid.org/v3.0"),
         ("SearchApi", "SearchApi:ApiBaseUrl", "https://www.searchapi.io/api/v1/search"),
+        ("GoogleScholar", "GoogleScholar:ProfileBaseUrl", "https://scholar.google.com/citations"),
         ("OpenAlex", "OpenAlex:ApiBaseUrl", "https://api.openalex.org"),
         ("Scopus", "Scopus:ApiBaseUrl", "https://api.elsevier.com/content/"),
         ("WebOfScience", "WebOfScience:ApiBaseUrl", "https://api.clarivate.com/apis/wos-starter/v1"),
@@ -41,9 +42,12 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
                 RefreshRemainingUsage(_cached, DateTime.UtcNow);
                 return _cached;
             }
-            ProviderStatusDto[] results = await Task.WhenAll(ProviderDefinitions.Select(provider => provider.Name == "Orcid"
-                ? CheckOrcidAsync(configuration[provider.Key] ?? provider.Url, cancellationToken)
-                : CheckAsync(provider.Name, configuration[provider.Key] ?? provider.Url, cancellationToken)));
+            ProviderStatusDto[] results = await Task.WhenAll(ProviderDefinitions.Select(provider =>
+                provider.Name == "Orcid"
+                    ? CheckOrcidAsync(configuration[provider.Key] ?? provider.Url, cancellationToken)
+                    : provider.Name == "GoogleScholar"
+                        ? Task.FromResult(GoogleScholarStatus(configuration[provider.Key] ?? provider.Url))
+                        : CheckAsync(provider.Name, configuration[provider.Key] ?? provider.Url, cancellationToken)));
             DateTime budgetAt = DateTime.UtcNow;
             await Task.WhenAll(results
                 .Select(async result =>
@@ -55,6 +59,33 @@ public sealed class ProviderStatusService(HttpClient httpClient, IConfiguration 
             return _cached;
         }
         finally { _gate.Release(); }
+    }
+
+    private ProviderStatusDto GoogleScholarStatus(string baseUrl)
+    {
+        ProviderStatusDto result = new()
+        {
+            Provider = "GoogleScholar",
+            CheckKind = "OnDemandProfileScrape",
+            CheckedAt = DateTime.UtcNow,
+            Message = "No Scholar profile request is made by the status check; availability is observed only during collection."
+        };
+        if (!configuration.GetValue("ProviderRequestLimits:GoogleScholar:Enabled", true))
+        {
+            result.Status = result.Transport.Status = "Disabled";
+            return result;
+        }
+        try
+        {
+            _ = new Uri(baseUrl);
+            result.Status = "Unknown";
+            result.Transport.Status = "NotChecked";
+        }
+        catch (UriFormatException)
+        {
+            result.Status = result.Transport.Status = "NotConfigured";
+        }
+        return result;
     }
 
     internal async Task<ProviderStatusDto> CheckOrcidAsync(string baseUrl, CancellationToken cancellationToken)

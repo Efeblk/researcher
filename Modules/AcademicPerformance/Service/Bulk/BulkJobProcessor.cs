@@ -98,7 +98,7 @@ public sealed class BulkJobProcessor(
                     response.Researcher?.OrcidProfile is null) ||
                 (!string.IsNullOrWhiteSpace(input.Orcid) && IsEnabled(configuration, "OpenAlex") &&
                     response.Researcher?.OpenAlexProfile is null) ||
-                (!string.IsNullOrWhiteSpace(input.GoogleScholarId) && IsEnabled(configuration, "SearchApi") &&
+                (!string.IsNullOrWhiteSpace(input.GoogleScholarId) && IsEnabled(configuration, "GoogleScholar") &&
                     response.Researcher?.GoogleScholarProfile is null) ||
                 (!string.IsNullOrWhiteSpace(input.WebOfScienceId) && IsEnabled(configuration, "WebOfScience") &&
                     response.Researcher?.WebOfScienceProfile is null);

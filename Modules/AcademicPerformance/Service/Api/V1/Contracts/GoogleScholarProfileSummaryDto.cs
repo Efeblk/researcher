@@ -15,6 +15,6 @@ public sealed class GoogleScholarProfileSummaryDto
     public int? I10Index { get; set; } = null;
     public int? I10IndexRecent { get; set; } = null;
     public int? MetricsSinceYear { get; set; } = null;
-    public int DocumentsCount { get; set; }
+    public int? DocumentsCount { get; set; } = null;
     public DateTime LastUpdatedAt { get; set; }
 }

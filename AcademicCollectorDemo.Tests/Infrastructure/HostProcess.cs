@@ -72,6 +72,7 @@ public sealed class HostProcess : IDisposable
         start.Environment["FacultyAssistant__WorkerEnabled"] = "false";
         start.Environment["AnalysisService__ApiKey"] = "";
         start.Environment["SearchApi__ApiKey"] = "";
+        start.Environment["ProviderRequestLimits__GoogleScholar__Enabled"] = "false";
         start.Environment["OpenAlex__ApiKey"] = "";
         start.Environment["SemanticScholar__ApiKey"] = "";
         start.Environment["WebOfScience__ApiKey"] = "";

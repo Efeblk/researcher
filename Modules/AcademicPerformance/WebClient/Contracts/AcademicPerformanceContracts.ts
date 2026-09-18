@@ -41,14 +41,14 @@ export interface ResearcherCollectResponse extends ServiceResponse {
             Affiliations?: string;
             University?: string;
             ProfileUrl?: string;
-            CitationCount?: number;
-            CitationCountRecent?: number;
-            HIndex?: number;
-            HIndexRecent?: number;
-            I10Index?: number;
-            I10IndexRecent?: number;
-            MetricsSinceYear?: number;
-            DocumentsCount?: number;
+            CitationCount?: number | null;
+            CitationCountRecent?: number | null;
+            HIndex?: number | null;
+            HIndexRecent?: number | null;
+            I10Index?: number | null;
+            I10IndexRecent?: number | null;
+            MetricsSinceYear?: number | null;
+            DocumentsCount?: number | null;
             LastUpdatedAt?: string;
         };
         OpenAlexProfile?: {

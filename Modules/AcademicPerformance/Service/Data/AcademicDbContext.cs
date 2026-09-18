@@ -614,7 +614,7 @@ public sealed class AcademicDbContext : DbContext
                 .HasConversion<string>()
                 .HasMaxLength(50);
             entity.Property(summary => summary.Authors);
-            entity.Property(summary => summary.Publication).HasMaxLength(2000);
+            entity.Property(summary => summary.Publication);
             entity.Property(summary => summary.PublicationUrl).HasMaxLength(2000);
             entity.Property(summary => summary.Sources).HasMaxLength(200);
 
