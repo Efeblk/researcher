@@ -134,31 +134,34 @@
 
 <div id="GoogleScholarSummary" class="academic-metric-detail-panel" hidden>
     <h2><span id="GoogleScholarResearcherName">Akademisyen</span> - Google Scholar Özeti</h2>
-    <div class="academic-metrics-grid">
-        <div class="academic-metric">
-            <span>Toplam atıf</span>
-            <strong id="GoogleScholarCitationCount">—</strong>
-        </div>
-        <div class="academic-metric">
-            <span>h-index</span>
-            <strong id="GoogleScholarHIndex">—</strong>
-        </div>
-        <div class="academic-metric">
-            <span>i10-index</span>
-            <strong id="GoogleScholarI10Index">—</strong>
-        </div>
-        <div class="academic-metric">
-            <span>Profildeki yayın</span>
-            <strong id="GoogleScholarDocumentsCount">0</strong>
-        </div>
-        <div class="academic-metric">
-            <span id="GoogleScholarRecentLabel">Yakın dönem atıf</span>
-            <strong id="GoogleScholarCitationCountRecent">—</strong>
-        </div>
-        <div class="academic-metric">
-            <span>Yakın dönem h / i10</span>
-            <strong id="GoogleScholarRecentIndexes">—</strong>
-        </div>
+    <div class="academic-table-scroll">
+        <table class="academic-scholar-metrics-table">
+            <caption>Google Scholar profil metrikleri</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Metrik</th>
+                    <th scope="col">Hepsi</th>
+                    <th id="GoogleScholarRecentPeriodHeader" scope="col">Yakın dönem</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <th scope="row">Alıntılar</th>
+                    <td id="GoogleScholarCitationCount">—</td>
+                    <td id="GoogleScholarCitationCountRecent">—</td>
+                </tr>
+                <tr>
+                    <th scope="row">h-endeksi</th>
+                    <td id="GoogleScholarHIndex">—</td>
+                    <td id="GoogleScholarHIndexRecent">—</td>
+                </tr>
+                <tr>
+                    <th scope="row">i10-endeksi</th>
+                    <td id="GoogleScholarI10Index">—</td>
+                    <td id="GoogleScholarI10IndexRecent">—</td>
+                </tr>
+            </tbody>
+        </table>
     </div>
     <p class="academic-help">
         Veriler doğrudan herkese açık Google Scholar profilinden alınır. Metrikler

@@ -376,6 +376,54 @@ body {
     background: #eef6fc;
 }
 
+.academic-scholar-metrics-table {
+    border-collapse: collapse;
+    font-size: 13px;
+    max-width: 620px;
+    width: 100%;
+}
+
+.academic-scholar-metrics-table caption {
+    color: #667583;
+    font-size: 12px;
+    padding: 0 0 8px;
+    text-align: left;
+}
+
+.academic-scholar-metrics-table th,
+.academic-scholar-metrics-table td {
+    border-bottom: 1px solid var(--academic-border);
+    padding: 10px 12px;
+}
+
+.academic-scholar-metrics-table thead th {
+    background: #f7f9fb;
+    color: #526170;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.academic-scholar-metrics-table th:first-child {
+    text-align: left;
+}
+
+.academic-scholar-metrics-table thead th:not(:first-child),
+.academic-scholar-metrics-table td {
+    text-align: right;
+}
+
+.academic-scholar-metrics-table tbody th {
+    color: #435363;
+    font-weight: 500;
+}
+
+.academic-scholar-metrics-table tbody td {
+    color: #24313d;
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
 .academic-comparison-note {
     margin: 12px 0 0;
 }
@@ -485,6 +533,8 @@ body {
 }
 
 @media (max-width: 480px) {
+    .academic-scholar-metrics-table th,
+    .academic-scholar-metrics-table td { padding: 9px 8px; }
     .academic-provider-metrics-grid { grid-template-columns: 1fr; }
     .academic-category-metrics-grid { grid-template-columns: 1fr; }
     .academic-provider-metric,
