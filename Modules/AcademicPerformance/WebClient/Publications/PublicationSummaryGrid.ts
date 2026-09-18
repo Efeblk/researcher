@@ -5,6 +5,7 @@ import {
 import type { Column } from "@serenity-is/sleekgrid";
 import type { PublicationSummaryRow, PublicationDisplayApprovalResponse } from "../Contracts/AcademicPerformanceContracts";
 import { LatestRequestGuard } from "./LatestRequestGuard";
+import { createDoiUrl } from "./PublicationDoiUrl";
 
 interface PublicationSelectionCallbacks {
     onCountChanged(count: number): void;
@@ -76,7 +77,7 @@ export class PublicationSummaryGrid extends EntityGrid<PublicationSummaryRow> {
                 field: "PublicationUrl",
                 name: "Yayın",
                 width: 80,
-                format: context => createExternalLink(context.value, "Aç")
+                format: context => createExternalLink(createDoiUrl(context.item.Doi), "Aç")
             },
             { field: "Sources", name: "Kaynaklar", width: 120 }
         ];
