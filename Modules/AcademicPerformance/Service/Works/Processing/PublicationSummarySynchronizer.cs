@@ -114,7 +114,7 @@ public sealed class PublicationSummarySynchronizer
             Category = preferredWorks.Select(work => work.Category)
                 .FirstOrDefault(value => value != AcademicWorkCategory.Unknown),
             Authors = FirstText(preferredWorks, work => work.Authors),
-            Publication = FirstText(preferredWorks, work => work.Publication),
+            Publication = JoinDistinctText(preferredWorks, work => work.Publication),
             PublicationUrl = FirstText(preferredWorks, work => work.Link),
             Sources = string.Join(",", preferredWorks.Select(work => work.Provider.ToString())
                 .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(value => value)),
@@ -142,6 +142,18 @@ public sealed class PublicationSummarySynchronizer
                 return value.Trim();
         }
         return null;
+    }
+
+    private static string? JoinDistinctText(
+        List<AcademicWork> works, Func<AcademicWork, string?> selector)
+    {
+        string[] values = works.Select(selector)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(value => value, StringComparer.Ordinal)
+            .ToArray();
+        return values.Length == 0 ? null : string.Join(", ", values);
     }
 
     private static string Hash(string value) => Convert.ToHexString(
