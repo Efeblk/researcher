@@ -289,6 +289,37 @@
     <div id="YoksisCategoryList" class="academic-category-list"></div>
 </div>
 
+<section id="AcademicActivities" class="academic-card" aria-labelledby="AcademicActivitiesTitle" hidden>
+    <div class="academic-activity-heading">
+        <div>
+            <h2 id="AcademicActivitiesTitle">Akademik faaliyetler</h2>
+            <p class="academic-help">Projeler, ödüller, fonlamalar, görevler ve diğer yayın dışı kayıtlar sağlayıcısı korunarak gösterilir.</p>
+        </div>
+        <div class="academic-activity-filters">
+            <label>Kategori
+                <select id="ActivityCategoryFilter" class="form-select">
+                    <option value="">Tüm kategoriler</option>
+                </select>
+            </label>
+            <label>Sağlayıcı
+                <select id="ActivityProviderFilter" class="form-select">
+                    <option value="">Tüm sağlayıcılar</option>
+                </select>
+            </label>
+        </div>
+    </div>
+    <div class="academic-table-scroll">
+        <table class="academic-comparison-table academic-activity-table">
+            <thead><tr>
+                <th scope="col">Kategori</th><th scope="col">Başlık</th>
+                <th scope="col">Tarih</th><th scope="col">Kurum / program</th>
+                <th scope="col">Rol</th><th scope="col">Kaynak</th>
+            </tr></thead>
+            <tbody id="AcademicActivityRows"></tbody>
+        </table>
+    </div>
+</section>
+
 <div class="academic-card">
     <div class="academic-publication-selection-header">
         <div>

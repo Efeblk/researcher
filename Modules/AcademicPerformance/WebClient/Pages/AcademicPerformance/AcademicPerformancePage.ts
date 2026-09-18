@@ -26,6 +26,9 @@ import {
     createResearcherLookupRequest, describeResearcherLookupFailure,
     getTrustedLookupValidationMessage, lookupSavedResearcher
 } from "./SavedResearcherLookup";
+import {
+    clearAcademicActivities, initializeAcademicActivities, showAcademicActivities
+} from "./AcademicActivities";
 
 const providerIdentifierStorageKey = "AcademicPerformance.ProviderIdentifiers.v1";
 
@@ -47,6 +50,7 @@ let researchBusy = false;
 let lastYoksisProgressMessage = "";
 let lastMetricsProgressMessage = "";
 initializeAcademicMetricsOverview();
+initializeAcademicActivities();
 addLocalText({
     Controls: {
         Pager: {
@@ -226,6 +230,7 @@ function showPublicationState(count: number) {
 }
 
 function clearResearcherResults() {
+    clearAcademicActivities();
     showProviderCollectionFeedback();
     grid.setResearcher("");
     showProfileSummary(undefined);
@@ -347,6 +352,7 @@ form?.addEventListener("submit", async event => {
                     showWebOfScienceSummary(response.Researcher);
                     showAcademicMetricsOverview(response.Researcher);
                     showProviderComparison(response.Researcher);
+                    showAcademicActivities(response.Activities);
 
                     if (grid.getResearcherId() !== savedPersonelId)
                         grid.setResearcher(savedPersonelId, researcherDisplayName);
@@ -486,6 +492,7 @@ form?.addEventListener("submit", async event => {
                 showWebOfScienceSummary(refreshed.Researcher);
                 showAcademicMetricsOverview(latestResearcher, yoksisResponse);
                 showProviderComparison(refreshed.Researcher);
+                showAcademicActivities(refreshed.Activities);
             }
             catch (error) {
                 if (!requestCoordinator.isCurrent(run))
@@ -629,6 +636,7 @@ myPublicationsButton?.addEventListener("click", async () => {
         showWebOfScienceSummary(researcher);
         showAcademicMetricsOverview(researcher, response);
         showProviderComparison(researcher);
+        showAcademicActivities(response.Activities);
         grid.setResearcher(savedPersonelId, displayName);
         const selectionsLoaded = await grid.loadSelections(savedPersonelId, displayName);
         if (!requestCoordinator.isCurrent(run))

@@ -221,6 +221,20 @@ public sealed class AcademicPerformanceApplicationService :
                 .ToListAsync();
         }
 
+        List<AcademicActivityDto> activities = [];
+        if (request.IncludeActivities)
+        {
+            var yoksisRecords = await _dbContext.YoksisRecords
+                .AsNoTracking()
+                .Where(record => record.PersonelId == researcher.PersonelId)
+                .OrderBy(record => record.Id)
+                .ToListAsync();
+            activities = AcademicActivityProjector.Project(
+                yoksisRecords,
+                researcher.OrcidProfile,
+                researcher.TrDizinProfile?.Projects ?? []);
+        }
+
         AcademicResearcherDto? researcherDto = AcademicPerformanceDtoMapper.MapResearcher(
             researcher, request.IncludeProviderDetails);
         if (researcherDto?.OpenAlexProfile is not null)
@@ -236,6 +250,7 @@ public sealed class AcademicPerformanceApplicationService :
             YoksisPublicationCount = yoksisPublicationCount,
             PublicationCount = publicationCount,
             CategoryMetrics = ReadCategoryMetrics(yoksisSnapshotJson),
+            Activities = activities,
             CollectedAt = DateTime.UtcNow
         };
     }

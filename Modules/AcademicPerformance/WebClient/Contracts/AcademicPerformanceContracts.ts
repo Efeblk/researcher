@@ -106,8 +106,19 @@ export interface ResearcherCollectResponse extends ServiceResponse {
     PublicationCount?: number;
     YoksisPublicationCount?: number;
     CategoryMetrics?: AcademicCategoryMetric[];
+    Activities?: AcademicActivity[];
     Messages?: string[];
     ProviderFeedback?: ProviderCollectionFeedback[];
+}
+
+export interface AcademicActivity {
+    Category?: string;
+    Provider?: string;
+    Title?: string | null;
+    Date?: string | null;
+    Organization?: string | null;
+    Role?: string | null;
+    SourceId?: string | null;
 }
 
 export interface ResearcherProviderDetails {
