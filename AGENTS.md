@@ -34,9 +34,13 @@ Use four-space indentation. Use PascalCase for types, methods, and public proper
 
 Add collector tests in `AcademicCollectorDemo.Tests` and analysis tests in `ResearcherAnalysisService.Tests` using xUnit. Name files after the tested class, such as `ResearcherIdentifierParserTests.cs`, and methods as `Method_Condition_ExpectedResult`. Cover identifier parsing, provider response mapping, caching, work deduplication, analysis contract validation, and migration ownership as relevant. Avoid live paid API calls in automated tests; use synthetic or captured, sanitized JSON fixtures.
 
+Report discovered and passed test counts; a successful build with no discovered tests is not a test pass. State which checks cover the final commit and which were focused checks after the last change. Describe UI validation accurately: rendering a real component with synthetic fixtures is component validation, not live end-to-end validation. Use synthetic fixtures or isolated test databases for automated checks; accessing application data requires task-specific authorization.
+
 ## Commit & Pull Request Guidelines
 
 History uses short subjects such as `readme ve settings` and `update on feedback`. Keep commits focused and state the change. Pull requests should explain behavior, list validation commands, mention schema or configuration changes, and link issues. Include screenshots for UI changes and sample output for endpoints.
+
+Before merging an authorized pull request, verify its scope, head and base branches, review state, base freshness, and required checks. If branch protection requires a base update, update the PR branch and evaluate the required checks on the resulting commit; previous green checks do not apply to a new SHA. After each merge, refresh any remaining PRs within the authorized scope and repeat this preflight. Never bypass branch protections or treat a rejected merge as authorization to weaken them.
 
 ## Security & Configuration
 
@@ -55,5 +59,9 @@ Give Sol a minimal, self-contained handoff containing the objective, worktree an
 Before editing, verify the current directory, Git status, and branch. Never allow concurrent writers in one checkout or switch a shared checkout's branch. Keep the coordination checkout on the main branch and make no direct edits there.
 
 Batch related reads, keep command output concise, and reuse established findings. Scale testing to the change while honoring required gates; do not repeat tests unless the relevant risk changed.
+
+Prefer filtered API queries and concise summaries over dumping large raw JSON. During long CI or review waits, report state changes, failures, and decisions; avoid repetitive no-change updates while still meeting higher-level progress-update obligations.
+
+For requested UI data, trace the value through storage, query/model mapping, DTO, client adapter, and rendered component before editing. Reuse existing persistence and endpoints, and preserve unrelated API fields while changing narrow contracts. For activity or provider summaries, keep the requested format compact: use short tables, state what each provider request means, and include a checklist when requested.
 
 If model routing is unavailable, state briefly that an agent cannot switch its own model or change a T3 binding through this file, then provide the handoff for manual routing. Never claim delegation occurred when it did not. Existing authorization continues to govern writes, pushes, and merges; this workflow adds no approval requirements.
