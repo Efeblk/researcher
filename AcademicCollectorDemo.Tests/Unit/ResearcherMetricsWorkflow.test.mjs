@@ -4,14 +4,17 @@ import { recalculateAndReadResearcher } from "../../Modules/AcademicPerformance/
 
 test("successful collection follow-up recalculates before reading refreshed researcher", async () => {
     const actions = [];
+    const bodies = [];
     const response = { Researcher: { PersonelID: "P-1" } };
-    const result = await recalculateAndReadResearcher("P-1", async action => {
+    const result = await recalculateAndReadResearcher("P-1", async (action, body) => {
         actions.push(action);
+        bodies.push(body);
         return action.endsWith("GetResearcher") ? response : {};
     }, () => true, () => undefined, async () => ({}));
     assert.deepEqual(actions, [
         "AcademicPerformance/V1/GetResearcher"
     ]);
+    assert.deepEqual(bodies, [{ PersonelID: "P-1", IncludeActivities: true }]);
     assert.equal(result, response);
 });
 

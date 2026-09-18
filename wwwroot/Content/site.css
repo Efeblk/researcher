@@ -493,3 +493,44 @@ body {
     .academic-provider-metric:first-child { padding-top: 0; }
     .academic-provider-metric:last-child { border-bottom: 0; padding-bottom: 0; }
 }
+.academic-activity-heading {
+    align-items: end;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: space-between;
+}
+
+.academic-activity-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+}
+
+.academic-activity-filters label {
+    color: #475569;
+    font-size: .85rem;
+    font-weight: 600;
+}
+
+.academic-activity-filters select {
+    display: block;
+    margin-top: .25rem;
+    min-width: 11rem;
+}
+
+.academic-activity-table td {
+    vertical-align: top;
+}
+
+.academic-activity-table td small {
+    color: #64748b;
+    display: block;
+    margin-top: .2rem;
+}
+
+.academic-activity-empty {
+    color: #64748b;
+    padding: 1.25rem !important;
+    text-align: center;
+}

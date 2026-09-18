@@ -62,6 +62,13 @@ Collector migration'ları `dbo.VersionInfo`, Analysis migration'ları `dbo.Resea
 Collector `http://localhost:5001/Services/AcademicPerformance/V1/[action]` altında şu sorumlulukları tutar:
 
 - `Collect`, `RecalculateMetrics`, `GetResearcher`, `ListPublications`, `SavePublicationSelections`;
+- `GetResearcher` isteğinde `IncludeActivities` seçilirse saklanan YÖKSİS, ORCID ve TR Dizin
+  yayın dışı faaliyetleri güvenli ortak alanlarla döner; ham sağlayıcı JSON'u ve T.C. kimlik
+  numarası yanıt sözleşmesine aktarılmaz.
+
+`docs/screenshots/academic-activities-demo.png`, gerçek faaliyet bileşeni ve stilleriyle
+sentetik kaydedilmiş yanıt kullanılarak oluşturulmuş tarayıcı doğrulama görüntüsüdür; canlı
+sağlayıcı verisi veya uygulama veritabanı içermez.
 - `ListCanonicalPublications`;
 - `Bulk/{Submit,Status,ImportSql}`;
 - YÖKSİS, Semantic Scholar ve toplama sağlayıcısı `ProviderStatus` işlemleri.
