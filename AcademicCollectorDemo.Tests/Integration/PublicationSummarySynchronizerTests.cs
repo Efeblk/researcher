@@ -57,7 +57,7 @@ public sealed class PublicationSummarySynchronizerTests(SqlServerFixture fixture
     }
 
     [Fact]
-    public async Task SyncAsync_DoiConnectsDifferentTitles_DoesNotCreateDuplicateFingerprints()
+    public async Task SyncAsync_TitleYearFallbackConnectsDoiLessObservation_ToSharedDoi()
     {
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
@@ -69,7 +69,7 @@ public sealed class PublicationSummarySynchronizerTests(SqlServerFixture fixture
             Work(researcher.PersonelId, "First title", "10.1234/summary-shared"));
         await db.SaveChangesAsync();
 
-        Assert.Equal(2, await SyncAsync(db, researcher.PersonelId));
+        Assert.Equal(1, await SyncAsync(db, researcher.PersonelId));
     }
 
     [Fact]
