@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Researchers.Models;
 
@@ -5,6 +6,8 @@ namespace AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleS
 
 public sealed class GoogleScholarProfile
 {
+    internal const string ProfileHtmlSource = "GoogleScholarProfileHtml";
+
     [JsonIgnore]
     public int Id { get; set; }
 
@@ -40,4 +43,36 @@ public sealed class GoogleScholarProfile
 
     [JsonIgnore]
     public List<GoogleScholarWork>? Works { get; set; } = null;
+
+    internal static string CreateScrapeSnapshot(string html, bool documentsCountKnown) =>
+        JsonSerializer.Serialize(new
+        {
+            Source = ProfileHtmlSource,
+            DocumentsCountKnown = documentsCountKnown,
+            Html = html
+        });
+
+    internal static bool HasKnownDocumentsCount(string? rawDataJson)
+    {
+        if (string.IsNullOrWhiteSpace(rawDataJson))
+            return true;
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(rawDataJson);
+            JsonElement root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object ||
+                !root.TryGetProperty("Source", out JsonElement source) ||
+                source.ValueKind != JsonValueKind.String ||
+                source.GetString() != ProfileHtmlSource)
+            {
+                return true;
+            }
+            return root.TryGetProperty("DocumentsCountKnown", out JsonElement known) &&
+                known.ValueKind == JsonValueKind.True;
+        }
+        catch (JsonException)
+        {
+            return true;
+        }
+    }
 }

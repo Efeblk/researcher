@@ -875,7 +875,7 @@ public sealed class BulkCollectionTests(SqlServerFixture fixture)
             LastRequest = request;
             if (fail) ProviderCallScope.Record("WebOfScience", true, DateTime.UtcNow.AddHours(1), localDeferral);
             if (actualFailure) ProviderCallScope.Record("Orcid", true, DateTime.UtcNow.AddMinutes(1));
-            if (nonretryableFailure) ProviderCallScope.Record("SearchApi", false, isDisabled: true);
+            if (nonretryableFailure) ProviderCallScope.Record("GoogleScholar", false, isDisabled: true);
             if (actualNonretryableFailure) ProviderCallScope.Record("Crossref", false);
             if (disabledWithRealFailure)
                 ProviderCallScope.Record("Crossref", true, DateTime.UtcNow.AddMinutes(1));

@@ -78,7 +78,11 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         Assert.All(response.Providers.Where(provider => provider.Status == "NotConfigured"),
             provider => Assert.Equal("Unavailable", provider.RemainingUsage.Status));
         Assert.All(response.Providers.Where(provider => provider.Status != "NotConfigured"),
-            provider => Assert.Equal("UnexpectedResponse", provider.Status));
+            provider => Assert.True(provider.Status is "UnexpectedResponse" or "Unknown"));
+        ProviderStatusDto scholar = response.Providers.Single(provider =>
+            provider.Provider == "GoogleScholar");
+        Assert.Equal("Unknown", scholar.Status);
+        Assert.Equal("NotChecked", scholar.Transport.Status);
     }
 
     [Fact]
@@ -191,7 +195,7 @@ public sealed class ProviderStatusTests(SqlServerFixture fixture)
         JsonElement root = document.RootElement;
         Assert.Equal(["providers"], root.EnumerateObject().Select(property => property.Name));
         JsonElement[] providers = root.GetProperty("providers").EnumerateArray().ToArray();
-        Assert.Equal(9, providers.Length);
+        Assert.Equal(10, providers.Length);
         Assert.All(providers, provider => Assert.Equal(["provider", "health", "quotas"],
             provider.EnumerateObject().Select(property => property.Name)));
         JsonElement quota = providers.Single(provider =>

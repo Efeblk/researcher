@@ -281,38 +281,44 @@ export function showGoogleScholarSummary(
     const displayName = [researcher?.FirstName, researcher?.LastName]
         .filter(Boolean)
         .join(" ") || profile.DisplayName || "Akademisyen";
-    const recentIndexes = profile.HIndexRecent !== undefined ||
-        profile.I10IndexRecent !== undefined
-        ? `${profile.HIndexRecent ?? "—"} / ${profile.I10IndexRecent ?? "—"}`
-        : "—";
-    const values: Record<string, number | string> = {
-        GoogleScholarCitationCount: profile.CitationCount ?? "—",
-        GoogleScholarHIndex: profile.HIndex ?? "—",
-        GoogleScholarI10Index: profile.I10Index ?? "—",
-        GoogleScholarDocumentsCount: profile.DocumentsCount ?? 0,
-        GoogleScholarCitationCountRecent: profile.CitationCountRecent ?? "—",
-        GoogleScholarRecentIndexes: recentIndexes
-    };
+    const table = mapGoogleScholarMetricTable(profile);
 
     document.querySelector<HTMLElement>("#GoogleScholarResearcherName")!.textContent =
         displayName;
 
-    const recentLabel = document.querySelector<HTMLElement>(
-        "#GoogleScholarRecentLabel");
-    if (recentLabel)
-        recentLabel.textContent = profile.MetricsSinceYear
-            ? `${profile.MetricsSinceYear} sonrası atıf`
-            : "Yakın dönem atıf";
+    const recentHeader = document.querySelector<HTMLElement>(
+        "#GoogleScholarRecentPeriodHeader");
+    if (recentHeader)
+        recentHeader.textContent = table.recentHeader;
 
-    for (const [id, value] of Object.entries(values)) {
+    for (const [id, value] of Object.entries(table.values)) {
         const element = document.querySelector<HTMLElement>(`#${id}`);
         if (element)
-            element.textContent = typeof value === "number"
-                ? value.toLocaleString("tr-TR")
-                : value;
+            element.textContent = value;
     }
 
     googleScholarSummaryPanel.hidden = false;
+}
+
+type GoogleScholarProfile = NonNullable<
+    NonNullable<ResearcherCollectResponse["Researcher"]>["GoogleScholarProfile"]>;
+
+export function mapGoogleScholarMetricTable(profile?: GoogleScholarProfile) {
+    const value = (metric: number | null | undefined) =>
+        metric == null ? "—" : metric.toLocaleString("tr-TR");
+    return {
+        recentHeader: profile?.MetricsSinceYear == null
+            ? "Yakın dönem"
+            : `${profile.MetricsSinceYear} yılından bugüne`,
+        values: {
+            GoogleScholarCitationCount: value(profile?.CitationCount),
+            GoogleScholarCitationCountRecent: value(profile?.CitationCountRecent),
+            GoogleScholarHIndex: value(profile?.HIndex),
+            GoogleScholarHIndexRecent: value(profile?.HIndexRecent),
+            GoogleScholarI10Index: value(profile?.I10Index),
+            GoogleScholarI10IndexRecent: value(profile?.I10IndexRecent)
+        }
+    };
 }
 
 export function showOpenAlexSummary(

@@ -22,6 +22,54 @@ namespace AcademicCollectorDemo.Tests.Integration;
 public sealed class ResearcherProviderMetricsTests(SqlServerFixture fixture)
 {
     [Fact]
+    public async Task RecalculateMetricsAsync_MetricsOnlyScholarProfile_DoesNotReportZeroDocuments()
+    {
+        string personelId = "scholar-metrics-only-" + Guid.NewGuid().ToString("N");
+        await using (AsyncServiceScope scope = fixture.Services.CreateAsyncScope())
+        {
+            AcademicDbContext database = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+            database.Researchers.Add(new Researcher
+            {
+                PersonelId = personelId,
+                GoogleScholarProfile = new()
+                {
+                    CitationCount = 648,
+                    CitationCountRecent = 521,
+                    HIndex = 9,
+                    HIndexRecent = 9,
+                    I10Index = 9,
+                    I10IndexRecent = 9,
+                    MetricsSinceYear = 2021,
+                    DocumentsCount = 0,
+                    LastUpdatedAt = DateTime.UtcNow,
+                    RawDataJson = GoogleScholarProfile.CreateScrapeSnapshot("<html></html>", false)
+                }
+            });
+            await database.SaveChangesAsync();
+        }
+
+        await using (AsyncServiceScope scope = fixture.Services.CreateAsyncScope())
+        {
+            IAcademicPerformanceApplicationService service = scope.ServiceProvider
+                .GetRequiredService<IAcademicPerformanceApplicationService>();
+            await service.RecalculateMetricsAsync(new() { PersonelId = personelId });
+        }
+
+        await using (AsyncServiceScope scope = fixture.Services.CreateAsyncScope())
+        {
+            AcademicDbContext database = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+            Researcher saved = await database.Researchers.AsNoTracking()
+                .SingleAsync(value => value.PersonelId == personelId);
+            Assert.Equal(648, saved.ScholarCitationCount);
+            Assert.Equal(521, saved.ScholarCitationCountRecent);
+            Assert.Equal(9, saved.ScholarHIndex);
+            Assert.Equal(9, saved.ScholarI10Index);
+            Assert.Equal(2021, saved.ScholarMetricsSinceYear);
+            Assert.Null(saved.ScholarDocumentsCount);
+        }
+    }
+
+    [Fact]
     public async Task RecalculateMetricsAsync_SavedProfilesAndWorks_UpdatesMetricsIdempotently()
     {
         string personelId = "metrics-" + Guid.NewGuid().ToString("N");
@@ -260,7 +308,7 @@ public sealed class ResearcherProviderMetricsTests(SqlServerFixture fixture)
             command.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains("WebOfScienceWorks", selectSql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("TimesCited", selectSql, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("RawDataJson", selectSql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("[g].[RawDataJson]\r\nFROM", selectSql, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("DocumentPagesJson", selectSql, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("WorksPagesJson", selectSql, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("SearchPagesJson", selectSql, StringComparison.OrdinalIgnoreCase);

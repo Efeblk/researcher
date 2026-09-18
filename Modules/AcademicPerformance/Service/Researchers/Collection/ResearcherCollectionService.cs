@@ -53,7 +53,7 @@ public sealed class ResearcherCollectionService
         {
             ["ORCID"] = configuration.GetValue("ProviderRequestLimits:Orcid:Enabled", true),
             ["OpenAlex"] = configuration.GetValue("ProviderRequestLimits:OpenAlex:Enabled", true),
-            ["Google Scholar"] = configuration.GetValue("ProviderRequestLimits:SearchApi:Enabled", true),
+            ["Google Scholar"] = configuration.GetValue("ProviderRequestLimits:GoogleScholar:Enabled", true),
             ["Web of Science"] = configuration.GetValue("ProviderRequestLimits:WebOfScience:Enabled", true),
             ["Scopus"] = configuration.GetValue("ProviderRequestLimits:Scopus:Enabled", true),
             ["TR Dizin"] = configuration.GetValue("ProviderRequestLimits:TrDizin:Enabled", true)
@@ -349,7 +349,13 @@ public sealed class ResearcherCollectionService
             IsProviderDataCurrent(researcher.GoogleScholarProfile?.LastUpdatedAt) &&
             HasCompleteGoogleScholarRawData(researcher.GoogleScholarProfile))
         {
-            Cached(item, researcher.GoogleScholarProfile?.Works?.Count ?? 0);
+            item.Unit = "metric";
+            item.Status = "Cached";
+            item.RetrievedCount = 0;
+            item.ExpectedCount = 7;
+            item.Reasons.Add(Reason("Cached",
+                "API çağrısı yapılmadı; önbellekte eksiksiz Google Scholar profil metrikleri var.",
+                7));
             AddCachedDataMessage(
                 messages,
                 "Google Scholar",
@@ -359,7 +365,7 @@ public sealed class ResearcherCollectionService
 
         AddMessage(
             messages,
-            $"[İŞLEM] SearchApi üzerinden Google Scholar sorgulanıyor: " +
+            $"[İŞLEM] Herkese açık Google Scholar profili sorgulanıyor: " +
             requestedGoogleScholarId);
 
         try
@@ -367,7 +373,9 @@ public sealed class ResearcherCollectionService
             await _googleScholarClient.FillResearcherAsync(
                 researcher,
                 requestedGoogleScholarId);
-            Success(item, researcher.GoogleScholarProfile?.Works?.Count ?? 0, null);
+            item.Unit = "metric";
+            Success(item, 7, 7);
+            AddMessage(messages, "[OK] Google Scholar: altı metrik ve son dönem başlangıç yılı alındı.");
         }
         catch (ArgumentException exception)
         {
@@ -381,7 +389,7 @@ public sealed class ResearcherCollectionService
             FailFromException(item, exception, "Google Scholar");
             AddMessage(
                 messages,
-                $"[HATA] SearchApi'ye bağlanılamadı: {exception.Message}");
+                $"[HATA] Google Scholar profili alınamadı: {exception.Message}");
         }
         catch (Exception exception)
         {
@@ -726,8 +734,13 @@ public sealed class ResearcherCollectionService
     {
         return profile is not null &&
             !string.IsNullOrWhiteSpace(profile.RawDataJson) &&
-            profile.Works is not null &&
-            profile.Works.All(work => !string.IsNullOrWhiteSpace(work.RawDataJson));
+            profile.CitationCount.HasValue &&
+            profile.CitationCountRecent.HasValue &&
+            profile.HIndex.HasValue &&
+            profile.HIndexRecent.HasValue &&
+            profile.I10Index.HasValue &&
+            profile.I10IndexRecent.HasValue &&
+            profile.MetricsSinceYear.HasValue;
     }
 
     private static bool HasCompleteOpenAlexRawData(OpenAlexProfile? profile)

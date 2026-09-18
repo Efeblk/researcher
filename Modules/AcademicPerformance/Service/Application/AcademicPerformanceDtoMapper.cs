@@ -306,7 +306,9 @@ internal static class AcademicPerformanceDtoMapper
             I10Index = profile.I10Index,
             I10IndexRecent = profile.I10IndexRecent,
             MetricsSinceYear = profile.MetricsSinceYear,
-            DocumentsCount = profile.DocumentsCount,
+            DocumentsCount = GoogleScholarProfile.HasKnownDocumentsCount(profile.RawDataJson)
+                ? profile.DocumentsCount
+                : null,
             LastUpdatedAt = profile.LastUpdatedAt
         };
     }

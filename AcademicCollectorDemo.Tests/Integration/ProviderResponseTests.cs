@@ -146,7 +146,7 @@ public sealed class ProviderResponseTests
     }
 
     [Fact]
-    public async Task FillResearcherAsync_ScholarPageFails_PreservesPreviousProfile()
+    public async Task FillResearcherAsync_ScholarMalformedTable_PreservesPreviousProfile()
     {
         var previous = new GoogleScholarProfile { DisplayName = "Saved profile", DocumentsCount = 10 };
         var researcher = new Researcher
@@ -154,14 +154,13 @@ public sealed class ProviderResponseTests
             PersonelId = "test-" + Guid.NewGuid().ToString("N"), GoogleScholarId = "AbCdEfGhIjKl", GoogleScholarProfile = previous };
         int requests = 0;
         using var http = new HttpClient(new StubHttpHandler(_ => ++requests == 1
-            ? StubHttpHandler.Json("""{"author":{"name":"New profile"},"articles":[],"pagination":{"next":"page2"}}""")
-            : throw new HttpRequestException("Synthetic network failure")));
-        var client = new GoogleScholarClient(http, Config(new() { ["SearchApi:ApiKey"] = Guid.NewGuid().ToString("N") }));
-        ProviderCollectionException failure = await Assert.ThrowsAsync<ProviderCollectionException>(
+            ? StubHttpHandler.Json("""<html><body><div id="gsc_prf_in">New profile</div></body></html>""")
+            : throw new InvalidOperationException("Only one request was expected.")));
+        var client = new GoogleScholarClient(http, Config([]));
+        await Assert.ThrowsAsync<InvalidDataException>(
             () => client.FillResearcherAsync(researcher, researcher.GoogleScholarId));
-        Assert.Equal(0, failure.RetrievedCount);
         Assert.Same(previous, researcher.GoogleScholarProfile);
-        Assert.Equal(2, requests);
+        Assert.Equal(1, requests);
     }
 
     [Fact]
@@ -172,11 +171,15 @@ public sealed class ProviderResponseTests
             PersonelId = "test-" + Guid.NewGuid().ToString("N")
         };
         using var http = new HttpClient(new StubHttpHandler(_ =>
-            StubHttpHandler.Json("""{"author":{"name":"Synthetic Scholar"},"articles":[]}""")));
-        var client = new GoogleScholarClient(http, Config(new()
-        {
-            ["SearchApi:ApiKey"] = Guid.NewGuid().ToString("N")
-        }));
+            StubHttpHandler.Json("""
+                <html><body><div id="gsc_prf_in">Synthetic Scholar</div>
+                <table id="gsc_rsb_st"><thead><tr><th></th><th>All</th><th>Since 2021</th></tr></thead>
+                <tbody><tr><td>Citations</td><td>1</td><td>1</td></tr>
+                <tr><td>h-index</td><td>1</td><td>1</td></tr>
+                <tr><td>i10-index</td><td>0</td><td>0</td></tr></tbody></table>
+                </body></html>
+                """)));
+        var client = new GoogleScholarClient(http, Config([]));
 
         await client.FillResearcherAsync(researcher, "AbCdEfGhIjKl");
 
