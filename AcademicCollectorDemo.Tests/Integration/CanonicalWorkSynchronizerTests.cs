@@ -133,25 +133,30 @@ public sealed class CanonicalWorkSynchronizerTests(SqlServerFixture fixture)
     }
 
     [Fact]
-    public async Task SyncAsync_ProviderTitlePresentationVariants_GroupAsOneWork()
+    public async Task SyncAsync_TitleYearFallback_NormalizesPresentationAndIgnoresIncompleteAuthors()
     {
         string personelId = Id("title-presentation");
         AcademicWork first = Work(personelId, AcademicWorkProvider.OpenAlex, null, "openalex",
             "İSTATİSTİK\u200B&amp; BİLİMİ: CO\u00ADOP\u200DERATION α");
         AcademicWork second = Work(personelId, AcademicWorkProvider.Scopus, null, "scopus",
             "istatistik & bilimi: cooperation &#945;");
+        second.Authors = "et al.";
         AcademicWork third = Work(personelId, AcademicWorkProvider.Crossref, null, "crossref",
             "&lt;strong&gt;ISTATISTIK&lt;/strong&gt; &amp; BILIMI:&lt;br&gt;COOPERATION α");
+        third.Authors = "Different Author";
         await SeedAsync(personelId, first, second, third);
 
         await SyncInScopeAsync(personelId);
 
         await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
         AcademicDbContext db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
+        await new PublicationSummarySynchronizer(db).SyncAsync(personelId);
         Assert.Single(await db.CanonicalResearcherWorks.Where(value =>
             value.PersonelId == personelId).ToListAsync());
         Assert.Equal(3, await db.CanonicalWorkObservations.CountAsync(value =>
             value.PersonelId == personelId));
+        Assert.Single(await db.PublicationSummaries.Where(value =>
+            value.PersonelId == personelId).ToListAsync());
     }
 
     [Fact]
@@ -173,7 +178,7 @@ public sealed class CanonicalWorkSynchronizerTests(SqlServerFixture fixture)
     }
 
     [Fact]
-    public async Task SyncAsync_MissingOrDifferentMetadata_DoesNotGroup()
+    public async Task SyncAsync_TitleYearFallback_RequiresExactTitleAndKnownEqualYear()
     {
         string personelId = Id("metadata-separate");
         AcademicWork baseline = Work(personelId, AcademicWorkProvider.Crossref, null, "baseline");
@@ -185,13 +190,14 @@ public sealed class CanonicalWorkSynchronizerTests(SqlServerFixture fixture)
         differentYear.PublicationYear = 2024;
         AcademicWork differentAuthor = Work(personelId, AcademicWorkProvider.GoogleScholar, null, "different-author");
         differentAuthor.Authors = "Different Author";
+        differentAuthor.Title = "Different title";
         await SeedAsync(personelId, baseline, missingYear, missingAuthors, differentYear, differentAuthor);
 
         await SyncInScopeAsync(personelId);
 
         await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
         AcademicDbContext db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
-        Assert.Equal(5, await db.CanonicalResearcherWorks.CountAsync(value => value.PersonelId == personelId));
+        Assert.Equal(4, await db.CanonicalResearcherWorks.CountAsync(value => value.PersonelId == personelId));
     }
 
     [Fact]
@@ -201,17 +207,19 @@ public sealed class CanonicalWorkSynchronizerTests(SqlServerFixture fixture)
         AcademicWork doi = Work(associatedId, AcademicWorkProvider.Crossref, "10.6000/one", "doi");
         doi.Authors = "Ada Lovelace";
         AcademicWork noDoi = Work(associatedId, AcademicWorkProvider.OpenAlex, null, "no-doi");
-        noDoi.Authors = "Lovelace A";
+        noDoi.Authors = "Truncated";
         await SeedAsync(associatedId, doi, noDoi);
 
         string ambiguousId = Id("doi-ambiguous");
         AcademicWork doiA = Work(ambiguousId, AcademicWorkProvider.Crossref, "10.6000/a", "doi-a");
         doiA.Authors = "Ada Lovelace";
         AcademicWork doiB = Work(ambiguousId, AcademicWorkProvider.Orcid, "10.6000/b", "doi-b");
-        doiB.Authors = "A Lovelace";
+        doiB.Authors = "Grace Hopper";
+        AcademicWork matched = Work(ambiguousId, AcademicWorkProvider.Scopus, null, "matched");
+        matched.Authors = "Lovelace A";
         AcademicWork bridge = Work(ambiguousId, AcademicWorkProvider.OpenAlex, null, "bridge");
-        bridge.Authors = "Lovelace A";
-        await SeedAsync(ambiguousId, doiA, doiB, bridge);
+        bridge.Authors = null;
+        await SeedAsync(ambiguousId, doiA, doiB, matched, bridge);
 
         await SyncInScopeAsync(associatedId);
         await SyncInScopeAsync(ambiguousId);
@@ -223,11 +231,13 @@ public sealed class CanonicalWorkSynchronizerTests(SqlServerFixture fixture)
             value.CanonicalWork!.NormalizedDoi == "10.6000/one"));
         Assert.Equal(3, await db.CanonicalResearcherWorks.CountAsync(value => value.PersonelId == ambiguousId));
         Assert.True(await db.CanonicalWorkObservations.AnyAsync(value => value.PersonelId == ambiguousId &&
+            value.ProviderWorkId == "matched" && value.CanonicalWork!.NormalizedDoi == "10.6000/a"));
+        Assert.True(await db.CanonicalWorkObservations.AnyAsync(value => value.PersonelId == ambiguousId &&
             value.ProviderWorkId == "bridge" && value.CanonicalWork!.SourceScopedKey != null));
     }
 
     [Fact]
-    public async Task SyncAsync_MetadataCorrection_SplitsAndRepeatedSyncIsStable()
+    public async Task SyncAsync_TitleYearFallback_AuthorCorrectionPreservesCanonicalId()
     {
         string personelId = Id("metadata-correction");
         await SeedAsync(personelId,
@@ -249,7 +259,8 @@ public sealed class CanonicalWorkSynchronizerTests(SqlServerFixture fixture)
             corrected.Authors = "Other Researcher";
             await db.SaveChangesAsync();
             await scope.ServiceProvider.GetRequiredService<CanonicalWorkSynchronizer>().SyncAsync(personelId);
-            Assert.Equal(2, await db.CanonicalResearcherWorks.CountAsync(value => value.PersonelId == personelId));
+            Assert.Equal(groupedId, await db.CanonicalResearcherWorks.Where(value =>
+                value.PersonelId == personelId).Select(value => value.CanonicalWorkId).SingleAsync());
         }
     }
 
@@ -281,7 +292,7 @@ public sealed class CanonicalWorkSynchronizerTests(SqlServerFixture fixture)
     }
 
     [Fact]
-    public async Task SyncAsync_TransitiveAuthorBridgeWithoutCompleteCompatibility_KeepsEveryWorkSeparate()
+    public async Task SyncAsync_TitleYearFallback_MergesDifferentCompleteAuthors()
     {
         string personelId = Id("author-bridge");
         AcademicWork first = Work(personelId, AcademicWorkProvider.Crossref, null, "first");
@@ -296,13 +307,14 @@ public sealed class CanonicalWorkSynchronizerTests(SqlServerFixture fixture)
 
         await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
         AcademicDbContext db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
-        Assert.Equal(3, await db.CanonicalResearcherWorks.CountAsync(value => value.PersonelId == personelId));
-        Assert.Equal(3, await db.CanonicalWorkObservations.Where(value => value.PersonelId == personelId)
-            .Select(value => value.CanonicalWorkId).Distinct().CountAsync());
+        Assert.Single(await db.CanonicalResearcherWorks.Where(value => value.PersonelId == personelId)
+            .ToListAsync());
+        Assert.Single(await db.CanonicalWorkObservations.Where(value => value.PersonelId == personelId)
+            .Select(value => value.CanonicalWorkId).Distinct().ToListAsync());
     }
 
     [Fact]
-    public async Task SyncAsync_AuthorInitialsWithoutSharedFullToken_RemainSeparate()
+    public async Task SyncAsync_TitleYearFallback_DoesNotRequireSharedAuthorTokens()
     {
         string personelId = Id("author-anchor");
         AcademicWork first = Work(personelId, AcademicWorkProvider.OpenAlex, null, "first");
@@ -315,7 +327,8 @@ public sealed class CanonicalWorkSynchronizerTests(SqlServerFixture fixture)
 
         await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
         AcademicDbContext db = scope.ServiceProvider.GetRequiredService<AcademicDbContext>();
-        Assert.Equal(2, await db.CanonicalResearcherWorks.CountAsync(value => value.PersonelId == personelId));
+        Assert.Single(await db.CanonicalResearcherWorks.Where(value => value.PersonelId == personelId)
+            .ToListAsync());
     }
 
     [Fact]
@@ -568,11 +581,14 @@ public sealed class CanonicalWorkSynchronizerTests(SqlServerFixture fixture)
         AcademicWork contradiction = Work(contradictionId, AcademicWorkProvider.Crossref,
             "10.7060/version", "conflict");
         contradiction.ProviderPayload = CrossrefVersionPayload(contradiction.Doi!, "10.7060/concept-b");
+        AcademicWork withoutDoi = Work(contradictionId, AcademicWorkProvider.OpenAlex,
+            null, "conflict-without-doi");
+        withoutDoi.Authors = null;
         AcademicWork cycle = Work(cycleId, AcademicWorkProvider.Crossref,
             "10.7060/concept-a", "cycle");
         cycle.ProviderPayload = CrossrefVersionPayload(cycle.Doi!, "10.7060/version");
         await SeedAsync(firstId, first);
-        await SeedAsync(contradictionId, contradiction);
+        await SeedAsync(contradictionId, contradiction, withoutDoi);
         await SeedAsync(cycleId, cycle);
 
         await SyncInScopeAsync(firstId);
@@ -587,6 +603,11 @@ public sealed class CanonicalWorkSynchronizerTests(SqlServerFixture fixture)
             value.SourceDoi == "10.7060/concept-a" && value.TargetDoi == "10.7060/version"));
         Assert.Single(await db.CanonicalWorkDoiRelations.Where(value =>
             value.SourceDoi == "10.7060/version").ToListAsync());
+        int versionCanonicalId = await db.CanonicalWorkDoiAliases
+            .Where(value => value.NormalizedDoi == "10.7060/version")
+            .Select(value => value.CanonicalWorkId).SingleAsync();
+        Assert.Equal(2, await db.CanonicalWorkObservations.CountAsync(value =>
+            value.PersonelId == contradictionId && value.CanonicalWorkId == versionCanonicalId));
     }
 
     [Fact]

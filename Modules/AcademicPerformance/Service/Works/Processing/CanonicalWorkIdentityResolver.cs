@@ -29,9 +29,45 @@ internal static class CanonicalWorkIdentityResolver
         foreach (IGrouping<(string Title, int Year), int> bucket in buckets)
             ResolveBucket(works, metadata, result, bucket);
 
+        ApplyTitleYearFallback(works, result);
         for (int index = 0; index < works.Count; index++)
             result[index] ??= CreateSourceIdentity(works[index]);
         return result.Select(identity => identity!).ToList();
+    }
+
+    internal static void ApplyTitleYearFallback(List<AcademicWork> works, List<WorkIdentity> identities)
+    {
+        WorkIdentity?[] values = identities.Cast<WorkIdentity?>().ToArray();
+        ApplyTitleYearFallback(works, values);
+        for (int index = 0; index < identities.Count; index++)
+            identities[index] = values[index] ?? CreateSourceIdentity(works[index]);
+    }
+
+    private static void ApplyTitleYearFallback(List<AcademicWork> works, WorkIdentity?[] identities)
+    {
+        IEnumerable<IGrouping<(string Title, int Year), int>> buckets = Enumerable.Range(0, works.Count)
+            .Select(index => (Index: index, Title: AcademicWorkTitleNormalizer.Normalize(works[index].Title),
+                Year: works[index].PublicationYear))
+            .Where(value => value.Title is not null && value.Year is not null)
+            .GroupBy(value => (value.Title!, value.Year!.Value), value => value.Index);
+        foreach (IGrouping<(string Title, int Year), int> bucket in buckets)
+        {
+            int[] indexes = bucket.ToArray();
+            WorkIdentity[] doiIdentities = indexes
+                .Where(index => AcademicDoiNormalizer.NormalizeValid(works[index].Doi) is not null)
+                .Select(index => identities[index]).Where(identity => identity is not null)
+                .Select(identity => identity!).DistinctBy(identity => identity.DictionaryKey).ToArray();
+            if (doiIdentities.Length > 1)
+                continue;
+
+            WorkIdentity fallback = doiIdentities.Length == 1
+                ? doiIdentities[0]
+                : CreateSourceIdentity(Hash($"title-year|{works[indexes[0]].PersonelId.Trim()}|" +
+                    $"{bucket.Key.Title}|{bucket.Key.Year}"));
+            foreach (int index in indexes.Where(index =>
+                AcademicDoiNormalizer.NormalizeValid(works[index].Doi) is null))
+                identities[index] = fallback;
+        }
     }
 
     private static void ResolveBucket(List<AcademicWork> works, WorkMetadata?[] metadata,
@@ -316,7 +352,7 @@ internal static class CanonicalWorkIdentityResolver
         return CreateSourceIdentity(key) with { DoiAliases = nodes, Relations = relations };
     }
 
-    private static WorkIdentity CreateSourceIdentity(AcademicWork work)
+    internal static WorkIdentity CreateSourceIdentity(AcademicWork work)
     {
         string providerIdentity = string.IsNullOrWhiteSpace(work.ProviderWorkId)
             ? "academic-work:" + work.Id

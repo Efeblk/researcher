@@ -54,6 +54,7 @@ public sealed class CanonicalWorkSynchronizer
             Dictionary<string, CanonicalWork> canonicalByAlias = await LoadDoiAliasesAsync(
                 identities.SelectMany(identity => identity.DoiAliases), cancellationToken);
             RejectConflictingRelationComponents(works, identities, canonicalByAlias);
+            CanonicalWorkIdentityResolver.ApplyTitleYearFallback(works, identities);
             List<CanonicalWorkObservation> existingObservations =
                 await _dbContext.CanonicalWorkObservations
                     .Include(observation => observation.CanonicalWork)
@@ -339,8 +340,9 @@ public sealed class CanonicalWorkSynchronizer
             foreach (int index in group)
             {
                 string? doi = AcademicDoiNormalizer.NormalizeValid(works[index].Doi);
-                if (doi is not null)
-                    identities[index] = new("doi:" + doi, doi, null, Hash("doi:" + doi), [doi], []);
+                identities[index] = doi is not null
+                    ? new("doi:" + doi, doi, null, Hash("doi:" + doi), [doi], [])
+                    : CanonicalWorkIdentityResolver.CreateSourceIdentity(works[index]);
             }
         }
     }
@@ -384,8 +386,9 @@ public sealed class CanonicalWorkSynchronizer
             foreach (int index in group)
             {
                 string? doi = AcademicDoiNormalizer.NormalizeValid(works[index].Doi);
-                if (doi is not null)
-                    identities[index] = new("doi:" + doi, doi, null, Hash("doi:" + doi), [doi], []);
+                identities[index] = doi is not null
+                    ? new("doi:" + doi, doi, null, Hash("doi:" + doi), [doi], [])
+                    : CanonicalWorkIdentityResolver.CreateSourceIdentity(works[index]);
             }
         }
     }
