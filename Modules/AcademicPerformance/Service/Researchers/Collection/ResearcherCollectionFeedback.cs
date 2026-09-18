@@ -109,7 +109,10 @@ public sealed class ResearcherCollectionFeedback
                 ? $"[OK] Google Scholar profili: {profile.DisplayName}."
                 : "[KISMİ] Google Scholar profili alındı; ad bilgisi bulunamadı.");
         messages.Add(
-            $"[OK] Google Scholar yayınları: {profile.DocumentsCount} kayıt toplandı.");
+            GoogleScholarProfile.HasKnownDocumentsCount(profile.RawDataJson)
+                ? $"[BİLGİ] Daha önce toplanmış Google Scholar yayınları korundu: " +
+                  $"{profile.DocumentsCount} kayıt."
+                : "[BİLGİ] Bu Google Scholar akışı yayın veya belge sayısı toplamaz.");
         messages.Add(
             $"[OK] Google Scholar metrikleri: toplam atıf " +
             $"{profile.CitationCount?.ToString() ?? "—"}, h-index " +
@@ -122,8 +125,8 @@ public sealed class ResearcherCollectionFeedback
                 : "[BİLGİ] Yakın dönem metrik başlangıç yılı alınamadı.");
         messages.Add(
             !string.IsNullOrWhiteSpace(profile.RawDataJson)
-                ? "[OK] SearchApi ham Google Scholar yanıtları saklandı."
-                : "[KISMİ] SearchApi ham yanıtı saklanamadı.");
+                ? "[OK] Google Scholar profil metrikleri ve ham HTML snapshot'ı saklandı."
+                : "[KISMİ] Google Scholar profil snapshot'ı saklanamadı.");
     }
 
     private static void AddWebOfScienceFeedback(

@@ -5,9 +5,9 @@
   "Orcid": {
     "ApiBaseUrl": "https://pub.orcid.org/v3.0"
   },
-  "SearchApi": {
-    "ApiBaseUrl": "https://www.searchapi.io/api/v1/search",
-    "MaximumPages": 100
+  "GoogleScholar": {
+    "ProfileBaseUrl": "https://scholar.google.com/citations",
+    "MaximumResponseBytes": 2097152
   },
   "OpenAlex": {
     "ApiBaseUrl": "https://api.openalex.org",
@@ -79,6 +79,12 @@
       "Enabled": false,
       "MinimumIntervalMilliseconds": 2000,
       "DailyRequestLimit": 0
+    },
+    "GoogleScholar": {
+      "Enabled": true,
+      "MinimumIntervalMilliseconds": 5000,
+      "DailyRequestLimit": 0,
+      "RateLimitCooldownSeconds": 300
     },
     "OpenAlex": {
       "Enabled": true,

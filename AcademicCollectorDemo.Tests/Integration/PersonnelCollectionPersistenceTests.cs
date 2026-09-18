@@ -32,7 +32,7 @@ public sealed class PersonnelCollectionPersistenceTests(SqlServerFixture fixture
                 ["Orcid:ApiBaseUrl"] = "https://orcid.test/v3.0",
                 ["OpenAlex:ApiBaseUrl"] = "https://openalex.test",
                 ["TrDizin:ApiBaseUrl"] = "https://trdizin.test",
-                ["ProviderRequestLimits:SearchApi:Enabled"] = "false",
+                ["ProviderRequestLimits:GoogleScholar:Enabled"] = "false",
                 ["ProviderRequestLimits:WebOfScience:Enabled"] = "false",
                 ["ProviderRequestLimits:Scopus:Enabled"] = "false",
                 ["ProviderRequestLimits:Crossref:Enabled"] = "false"
@@ -90,7 +90,7 @@ public sealed class PersonnelCollectionPersistenceTests(SqlServerFixture fixture
                 ["WebOfScience:DatabaseIds:0"] = "WOS",
                 ["ProviderRequestLimits:Orcid:Enabled"] = "false",
                 ["ProviderRequestLimits:OpenAlex:Enabled"] = "false",
-                ["ProviderRequestLimits:SearchApi:Enabled"] = "false",
+                ["ProviderRequestLimits:GoogleScholar:Enabled"] = "false",
                 ["ProviderRequestLimits:Scopus:Enabled"] = "false",
                 ["ProviderRequestLimits:TrDizin:Enabled"] = "false"
             }).Build();

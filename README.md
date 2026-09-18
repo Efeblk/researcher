@@ -16,12 +16,11 @@ sqlcmd -S "(localdb)\MSSQLLocalDB" -E -Q "IF DB_ID(N'AcademicCollectorDemo') IS 
 dotnet run --project AcademicCollectorDemo.csproj
 ```
 
-Collector `http://localhost:5001/AcademicPerformance` adresindedir. Kendi migration'larını her başlangıçta `ConnectionStrings:AcademicDatabase` üzerinde uygular; migration kaynağı `Modules/AcademicPerformance/Service/Data/Migrations/{Core,Providers}`, sürüm geçmişi `dbo.VersionInfo` tablosudur. Bağlantı cümlesi ve sağlayıcı sırları `dotnet user-secrets` veya güvenli deployment yapılandırmasıyla verilmelidir. Varsayılanlar ve tüm seçenekler için [`academicsettings.json`](academicsettings.json) ile [`appsettings.json`](appsettings.json) kaynak kabul edilir. SearchApi entegrasyonu desteklenir ancak kayıtlı varsayılan ayarda kapalıdır.
+Collector `http://localhost:5001/AcademicPerformance` adresindedir. Kendi migration'larını her başlangıçta `ConnectionStrings:AcademicDatabase` üzerinde uygular; migration kaynağı `Modules/AcademicPerformance/Service/Data/Migrations/{Core,Providers}`, sürüm geçmişi `dbo.VersionInfo` tablosudur. Bağlantı cümlesi ve sağlayıcı sırları `dotnet user-secrets` veya güvenli deployment yapılandırmasıyla verilmelidir. Varsayılanlar ve tüm seçenekler için [`academicsettings.json`](academicsettings.json) ile [`appsettings.json`](appsettings.json) kaynak kabul edilir. Google Scholar metrikleri herkese açık profil HTML'inden anahtarsız alınır.
 
 ```powershell
 dotnet user-secrets set "ConnectionStrings:AcademicDatabase" "<SQL_SERVER_CONNECTION_STRING>" --project AcademicCollectorDemo.csproj
 dotnet user-secrets set "Orcid:AccessToken" "<TOKEN>" --project AcademicCollectorDemo.csproj
-dotnet user-secrets set "SearchApi:ApiKey" "<KEY>" --project AcademicCollectorDemo.csproj
 dotnet user-secrets set "OpenAlex:ApiKey" "<KEY>" --project AcademicCollectorDemo.csproj
 dotnet user-secrets set "WebOfScience:ApiKey" "<KEY>" --project AcademicCollectorDemo.csproj
 dotnet user-secrets set "Yoksis:Username" "<KULLANICI>" --project AcademicCollectorDemo.csproj

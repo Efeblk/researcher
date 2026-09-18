@@ -43,7 +43,10 @@ public sealed class ResearcherMetricsService(
             .Where(value => value.PersonelId == personelId)
             .Select(value => new ScholarMetrics(value.CitationCount, value.HIndex, value.I10Index,
                 value.DocumentsCount, value.CitationCountRecent, value.HIndexRecent,
-                value.I10IndexRecent, value.MetricsSinceYear, value.LastUpdatedAt))
+                value.I10IndexRecent, value.MetricsSinceYear, value.LastUpdatedAt,
+                value.RawDataJson == null ||
+                !value.RawDataJson.Contains("\"Source\":\"GoogleScholarProfileHtml\"") ||
+                value.RawDataJson.Contains("\"DocumentsCountKnown\":true")))
             .SingleOrDefaultAsync(cancellationToken);
         ScopusMetrics? scopus = await dbContext.ScopusProfiles.AsNoTracking()
             .Where(value => value.PersonelId == personelId)
@@ -113,7 +116,9 @@ public sealed class ResearcherMetricsService(
         researcher.ScholarCitationCount = profile?.CitationCount;
         researcher.ScholarHIndex = profile?.HIndex;
         researcher.ScholarI10Index = profile?.I10Index;
-        researcher.ScholarDocumentsCount = profile?.DocumentsCount;
+        researcher.ScholarDocumentsCount = profile?.DocumentsCountKnown == true
+            ? profile.DocumentsCount
+            : null;
         researcher.ScholarCitationCountRecent = profile?.CitationCountRecent;
         researcher.ScholarHIndexRecent = profile?.HIndexRecent;
         researcher.ScholarI10IndexRecent = profile?.I10IndexRecent;
@@ -191,7 +196,7 @@ public sealed class ResearcherMetricsService(
     private sealed record ScholarMetrics(
         int? CitationCount, int? HIndex, int? I10Index, int DocumentsCount,
         int? CitationCountRecent, int? HIndexRecent, int? I10IndexRecent,
-        int? MetricsSinceYear, DateTime LastUpdatedAt);
+        int? MetricsSinceYear, DateTime LastUpdatedAt, bool DocumentsCountKnown);
 
     private sealed record ScopusMetrics(
         int? CitationCount, int? HIndex, int? DocumentsCount, DateTime LastUpdatedAt);

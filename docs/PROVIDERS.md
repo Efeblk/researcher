@@ -9,7 +9,7 @@ Bu belge collector'ın akademik veri entegrasyonlarının sabit kapsamını öze
 | ORCID | Açık profil, faaliyet ve eser | Atıf, h-index ve i10-index sağlamaz. |
 | OpenAlex | ORCID eşleşmeli profil, yayın ve kendi metrikleri | Scholar metriği değildir; aday eşleşme kusursuz olmayabilir. |
 | Scopus | Scopus Author ID ile Author Retrieval profili/metrikleri ve `AU-ID(...)` Search yayınları | API anahtarı gerekir; `InstToken` kurumsal erişim gerektiğinde eklenir. Search ve Author Retrieval kotaları ayrıdır. |
-| Google Scholar / SearchApi | Profil, yayın, atıf, h/i10 | Google'ın resmî API'si değildir; entegrasyon varsayılan ayarda kapalıdır. |
+| Google Scholar | Herkese açık profilden toplam/son dönem atıf, h-index ve i10-index | Google'ın resmî API'si değildir; yayın sayfaları toplanmaz ve engel/CAPTCHA aşılmaya çalışılmaz. |
 | Web of Science Starter | ResearcherID ile WOS/WOK yayınları ve varsa atıf | h-index yalnız tüm gerekli atıflar geldiyse yerelde hesaplanır; i10 yoktur. |
 | YÖKSİS | 21 kategori ve desteklenen eser ayrıntıları | Kurumsal kimlik, T.C. kimlik no ve güvenilir kurumsal yetkilendirme gerekir. |
 | TR Dizin | Tam ORCID eşleşmeli yazar, yayın ayrıntıları ve kimliği doğrulanmış projeler | Projeler yayın metriklerine katılmaz; yayımlanmış kota doğrulanmamıştır. |
@@ -17,7 +17,7 @@ Bu belge collector'ın akademik veri entegrasyonlarının sabit kapsamını öze
 | Semantic Scholar | DOI metaverisi, atıf bağlamları, TLDR ve açık PDF adayı | Atıf yapan eserler araştırmacının yayın listesine eklenmez. |
 
 Her sağlayıcı `academicsettings.json` içindeki `ProviderRequestLimits:<Provider>:Enabled`
-anahtarıyla açılıp kapatılır. Sağlayıcı adları `Orcid`, `SearchApi` (Google Scholar),
+anahtarıyla açılıp kapatılır. Sağlayıcı adları `Orcid`, `GoogleScholar`,
 `OpenAlex`, `Scopus`, `WebOfScience`, `Yoksis`, `TrDizin`, `Crossref` ve
 `SemanticScholar` değerleridir. `false` olduğunda toplama veya zenginleştirme isteği
 gönderilmez; önbellek okunmaz, kayıtlı veri silinmez ve bulk işi bu nedenle yeniden
@@ -61,4 +61,4 @@ Anahtar, parola, T.C. kimlik numarası, ham kişisel yanıt ve istek URL'leri lo
 
 YÖKSİS Basic Authentication yalnız Base64 kodlar; HTTPS korunmalı ve endpoint dış ağa güvenilir kurumsal erişim kontrolü olmadan açılmamalıdır. Uzak servis şartları, saklama hakları, kota ve kurumsal lisanslar deployment sahibi tarafından teyit edilmelidir.
 
-Resmî başvurular: [ORCID API](https://info.orcid.org/documentation/integration-guide/orcid-api-guide/) · [OpenAlex API](https://docs.openalex.org/) · [Scopus APIs](https://dev.elsevier.com/) · [SearchApi Scholar Author](https://www.searchapi.io/docs/google-scholar-author) · [WoS Starter](https://developer.clarivate.com/apis/wos-starter) · [YÖKSİS WSDL](https://servisler.yok.gov.tr/ws/OzgecmisV2?wsdl) · [TR Dizin](https://development.trdizin.gov.tr/) · [Crossref REST API](https://www.crossref.org/documentation/retrieve-metadata/rest-api/) · [Semantic Scholar API](https://www.semanticscholar.org/product/api)
+Resmî başvurular: [ORCID API](https://info.orcid.org/documentation/integration-guide/orcid-api-guide/) · [OpenAlex API](https://docs.openalex.org/) · [Scopus APIs](https://dev.elsevier.com/) · [Google Scholar Profiles](https://scholar.google.com/intl/en/scholar/citations.html) · [WoS Starter](https://developer.clarivate.com/apis/wos-starter) · [YÖKSİS WSDL](https://servisler.yok.gov.tr/ws/OzgecmisV2?wsdl) · [TR Dizin](https://development.trdizin.gov.tr/) · [Crossref REST API](https://www.crossref.org/documentation/retrieve-metadata/rest-api/) · [Semantic Scholar API](https://www.semanticscholar.org/product/api)

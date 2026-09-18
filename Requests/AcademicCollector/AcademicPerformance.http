@@ -5,6 +5,7 @@
 @api = {{baseUrl}}/Services/AcademicPerformance/V1
 @personelId = P-1001
 @orcid = 0000-0002-1825-0097
+@scholarId = GOOGLE_SCHOLAR_USER_ID_BURAYA_YAZ
 @scopusId = SCOPUS_AUTHOR_ID_BURAYA_YAZ
 @publicationId = 1
 @academicWorkId = 1
@@ -46,6 +47,16 @@ Content-Type: application/json
 {
   "PersonelID": "{{personelId}}",
   "ScopusID": "{{scopusId}}"
+}
+
+### 2c. Tek bir araştırmacının herkese açık Google Scholar metriklerini topla [sağlayıcı çağrısı + yazma]
+# Anahtar gerekmez. Yalnız profil tablosundaki toplam/son dönem atıf, h-index, i10-index ve dönem yılı alınır.
+POST {{api}}/Collect
+Content-Type: application/json
+
+{
+  "PersonelID": "{{personelId}}",
+  "ScholarID": "{{scholarId}}"
 }
 
 ### 3. Kaydedilmiş veriden sağlayıcı metriklerini hesapla [yazma, sağlayıcı çağrısı yok]
