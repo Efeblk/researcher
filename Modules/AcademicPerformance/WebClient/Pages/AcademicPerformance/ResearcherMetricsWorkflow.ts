@@ -3,7 +3,7 @@ import type { ResearcherMetricsProgressEvent } from "./ResearcherMetricsProgress
 
 export async function recalculateAndReadResearcher(
     personelId: string,
-    request: (action: string, body: { PersonelID: string }) => PromiseLike<unknown>,
+    request: (action: string, body: { PersonelID: string; IncludeActivities?: boolean }) => PromiseLike<unknown>,
     isCurrent: () => boolean,
     onProgress: (event: ResearcherMetricsProgressEvent) => void,
     recalculate: (personelId: string, signal: AbortSignal | undefined,
@@ -15,6 +15,7 @@ export async function recalculateAndReadResearcher(
     onProgress({ Type: "progress", Stage: "refreshing",
         Message: "Güncellenen akademisyen profili getiriliyor." });
     return await request("AcademicPerformance/V1/GetResearcher", {
-        PersonelID: personelId
+        PersonelID: personelId,
+        IncludeActivities: true
     }) as ResearcherCollectResponse;
 }

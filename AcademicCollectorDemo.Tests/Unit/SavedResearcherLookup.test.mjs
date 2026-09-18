@@ -10,13 +10,13 @@ test("current identifiers take precedence over remembered identifiers", () => {
         { personelId: " P-1 ", scopusId: " 57200000001 " },
         { Orcid: "0000-0002-1825-0097", GoogleScholarId: "AbCdEfGhIjKl" });
 
-    assert.deepEqual(request, { PersonelID: "P-1", ScopusID: "57200000001" });
+    assert.deepEqual(request, { PersonelID: "P-1", ScopusID: "57200000001", IncludeActivities: true });
 });
 
 test("remembered non-sensitive identifiers are fallback only", () => {
     assert.deepEqual(createResearcherLookupRequest({}, {
         Orcid: " 0000-0002-1825-0097 ", ScopusId: " 57200000001 "
-    }), { ORCID: "0000-0002-1825-0097", ScopusID: "57200000001" });
+    }), { ORCID: "0000-0002-1825-0097", ScopusID: "57200000001", IncludeActivities: true });
 });
 
 test("empty lookup has no request", () => {

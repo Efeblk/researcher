@@ -17,6 +17,7 @@ using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Orcid;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.GoogleScholar;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.OpenAlex;
 using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.WebOfScience;
+using AcademicCollectorDemo.Modules.AcademicPerformance.Integrations.Yoksis.Persistence;
 
 namespace AcademicCollectorDemo.Tests.Integration;
 
@@ -390,6 +391,12 @@ public sealed class TrDizinCrossrefProviderTests(SqlServerFixture fixture)
             database.Researchers.Add(new Researcher
             {
                 PersonelId = personelId,
+                OrcidProfile = new()
+                {
+                    RawDataJson = "{}",
+                    LastUpdatedAt = DateTime.UtcNow,
+                    ActivitiesDetailsJson = """[{"Category":"funding","PutCode":3,"Item":{"title":{"title":{"value":"Saved funding"}}}},{"Category":"distinction","PutCode":4,"Item":{"role-title":"Saved distinction"}}]"""
+                },
                 TrDizinProfile = new()
                 {
                     Orcid = "0000-0002-1825-0097",
@@ -423,6 +430,21 @@ public sealed class TrDizinCrossrefProviderTests(SqlServerFixture fixture)
                     ]
                 }
             });
+            database.YoksisRecords.AddRange(
+                new YoksisRecord
+                {
+                    PersonelId = personelId, CategoryName = "Projeler",
+                    OperationName = "getirProjeListesiDetay", ExternalRecordId = "YP1",
+                    RecordJson = """{"PROJE_ID":"YP1","PROJE_AD":"Saved YOKSIS project"}""",
+                    CollectedAt = DateTime.UtcNow
+                },
+                new YoksisRecord
+                {
+                    PersonelId = personelId, CategoryName = "Ödüller",
+                    OperationName = "getOdulListesiV1", ExternalRecordId = "YA1",
+                    RecordJson = """{"ODUL_ADI":"Saved YOKSIS award"}""",
+                    CollectedAt = DateTime.UtcNow
+                });
             await database.SaveChangesAsync();
         }
 
@@ -431,7 +453,8 @@ public sealed class TrDizinCrossrefProviderTests(SqlServerFixture fixture)
             .GetRequiredService<IAcademicPerformanceApplicationService>();
         AcademicDataResponse response = await application.GetResearcherAsync(new()
         {
-            PersonelId = personelId
+            PersonelId = personelId,
+            IncludeActivities = true
         });
 
         Assert.Equal(0, response.PublicationCount);
@@ -442,6 +465,17 @@ public sealed class TrDizinCrossrefProviderTests(SqlServerFixture fixture)
         Assert.Equal("P1", project.Id);
         Assert.Equal("SYN-1", project.ProjectNumber);
         Assert.Equal("Coordinator", project.Duty);
+        Assert.Equal(5, response.Activities.Count);
+        Assert.Contains(response.Activities, value => value.Provider == "YÖKSİS" &&
+            value.Title == "Saved YOKSIS project");
+        Assert.Contains(response.Activities, value => value.Provider == "YÖKSİS" &&
+            value.Title == "Saved YOKSIS award");
+        Assert.Contains(response.Activities, value => value.Provider == "ORCID" &&
+            value.Title == "Saved funding");
+        Assert.Contains(response.Activities, value => value.Provider == "ORCID" &&
+            value.Title == "Saved distinction");
+        Assert.Contains(response.Activities, value => value.Provider == "TR Dizin" &&
+            value.Title == "Synthetic project");
     }
 
     [Theory]

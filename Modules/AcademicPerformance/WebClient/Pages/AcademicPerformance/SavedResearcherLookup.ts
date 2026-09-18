@@ -8,6 +8,7 @@ export interface ResearcherLookupRequest {
     ScopusID?: string;
     TcKimlikNo?: string;
     IncludeProviderDetails?: boolean;
+    IncludeActivities?: boolean;
 }
 
 export interface CurrentResearcherIdentifiers {
@@ -31,7 +32,7 @@ export function createResearcherLookupRequest(
         TcKimlikNo: current.tcKimlikNo
     });
     if (Object.keys(currentRequest).length > 0)
-        return currentRequest;
+        return { ...currentRequest, IncludeActivities: true };
 
     const rememberedRequest = compact({
         ORCID: remembered.Orcid,
@@ -39,7 +40,8 @@ export function createResearcherLookupRequest(
         ResearcherID: remembered.WebOfScienceResearcherId,
         ScopusID: remembered.ScopusId
     });
-    return Object.keys(rememberedRequest).length > 0 ? rememberedRequest : undefined;
+    return Object.keys(rememberedRequest).length > 0
+        ? { ...rememberedRequest, IncludeActivities: true } : undefined;
 }
 
 export async function lookupSavedResearcher(
